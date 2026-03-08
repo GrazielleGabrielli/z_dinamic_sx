@@ -1,0 +1,100 @@
+export type TViewMode = 'list' | 'projectManagement' | 'formManager';
+export type TSourceKind = 'list' | 'library';
+
+// ─── Data source ────────────────────────────────────────────────────────────
+
+export interface IDataSourceConfig {
+  kind: TSourceKind;
+  title: string;
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
+export type TAggregateType = 'count' | 'sum';
+export type TFilterOperator = 'eq' | 'ne' | 'gt' | 'lt' | 'ge' | 'le' | 'contains';
+
+export interface IDashboardCardFilter {
+  field: string;
+  operator: TFilterOperator;
+  value: string;
+}
+
+export type TCardVariant = 'default' | 'outlined' | 'soft' | 'solid';
+export type TBorderRadius = 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
+export type TPadding = 'sm' | 'md' | 'lg';
+export type TShadow = 'none' | 'sm' | 'md' | 'lg';
+export type TTitleSize = 'xs' | 'sm' | 'md' | 'lg';
+export type TSubtitleSize = 'xs' | 'sm' | 'md';
+export type TValueSize = 'lg' | 'xl' | '2xl' | '3xl';
+export type TFontWeight = 'normal' | 'medium' | 'semibold' | 'bold';
+export type TAlign = 'left' | 'center' | 'right';
+export type TIconPosition = 'left' | 'top' | 'right';
+export type TLoadingStyle = 'skeleton' | 'spinner' | 'text';
+
+export interface IDashboardCardStyleConfig {
+  variant: TCardVariant;
+  borderRadius: TBorderRadius;
+  padding: TPadding;
+  shadow: TShadow;
+  border: boolean;
+  backgroundColor?: string;
+  borderColor?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  valueColor?: string;
+  iconColor?: string;
+  titleSize: TTitleSize;
+  subtitleSize: TSubtitleSize;
+  valueSize: TValueSize;
+  titleWeight: TFontWeight;
+  valueWeight: TFontWeight;
+  align: TAlign;
+  showIcon: boolean;
+  iconName?: string;
+  iconPosition: TIconPosition;
+  showSubtitle: boolean;
+  showValue: boolean;
+  highlightNegative?: boolean;
+  highlightZero?: boolean;
+  loadingStyle: TLoadingStyle;
+}
+
+export interface IDashboardCardConfig {
+  id: string;
+  title: string;
+  aggregate: TAggregateType;
+  field?: string;
+  filter?: IDashboardCardFilter;
+  subtitle?: string;
+  emptyValueText?: string;
+  errorText?: string;
+  loadingText?: string;
+  style?: IDashboardCardStyleConfig;
+}
+
+export interface IDashboardConfig {
+  enabled: boolean;
+  cardsCount: number;
+  cards: IDashboardCardConfig[];
+}
+
+// ─── Pagination ──────────────────────────────────────────────────────────────
+
+export interface IPaginationConfig {
+  enabled: boolean;
+  pageSize: number;
+  pageSizeOptions: number[];
+}
+
+// ─── Root config ─────────────────────────────────────────────────────────────
+
+export interface IDynamicViewConfig {
+  dataSource: IDataSourceConfig;
+  mode: TViewMode;
+  dashboard: IDashboardConfig;
+  pagination: IPaginationConfig;
+}
+
+export interface IDynamicViewWebPartProps {
+  configJson?: string;
+}

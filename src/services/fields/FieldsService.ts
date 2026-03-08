@@ -1,0 +1,87 @@
+import { getSP } from '../core/sp';
+import { IFieldMetadata, FieldMappedType, IRawSPField } from './types';
+
+const FIELD_SELECT = 'Id,Title,InternalName,TypeAsString,Required,ReadOnlyField,Hidden,Description,DefaultValue,Choices,LookupList,LookupField,AllowMultipleValues,MaxLength';
+
+const SP_TYPE_MAP: Record<string, FieldMappedType> = {
+  Text: 'text',
+  Note: 'multiline',
+  Choice: 'choice',
+  MultiChoice: 'multichoice',
+  Number: 'number',
+  Currency: 'currency',
+  Boolean: 'boolean',
+  DateTime: 'datetime',
+  Lookup: 'lookup',
+  LookupMulti: 'lookupmulti',
+  User: 'user',
+  UserMulti: 'usermulti',
+  URL: 'url',
+  Calculated: 'calculated',
+  TaxonomyFieldType: 'taxonomy',
+  TaxonomyFieldTypeMulti: 'taxonomymulti',
+};
+
+const listRef = (sp: ReturnType<typeof getSP>, titleOrId: string) => {
+  const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
+  return isGuid
+    ? sp.web.lists.getById(titleOrId)
+    : sp.web.lists.getByTitle(titleOrId);
+};
+
+export class FieldsService {
+  private get sp() { return getSP(); }
+
+  mapSharePointFieldType(typeAsString: string): FieldMappedType {
+    return SP_TYPE_MAP[typeAsString] ?? 'unknown';
+  }
+
+  private toFieldMetadata(raw: IRawSPField): IFieldMetadata {
+    return {
+      ...raw,
+      MappedType: this.mapSharePointFieldType(raw.TypeAsString),
+    };
+  }
+
+  async getFields(listTitleOrId: string): Promise<IFieldMetadata[]> {
+    try {
+      const fields = await listRef(this.sp, listTitleOrId).fields
+        .select(FIELD_SELECT)() as IRawSPField[];
+      return fields.map(f => this.toFieldMetadata(f));
+    } catch (e) {
+      throw new Error(`FieldsService.getFields("${listTitleOrId}"): ${e}`);
+    }
+  }
+
+  async getVisibleFields(listTitleOrId: string): Promise<IFieldMetadata[]> {
+    try {
+      const fields = await listRef(this.sp, listTitleOrId).fields
+        .filter('Hidden eq false and ReadOnlyField eq false')
+        .select(FIELD_SELECT)() as IRawSPField[];
+      return fields.map(f => this.toFieldMetadata(f));
+    } catch (e) {
+      throw new Error(`FieldsService.getVisibleFields("${listTitleOrId}"): ${e}`);
+    }
+  }
+
+  async getFieldByInternalName(listTitleOrId: string, internalName: string): Promise<IFieldMetadata> {
+    try {
+      const field = await listRef(this.sp, listTitleOrId).fields
+        .getByInternalNameOrTitle(internalName)
+        .select(FIELD_SELECT)() as IRawSPField;
+      return this.toFieldMetadata(field);
+    } catch (e) {
+      throw new Error(`FieldsService.getFieldByInternalName("${listTitleOrId}", "${internalName}"): ${e}`);
+    }
+  }
+
+  /** Retorna opções de um campo Choice/MultiChoice */
+  async getFieldOptions(listTitleOrId: string, fieldInternalName: string): Promise<string[]> {
+    try {
+      const field = await this.getFieldByInternalName(listTitleOrId, fieldInternalName);
+      return field.Choices ?? [];
+    } catch (e) {
+      throw new Error(`FieldsService.getFieldOptions: ${e}`);
+    }
+  }
+}
