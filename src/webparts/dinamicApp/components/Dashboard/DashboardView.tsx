@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { Stack, Text, ActionButton, MessageBar, MessageBarType } from '@fluentui/react';
+import { FieldsService } from '../../../../services';
 import { IDashboardConfig, IDataSourceConfig } from '../../core/config/types';
 import { generateDefaultCards } from '../../core/config/utils';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
@@ -26,25 +27,32 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   }
 
   const engine = React.useMemo(() => new DashboardEngine(), []);
+  const fieldsService = useMemo(() => new FieldsService(), []);
 
   const [results, setResults] = useState<IDashboardCardResult[]>(() =>
     engine.buildLoadingResults(config)
   );
   const [globalError, setGlobalError] = useState<string | undefined>(undefined);
+  const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
+
+  useEffect(() => {
+    if (!dataSource.title.trim()) return;
+    setFieldMetadata(undefined);
+    fieldsService.getVisibleFields(dataSource.title).then(setFieldMetadata).catch(() => setFieldMetadata([]));
+  }, [dataSource.title]);
 
   useEffect(() => {
     setResults(engine.buildLoadingResults(config));
     setGlobalError(undefined);
 
-    engine
-      .computeAll(config, dataSource)
-      .then((computed) => {
-        setResults(computed);
-      })
-      .catch((err: Error) => {
-        setGlobalError(`Erro ao carregar dashboard: ${err.message}`);
-      });
-  }, [config, dataSource]);
+    const run = fieldMetadata
+      ? engine.computeAll(config, dataSource, fieldMetadata)
+      : (fieldMetadata === undefined ? Promise.resolve(engine.buildLoadingResults(config)) : engine.computeAll(config, dataSource, []));
+
+    run
+      .then((computed) => setResults(computed))
+      .catch((err: Error) => setGlobalError(`Erro ao carregar dashboard: ${err.message}`));
+  }, [config, dataSource, fieldMetadata]);
 
   const cardsWithDefaults = useMemo(
     () => (config.cards.length > 0 ? config.cards : generateDefaultCards(config.cardsCount)),

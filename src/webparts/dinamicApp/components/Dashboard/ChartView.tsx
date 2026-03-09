@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { Stack, Text, ActionButton, Spinner, SpinnerSize, MessageBar, MessageBarType } from '@fluentui/react';
+import { FieldsService } from '../../../../services';
 import { IDashboardConfig, IDataSourceConfig, TChartType } from '../../core/config/types';
 import { IChartSeriesResult } from '../../core/dashboard/types';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
@@ -71,13 +72,21 @@ interface IChartViewProps {
 export const ChartView: React.FC<IChartViewProps> = ({ config, dataSource, onEditSeries }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  const engine = React.useMemo(() => new DashboardEngine(), []);
+  const engine = useMemo(() => new DashboardEngine(), []);
+  const fieldsService = useMemo(() => new FieldsService(), []);
 
   const [chartState, setChartState] = useState<IChartState>({
     results: [],
     loading: false,
     error: undefined,
   });
+  const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
+
+  useEffect(() => {
+    if (!dataSource.title.trim()) return;
+    setFieldMetadata(undefined);
+    fieldsService.getVisibleFields(dataSource.title).then(setFieldMetadata).catch(() => setFieldMetadata([]));
+  }, [dataSource.title]);
 
   useEffect(() => {
     const series = config.chartSeries ?? [];
@@ -85,17 +94,16 @@ export const ChartView: React.FC<IChartViewProps> = ({ config, dataSource, onEdi
       setChartState({ results: [], loading: false, error: undefined });
       return;
     }
-    setChartState({ results: [], loading: true, error: undefined });
+    if (fieldMetadata === undefined) {
+      setChartState((s) => ({ ...s, loading: true, error: undefined }));
+      return;
+    }
+    setChartState((s) => ({ ...s, loading: true, error: undefined }));
     engine
-      .computeAllSeries(config, dataSource)
-      .then((results) => {
-        // atualização atômica — um único render garante que loading=false e results populados juntos
-        setChartState({ results, loading: false, error: undefined });
-      })
-      .catch((err: Error) => {
-        setChartState({ results: [], loading: false, error: `Erro ao carregar dados: ${err.message}` });
-      });
-  }, [config, dataSource]);
+      .computeAllSeries(config, dataSource, fieldMetadata)
+      .then((results) => setChartState({ results, loading: false, error: undefined }))
+      .catch((err: Error) => setChartState({ results: [], loading: false, error: `Erro ao carregar dados: ${err.message}` }));
+  }, [config, dataSource, fieldMetadata]);
 
   // container sempre montado no DOM — só visibility muda
   // assim containerRef.current nunca é null quando o effect de init roda

@@ -20,6 +20,11 @@ export function getDefaultConfig(): IDynamicViewConfig {
       pageSize: 10,
       pageSizeOptions: [5, 10, 20, 50, 100],
     },
+    listView: {
+      columns: [],
+      filters: [],
+      sort: null,
+    },
   };
 }
 

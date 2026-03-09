@@ -62,6 +62,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     } else {
       const existingCards = initialValues?.dashboard.cards ?? [];
       const existingChartSeries = initialValues?.dashboard.chartSeries ?? [];
+      const existingListView = initialValues?.listView;
       const config = buildConfig({
         dataSource: { kind: form.kind, title: form.title },
         mode: form.mode,
@@ -78,6 +79,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
           pageSize: form.pageSize,
           pageSizeOptions: form.pageSizeOptions,
         },
+        listView: existingListView,
       });
       onComplete(config);
     }

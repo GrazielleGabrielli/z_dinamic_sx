@@ -1,4 +1,5 @@
 import { getSP } from '../core/sp';
+import type { IFieldMetadata } from '../shared/types';
 import {
   IItemsQueryOptions,
   IFieldConfig,
@@ -7,12 +8,40 @@ import {
   IPagedResult,
 } from './types';
 
+const EXPANDABLE_TYPES: Array<IFieldMetadata['MappedType']> = ['lookup', 'lookupmulti', 'user', 'usermulti'];
+
 const listRef = (sp: ReturnType<typeof getSP>, titleOrId: string) => {
   const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
   return isGuid
     ? sp.web.lists.getById(titleOrId)
     : sp.web.lists.getByTitle(titleOrId);
 };
+
+function normalizeSelectExpand(
+  select: string[] | undefined,
+  expand: string[] | undefined,
+  fieldMetadata: IFieldMetadata[]
+): { select: string[]; expand: string[] } {
+  const byName = new Map(fieldMetadata.map((f) => [f.InternalName, f]));
+  const newSelect: string[] = [];
+  const expandArr: string[] = expand ? expand.slice() : [];
+
+  (select ?? []).forEach((f) => {
+    if (f.indexOf('/') !== -1) {
+      newSelect.push(f);
+      return;
+    }
+    const meta = byName.get(f);
+    if (meta && EXPANDABLE_TYPES.indexOf(meta.MappedType) !== -1) {
+      if (expandArr.indexOf(f) === -1) expandArr.push(f);
+      newSelect.push(`${f}/Id`, `${f}/Title`);
+    } else {
+      newSelect.push(f);
+    }
+  });
+
+  return { select: newSelect, expand: expandArr };
+}
 
 export class ItemsService {
   private get sp() { return getSP(); }
@@ -51,14 +80,18 @@ export class ItemsService {
     options: IItemsQueryOptions = {}
   ): Promise<T[]> {
     try {
-      let query = listRef(this.sp, listTitleOrId).items as any;
+      const { fieldMetadata, ...rest } = options;
+      const opts = fieldMetadata?.length
+        ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
+        : rest;
 
-      if (options.select?.length) query = query.select(...options.select);
-      if (options.expand?.length) query = query.expand(...options.expand);
-      if (options.filter) query = query.filter(options.filter);
-      if (options.orderBy) query = query.orderBy(options.orderBy.field, options.orderBy.ascending);
-      if (options.top) query = query.top(options.top);
-      if (options.skip) query = query.skip(options.skip);
+      let query = listRef(this.sp, listTitleOrId).items as any;
+      if (opts.select?.length) query = query.select(...opts.select);
+      if (opts.expand?.length) query = query.expand(...opts.expand);
+      if (opts.filter) query = query.filter(opts.filter);
+      if (opts.orderBy) query = query.orderBy(opts.orderBy.field, opts.orderBy.ascending);
+      if (opts.top) query = query.top(opts.top);
+      if (opts.skip) query = query.skip(opts.skip);
 
       return await query() as T[];
     } catch (e) {
@@ -73,15 +106,17 @@ export class ItemsService {
     skip = 0
   ): Promise<IPagedResult<T>> {
     try {
-      const top = options.top ?? pageSize;
+      const { fieldMetadata, ...rest } = options;
+      const opts = fieldMetadata?.length
+        ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
+        : rest;
 
+      const top = opts.top ?? pageSize;
       let query = listRef(this.sp, listTitleOrId).items as any;
-
-      if (options.select?.length) query = query.select(...options.select);
-      if (options.expand?.length) query = query.expand(...options.expand);
-      if (options.filter) query = query.filter(options.filter);
-      if (options.orderBy) query = query.orderBy(options.orderBy.field, options.orderBy.ascending);
-
+      if (opts.select?.length) query = query.select(...opts.select);
+      if (opts.expand?.length) query = query.expand(...opts.expand);
+      if (opts.filter) query = query.filter(opts.filter);
+      if (opts.orderBy) query = query.orderBy(opts.orderBy.field, opts.orderBy.ascending);
       query = query.top(top + 1).skip(skip);
 
       const items: T[] = await query();
@@ -100,13 +135,17 @@ export class ItemsService {
   async getItemById<T = Record<string, unknown>>(
     listTitleOrId: string,
     itemId: number,
-    options: Pick<IItemsQueryOptions, 'select' | 'expand'> = {}
+    options: Pick<IItemsQueryOptions, 'select' | 'expand' | 'fieldMetadata'> = {}
   ): Promise<T> {
     try {
-      let query = listRef(this.sp, listTitleOrId).items.getById(itemId) as any;
+      const { fieldMetadata, select, expand } = options;
+      const normalized = fieldMetadata?.length
+        ? normalizeSelectExpand(select, expand, fieldMetadata)
+        : { select: select ?? [], expand: expand ?? [] };
 
-      if (options.select?.length) query = query.select(...options.select);
-      if (options.expand?.length) query = query.expand(...options.expand);
+      let query = listRef(this.sp, listTitleOrId).items.getById(itemId) as any;
+      if (normalized.select.length) query = query.select(...normalized.select);
+      if (normalized.expand.length) query = query.expand(...normalized.expand);
 
       return await query() as T;
     } catch (e) {

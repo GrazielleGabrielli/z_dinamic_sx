@@ -5,7 +5,9 @@ import {
   IDashboardCardConfig,
   IDashboardCardStyleConfig,
   IPaginationConfig,
+  IListViewConfig,
 } from '../types';
+import { getDefaultConfig } from '../utils';
 
 const VALID_MODES = ['list', 'projectManagement', 'formManager'];
 const VALID_AGGREGATES = ['count', 'sum'];
@@ -85,23 +87,46 @@ function isValidPagination(pg: unknown): pg is IPaginationConfig {
   );
 }
 
+function isValidListView(lv: unknown): lv is IListViewConfig {
+  if (!lv || typeof lv !== 'object') return false;
+  const l = lv as Record<string, unknown>;
+  if (!Array.isArray(l.columns) || !Array.isArray(l.filters)) return false;
+  if (l.sort !== null && (typeof l.sort !== 'object' || !('field' in (l.sort as object)) || !('ascending' in (l.sort as object)))) return false;
+  return true;
+}
+
 export function isValidConfig(config: unknown): config is IDynamicViewConfig {
   if (!config || typeof config !== 'object') return false;
   const c = config as Record<string, unknown>;
-  return (
+  const base =
     isValidDataSource(c.dataSource) &&
     typeof c.mode === 'string' &&
     VALID_MODES.indexOf(c.mode as string) !== -1 &&
     isValidDashboard(c.dashboard) &&
-    isValidPagination(c.pagination)
-  );
+    isValidPagination(c.pagination);
+  if (!base) return false;
+  if (c.listView !== undefined && !isValidListView(c.listView)) return false;
+  return true;
 }
 
 export function parseConfig(raw: string | undefined): IDynamicViewConfig | undefined {
   if (!raw) return undefined;
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isValidConfig(parsed) ? parsed : undefined;
+    if (!isValidConfig(parsed)) return undefined;
+    const defaults = getDefaultConfig();
+    const c = parsed as IDynamicViewConfig;
+    if (c.listView === undefined) {
+      return { ...c, listView: defaults.listView };
+    }
+    return {
+      ...c,
+      listView: {
+        columns: c.listView.columns ?? defaults.listView.columns,
+        filters: c.listView.filters ?? defaults.listView.filters,
+        sort: c.listView.sort ?? defaults.listView.sort,
+      },
+    };
   } catch {
     return undefined;
   }

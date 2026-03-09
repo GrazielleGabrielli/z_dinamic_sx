@@ -1,4 +1,5 @@
 import { IPagedResult } from '../shared/types';
+import type { IFieldMetadata } from '../shared/types';
 
 export { IPagedResult };
 
@@ -9,6 +10,8 @@ export interface IItemsQueryOptions {
   orderBy?: { field: string; ascending: boolean };
   top?: number;
   skip?: number;
+  /** Metadados da lista: ao preencher, select/expand são normalizados para lookup/user/lookupmulti/usermulti */
+  fieldMetadata?: IFieldMetadata[];
 }
 
 export interface IFieldConfig {

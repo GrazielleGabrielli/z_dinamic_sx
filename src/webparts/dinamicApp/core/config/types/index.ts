@@ -64,6 +64,8 @@ export interface IDashboardCardConfig {
   title: string;
   aggregate: TAggregateType;
   field?: string;
+  /** Para campo lookup: campo da lista de destino (ex: Title). Gera $expand e select campo/expandField */
+  expandField?: string;
   filter?: IDashboardCardFilter;
   subtitle?: string;
   emptyValueText?: string;
@@ -80,6 +82,7 @@ export interface IChartSeriesConfig {
   label: string;
   aggregate: TAggregateType;
   field?: string;
+  expandField?: string;
   filter?: IDashboardCardFilter;
   color?: string;
 }
@@ -101,6 +104,33 @@ export interface IPaginationConfig {
   pageSizeOptions: number[];
 }
 
+// ─── List view ───────────────────────────────────────────────────────────────
+
+export interface IListViewColumnConfig {
+  field: string;
+  label?: string;
+  width?: number;
+  /** Para campo lookup: campo da lista de destino a exibir (ex: Title). Gera $expand e select campo/expandField */
+  expandField?: string;
+}
+
+export interface IListViewFilterConfig {
+  field: string;
+  operator: TFilterOperator;
+  value: string;
+}
+
+export interface IListViewSortConfig {
+  field: string;
+  ascending: boolean;
+}
+
+export interface IListViewConfig {
+  columns: IListViewColumnConfig[];
+  filters: IListViewFilterConfig[];
+  sort: IListViewSortConfig | null;
+}
+
 // ─── Root config ─────────────────────────────────────────────────────────────
 
 export interface IDynamicViewConfig {
@@ -108,6 +138,7 @@ export interface IDynamicViewConfig {
   mode: TViewMode;
   dashboard: IDashboardConfig;
   pagination: IPaginationConfig;
+  listView: IListViewConfig;
 }
 
 export interface IDynamicViewWebPartProps {

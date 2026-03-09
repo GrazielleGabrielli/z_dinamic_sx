@@ -1,4 +1,4 @@
-import { IDynamicViewConfig, IDataSourceConfig, IDashboardConfig, IPaginationConfig, TViewMode } from '../types';
+import { IDynamicViewConfig, IDataSourceConfig, IDashboardConfig, IPaginationConfig, IListViewConfig, TViewMode } from '../types';
 import { getDefaultConfig } from '../utils';
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
@@ -8,6 +8,7 @@ export function buildConfig(params: {
   mode: TViewMode;
   dashboard: Partial<IDashboardConfig>;
   pagination: Partial<IPaginationConfig>;
+  listView?: Partial<IListViewConfig>;
 }): IDynamicViewConfig {
   const defaults = getDefaultConfig();
   return {
@@ -28,6 +29,11 @@ export function buildConfig(params: {
         params.pagination.pageSizeOptions?.length
           ? params.pagination.pageSizeOptions
           : DEFAULT_PAGE_SIZE_OPTIONS,
+    },
+    listView: {
+      columns: params.listView?.columns ?? defaults.listView.columns,
+      filters: params.listView?.filters ?? defaults.listView.filters,
+      sort: params.listView?.sort ?? defaults.listView.sort,
     },
   };
 }

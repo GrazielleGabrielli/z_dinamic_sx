@@ -8,6 +8,7 @@ import { ConfigWizard } from './Wizard/ConfigWizard';
 import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
 import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEditorPanel';
+import { ListView } from './ListView/ListView';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
@@ -101,10 +102,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
           <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
             Modo: {config.mode} · Origem: {config.dataSource.kind}
           </Text>
-          <Text variant="small" styles={{ root: { color: '#c8c6c4' } }}>
-            Listagem e paginação serão implementadas na próxima etapa.
-          </Text>
         </Stack>
+
+        <ListView config={config} />
       </Stack>
 
       <CardEditorPanel
