@@ -15,3 +15,12 @@ export interface IDashboardCardResult {
   errorText?: string;
   loadingText?: string;
 }
+
+export interface IChartSeriesResult {
+  id: string;
+  label: string;
+  value: number;
+  color?: string;
+  status: TCardStatus;
+  error?: string;
+}

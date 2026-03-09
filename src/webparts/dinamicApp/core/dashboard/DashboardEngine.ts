@@ -1,7 +1,7 @@
 import { ItemsService } from '../../../../services';
-import { IDashboardCardConfig, IDashboardConfig, IDataSourceConfig, TFilterOperator } from '../config/types';
+import { IDashboardCardConfig, IDashboardConfig, IDataSourceConfig, IChartSeriesConfig, TFilterOperator } from '../config/types';
 import { generateDefaultCards } from '../config/utils';
-import { IDashboardCardResult, TCardStatus } from './types';
+import { IDashboardCardResult, IChartSeriesResult, TCardStatus } from './types';
 
 const NUMERIC_OPERATORS: TFilterOperator[] = ['gt', 'lt', 'ge', 'le'];
 
@@ -83,6 +83,52 @@ export class DashboardEngine {
       config.cards.length > 0 ? config.cards : generateDefaultCards(config.cardsCount);
 
     return Promise.all(cards.map((card) => this.computeCard(card, dataSource)));
+  }
+
+  async computeSeries(
+    series: IChartSeriesConfig,
+    dataSource: IDataSourceConfig
+  ): Promise<IChartSeriesResult> {
+    try {
+      const filterStr = this.buildFilterString(series.filter);
+
+      if (series.aggregate === 'count') {
+        const items = await this.itemsService.getItems(dataSource.title, {
+          select: ['Id'],
+          filter: filterStr,
+          top: 5000,
+        });
+        return { id: series.id, label: series.label, value: items.length, color: series.color, status: 'ready' };
+      }
+
+      if (series.aggregate === 'sum') {
+        if (!series.field) {
+          return { id: series.id, label: series.label, value: 0, color: series.color, status: 'error', error: 'Campo não definido' };
+        }
+        const items = await this.itemsService.getItems<Record<string, unknown>>(
+          dataSource.title,
+          { select: ['Id', series.field], filter: filterStr, top: 5000 }
+        );
+        const fieldName = series.field;
+        const sum = items.reduce((acc, item) => {
+          const raw = Number(item[fieldName]);
+          return acc + (isNaN(raw) ? 0 : raw);
+        }, 0);
+        return { id: series.id, label: series.label, value: sum, color: series.color, status: 'ready' };
+      }
+
+      return { id: series.id, label: series.label, value: 0, color: series.color, status: 'error', error: 'Agregação não suportada' };
+    } catch (err) {
+      return { id: series.id, label: series.label, value: 0, color: series.color, status: 'error', error: String(err) };
+    }
+  }
+
+  async computeAllSeries(
+    config: IDashboardConfig,
+    dataSource: IDataSourceConfig
+  ): Promise<IChartSeriesResult[]> {
+    const series = config.chartSeries ?? [];
+    return Promise.all(series.map((s) => this.computeSeries(s, dataSource)));
   }
 
   buildLoadingResults(config: IDashboardConfig): IDashboardCardResult[] {

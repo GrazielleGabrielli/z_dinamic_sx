@@ -30,7 +30,7 @@ function isStepValid(step: number, form: IWizardFormState): boolean {
   switch (step) {
     case 1: return form.title.trim().length > 0;
     case 2: return form.mode === 'list';
-    case 3: return !form.dashboardEnabled || form.cardsCount >= 1;
+    case 3: return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
     case 4: return form.paginationEnabled ? form.pageSize > 0 : true;
     default: return false;
   }
@@ -61,13 +61,17 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
       setStep((s) => s + 1);
     } else {
       const existingCards = initialValues?.dashboard.cards ?? [];
+      const existingChartSeries = initialValues?.dashboard.chartSeries ?? [];
       const config = buildConfig({
         dataSource: { kind: form.kind, title: form.title },
         mode: form.mode,
         dashboard: {
           enabled: form.dashboardEnabled,
+          dashboardType: form.dashboardType,
           cardsCount: form.cardsCount,
           cards: existingCards,
+          chartType: form.chartType,
+          chartSeries: existingChartSeries,
         },
         pagination: {
           enabled: form.paginationEnabled,

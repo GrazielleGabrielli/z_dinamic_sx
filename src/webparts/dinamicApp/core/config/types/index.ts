@@ -72,10 +72,25 @@ export interface IDashboardCardConfig {
   style?: IDashboardCardStyleConfig;
 }
 
+export type TDashboardType = 'cards' | 'charts';
+export type TChartType = 'bar' | 'line' | 'area' | 'pie' | 'donut';
+
+export interface IChartSeriesConfig {
+  id: string;
+  label: string;
+  aggregate: TAggregateType;
+  field?: string;
+  filter?: IDashboardCardFilter;
+  color?: string;
+}
+
 export interface IDashboardConfig {
   enabled: boolean;
+  dashboardType: TDashboardType;
   cardsCount: number;
   cards: IDashboardCardConfig[];
+  chartType?: TChartType;
+  chartSeries?: IChartSeriesConfig[];
 }
 
 // ─── Pagination ──────────────────────────────────────────────────────────────

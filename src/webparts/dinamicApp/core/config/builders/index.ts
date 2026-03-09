@@ -15,8 +15,11 @@ export function buildConfig(params: {
     mode: params.mode,
     dashboard: {
       enabled: params.dashboard.enabled ?? defaults.dashboard.enabled,
+      dashboardType: params.dashboard.dashboardType ?? defaults.dashboard.dashboardType,
       cardsCount: params.dashboard.cardsCount ?? defaults.dashboard.cardsCount,
       cards: params.dashboard.cards ?? [],
+      chartType: params.dashboard.chartType ?? defaults.dashboard.chartType,
+      chartSeries: params.dashboard.chartSeries ?? [],
     },
     pagination: {
       enabled: params.pagination.enabled ?? defaults.pagination.enabled,

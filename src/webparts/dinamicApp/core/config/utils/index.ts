@@ -10,8 +10,10 @@ export function getDefaultConfig(): IDynamicViewConfig {
     mode: 'list',
     dashboard: {
       enabled: false,
+      dashboardType: 'cards',
       cardsCount: 0,
       cards: [],
+      chartType: 'bar',
     },
     pagination: {
       enabled: true,

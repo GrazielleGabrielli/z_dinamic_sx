@@ -3,14 +3,16 @@ import { useState } from 'react';
 import { Text, Stack, Separator, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { parseConfig } from '../core/config/validators';
-import { IDashboardCardConfig, IDynamicViewConfig } from '../core/config/types';
+import { IDashboardCardConfig, IChartSeriesConfig, IDynamicViewConfig } from '../core/config/types';
 import { ConfigWizard } from './Wizard/ConfigWizard';
 import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
+import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEditorPanel';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
+  const [isEditingSeries, setIsEditingSeries] = useState(false);
 
   const config = parseConfig(configJson ?? undefined);
 
@@ -32,6 +34,18 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
     setIsEditingCards(false);
   };
 
+  const handleSaveSeries = (chartSeries: IChartSeriesConfig[]): void => {
+    if (!config) return;
+    onSaveConfig({
+      ...config,
+      dashboard: {
+        ...config.dashboard,
+        chartSeries,
+      },
+    });
+    setIsEditingSeries(false);
+  };
+
   if (config === undefined || isEditingWebPart) {
     return (
       <ConfigWizard
@@ -43,7 +57,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
     );
   }
 
-  const showDashboard = config.dashboard.enabled && config.dashboard.cardsCount > 0;
+  const showDashboard =
+    config.dashboard.enabled &&
+    (config.dashboard.dashboardType === 'charts' || config.dashboard.cardsCount > 0);
 
   return (
     <>
@@ -72,6 +88,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
               config={config.dashboard}
               dataSource={config.dataSource}
               onEditCards={() => setIsEditingCards(true)}
+              onEditSeries={() => setIsEditingSeries(true)}
             />
             <Separator />
           </>
@@ -97,6 +114,14 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
         cardsCount={config.dashboard.cardsCount}
         onSave={handleSaveCards}
         onDismiss={() => setIsEditingCards(false)}
+      />
+
+      <ChartSeriesEditorPanel
+        isOpen={isEditingSeries}
+        listTitle={config.dataSource.title}
+        series={config.dashboard.chartSeries ?? []}
+        onSave={handleSaveSeries}
+        onDismiss={() => setIsEditingSeries(false)}
       />
     </>
   );

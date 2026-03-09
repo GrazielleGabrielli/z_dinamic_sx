@@ -6,18 +6,25 @@ import { generateDefaultCards } from '../../core/config/utils';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
 import { IDashboardCardResult } from '../../core/dashboard/types';
 import { DashboardCard } from './DashboardCard';
+import { ChartView } from './ChartView';
 
 interface IDashboardViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   onEditCards: () => void;
+  onEditSeries: () => void;
 }
 
 export const DashboardView: React.FC<IDashboardViewProps> = ({
   config,
   dataSource,
   onEditCards,
+  onEditSeries,
 }) => {
+  if (config.dashboardType === 'charts') {
+    return <ChartView config={config} dataSource={dataSource} onEditSeries={onEditSeries} />;
+  }
+
   const engine = React.useMemo(() => new DashboardEngine(), []);
 
   const [results, setResults] = useState<IDashboardCardResult[]>(() =>
