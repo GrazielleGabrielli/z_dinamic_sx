@@ -1,2 +1,2 @@
-export { buildListQuery, buildListFilter, buildListSelect } from './buildListQuery';
-export type { IListQueryOptions } from './buildListQuery';
+export { buildListQuery, buildListFilter, buildListSelect, getActiveViewModeFilters } from './buildListQuery';
+export type { IListQueryOptions, IBuildListQueryOptions } from './buildListQuery';

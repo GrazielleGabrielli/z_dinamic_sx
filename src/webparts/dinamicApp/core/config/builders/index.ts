@@ -34,6 +34,8 @@ export function buildConfig(params: {
       columns: params.listView?.columns ?? defaults.listView.columns,
       filters: params.listView?.filters ?? defaults.listView.filters,
       sort: params.listView?.sort ?? defaults.listView.sort,
+      viewModes: params.listView?.viewModes ?? defaults.listView.viewModes,
+      activeViewModeId: params.listView?.activeViewModeId ?? defaults.listView.activeViewModeId,
     },
   };
 }

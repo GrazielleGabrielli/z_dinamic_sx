@@ -125,6 +125,8 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         columns: c.listView.columns ?? defaults.listView.columns,
         filters: c.listView.filters ?? defaults.listView.filters,
         sort: c.listView.sort ?? defaults.listView.sort,
+        viewModes: c.listView.viewModes ?? defaults.listView.viewModes,
+        activeViewModeId: c.listView.activeViewModeId ?? defaults.listView.activeViewModeId,
       },
     };
   } catch {

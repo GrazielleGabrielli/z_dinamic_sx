@@ -13,6 +13,8 @@ import {
   MessageBarType,
   IconButton,
   TooltipHost,
+  Dropdown,
+  IDropdownOption,
 } from '@fluentui/react';
 import { IDynamicViewConfig, IListViewColumnConfig } from '../../core/config/types';
 import { buildListQuery } from '../../core/listView';
@@ -64,6 +66,9 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
   const [error, setError] = useState<string | undefined>(undefined);
   const [skip, setSkip] = useState(0);
   const [hasNext, setHasNext] = useState(false);
+  const [selectedViewModeId, setSelectedViewModeId] = useState<string>(
+    () => listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all'
+  );
 
   const itemsService = useMemo(() => new ItemsService(), []);
   const fieldsService = useMemo(() => new FieldsService(), []);
@@ -115,8 +120,9 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
     () => ({
       ...listView,
       columns: effectiveColumns,
+      activeViewModeId: selectedViewModeId,
     }),
-    [listView, effectiveColumns]
+    [listView, effectiveColumns, selectedViewModeId]
   );
 
   const queryOptions = useMemo(() => buildListQuery(effectiveListView), [effectiveListView]);
@@ -167,6 +173,9 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
     [effectiveColumns]
   );
 
+  const viewModes = listView?.viewModes ?? [];
+  const viewModeOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
+
   const pageSize = pagination.enabled ? pagination.pageSize : 100;
   const currentPage = Math.floor(skip / pageSize) + 1;
 
@@ -207,6 +216,15 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
 
   return (
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8 } }}>
+      {viewModeOptions.length > 0 && (
+        <Dropdown
+          label="Visualização"
+          options={viewModeOptions}
+          selectedKey={selectedViewModeId}
+          onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setSelectedViewModeId(String(opt.key))}
+          styles={{ root: { maxWidth: 220 } }}
+        />
+      )}
       <DetailsList
         items={items}
         columns={columns}

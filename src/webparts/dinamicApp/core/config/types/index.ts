@@ -98,10 +98,14 @@ export interface IDashboardConfig {
 
 // ─── Pagination ──────────────────────────────────────────────────────────────
 
+export type TPaginationLayout = 'buttons' | 'numbered' | 'compact' | 'paged';
+
 export interface IPaginationConfig {
   enabled: boolean;
   pageSize: number;
   pageSizeOptions: number[];
+  /** Layout da paginação exibida após a tabela */
+  layout?: TPaginationLayout;
 }
 
 // ─── List view ───────────────────────────────────────────────────────────────
@@ -125,10 +129,18 @@ export interface IListViewSortConfig {
   ascending: boolean;
 }
 
+export interface IListViewModeConfig {
+  id: string;
+  label: string;
+  filters: IListViewFilterConfig[];
+}
+
 export interface IListViewConfig {
   columns: IListViewColumnConfig[];
   filters: IListViewFilterConfig[];
   sort: IListViewSortConfig | null;
+  viewModes?: IListViewModeConfig[];
+  activeViewModeId?: string;
 }
 
 // ─── Root config ─────────────────────────────────────────────────────────────
@@ -139,6 +151,8 @@ export interface IDynamicViewConfig {
   dashboard: IDashboardConfig;
   pagination: IPaginationConfig;
   listView: IListViewConfig;
+  /** Config da tabela dinâmica (modo list). Quando presente, DataTable + TableEngine são usados. */
+  tableConfig?: import('../../table').ITableConfig;
 }
 
 export interface IDynamicViewWebPartProps {

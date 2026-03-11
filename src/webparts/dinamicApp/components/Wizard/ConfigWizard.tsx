@@ -15,6 +15,7 @@ import { Step1DataSource } from './steps/Step1DataSource';
 import { Step2Mode } from './steps/Step2Mode';
 import { Step3Dashboard } from './steps/Step3Dashboard';
 import { Step4Pagination } from './steps/Step4Pagination';
+import { Step5ViewModes } from './steps/Step5ViewModes';
 
 interface IConfigWizardProps {
   siteUrl: string;
@@ -23,8 +24,8 @@ interface IConfigWizardProps {
   onCancel?: () => void;
 }
 
-const TOTAL_STEPS = 4;
-const STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação'];
+const TOTAL_STEPS = 5;
+const STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modos de visualização'];
 
 function isStepValid(step: number, form: IWizardFormState): boolean {
   switch (step) {
@@ -32,6 +33,7 @@ function isStepValid(step: number, form: IWizardFormState): boolean {
     case 2: return form.mode === 'list';
     case 3: return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
     case 4: return form.paginationEnabled ? form.pageSize > 0 : true;
+    case 5: return (form.viewModes?.length ?? 0) > 0;
     default: return false;
   }
 }
@@ -79,7 +81,11 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
           pageSize: form.pageSize,
           pageSizeOptions: form.pageSizeOptions,
         },
-        listView: existingListView,
+        listView: {
+          ...existingListView,
+          viewModes: form.viewModes,
+          activeViewModeId: form.activeViewModeId,
+        },
       });
       onComplete(config);
     }
@@ -95,6 +101,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
       case 2: return <Step2Mode form={form} onChange={updateForm} />;
       case 3: return <Step3Dashboard form={form} onChange={updateForm} />;
       case 4: return <Step4Pagination form={form} onChange={updateForm} />;
+      case 5: return <Step5ViewModes form={form} onChange={updateForm} />;
       default: return <></>;
     }
   };
@@ -146,6 +153,28 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
               styles={{ itemProgress: { padding: 0 } }}
             />
           </div>
+          <Stack horizontal tokens={{ childrenGap: 0 }} styles={{ root: { marginTop: 12, marginBottom: 4 } }}>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStep(s)}
+                style={{
+                  flex: 1,
+                  padding: '8px 4px',
+                  border: 'none',
+                  borderBottom: step === s ? '2px solid #0078d4' : '2px solid transparent',
+                  background: step === s ? 'rgba(0,120,212,0.08)' : 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: step === s ? 600 : 400,
+                  color: step === s ? '#0078d4' : '#605e5c',
+                }}
+              >
+                {s}. {STEP_LABELS[s - 1]}
+              </button>
+            ))}
+          </Stack>
         </div>
 
         <Separator />

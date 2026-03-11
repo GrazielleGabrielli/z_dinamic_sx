@@ -3,17 +3,19 @@ import { useState } from 'react';
 import { Text, Stack, Separator, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { parseConfig } from '../core/config/validators';
-import { IDashboardCardConfig, IChartSeriesConfig, IDynamicViewConfig } from '../core/config/types';
+import { IDashboardCardConfig, IChartSeriesConfig, IDynamicViewConfig, IListViewConfig, IPaginationConfig } from '../core/config/types';
 import { ConfigWizard } from './Wizard/ConfigWizard';
 import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
 import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEditorPanel';
-import { ListView } from './ListView/ListView';
+import { TableView } from './DataTable/TableView';
+import { TableColumnsEditorPanel } from './DataTable/TableColumnsEditorPanel';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
   const [isEditingSeries, setIsEditingSeries] = useState(false);
+  const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
 
   const config = parseConfig(configJson ?? undefined);
 
@@ -45,6 +47,16 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
       },
     });
     setIsEditingSeries(false);
+  };
+
+  const handleSaveTableColumns = (listView: IListViewConfig, pagination: IPaginationConfig): void => {
+    if (!config) return;
+    onSaveConfig({
+      ...config,
+      listView,
+      pagination,
+    });
+    setIsEditingTableColumns(false);
   };
 
   if (config === undefined || isEditingWebPart) {
@@ -95,16 +107,31 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
           </>
         )}
 
-        <Stack tokens={{ childrenGap: 6 }} styles={{ root: { padding: '16px 0' } }}>
-          <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
-            {config.dataSource.title}
-          </Text>
-          <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
-            Modo: {config.mode} · Origem: {config.dataSource.kind}
-          </Text>
+        <Stack
+          horizontal
+          horizontalAlign="space-between"
+          verticalAlign="center"
+          tokens={{ childrenGap: 8 }}
+          styles={{ root: { padding: '16px 0 8px' } }}
+        >
+          <Stack tokens={{ childrenGap: 6 }}>
+            <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
+              {config.dataSource.title}
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
+              Modo: {config.mode} · Origem: {config.dataSource.kind}
+            </Text>
+          </Stack>
+          <ActionButton
+            iconProps={{ iconName: 'ColumnOptions' }}
+            onClick={() => setIsEditingTableColumns(true)}
+            styles={{ root: { height: 28, color: '#0078d4' } }}
+          >
+            Editar colunas
+          </ActionButton>
         </Stack>
 
-        <ListView config={config} />
+        <TableView config={config} />
       </Stack>
 
       <CardEditorPanel
@@ -122,6 +149,15 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
         series={config.dashboard.chartSeries ?? []}
         onSave={handleSaveSeries}
         onDismiss={() => setIsEditingSeries(false)}
+      />
+
+      <TableColumnsEditorPanel
+        isOpen={isEditingTableColumns}
+        listTitle={config.dataSource.title}
+        listView={config.listView}
+        pagination={config.pagination}
+        onSave={handleSaveTableColumns}
+        onDismiss={() => setIsEditingTableColumns(false)}
       />
     </>
   );

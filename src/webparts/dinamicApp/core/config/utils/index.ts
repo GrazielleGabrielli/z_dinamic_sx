@@ -19,11 +19,17 @@ export function getDefaultConfig(): IDynamicViewConfig {
       enabled: true,
       pageSize: 10,
       pageSizeOptions: [5, 10, 20, 50, 100],
+      layout: 'buttons',
     },
     listView: {
       columns: [],
       filters: [],
       sort: null,
+      viewModes: [
+        { id: 'all', label: 'Todas', filters: [] },
+        { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
+      ],
+      activeViewModeId: 'all',
     },
   };
 }
