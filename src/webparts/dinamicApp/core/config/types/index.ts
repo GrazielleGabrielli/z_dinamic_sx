@@ -67,6 +67,7 @@ export interface IDashboardCardConfig {
   /** Para campo lookup: campo da lista de destino (ex: Title). Gera $expand e select campo/expandField */
   expandField?: string;
   filter?: IDashboardCardFilter;
+  filters?: IDashboardCardFilter[];
   subtitle?: string;
   emptyValueText?: string;
   errorText?: string;
@@ -84,6 +85,7 @@ export interface IChartSeriesConfig {
   field?: string;
   expandField?: string;
   filter?: IDashboardCardFilter;
+  filters?: IDashboardCardFilter[];
   color?: string;
 }
 

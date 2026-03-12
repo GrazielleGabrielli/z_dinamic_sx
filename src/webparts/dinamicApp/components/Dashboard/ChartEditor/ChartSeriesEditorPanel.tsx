@@ -18,9 +18,10 @@ import {
   Spinner,
   SpinnerSize,
 } from '@fluentui/react';
-import { IChartSeriesConfig, TAggregateType, TFilterOperator } from '../../../core/config/types';
+import { IChartSeriesConfig, IDashboardCardFilter, TAggregateType, TFilterOperator, TChartType, TDashboardType } from '../../../core/config/types';
 import { FieldsService } from '../../../../../services';
 import type { IFieldMetadata } from '../../../../../services';
+import { ChartTypeCard } from '../ChartTypeCard';
 
 const NUMERIC_MAPPED_TYPES: string[] = ['number', 'currency', 'calculated'];
 
@@ -49,26 +50,35 @@ const PRESET_COLORS = [
   '#8764b8', '#038387', '#ca5010',
 ];
 
+const DASHBOARD_TYPE_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'cards', text: 'Cards' },
+  { key: 'charts', text: 'Gráficos' },
+];
+
+const CHART_TYPES: TChartType[] = ['bar', 'line', 'area', 'pie', 'donut'];
+
 interface ISeriesFormState {
   label: string;
   aggregate: TAggregateType;
   field: string;
   hasFilter: boolean;
-  filterField: string;
-  filterOperator: TFilterOperator;
-  filterValue: string;
+  filters: IDashboardCardFilter[];
   color: string;
 }
 
 function initSeriesState(series?: IChartSeriesConfig): ISeriesFormState {
+  const filters =
+    series?.filters && series.filters.length > 0
+      ? series.filters.slice()
+      : series?.filter
+        ? [{ field: series.filter.field, operator: series.filter.operator, value: series.filter.value }]
+        : [{ field: '', operator: 'eq' as TFilterOperator, value: '' }];
   return {
     label: series?.label ?? '',
     aggregate: series?.aggregate ?? 'count',
     field: series?.field ?? '',
-    hasFilter: series?.filter !== undefined,
-    filterField: series?.filter?.field ?? '',
-    filterOperator: series?.filter?.operator ?? 'eq',
-    filterValue: series?.filter?.value ?? '',
+    hasFilter: true,
+    filters,
     color: series?.color ?? PRESET_COLORS[0],
   };
 }
@@ -83,23 +93,27 @@ function buildSeries(state: ISeriesFormState, existingId?: string): IChartSeries
   if (state.aggregate === 'sum' && state.field.trim()) {
     s.field = state.field.trim();
   }
-  if (state.hasFilter && state.filterField.trim() && state.filterValue.trim()) {
-    s.filter = {
-      field: state.filterField.trim(),
-      operator: state.filterOperator,
-      value: state.filterValue.trim(),
-    };
+  if (state.hasFilter && state.filters.length > 0) {
+    const valid = state.filters.filter((f) => f.field.trim().length > 0 && String(f.value).trim().length > 0);
+    if (valid.length > 0) s.filters = valid.map((f) => ({ field: f.field.trim(), operator: f.operator, value: String(f.value).trim() }));
   }
   return s;
 }
 
 type TPanelView = 'list' | 'form';
 
+export interface IChartSeriesEditorSaveOptions {
+  dashboardType?: TDashboardType;
+  chartType?: TChartType;
+}
+
 interface IChartSeriesEditorPanelProps {
   isOpen: boolean;
   listTitle: string;
   series: IChartSeriesConfig[];
-  onSave: (series: IChartSeriesConfig[]) => void;
+  dashboardType: TDashboardType;
+  chartType?: TChartType;
+  onSave: (series: IChartSeriesConfig[], options?: IChartSeriesEditorSaveOptions) => void;
   onDismiss: () => void;
 }
 
@@ -204,32 +218,50 @@ const SeriesForm: React.FC<{
           {fieldsError && (
             <Text variant="small" styles={{ root: { color: '#d13438' } }}>{fieldsError}</Text>
           )}
-          <Dropdown
-            label="Campo do filtro"
-            placeholder="Selecione o campo"
-            options={filterFieldOptions}
-            selectedKey={state.filterField || ''}
-            onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) =>
-              update({ filterField: opt ? String(opt.key) : '' })
-            }
-            disabled={fieldsLoading}
-          />
-          <Dropdown
-            label="Operador"
-            options={OPERATOR_OPTIONS}
-            selectedKey={state.filterOperator}
-            onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-              if (opt) update({ filterOperator: opt.key as TFilterOperator });
-            }}
-          />
-          <TextField
-            label="Valor"
-            value={state.filterValue}
-            onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) =>
-              update({ filterValue: v ?? '' })
-            }
-            placeholder="Ex: Ativo, Pendente, 100"
-          />
+          <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Filtros</Text>
+          {state.filters.map((f, i) => (
+            <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
+              <Dropdown
+                label="Campo"
+                placeholder="Selecione"
+                options={filterFieldOptions}
+                selectedKey={f.field || ''}
+                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                  const next = state.filters.slice();
+                  next[i] = { ...next[i], field: opt ? String(opt.key) : '' };
+                  update({ filters: next });
+                }}
+                styles={{ root: { flex: 1 } }}
+                disabled={fieldsLoading}
+              />
+              <Dropdown
+                label="Operador"
+                options={OPERATOR_OPTIONS}
+                selectedKey={f.operator}
+                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                  if (opt) {
+                    const next = state.filters.slice();
+                    next[i] = { ...next[i], operator: String(opt.key) as TFilterOperator };
+                    update({ filters: next });
+                  }
+                }}
+                styles={{ root: { width: 140 } }}
+              />
+              <TextField
+                label="Valor"
+                value={f.value}
+                onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => {
+                  const next = state.filters.slice();
+                  next[i] = { ...next[i], value: v ?? '' };
+                  update({ filters: next });
+                }}
+                placeholder="Ex: Ativo, [me]"
+                styles={{ root: { flex: 1 } }}
+              />
+              <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => update({ filters: state.filters.filter((_, idx) => idx !== i) })} />
+            </Stack>
+          ))}
+          <DefaultButton text="Adicionar filtro" onClick={() => update({ filters: [...state.filters, { field: '', operator: 'eq', value: '' }] })} />
         </Stack>
       )}
 
@@ -279,20 +311,26 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
   isOpen,
   listTitle,
   series,
+  dashboardType,
+  chartType = 'bar',
   onSave,
   onDismiss,
 }) => {
   const [localSeries, setLocalSeries] = useState<IChartSeriesConfig[]>(() => [...series]);
+  const [localDashboardType, setLocalDashboardType] = useState<TDashboardType>(dashboardType);
+  const [localChartType, setLocalChartType] = useState<TChartType>(chartType);
   const [view, setView] = useState<TPanelView>('list');
   const [editingIndex, setEditingIndex] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (isOpen) {
       setLocalSeries([...series]);
+      setLocalDashboardType(dashboardType);
+      setLocalChartType(chartType ?? 'bar');
       setView('list');
       setEditingIndex(undefined);
     }
-  }, [isOpen]);
+  }, [isOpen, series, dashboardType, chartType]);
 
   const handleEdit = (index: number): void => {
     setEditingIndex(index);
@@ -330,7 +368,10 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
         <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { paddingBottom: 16 } }}>
           {view === 'list' && (
             <>
-              <PrimaryButton text="Salvar" onClick={() => onSave(localSeries)} />
+              <PrimaryButton
+                text="Salvar"
+                onClick={() => onSave(localSeries, { dashboardType: localDashboardType, chartType: localChartType })}
+              />
               <DefaultButton text="Cancelar" onClick={onDismiss} />
             </>
           )}
@@ -339,7 +380,39 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
     >
       <div style={{ paddingTop: 16 }}>
         {view === 'list' && (
-          <Stack tokens={{ childrenGap: 0 }}>
+          <Stack tokens={{ childrenGap: 16 }}>
+            <Stack tokens={{ childrenGap: 8 }}>
+              <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+                Visualização do dashboard
+              </Text>
+              <ChoiceGroup
+                options={DASHBOARD_TYPE_OPTIONS}
+                selectedKey={localDashboardType}
+                onChange={(_, opt) => opt && setLocalDashboardType(opt.key as TDashboardType)}
+              />
+            </Stack>
+            {localDashboardType === 'charts' && (
+              <Stack tokens={{ childrenGap: 10 }}>
+                <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+                  Escolha o tipo de gráfico
+                </Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {CHART_TYPES.map((type) => (
+                    <ChartTypeCard
+                      key={type}
+                      type={type}
+                      selected={localChartType === type}
+                      onClick={() => setLocalChartType(type)}
+                    />
+                  ))}
+                </div>
+              </Stack>
+            )}
+            <Separator />
+            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+              Séries
+            </Text>
+            <Stack tokens={{ childrenGap: 0 }}>
             {localSeries.length === 0 && (
               <Text variant="small" styles={{ root: { color: '#a19f9d', padding: '16px 0' } }}>
                 Nenhuma série configurada ainda.
@@ -373,6 +446,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
                 onClick={() => { setEditingIndex(undefined); setView('form'); }}
               />
             </div>
+            </Stack>
           </Stack>
         )}
 

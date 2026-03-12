@@ -1,33 +1,71 @@
 import { IListViewConfig, IListViewFilterConfig, TFilterOperator } from '../config/types';
+import type { IDynamicContext } from '../dynamicTokens/types';
+import { resolveObjectTokens } from '../dynamicTokens';
 
 const NUMERIC_OPERATORS: TFilterOperator[] = ['gt', 'lt', 'ge', 'le'];
-const ME_PLACEHOLDER = '[Me]';
+const ODATA_OPERATORS: TFilterOperator[] = ['eq', 'ne', 'gt', 'lt', 'ge', 'le', 'contains'];
 
-function buildFilterSegment(f: IListViewFilterConfig, replaceMe?: string | number): string {
-  if (!f.field.trim() || f.value === undefined || f.value === null) return '';
-  let value = f.value;
-  if (value === ME_PLACEHOLDER && replaceMe !== undefined) {
-    value = String(replaceMe);
+function normalizeOperator(op: unknown): TFilterOperator {
+  const s = String(op).toLowerCase();
+  for (let i = 0; i < ODATA_OPERATORS.length; i++) {
+    if (ODATA_OPERATORS[i] === s) return ODATA_OPERATORS[i];
+  }
+  return 'eq';
+}
+
+function looksLikeToken(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const s = value.trim();
+  return s.length >= 3 && s.charAt(0) === '[' && s.charAt(s.length - 1) === ']';
+}
+
+function buildFilterSegment(f: IListViewFilterConfig): string {
+  if (!f.field.trim()) return '';
+  const value = f.value;
+  if (value === undefined) return '';
+  if (typeof value === 'string' && looksLikeToken(value)) return '';
+  const op = normalizeOperator(f.operator);
+  if (value === null) {
+    return `${f.field} ${op} null`;
   }
   const isNumeric = !isNaN(Number(value));
   const val =
-    NUMERIC_OPERATORS.indexOf(f.operator) !== -1 && isNumeric
+    NUMERIC_OPERATORS.indexOf(op) !== -1 && isNumeric
       ? String(value)
       : `'${String(value).replace(/'/g, "''")}'`;
 
-  if (f.operator === 'contains') {
+  if (op === 'contains') {
     return `substringof(${val}, ${f.field})`;
   }
-  return `${f.field} ${f.operator} ${val}`;
+  return `${f.field} ${op} ${val}`;
+}
+
+export interface IBuildListFilterOptions {
+  replaceMe?: string | number;
+  dynamicContext?: IDynamicContext;
 }
 
 export function buildListFilter(
   filters: IListViewFilterConfig[],
-  options?: { replaceMe?: string | number }
+  options?: IBuildListFilterOptions
 ): string | undefined {
-  const replaceMe = options?.replaceMe;
-  const segments = filters
-    .map((f) => buildFilterSegment(f, replaceMe))
+  let resolved = filters;
+  if (options?.dynamicContext) {
+    try {
+      resolved = resolveObjectTokens(filters.slice(), options.dynamicContext) as IListViewFilterConfig[];
+    } catch (_) {
+      resolved = filters;
+    }
+  } else if (options?.replaceMe !== undefined) {
+    resolved = filters.map((f) => {
+      if (f.value === '[Me]' || (typeof f.value === 'string' && f.value.trim().toLowerCase() === '[me]')) {
+        return { ...f, value: String(options.replaceMe) };
+      }
+      return f;
+    });
+  }
+  const segments = resolved
+    .map((f) => buildFilterSegment(f))
     .filter((s) => s.length > 0);
   if (segments.length === 0) return undefined;
   return segments.join(' and ');
@@ -73,6 +111,7 @@ export interface IListQueryOptions {
 
 export interface IBuildListQueryOptions {
   replaceMe?: string | number;
+  dynamicContext?: IDynamicContext;
 }
 
 export function buildListQuery(
@@ -82,7 +121,10 @@ export function buildListQuery(
   const select = buildListSelect(listView.columns);
   const expand = buildListExpand(listView.columns);
   const viewModeFilters = getActiveViewModeFilters(listView);
-  const filter = buildListFilter(viewModeFilters, { replaceMe: options?.replaceMe });
+  const filter = buildListFilter(viewModeFilters, {
+    replaceMe: options?.replaceMe,
+    dynamicContext: options?.dynamicContext,
+  });
   const orderBy =
     listView.sort && listView.sort.field
       ? { field: listView.sort.field, ascending: listView.sort.ascending }

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Stack,
   Text,
@@ -9,9 +9,37 @@ import {
   PrimaryButton,
   DefaultButton,
   IconButton,
+  Spinner,
+  SpinnerSize,
 } from '@fluentui/react';
+import { FieldsService } from '../../../../../services';
+import type { IFieldMetadata } from '../../../../../services';
 import type { IListViewModeConfig, IListViewFilterConfig, TFilterOperator } from '../../../core/config/types';
 import { IWizardFormState } from '../types';
+
+const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
+const SIMPLE_FIELD_TYPES = ['text', 'multiline', 'number', 'currency', 'boolean', 'choice', 'multichoice', 'datetime', 'url'];
+const USER_EXPAND_FIELDS: IDropdownOption[] = [
+  { key: 'Id', text: 'Id' },
+  { key: 'Title', text: 'Title' },
+  { key: 'EMail', text: 'EMail' },
+  { key: 'LoginName', text: 'LoginName' },
+];
+
+function buildExpandOptionsFromLookupList(fields: IFieldMetadata[]): IDropdownOption[] {
+  const simple = fields.filter(
+    (f) =>
+      SIMPLE_FIELD_TYPES.indexOf(f.MappedType) !== -1 &&
+      f.InternalName !== 'Id' &&
+      f.InternalName !== 'Title'
+  );
+  const options: IDropdownOption[] = [
+    { key: 'Id', text: 'Id' },
+    { key: 'Title', text: 'Title' },
+  ];
+  simple.forEach((f) => options.push({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` }));
+  return options;
+}
 
 const OPERATOR_OPTIONS: IDropdownOption[] = [
   { key: 'eq', text: 'Igual a' },
@@ -30,13 +58,71 @@ function filterSummary(filters: IListViewFilterConfig[]): string {
 
 interface IStep5Props {
   form: IWizardFormState;
+  listTitle: string;
   onChange: (partial: Partial<IWizardFormState>) => void;
 }
 
-export const Step5ViewModes: React.FC<IStep5Props> = ({ form, onChange }) => {
+export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, onChange }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editFilters, setEditFilters] = useState<IListViewFilterConfig[]>([]);
+  const [listFields, setListFields] = useState<IFieldMetadata[]>([]);
+  const [lookupListFields, setLookupListFields] = useState<Record<string, IFieldMetadata[]>>({});
+  const [fieldsLoading, setFieldsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!listTitle || !listTitle.trim()) {
+      setListFields([]);
+      setLookupListFields({});
+      return;
+    }
+    setFieldsLoading(true);
+    const svc = new FieldsService();
+    svc
+      .getVisibleFields(listTitle.trim())
+      .then((fields) => {
+        setListFields(fields);
+        const listIds = fields
+          .filter((f) => EXPANDABLE.indexOf(f.MappedType) !== -1 && f.LookupList)
+          .map((f) => f.LookupList as string);
+        const uniqueIds = listIds.filter((id, i) => listIds.indexOf(id) === i);
+        return Promise.all(
+          uniqueIds.map((id) => svc.getFields(id).then((listFields) => ({ id, listFields })))
+        );
+      })
+      .then((results) => {
+        const next: Record<string, IFieldMetadata[]> = {};
+        results.forEach((r: { id: string; listFields: IFieldMetadata[] }) => { next[r.id] = r.listFields; });
+        setLookupListFields(next);
+      })
+      .then(() => setFieldsLoading(false), () => setFieldsLoading(false));
+  }, [listTitle]);
+
+  const filterFieldOptions = useMemo((): IDropdownOption[] => {
+    const empty: IDropdownOption = { key: '', text: '— selecione —' };
+    const rest: IDropdownOption[] = [];
+    for (let i = 0; i < listFields.length; i++) {
+      const f = listFields[i];
+      if (EXPANDABLE.indexOf(f.MappedType) === -1) {
+        rest.push({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` });
+      } else {
+        const expandOpts =
+          f.MappedType === 'user' || f.MappedType === 'usermulti'
+            ? USER_EXPAND_FIELDS
+            : f.LookupList && lookupListFields[f.LookupList]
+              ? buildExpandOptionsFromLookupList(lookupListFields[f.LookupList])
+              : [{ key: 'Title', text: 'Title' }, { key: 'Id', text: 'Id' }];
+        for (let j = 0; j < expandOpts.length; j++) {
+          const opt = expandOpts[j];
+          rest.push({
+            key: `${f.InternalName}/${String(opt.key)}`,
+            text: `${f.Title} – ${opt.text}`,
+          });
+        }
+      }
+    }
+    return [empty, ...rest];
+  }, [listFields, lookupListFields]);
 
   const viewModes = form.viewModes ?? [];
   const activeViewModeId = form.activeViewModeId ?? 'all';
@@ -133,18 +219,26 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, onChange }) => {
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Filtros
                   </Text>
+                  {fieldsLoading && (
+                    <Stack horizontal tokens={{ childrenGap: 8 }} verticalAlign="center">
+                      <Spinner size={SpinnerSize.small} />
+                      <Text variant="small">Carregando campos...</Text>
+                    </Stack>
+                  )}
                   {editFilters.map((f, i) => (
                     <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
-                      <TextField
-                        placeholder="Campo (ex: Author/Id, Status)"
-                        value={f.field}
-                        onChange={(_: React.FormEvent, v?: string) => updateFilter(i, { field: v ?? '' })}
+                      <Dropdown
+                        placeholder="Campo"
+                        options={filterFieldOptions}
+                        selectedKey={f.field || ''}
+                        onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateFilter(i, { field: (opt?.key as string) ?? '' })}
                         styles={{ root: { flex: 1 } }}
+                        disabled={fieldsLoading}
                       />
                       <Dropdown
                         options={OPERATOR_OPTIONS}
                         selectedKey={f.operator}
-                        onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt && updateFilter(i, { operator: opt.key as TFilterOperator })}
+                        onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt != null && updateFilter(i, { operator: String(opt.key) as TFilterOperator })}
                         styles={{ root: { width: 140 } }}
                       />
                       <TextField
@@ -198,18 +292,26 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, onChange }) => {
                 <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                   Filtros
                 </Text>
+                {fieldsLoading && (
+                  <Stack horizontal tokens={{ childrenGap: 8 }} verticalAlign="center">
+                    <Spinner size={SpinnerSize.small} />
+                    <Text variant="small">Carregando campos...</Text>
+                  </Stack>
+                )}
                 {editFilters.map((f, i) => (
                   <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
-                    <TextField
-                      placeholder="Campo (ex: Author/Id, Status)"
-                      value={f.field}
-                      onChange={(_: React.FormEvent, v?: string) => updateFilter(i, { field: v ?? '' })}
+                    <Dropdown
+                      placeholder="Campo"
+                      options={filterFieldOptions}
+                      selectedKey={f.field || ''}
+                      onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateFilter(i, { field: (opt?.key as string) ?? '' })}
                       styles={{ root: { flex: 1 } }}
+                      disabled={fieldsLoading}
                     />
                     <Dropdown
                       options={OPERATOR_OPTIONS}
                       selectedKey={f.operator}
-                      onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt && updateFilter(i, { operator: opt.key as TFilterOperator })}
+                      onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt != null && updateFilter(i, { operator: String(opt.key) as TFilterOperator })}
                       styles={{ root: { width: 140 } }}
                     />
                     <TextField

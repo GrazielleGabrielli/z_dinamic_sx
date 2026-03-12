@@ -101,7 +101,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
       case 2: return <Step2Mode form={form} onChange={updateForm} />;
       case 3: return <Step3Dashboard form={form} onChange={updateForm} />;
       case 4: return <Step4Pagination form={form} onChange={updateForm} />;
-      case 5: return <Step5ViewModes form={form} onChange={updateForm} />;
+      case 5: return <Step5ViewModes form={form} listTitle={form.title} onChange={updateForm} />;
       default: return <></>;
     }
   };

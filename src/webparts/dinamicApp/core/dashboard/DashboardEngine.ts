@@ -1,26 +1,72 @@
 import { ItemsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
-import { IDashboardCardConfig, IDashboardConfig, IDataSourceConfig, IChartSeriesConfig, TFilterOperator } from '../config/types';
+import { IDashboardCardConfig, IDashboardCardFilter, IDashboardConfig, IDataSourceConfig, IChartSeriesConfig, TFilterOperator } from '../config/types';
 import { generateDefaultCards } from '../config/utils';
+import type { IDynamicContext } from '../dynamicTokens/types';
+import { resolveObjectTokens, isDynamicToken } from '../dynamicTokens';
 import { IDashboardCardResult, IChartSeriesResult, TCardStatus } from './types';
 
 const NUMERIC_OPERATORS: TFilterOperator[] = ['gt', 'lt', 'ge', 'le'];
+const ODATA_OPERATORS: TFilterOperator[] = ['eq', 'ne', 'gt', 'lt', 'ge', 'le', 'contains'];
+
+function normalizeDashboardOperator(op: unknown): TFilterOperator {
+  const s = String(op).toLowerCase();
+  for (let i = 0; i < ODATA_OPERATORS.length; i++) {
+    if (ODATA_OPERATORS[i] === s) return ODATA_OPERATORS[i];
+  }
+  return 'eq';
+}
 
 export class DashboardEngine {
   private readonly itemsService = new ItemsService();
 
-  private buildFilterString(filter: IDashboardCardConfig['filter']): string | undefined {
-    if (!filter) return undefined;
-    const isNumeric = !isNaN(Number(filter.value));
-    const val =
-      NUMERIC_OPERATORS.indexOf(filter.operator) !== -1 && isNumeric
-        ? filter.value
-        : `'${filter.value}'`;
-
-    if (filter.operator === 'contains') {
-      return `substringof(${val}, ${filter.field})`;
+  private buildOneFilterSegment(
+    filter: IDashboardCardFilter,
+    dynamicContext?: IDynamicContext
+  ): string | undefined {
+    if (!filter || !filter.field.trim()) return undefined;
+    let resolved: IDashboardCardFilter = filter;
+    if (dynamicContext) {
+      try {
+        const resolvedObj = resolveObjectTokens({ ...filter }, dynamicContext) as IDashboardCardFilter;
+        if (!resolvedObj || resolvedObj.value === undefined || (typeof resolvedObj.value === 'string' && isDynamicToken(resolvedObj.value))) {
+          return undefined;
+        }
+        resolved = resolvedObj;
+      } catch (_) {
+        resolved = filter;
+      }
     }
-    return `${filter.field} ${filter.operator} ${val}`;
+    const op = normalizeDashboardOperator(resolved.operator);
+    const value = resolved.value;
+    const isNumeric = !isNaN(Number(value));
+    const val =
+      NUMERIC_OPERATORS.indexOf(op) !== -1 && isNumeric
+        ? value
+        : `'${String(value).replace(/'/g, "''")}'`;
+
+    if (op === 'contains') {
+      return `substringof(${val}, ${resolved.field})`;
+    }
+    return `${resolved.field} ${op} ${val}`;
+  }
+
+  private buildFilterString(
+    filterOrFilters: IDashboardCardFilter | IDashboardCardFilter[] | undefined,
+    dynamicContext?: IDynamicContext
+  ): string | undefined {
+    const list: IDashboardCardFilter[] = !filterOrFilters
+      ? []
+      : Array.isArray(filterOrFilters)
+        ? filterOrFilters
+        : [filterOrFilters];
+    const segments: string[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const seg = this.buildOneFilterSegment(list[i], dynamicContext);
+      if (seg) segments.push(seg);
+    }
+    if (segments.length === 0) return undefined;
+    return segments.join(' and ');
   }
 
   private cardBase(card: IDashboardCardConfig): Pick<IDashboardCardResult, 'id' | 'title' | 'subtitle' | 'aggregate' | 'style' | 'emptyValueText' | 'errorText' | 'loadingText'> {
@@ -39,12 +85,14 @@ export class DashboardEngine {
   async computeCard(
     card: IDashboardCardConfig,
     dataSource: IDataSourceConfig,
-    fieldMetadata?: IFieldMetadata[]
+    fieldMetadata?: IFieldMetadata[],
+    dynamicContext?: IDynamicContext
   ): Promise<IDashboardCardResult> {
     const base = this.cardBase(card);
 
     try {
-      const filterStr = this.buildFilterString(card.filter);
+      const effectiveFilters = card.filters && card.filters.length > 0 ? card.filters : (card.filter ? [card.filter] : []);
+      const filterStr = this.buildFilterString(effectiveFilters, dynamicContext);
       const baseOptions = { filter: filterStr, top: 5000, fieldMetadata };
 
       if (card.aggregate === 'count') {
@@ -86,21 +134,24 @@ export class DashboardEngine {
   async computeAll(
     config: IDashboardConfig,
     dataSource: IDataSourceConfig,
-    fieldMetadata?: IFieldMetadata[]
+    fieldMetadata?: IFieldMetadata[],
+    dynamicContext?: IDynamicContext
   ): Promise<IDashboardCardResult[]> {
     const cards =
       config.cards.length > 0 ? config.cards : generateDefaultCards(config.cardsCount);
 
-    return Promise.all(cards.map((card) => this.computeCard(card, dataSource, fieldMetadata)));
+    return Promise.all(cards.map((card) => this.computeCard(card, dataSource, fieldMetadata, dynamicContext)));
   }
 
   async computeSeries(
     series: IChartSeriesConfig,
     dataSource: IDataSourceConfig,
-    fieldMetadata?: IFieldMetadata[]
+    fieldMetadata?: IFieldMetadata[],
+    dynamicContext?: IDynamicContext
   ): Promise<IChartSeriesResult> {
     try {
-      const filterStr = this.buildFilterString(series.filter);
+      const effectiveFilters = series.filters && series.filters.length > 0 ? series.filters : (series.filter ? [series.filter] : []);
+      const filterStr = this.buildFilterString(effectiveFilters, dynamicContext);
       const baseOptions = { filter: filterStr, top: 5000, fieldMetadata };
 
       if (series.aggregate === 'count') {
@@ -142,10 +193,11 @@ export class DashboardEngine {
   async computeAllSeries(
     config: IDashboardConfig,
     dataSource: IDataSourceConfig,
-    fieldMetadata?: IFieldMetadata[]
+    fieldMetadata?: IFieldMetadata[],
+    dynamicContext?: IDynamicContext
   ): Promise<IChartSeriesResult[]> {
     const series = config.chartSeries ?? [];
-    return Promise.all(series.map((s) => this.computeSeries(s, dataSource, fieldMetadata)));
+    return Promise.all(series.map((s) => this.computeSeries(s, dataSource, fieldMetadata, dynamicContext)));
   }
 
   buildLoadingResults(config: IDashboardConfig): IDashboardCardResult[] {

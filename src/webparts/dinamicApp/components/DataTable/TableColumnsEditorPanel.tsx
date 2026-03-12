@@ -17,6 +17,10 @@ import {
   ChoiceGroup,
   IChoiceGroupOption,
   IconButton,
+  Callout,
+  Link,
+  TooltipHost,
+  Icon,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
@@ -122,6 +126,31 @@ const VIEW_MODE_OPERATORS: IDropdownOption[] = [
   { key: 'le', text: 'Menor ou igual' },
 ];
 
+const FORMULA_TOKENS: { token: string; label: string }[] = [
+  { token: '[me]', label: 'Usuário atual (ID)' },
+  { token: '[myId]', label: 'Meu ID' },
+  { token: '[myName]', label: 'Meu nome' },
+  { token: '[myEmail]', label: 'Meu e-mail' },
+  { token: '[myLogin]', label: 'Meu login' },
+  { token: '[myDepartment]', label: 'Meu departamento' },
+  { token: '[myJobTitle]', label: 'Meu cargo' },
+  { token: '[today]', label: 'Data de hoje' },
+  { token: '[now]', label: 'Data e hora atuais' },
+  { token: '[tomorrow]', label: 'Amanhã' },
+  { token: '[yesterday]', label: 'Ontem' },
+  { token: '[startOfMonth]', label: 'Início do mês' },
+  { token: '[endOfMonth]', label: 'Fim do mês' },
+  { token: '[startOfYear]', label: 'Início do ano' },
+  { token: '[endOfYear]', label: 'Fim do ano' },
+  { token: '[siteTitle]', label: 'Título do site' },
+  { token: '[siteUrl]', label: 'URL do site' },
+  { token: '[listTitle]', label: 'Título da lista' },
+  { token: '[empty]', label: 'Vazio' },
+  { token: '[null]', label: 'Null' },
+  { token: '[true]', label: 'Verdadeiro' },
+  { token: '[false]', label: 'Falso' },
+];
+
 function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   if (!filters || filters.length === 0) return 'Sem filtros';
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
@@ -150,6 +179,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [viewModeEditingId, setViewModeEditingId] = useState<string | null>(null);
   const [viewModeEditLabel, setViewModeEditLabel] = useState('');
   const [viewModeEditFilters, setViewModeEditFilters] = useState<IListViewFilterConfig[]>([]);
+  const [formulasFilterIndex, setFormulasFilterIndex] = useState<number | null>(null);
+  const [formulasTarget, setFormulasTarget] = useState<HTMLElement | null>(null);
 
   const fieldsService = useMemo(() => new FieldsService(), []);
 
@@ -216,6 +247,31 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     return [{ key: 'Title', text: 'Title' }, { key: 'Id', text: 'Id' }];
   };
 
+  const filterFieldOptions = useMemo((): IDropdownOption[] => {
+    const empty: IDropdownOption = { key: '', text: '— selecione —' };
+    const rest: IDropdownOption[] = [];
+    for (let i = 0; i < options.length; i++) {
+      const o = options[i];
+      if (EXPANDABLE.indexOf(o.meta.MappedType) === -1) {
+        rest.push({ key: o.meta.InternalName, text: `${o.meta.Title} (${o.meta.InternalName})` });
+      } else {
+        const expandOpts = o.meta.MappedType === 'user' || o.meta.MappedType === 'usermulti'
+          ? USER_EXPAND_FIELDS
+          : (o.meta.LookupList && lookupListFields[o.meta.LookupList])
+            ? buildExpandOptionsFromLookupList(lookupListFields[o.meta.LookupList])
+            : [{ key: 'Title', text: 'Title' }, { key: 'Id', text: 'Id' }];
+        for (let j = 0; j < expandOpts.length; j++) {
+          const opt = expandOpts[j];
+          rest.push({
+            key: `${o.meta.InternalName}/${String(opt.key)}`,
+            text: `${o.meta.Title} – ${opt.text}`,
+          });
+        }
+      }
+    }
+    return [empty, ...rest];
+  }, [options, lookupListFields]);
+
   const handleSave = (): void => {
     const columns: IListViewColumnConfig[] = options
       .filter((o) => o.selected)
@@ -277,6 +333,17 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     const next = viewModeEditFilters.slice();
     next[i] = { ...next[i], ...part };
     setViewModeEditFilters(next);
+  };
+
+  const openFormulas = (index: number, target: HTMLElement): void => {
+    setFormulasFilterIndex(index);
+    setFormulasTarget(target);
+  };
+
+  const applyFormula = (index: number, token: string): void => {
+    updateViewModeFilter(index, { value: token });
+    setFormulasFilterIndex(null);
+    setFormulasTarget(null);
   };
 
   return (
@@ -354,10 +421,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     <Stack tokens={{ childrenGap: 10 }}>
                       <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
                       {viewModeEditFilters.map((f, i) => (
-                        <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
-                          <TextField placeholder="Campo (ex: Author/Id)" value={f.field} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { field: v ?? '' })} styles={{ root: { flex: 1 } }} />
-                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt && updateViewModeFilter(i, { operator: opt.key as TFilterOperator })} styles={{ root: { width: 120 } }} />
-                          <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} styles={{ root: { flex: 1 } }} />
+                        <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start">
+                          <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: 1 } }} />
+                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt != null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
+                          <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: 1 } }}>
+                            <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
+                            <Text variant="small" styles={{ root: { marginTop: 0 } }}>
+                              <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
+                            </Text>
+                          </Stack>
                           <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => removeViewModeFilter(i)} />
                         </Stack>
                       ))}
@@ -386,10 +458,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   <Stack tokens={{ childrenGap: 10 }}>
                     <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
                     {viewModeEditFilters.map((f, i) => (
-                      <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
-                        <TextField placeholder="Campo (ex: Author/Id)" value={f.field} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { field: v ?? '' })} styles={{ root: { flex: 1 } }} />
-                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt && updateViewModeFilter(i, { operator: opt.key as TFilterOperator })} styles={{ root: { width: 120 } }} />
-                        <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} styles={{ root: { flex: 1 } }} />
+                      <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start">
+                        <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: 1 } }} />
+                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt != null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
+                        <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: 1 } }}>
+                          <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
+                          <Text variant="small" styles={{ root: { marginTop: 0 } }}>
+                            <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
+                          </Text>
+                        </Stack>
                         <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => removeViewModeFilter(i)} />
                       </Stack>
                     ))}
@@ -428,11 +505,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   ariaLabel={o.meta.Title}
                 />
                 <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: 1 } }}>
+                  <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 2 } }}>
+                    Campo: {o.meta.InternalName}
+                  </Text>
                   <TextField
-                    label="Rótulo"
+                    label="Rótulo (cabeçalho na tabela)"
                     value={o.label}
                     onChange={(_, v) => setLabel(o.meta.InternalName, v ?? '')}
                     disabled={!o.selected}
+                    placeholder={o.meta.Title}
                     styles={{ root: { maxWidth: 280 } }}
                   />
                   {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
@@ -451,6 +532,29 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
               </Stack>
             ))}
           </Stack>
+        )}
+        {formulasTarget && formulasFilterIndex !== null && (
+          <Callout
+            target={formulasTarget}
+            onDismiss={() => { setFormulasFilterIndex(null); setFormulasTarget(null); }}
+            role="dialog"
+            ariaLabel="Fórmulas disponíveis"
+          >
+            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { padding: 12, minWidth: 260, maxHeight: 320, overflowY: 'auto' } }}>
+              <Text variant="medium" styles={{ root: { fontWeight: 600, marginBottom: 4 } }}>Fórmulas</Text>
+              <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>Clique para inserir no valor do filtro.</Text>
+              {FORMULA_TOKENS.map((item) => (
+                <Stack key={item.token} horizontal horizontalAlign="space-between" verticalAlign="center" styles={{ root: { padding: '6px 0', borderBottom: '1px solid #edebe9', cursor: 'pointer' } }} onClick={() => applyFormula(formulasFilterIndex, item.token)}>
+                  <Text variant="small" styles={{ root: { fontFamily: 'monospace' } }}>{item.token}</Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c', flex: 1, marginLeft: 8 } }}>{item.label}</Text>
+                  <TooltipHost content={item.label} calloutProps={{ gapSpace: 4 }}>
+                    <Icon iconName="Unknown" style={{ fontSize: 12, color: '#605e5c', marginLeft: 4 }} onClick={(e) => e.stopPropagation()} />
+                  </TooltipHost>
+                </Stack>
+              ))}
+              <Text variant="small" styles={{ root: { marginTop: 8, color: '#605e5c' } }}>Query: use [query:nome] para parâmetro da URL.</Text>
+            </Stack>
+          </Callout>
         )}
       </div>
     </Panel>

@@ -5,9 +5,10 @@ import { IDynamicViewConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
-import { ItemsService } from '../../../../services';
-import { FieldsService } from '../../../../services';
+import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
+import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { DataTable } from './DataTable';
+import type { IDynamicContext } from '../../core/dynamicTokens/types';
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
   const columns = (listView.columns ?? []).map((c) => ({
     id: c.field,
@@ -56,10 +57,27 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
     () => listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all'
   );
   const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
+  const [dynamicContext, setDynamicContext] = useState<IDynamicContext | undefined>(undefined);
 
   useEffect(() => {
     setSelectedViewModeId(listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all');
   }, [listView?.activeViewModeId, listView?.viewModes]);
+
+  useEffect(() => {
+    const usersService = new UsersService();
+    usersService
+      .getCurrentUser()
+      .then((user) => {
+        setDynamicContext(
+          buildDynamicContext({
+            currentUser: { id: user.Id, title: user.Title, name: user.Title, email: user.Email, loginName: user.LoginName },
+            query: typeof window !== 'undefined' && window.location ? parseQueryString(window.location.search) : undefined,
+            now: new Date(),
+          })
+        );
+      })
+      .catch(() => setDynamicContext(buildDynamicContext({ now: new Date() })));
+  }, []);
 
   function buildColumnFilterString(filters: Record<string, string>): string | undefined {
     const parts: string[] = [];
@@ -105,7 +123,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
     const columnFilterStr = buildColumnFilterString(columnFilters);
     const listViewWithMode = { ...listView, activeViewModeId: selectedViewModeId };
     const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
-    const viewModeFilterStr = buildListFilter(viewModeFilters);
+    const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext });
     const filterParts = [viewModeFilterStr, columnFilterStr].filter(Boolean);
     const combinedFilter = filterParts.length > 0 ? filterParts.join(' and ') : undefined;
     const request = engine.buildDataRequest({
@@ -137,7 +155,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
           setLoading(false);
         }
       );
-  }, [listTitle, tableConfig, effectiveSort, skip, pageSize, columnFilters, selectedViewModeId, listView, fieldMetadata]);
+  }, [listTitle, tableConfig, effectiveSort, skip, pageSize, columnFilters, selectedViewModeId, listView, fieldMetadata, dynamicContext]);
 
   const handleSort = (field: string, direction: 'asc' | 'desc'): void => {
     setSortConfig({ field, direction });
@@ -247,7 +265,10 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
           label="Visualização"
           options={viewModeOptions}
           selectedKey={selectedViewModeId}
-          onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setSelectedViewModeId(String(opt.key))}
+          onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+            debugger;
+            if (opt) setSelectedViewModeId(String(opt.key));
+          }}
           styles={{ root: { maxWidth: 220 } }}
         />
       )}

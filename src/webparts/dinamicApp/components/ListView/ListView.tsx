@@ -18,8 +18,9 @@ import {
 } from '@fluentui/react';
 import { IDynamicViewConfig, IListViewColumnConfig } from '../../core/config/types';
 import { buildListQuery } from '../../core/listView';
-import { ItemsService } from '../../../../services';
-import { FieldsService } from '../../../../services';
+import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
+import type { IDynamicContext } from '../../core/dynamicTokens/types';
+import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
 
 const DEFAULT_COLUMN_COUNT = 10;
@@ -69,9 +70,26 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
   const [selectedViewModeId, setSelectedViewModeId] = useState<string>(
     () => listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all'
   );
+  const [dynamicContext, setDynamicContext] = useState<IDynamicContext | undefined>(undefined);
 
   const itemsService = useMemo(() => new ItemsService(), []);
   const fieldsService = useMemo(() => new FieldsService(), []);
+
+  useEffect(() => {
+    const usersService = new UsersService();
+    usersService
+      .getCurrentUser()
+      .then((user) => {
+        setDynamicContext(
+          buildDynamicContext({
+            currentUser: { id: user.Id, title: user.Title, name: user.Title, email: user.Email, loginName: user.LoginName },
+            query: typeof window !== 'undefined' && window.location ? parseQueryString(window.location.search) : undefined,
+            now: new Date(),
+          })
+        );
+      })
+      .catch(() => setDynamicContext(buildDynamicContext({ now: new Date() })));
+  }, []);
 
   const hasConfigColumns = (listView.columns?.length ?? 0) > 0;
 
@@ -125,7 +143,10 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
     [listView, effectiveColumns, selectedViewModeId]
   );
 
-  const queryOptions = useMemo(() => buildListQuery(effectiveListView), [effectiveListView]);
+  const queryOptions = useMemo(
+    () => buildListQuery(effectiveListView, { dynamicContext }),
+    [effectiveListView, dynamicContext]
+  );
 
   useEffect(() => {
     if (!listTitle.trim()) {
@@ -221,7 +242,10 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
           label="Visualização"
           options={viewModeOptions}
           selectedKey={selectedViewModeId}
-          onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setSelectedViewModeId(String(opt.key))}
+          onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+            debugger;
+            if (opt) setSelectedViewModeId(String(opt.key));
+          }}
           styles={{ root: { maxWidth: 220 } }}
         />
       )}

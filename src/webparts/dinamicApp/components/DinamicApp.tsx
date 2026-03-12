@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Text, Stack, Separator, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { parseConfig } from '../core/config/validators';
-import { IDashboardCardConfig, IChartSeriesConfig, IDynamicViewConfig, IListViewConfig, IPaginationConfig } from '../core/config/types';
+import { IDashboardCardConfig, IChartSeriesConfig, IDynamicViewConfig, IListViewConfig, IPaginationConfig, TChartType, TDashboardType } from '../core/config/types';
 import { ConfigWizard } from './Wizard/ConfigWizard';
 import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
@@ -37,13 +37,18 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
     setIsEditingCards(false);
   };
 
-  const handleSaveSeries = (chartSeries: IChartSeriesConfig[]): void => {
+  const handleSaveSeries = (
+    chartSeries: IChartSeriesConfig[],
+    options?: { dashboardType?: TDashboardType; chartType?: TChartType }
+  ): void => {
     if (!config) return;
     onSaveConfig({
       ...config,
       dashboard: {
         ...config.dashboard,
         chartSeries,
+        ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
+        ...(options?.chartType !== undefined && { chartType: options.chartType }),
       },
     });
     setIsEditingSeries(false);
@@ -147,6 +152,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
         isOpen={isEditingSeries}
         listTitle={config.dataSource.title}
         series={config.dashboard.chartSeries ?? []}
+        dashboardType={config.dashboard.dashboardType}
+        chartType={config.dashboard.chartType}
         onSave={handleSaveSeries}
         onDismiss={() => setIsEditingSeries(false)}
       />

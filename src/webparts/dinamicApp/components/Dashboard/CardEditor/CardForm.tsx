@@ -16,9 +16,11 @@ import {
   PivotItem,
   Spinner,
   SpinnerSize,
+  IconButton,
 } from '@fluentui/react';
 import {
   IDashboardCardConfig,
+  IDashboardCardFilter,
   IDashboardCardStyleConfig,
   TAggregateType,
   TFilterOperator,
@@ -62,9 +64,7 @@ interface ICardFormState {
   aggregate: TAggregateType;
   field: string;
   hasFilter: boolean;
-  filterField: string;
-  filterOperator: TFilterOperator;
-  filterValue: string;
+  filters: IDashboardCardFilter[];
   variant: TCardVariant;
   borderRadius: TBorderRadius;
   padding: TPadding;
@@ -206,10 +206,12 @@ function initState(card?: IDashboardCardConfig): ICardFormState {
     loadingText: card?.loadingText ?? 'Carregando...',
     aggregate: card?.aggregate ?? 'count',
     field: card?.field ?? '',
-    hasFilter: card?.filter !== undefined,
-    filterField: card?.filter?.field ?? '',
-    filterOperator: card?.filter?.operator ?? 'eq',
-    filterValue: card?.filter?.value ?? '',
+    hasFilter: true,
+    filters: (card?.filters && card.filters.length > 0)
+      ? card.filters.slice()
+      : card?.filter
+        ? [{ field: card.filter.field, operator: card.filter.operator, value: card.filter.value }]
+        : [{ field: '', operator: 'eq' as TFilterOperator, value: '' }],
     variant: s.variant,
     borderRadius: s.borderRadius,
     padding: s.padding,
@@ -277,12 +279,9 @@ function buildCard(state: ICardFormState, existingId?: string): IDashboardCardCo
   if (state.aggregate === 'sum' && state.field.trim().length > 0) {
     card.field = state.field.trim();
   }
-  if (state.hasFilter && state.filterField.trim().length > 0 && state.filterValue.trim().length > 0) {
-    card.filter = {
-      field: state.filterField.trim(),
-      operator: state.filterOperator,
-      value: state.filterValue.trim(),
-    };
+  if (state.hasFilter && state.filters.length > 0) {
+    const valid = state.filters.filter((f) => f.field.trim().length > 0 && String(f.value).trim().length > 0);
+    if (valid.length > 0) card.filters = valid.map((f) => ({ field: f.field.trim(), operator: f.operator, value: String(f.value).trim() }));
   }
   return card;
 }
@@ -474,32 +473,50 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, card, onConfirm,
                     {fieldsError}
                   </Text>
                 )}
-                <Dropdown
-                  label="Campo do filtro"
-                  placeholder="Selecione o campo"
-                  options={filterFieldOptions}
-                  selectedKey={state.filterField || ''}
-                  onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) =>
-                    update({ filterField: opt ? String(opt.key) : '' })
-                  }
-                  disabled={fieldsLoading}
-                />
-                <Dropdown
-                  label="Operador"
-                  options={OPERATOR_OPTIONS}
-                  selectedKey={state.filterOperator}
-                  onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                    if (opt) update({ filterOperator: opt.key as TFilterOperator });
-                  }}
-                />
-                <TextField
-                  label="Valor"
-                  value={state.filterValue}
-                  onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) =>
-                    update({ filterValue: v ?? '' })
-                  }
-                  placeholder="Ex: Ativo, Pendente, 100"
-                />
+                <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Filtros</Text>
+                {state.filters.map((f, i) => (
+                  <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
+                    <Dropdown
+                      label="Campo"
+                      placeholder="Selecione"
+                      options={filterFieldOptions}
+                      selectedKey={f.field || ''}
+                      onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                        const next = state.filters.slice();
+                        next[i] = { ...next[i], field: opt ? String(opt.key) : '' };
+                        update({ filters: next });
+                      }}
+                      styles={{ root: { flex: 1 } }}
+                      disabled={fieldsLoading}
+                    />
+                    <Dropdown
+                      label="Operador"
+                      options={OPERATOR_OPTIONS}
+                      selectedKey={f.operator}
+                      onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                        if (opt) {
+                          const next = state.filters.slice();
+                          next[i] = { ...next[i], operator: String(opt.key) as TFilterOperator };
+                          update({ filters: next });
+                        }
+                      }}
+                      styles={{ root: { width: 140 } }}
+                    />
+                    <TextField
+                      label="Valor"
+                      value={f.value}
+                      onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => {
+                        const next = state.filters.slice();
+                        next[i] = { ...next[i], value: v ?? '' };
+                        update({ filters: next });
+                      }}
+                      placeholder="Ex: Ativo, [me]"
+                      styles={{ root: { flex: 1 } }}
+                    />
+                    <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => update({ filters: state.filters.filter((_, idx) => idx !== i) })} />
+                  </Stack>
+                ))}
+                <DefaultButton text="Adicionar filtro" onClick={() => update({ filters: [...state.filters, { field: '', operator: 'eq', value: '' }] })} />
               </Stack>
             )}
           </Stack>
