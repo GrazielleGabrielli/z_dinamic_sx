@@ -169,6 +169,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
       isOpen={isOpen}
       onDismiss={onDismiss}
       type={PanelType.medium}
+      styles={{ main: { width: '85vw', maxWidth: '85vw' } }}
       headerText={panelHeader}
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}

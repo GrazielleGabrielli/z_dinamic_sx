@@ -21,6 +21,8 @@ import {
   Link,
   TooltipHost,
   Icon,
+  Pivot,
+  PivotItem,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
@@ -30,16 +32,19 @@ import type {
   IListViewModeConfig,
   IListViewFilterConfig,
   IPaginationConfig,
+  IPdfTemplateConfig,
   TPaginationLayout,
   TFilterOperator,
 } from '../../core/config/types';
+import { PdfTemplateEditor } from './PdfTemplateEditor';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
   listTitle: string;
   listView: IListViewConfig;
   pagination: IPaginationConfig;
-  onSave: (listView: IListViewConfig, pagination: IPaginationConfig) => void;
+  pdfTemplate?: IPdfTemplateConfig;
+  onSave: (listView: IListViewConfig, pagination: IPaginationConfig, pdfTemplate?: IPdfTemplateConfig) => void;
   onDismiss: () => void;
 }
 
@@ -161,15 +166,19 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   listTitle,
   listView,
   pagination,
+  pdfTemplate,
   onSave,
   onDismiss,
 }) => {
+  const [activeTab, setActiveTab] = useState<string>('lista');
+  const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<IFieldOption[]>([]);
   const [lookupListFields, setLookupListFields] = useState<Record<string, IFieldMetadata[]>>({});
   const [paginationEnabled, setPaginationEnabled] = useState(pagination.enabled);
   const [pageSize, setPageSize] = useState(pagination.pageSize);
   const [paginationLayout, setPaginationLayout] = useState<TPaginationLayout>(pagination.layout ?? 'buttons');
+  const [pdfExportEnabled, setPdfExportEnabled] = useState(listView.pdfExportEnabled ?? false);
   const defaultViewModes: IListViewModeConfig[] = [
     { id: 'all', label: 'Todas', filters: [] },
     { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
@@ -217,8 +226,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setPaginationLayout(pagination.layout ?? 'buttons');
       setViewModes(listView.viewModes?.length ? listView.viewModes : defaultViewModes);
       setActiveViewModeId(listView.activeViewModeId ?? 'all');
+      setLocalPdfTemplate(pdfTemplate);
+      setPdfExportEnabled(listView.pdfExportEnabled ?? false);
     }
-  }, [isOpen, pagination.enabled, pagination.pageSize, pagination.layout, listView.viewModes, listView.activeViewModeId]);
+  }, [isOpen, pagination.enabled, pagination.pageSize, pagination.layout, listView.viewModes, listView.activeViewModeId, listView.pdfExportEnabled, pdfTemplate]);
 
 
   const toggle = (internalName: string): void => {
@@ -293,8 +304,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       pageSizeOptions: pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS,
     };
     onSave(
-      { ...listView, columns, viewModes, activeViewModeId },
-      nextPagination
+      { ...listView, columns, viewModes, activeViewModeId, pdfExportEnabled },
+      nextPagination,
+      localPdfTemplate
     );
     onDismiss();
   };
@@ -346,11 +358,23 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setFormulasTarget(null);
   };
 
+  const pdfFieldOptions: IDropdownOption[] = useMemo(
+    () => [
+      { key: '', text: '— inserir campo —' },
+      ...options.map((o) => ({
+        key: o.meta.InternalName,
+        text: `${o.meta.Title} (${o.meta.InternalName})`,
+      })),
+    ],
+    [options]
+  );
+
   return (
     <Panel
       isOpen={isOpen}
       onDismiss={onDismiss}
       type={PanelType.medium}
+      styles={{ main: { width: '85vw', maxWidth: '85vw' } }}
       headerText="Editar lista / tabela"
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}
@@ -369,6 +393,13 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
           </Stack>
         ) : (
           <Stack tokens={{ childrenGap: 16 }}>
+            <Pivot
+              selectedKey={activeTab}
+              onLinkClick={(item) => item?.props?.itemKey !== undefined && item?.props?.itemKey !== null && setActiveTab(String(item.props.itemKey))}
+              styles={{ root: { marginBottom: 8 } }}
+            >
+              <PivotItem itemKey="lista" headerText="Lista">
+                <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8 } }}>
             <Stack tokens={{ childrenGap: 8 }}>
               <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
                 Paginação
@@ -423,7 +454,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       {viewModeEditFilters.map((f, i) => (
                         <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start">
                           <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: 1 } }} />
-                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt != null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
+                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
                           <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: 1 } }}>
                             <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
                             <Text variant="small" styles={{ root: { marginTop: 0 } }}>
@@ -460,7 +491,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     {viewModeEditFilters.map((f, i) => (
                       <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start">
                         <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: 1 } }} />
-                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt != null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
+                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
                         <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: 1 } }}>
                           <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
                           <Text variant="small" styles={{ root: { marginTop: 0 } }}>
@@ -531,6 +562,30 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 </Text>
               </Stack>
             ))}
+                </Stack>
+              </PivotItem>
+              <PivotItem itemKey="pdf" headerText="PDF">
+                <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8 } }}>
+                  <Checkbox
+                    label="Exibir botão Exportar PDF ao lado do seletor de abas"
+                    checked={pdfExportEnabled}
+                    onChange={(_, v) => setPdfExportEnabled(!!v)}
+                  />
+                  <PdfTemplateEditor
+                    value={localPdfTemplate}
+                    onChange={setLocalPdfTemplate}
+                    fieldOptions={pdfFieldOptions}
+                  />
+                </Stack>
+              </PivotItem>
+              <PivotItem itemKey="excel" headerText="Excel">
+                <Stack tokens={{ childrenGap: 8 }} styles={{ root: { paddingTop: 16 } }}>
+                  <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
+                    Exportação para Excel em breve.
+                  </Text>
+                </Stack>
+              </PivotItem>
+            </Pivot>
           </Stack>
         )}
         {formulasTarget && formulasFilterIndex !== null && (

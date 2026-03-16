@@ -6,6 +6,8 @@ import {
   IDashboardCardStyleConfig,
   IPaginationConfig,
   IListViewConfig,
+  IPdfTemplateConfig,
+  IPdfTemplateElement,
 } from '../types';
 import { getDefaultConfig } from '../utils';
 
@@ -95,6 +97,36 @@ function isValidListView(lv: unknown): lv is IListViewConfig {
   return true;
 }
 
+function isValidPdfElement(el: unknown): el is IPdfTemplateElement {
+  if (!el || typeof el !== 'object') return false;
+  const e = el as Record<string, unknown>;
+  return (
+    typeof e.id === 'string' &&
+    typeof e.type === 'string' &&
+    ['text', 'image', 'rect', 'line'].indexOf(e.type as string) !== -1 &&
+    typeof e.x === 'number' &&
+    typeof e.y === 'number'
+  );
+}
+
+function isValidPdfSection(s: unknown): boolean {
+  if (!s || typeof s !== 'object') return false;
+  const sec = s as Record<string, unknown>;
+  if (!Array.isArray(sec.elements)) return false;
+  return (sec.elements as unknown[]).every(isValidPdfElement);
+}
+
+function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
+  if (!t || typeof t !== 'object') return false;
+  const c = t as Record<string, unknown>;
+  if (c.pageFormat !== 'A4' && c.pageFormat !== 'Letter') return false;
+  if (c.orientation !== 'portrait' && c.orientation !== 'landscape') return false;
+  if (c.header !== undefined && !isValidPdfSection(c.header)) return false;
+  if (c.footer !== undefined && !isValidPdfSection(c.footer)) return false;
+  if (!c.body || !isValidPdfSection(c.body)) return false;
+  return true;
+}
+
 export function isValidConfig(config: unknown): config is IDynamicViewConfig {
   if (!config || typeof config !== 'object') return false;
   const c = config as Record<string, unknown>;
@@ -106,6 +138,7 @@ export function isValidConfig(config: unknown): config is IDynamicViewConfig {
     isValidPagination(c.pagination);
   if (!base) return false;
   if (c.listView !== undefined && !isValidListView(c.listView)) return false;
+  if (c.pdfTemplate !== undefined && !isValidPdfTemplate(c.pdfTemplate)) return false;
   return true;
 }
 
@@ -127,7 +160,9 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         sort: c.listView.sort ?? defaults.listView.sort,
         viewModes: c.listView.viewModes ?? defaults.listView.viewModes,
         activeViewModeId: c.listView.activeViewModeId ?? defaults.listView.activeViewModeId,
+        pdfExportEnabled: c.listView.pdfExportEnabled ?? false,
       },
+      ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),
     };
   } catch {
     return undefined;

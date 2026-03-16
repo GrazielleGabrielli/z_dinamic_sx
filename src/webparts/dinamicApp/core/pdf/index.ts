@@ -1,0 +1,1 @@
+export { generateAndDownloadPdf } from './generatePdf';

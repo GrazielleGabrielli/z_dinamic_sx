@@ -54,12 +54,17 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
     setIsEditingSeries(false);
   };
 
-  const handleSaveTableColumns = (listView: IListViewConfig, pagination: IPaginationConfig): void => {
+  const handleSaveTableColumns = (
+    listView: IListViewConfig,
+    pagination: IPaginationConfig,
+    pdfTemplate?: import('../core/config/types').IPdfTemplateConfig
+  ): void => {
     if (!config) return;
     onSaveConfig({
       ...config,
       listView,
       pagination,
+      ...(pdfTemplate !== undefined && { pdfTemplate }),
     });
     setIsEditingTableColumns(false);
   };
@@ -163,6 +168,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
         listTitle={config.dataSource.title}
         listView={config.listView}
         pagination={config.pagination}
+        pdfTemplate={config.pdfTemplate}
         onSave={handleSaveTableColumns}
         onDismiss={() => setIsEditingTableColumns(false)}
       />

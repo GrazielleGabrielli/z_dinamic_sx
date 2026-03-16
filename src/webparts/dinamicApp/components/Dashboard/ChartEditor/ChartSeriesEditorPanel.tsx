@@ -361,6 +361,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
       isOpen={isOpen}
       onDismiss={onDismiss}
       type={PanelType.medium}
+      styles={{ main: { width: '85vw', maxWidth: '85vw' } }}
       headerText={panelHeader}
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}

@@ -143,6 +143,45 @@ export interface IListViewConfig {
   sort: IListViewSortConfig | null;
   viewModes?: IListViewModeConfig[];
   activeViewModeId?: string;
+  pdfExportEnabled?: boolean;
+}
+
+// ─── PDF template ───────────────────────────────────────────────────────────
+
+export type TPdfElementType = 'text' | 'image' | 'rect' | 'line';
+export type TPdfElementScope = 'fixed' | 'dynamic';
+
+export interface IPdfTemplateElement {
+  id: string;
+  type: TPdfElementType;
+  scope?: TPdfElementScope;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  content?: string;
+  fontSize?: number;
+  fontWeight?: 'normal' | 'bold';
+  color?: string;
+  imageUrl?: string;
+}
+
+export interface IPdfTemplateSection {
+  height?: number;
+  elements: IPdfTemplateElement[];
+}
+
+export type TPdfLayoutMode = 'onePerPage' | 'allOnOnePage' | 'breakWhenFull';
+
+export interface IPdfTemplateConfig {
+  pageFormat: 'A4' | 'Letter';
+  orientation: 'portrait' | 'landscape';
+  layoutMode?: TPdfLayoutMode;
+  bodyBlockHeightMm?: number;
+  fixedBlockHeightMm?: number;
+  header?: IPdfTemplateSection;
+  footer?: IPdfTemplateSection;
+  body: IPdfTemplateSection;
 }
 
 // ─── Root config ─────────────────────────────────────────────────────────────
@@ -155,6 +194,7 @@ export interface IDynamicViewConfig {
   listView: IListViewConfig;
   /** Config da tabela dinâmica (modo list). Quando presente, DataTable + TableEngine são usados. */
   tableConfig?: import('../../table').ITableConfig;
+  pdfTemplate?: IPdfTemplateConfig;
 }
 
 export interface IDynamicViewWebPartProps {

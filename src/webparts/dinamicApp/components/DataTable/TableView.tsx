@@ -1,11 +1,12 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Stack, Dropdown, IDropdownOption } from '@fluentui/react';
+import { Stack, Dropdown, IDropdownOption, ActionButton } from '@fluentui/react';
 import { IDynamicViewConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
+import { generateAndDownloadPdf } from '../../core/pdf';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { DataTable } from './DataTable';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
@@ -258,19 +259,41 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
 
   if (!tableConfig) return <DataTable config={{ enabled: true, columns: [], sortable: false, emptyMessage: '' }} items={[]} loading={true} sortConfig={null} onSort={handleSort} engine={engine} />;
 
+  const showPdfButton = listView?.pdfExportEnabled === true;
+
+  const handleExportPdf = async (): Promise<void> => {
+    const template = config.pdfTemplate;
+    if (!template?.body?.elements?.length) return;
+    const data = items as Record<string, unknown>[];
+    if (data.length === 0) return;
+    const name = `${dataSource.title || 'lista'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    await generateAndDownloadPdf(template, data, name);
+  };
+
   return (
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8 } }}>
-      {viewModeOptions.length > 0 && (
-        <Dropdown
-          label="Visualização"
-          options={viewModeOptions}
-          selectedKey={selectedViewModeId}
-          onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-            debugger;
-            if (opt) setSelectedViewModeId(String(opt.key));
-          }}
-          styles={{ root: { maxWidth: 220 } }}
-        />
+      {(viewModeOptions.length > 0 || showPdfButton) && (
+        <Stack horizontal tokens={{ childrenGap: 12 }} verticalAlign="end" styles={{ root: { flexWrap: 'wrap' } }}>
+          {viewModeOptions.length > 0 && (
+            <Dropdown
+              label="Visualização"
+              options={viewModeOptions}
+              selectedKey={selectedViewModeId}
+              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                if (opt) setSelectedViewModeId(String(opt.key));
+              }}
+              styles={{ root: { maxWidth: 220 } }}
+            />
+          )}
+          {showPdfButton && (
+            <ActionButton
+              iconProps={{ iconName: 'PDF' }}
+              text="Exportar PDF"
+              styles={{ root: { height: 32, color: '#0078d4' } }}
+              onClick={handleExportPdf}
+            />
+          )}
+        </Stack>
       )}
       <DataTable
         config={tableConfig}
