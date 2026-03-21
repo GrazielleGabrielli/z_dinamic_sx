@@ -1,0 +1,27 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "76a623b5-738c-42a6-9d79-ce06a390d53a",
+  "alias": "PbiTextoConsultaWebPart",
+  "componentType": "WebPart",
+  "version": "*",
+  "manifestVersion": 2,
+  "requiresCustomScript": false,
+  "supportedHosts": ["SharePointWebPart", "SharePointFullPage", "TeamsPersonalApp", "TeamsTab"],
+  "supportsThemeVariants": true,
+  "preconfiguredEntries": [
+    {
+      "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+      "group": {
+        "default": "Advanced"
+      },
+      "title": {
+        "default": "Nova automacao de campanha"
+      },
+      "description": {
+        "default": "Fase 1 de validacao de consulta"
+      },
+      "officeFabricIconFontName": "TextField",
+      "properties": {}
+    }
+  ]
+}

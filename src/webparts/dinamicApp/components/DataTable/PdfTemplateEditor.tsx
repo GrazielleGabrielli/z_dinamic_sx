@@ -77,6 +77,21 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
   const [dragState, setDragState] = useState<{ id: string; startPx: number; startPy: number; elX: number; elY: number } | null>(null);
   const [resizeState, setResizeState] = useState<{ id: string; handle: string; startPx: number; startPy: number; startW: number; startH: number; startElX: number; startElY: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const previewWrapRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+
+  useEffect(() => {
+    const el = previewWrapRef.current;
+    if (!el) return;
+    const update = (): void => {
+      const w = el.clientWidth;
+      setPreviewScale(w > 0 ? Math.min(1, w / CANVAS_W) : 1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const bodyElements = config.body?.elements ?? [];
   const selected = bodyElements.filter((e: IPdfTemplateElement) => e.id === selectedId)[0];
@@ -134,8 +149,9 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
     (e: React.MouseEvent) => {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top;
+      const s = previewScale || 1;
+      const px = (e.clientX - rect.left) / s;
+      const py = (e.clientY - rect.top) / s;
       if (dragState) {
         const dx = pxToMm(px - dragState.startPx);
         const dy = pxToMm(py - dragState.startPy);
@@ -165,7 +181,7 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
         updateElement(resizeState.id, { x, y, width: w, height: h });
       }
     },
-    [dragState, resizeState, updateElement]
+    [dragState, resizeState, updateElement, previewScale]
   );
 
   const handleCanvasMouseUp = useCallback(() => {
@@ -181,16 +197,17 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
       if (!rect) return;
       const el = bodyElements.filter((x: IPdfTemplateElement) => x.id === id)[0];
       if (!el) return;
+      const s = previewScale || 1;
       setSelectedId(id);
       setDragState({
         id,
-        startPx: e.clientX - rect.left,
-        startPy: e.clientY - rect.top,
+        startPx: (e.clientX - rect.left) / s,
+        startPy: (e.clientY - rect.top) / s,
         elX: el.x,
         elY: el.y,
       });
     },
-    [bodyElements]
+    [bodyElements, previewScale]
   );
 
   const handleResizeStart = useCallback(
@@ -201,18 +218,19 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
       if (!rect) return;
       const el = bodyElements.filter((x: IPdfTemplateElement) => x.id === id)[0];
       if (!el) return;
+      const s = previewScale || 1;
       setResizeState({
         id,
         handle,
-        startPx: e.clientX - rect.left,
-        startPy: e.clientY - rect.top,
+        startPx: (e.clientX - rect.left) / s,
+        startPy: (e.clientY - rect.top) / s,
         startW: el.width ?? 50,
         startH: el.height ?? 20,
         startElX: el.x,
         startElY: el.y,
       });
     },
-    [bodyElements]
+    [bodyElements, previewScale]
   );
 
   const insertField = useCallback(
@@ -262,24 +280,37 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
         Fixo: uma vez na página. Dinâmico: um por item. Campos: {'{{Campo}}'}. Funções: [now] data, [time] hora, [nPage] página, [totalPages] total, [itemIndex] índice.
       </Text>
-      <Stack horizontal tokens={{ childrenGap: 16 }} styles={{ root: { alignItems: 'flex-start' } }}>
-        <div
-          ref={canvasRef}
-          style={{
-            width: CANVAS_W,
-            height: CANVAS_H,
-            background: '#fff',
-            border: '1px solid #edebe9',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            position: 'relative',
-            flexShrink: 0,
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-          }}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onMouseLeave={handleCanvasMouseUp}
-        >
+      <Stack tokens={{ childrenGap: 16 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
+        <div ref={previewWrapRef} style={{ width: '100%', minWidth: 0 }}>
+          <div
+            style={{
+              width: CANVAS_W * previewScale,
+              height: CANVAS_H * previewScale,
+              margin: '0 auto',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <div
+              ref={canvasRef}
+              style={{
+                width: CANVAS_W,
+                height: CANVAS_H,
+                background: '#fff',
+                border: '1px solid #edebe9',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                transform: `scale(${previewScale})`,
+                transformOrigin: 'top left',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+              }}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseUp}
+            >
           {hasFixedElements && (config.fixedBlockHeightMm ?? 0) > 0 && (
             <div
               style={{
@@ -336,8 +367,10 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
               </div>
             );
           })}
+            </div>
+          </div>
         </div>
-        <Stack tokens={{ childrenGap: 8 }} styles={{ root: { minWidth: 280 } }}>
+        <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0, maxWidth: '100%' } }}>
           <ChoiceGroup
             label="Página"
             options={[

@@ -373,8 +373,13 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     <Panel
       isOpen={isOpen}
       onDismiss={onDismiss}
-      type={PanelType.medium}
-      styles={{ main: { width: '85vw', maxWidth: '85vw' } }}
+      type={PanelType.custom}
+      customWidth="98vw"
+      styles={{
+        main: { width: 'min(98vw, calc(100vw - 16px))', maxWidth: 'min(98vw, calc(100vw - 16px))' },
+        scrollableContent: { overflowX: 'hidden' },
+        content: { overflowX: 'hidden', minWidth: 0 },
+      }}
       headerText="Editar lista / tabela"
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}
@@ -385,21 +390,21 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         </Stack>
       )}
     >
-      <div style={{ paddingTop: 16 }}>
+      <div style={{ paddingTop: 16, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
         {loading ? (
           <Stack horizontalAlign="center" tokens={{ childrenGap: 12 }} style={{ padding: 24 }}>
             <Spinner size={SpinnerSize.medium} />
             <Text variant="small">Carregando campos...</Text>
           </Stack>
         ) : (
-          <Stack tokens={{ childrenGap: 16 }}>
+          <Stack tokens={{ childrenGap: 16 }} styles={{ root: { minWidth: 0, maxWidth: '100%' } }}>
             <Pivot
               selectedKey={activeTab}
               onLinkClick={(item) => item?.props?.itemKey !== undefined && item?.props?.itemKey !== null && setActiveTab(String(item.props.itemKey))}
-              styles={{ root: { marginBottom: 8 } }}
+              styles={{ root: { marginBottom: 8, flexWrap: 'wrap', maxWidth: '100%' } }}
             >
               <PivotItem itemKey="lista" headerText="Lista">
-                <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8 } }}>
+                <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
             <Stack tokens={{ childrenGap: 8 }}>
               <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
                 Paginação
@@ -452,10 +457,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     <Stack tokens={{ childrenGap: 10 }}>
                       <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
                       {viewModeEditFilters.map((f, i) => (
-                        <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start">
-                          <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: 1 } }} />
-                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
-                          <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: 1 } }}>
+                        <Stack key={i} horizontal wrap verticalAlign="start" tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
+                          <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: '100%' } }} />
+                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { flex: '0 0 auto', width: 120, minWidth: 100 } }} />
+                          <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: '1 1 180px', minWidth: 0, maxWidth: '100%' } }}>
                             <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
                             <Text variant="small" styles={{ root: { marginTop: 0 } }}>
                               <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
@@ -489,10 +494,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   <Stack tokens={{ childrenGap: 10 }}>
                     <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
                     {viewModeEditFilters.map((f, i) => (
-                      <Stack key={i} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start">
-                        <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: 1 } }} />
-                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { width: 120 } }} />
-                        <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: 1 } }}>
+                      <Stack key={i} horizontal wrap verticalAlign="start" tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
+                        <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: '100%' } }} />
+                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { flex: '0 0 auto', width: 120, minWidth: 100 } }} />
+                        <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: '1 1 180px', minWidth: 0, maxWidth: '100%' } }}>
                           <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
                           <Text variant="small" styles={{ root: { marginTop: 0 } }}>
                             <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
@@ -526,17 +531,19 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
               <Stack
                 key={o.meta.InternalName}
                 horizontal
+                wrap
                 tokens={{ childrenGap: 12 }}
-                verticalAlign="center"
-                styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1' } }}
+                verticalAlign="start"
+                styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
               >
                 <Checkbox
                   checked={o.selected}
                   onChange={() => toggle(o.meta.InternalName)}
                   ariaLabel={o.meta.Title}
+                  styles={{ root: { flex: '0 0 auto', marginTop: 4 } }}
                 />
-                <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: 1 } }}>
-                  <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 2 } }}>
+                <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 240px', minWidth: 0, maxWidth: '100%' } }}>
+                  <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 2, wordBreak: 'break-word' } }}>
                     Campo: {o.meta.InternalName}
                   </Text>
                   <TextField
@@ -545,7 +552,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     onChange={(_, v) => setLabel(o.meta.InternalName, v ?? '')}
                     disabled={!o.selected}
                     placeholder={o.meta.Title}
-                    styles={{ root: { maxWidth: 280 } }}
+                    styles={{ root: { maxWidth: '100%' } }}
                   />
                   {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
                     <Dropdown
@@ -553,11 +560,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       selectedKey={o.expandField || 'Title'}
                       options={getExpandFieldOptions(o.meta)}
                       onChange={(_, opt) => setExpandField(o.meta.InternalName, (opt?.key as string) ?? 'Title')}
-                      styles={{ root: { maxWidth: 280 } }}
+                      styles={{ root: { maxWidth: '100%' } }}
                     />
                   )}
                 </Stack>
-                <Text variant="small" styles={{ root: { color: '#a19f9d', minWidth: 80 } }}>
+                <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '0 0 auto', maxWidth: '100%', wordBreak: 'break-word' } }}>
                   {o.meta.MappedType}
                 </Text>
               </Stack>
@@ -565,7 +572,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 </Stack>
               </PivotItem>
               <PivotItem itemKey="pdf" headerText="PDF">
-                <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8 } }}>
+                <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
                   <Checkbox
                     label="Exibir botão Exportar PDF ao lado do seletor de abas"
                     checked={pdfExportEnabled}
@@ -579,7 +586,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 </Stack>
               </PivotItem>
               <PivotItem itemKey="excel" headerText="Excel">
-                <Stack tokens={{ childrenGap: 8 }} styles={{ root: { paddingTop: 16 } }}>
+                <Stack tokens={{ childrenGap: 8 }} styles={{ root: { paddingTop: 16, minWidth: 0, maxWidth: '100%' } }}>
                   <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
                     Exportação para Excel em breve.
                   </Text>

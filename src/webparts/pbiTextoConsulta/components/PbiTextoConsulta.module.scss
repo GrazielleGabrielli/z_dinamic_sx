@@ -1,0 +1,9 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.pbiTextoConsulta {
+  color: "[theme:bodyText, default: #0f172a]";
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 32px 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}

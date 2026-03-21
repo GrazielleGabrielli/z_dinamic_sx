@@ -7,6 +7,10 @@
         {
           "entrypoint": "./lib/webparts/dinamicApp/DinamicAppWebPart.js",
           "manifest": "./src/webparts/dinamicApp/DinamicAppWebPart.manifest.json"
+        },
+        {
+          "entrypoint": "./lib/webparts/pbiTextoConsulta/PbiTextoConsultaWebPart.js",
+          "manifest": "./src/webparts/pbiTextoConsulta/PbiTextoConsultaWebPart.manifest.json"
         }
       ]
     }

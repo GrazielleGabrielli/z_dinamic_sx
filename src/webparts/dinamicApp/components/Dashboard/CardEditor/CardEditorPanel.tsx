@@ -168,8 +168,13 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
     <Panel
       isOpen={isOpen}
       onDismiss={onDismiss}
-      type={PanelType.medium}
-      styles={{ main: { width: '85vw', maxWidth: '85vw' } }}
+      type={PanelType.custom}
+      customWidth="98vw"
+      styles={{
+        main: { width: 'min(98vw, calc(100vw - 16px))', maxWidth: 'min(98vw, calc(100vw - 16px))' },
+        scrollableContent: { overflowX: 'hidden' },
+        content: { overflowX: 'hidden', minWidth: 0 },
+      }}
       headerText={panelHeader}
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}
@@ -188,7 +193,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
         </Stack>
       )}
     >
-      <div style={{ paddingTop: 16 }}>
+      <div style={{ paddingTop: 16, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
         {view === 'list' && renderListView()}
         {view === 'form' && (
           <CardForm
