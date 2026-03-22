@@ -1,12 +1,18 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './PbiTextoConsulta.module.scss';
 import type { IPbiTextoConsultaProps } from './IPbiTextoConsultaProps';
+import AutomacaoCampanhaModal from './AutomacaoCampanhaModal';
+import type { AutomacaoCampanhaFormData } from './automacaoCampanhaTypes';
+import { EMPTY_AUTOMACAO_CAMPANHA_FORM } from './automacaoCampanhaTypes';
+import { buildAutomacaoCampanhaInitialForm } from './automacaoCampanhaUtils';
 import {
   createValidationTemplateItem,
   DEFAULT_VALIDATION_TITLE,
   DEFAULT_VALIDATION_STATUS,
-  getValidationTemplateItemById
+  getValidationTemplateItemById,
+  getValidationTemplateItemsTitleOk,
+  updateValidarTemplatesItemStatus
 } from './validationService';
 import type {
   ValidationPhaseOneErrors,
@@ -93,6 +99,14 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string>('');
   const [respostaPanelOpen, setRespostaPanelOpen] = useState(false);
+  const [automacaoModalOpen, setAutomacaoModalOpen] = useState(false);
+  const [automacaoModalValues, setAutomacaoModalValues] = useState<AutomacaoCampanhaFormData>(EMPTY_AUTOMACAO_CAMPANHA_FORM);
+  const [isApproving, setIsApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string>('');
+  const [pageView, setPageView] = useState<'lista' | 'novo'>('lista');
+  const [okItems, setOkItems] = useState<ValidationTemplateItem[]>([]);
+  const [listaLoading, setListaLoading] = useState(false);
+  const [listaError, setListaError] = useState<string>('');
 
   const textoConsultaLength = useMemo(() => formData.textoConsulta.length, [formData.textoConsulta]);
   const respostaParsed = useMemo(
@@ -104,6 +118,44 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
     createdItem !== null &&
     validationResult === null &&
     elapsedSeconds >= INITIAL_POLLING_TIMEOUT_MS / 1000;
+
+  const showAprovarButton =
+    validationResult === 'OK' &&
+    createdItem !== null &&
+    createdItem.Status.trim().toLowerCase() !== 'finalizado';
+
+  const loadOkItems = useCallback(async (): Promise<void> => {
+    setListaError('');
+    setListaLoading(true);
+    try {
+      const items = await getValidationTemplateItemsTitleOk();
+      setOkItems(items);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao carregar a lista.';
+      setListaError(message);
+    } finally {
+      setListaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pageView === 'lista') {
+      void loadOkItems();
+    }
+  }, [pageView, loadOkItems]);
+
+  const truncateListaPreview = (text: string, maxLen: number): string => {
+    const t = text.trim();
+    if (t.length <= maxLen) {
+      return t;
+    }
+    return `${t.slice(0, maxLen)}...`;
+  };
+
+  const handleCriarCampanhaDesdeLista = (item: ValidationTemplateItem): void => {
+    setAutomacaoModalValues(buildAutomacaoCampanhaInitialForm(item.TextoConsulta, item.RespostaPBI));
+    setAutomacaoModalOpen(true);
+  };
 
   const handleFieldChange =
     (field: keyof ValidationPhaseOneFormData) =>
@@ -269,6 +321,34 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
     }
   };
 
+  const handleAprovar = async (): Promise<void> => {
+    const itemId = createdItem?.Id ?? activeItemId;
+    if (!itemId || validationResult !== 'OK') {
+      return;
+    }
+
+    setApproveError('');
+
+    try {
+      setIsApproving(true);
+      await updateValidarTemplatesItemStatus(itemId, 'Finalizado');
+      const refreshedItem = await getValidationTemplateItemById(itemId);
+      setCreatedItem(refreshedItem);
+
+      const initialAutomacao = buildAutomacaoCampanhaInitialForm(
+        refreshedItem.TextoConsulta,
+        refreshedItem.RespostaPBI
+      );
+      setAutomacaoModalValues(initialAutomacao);
+      setAutomacaoModalOpen(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel aprovar.';
+      setApproveError(message);
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   const handleRefreshItem = async (): Promise<void> => {
     const itemId = createdItem?.Id ?? activeItemId;
     if (!itemId) {
@@ -302,33 +382,119 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
   return (
     <section className={styles.pbiTextoConsulta}>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 sm:px-6 lg:px-8">
-        <header className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 px-6 py-7 shadow-[0_18px_45px_rgba(15,23,42,0.08)] backdrop-blur sm:px-8 sm:py-9">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
-              <span className="inline-flex w-fit rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
-                Validacao inicial
-              </span>
-              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                Validar consulta
-              </h1>
-              <p className="max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                Envie o texto da consulta para a lista ValidarTemplates e acompanhe o retorno automatico da validacao.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:w-fit">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Status inicial</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{DEFAULT_VALIDATION_STATUS}</p>
+        {pageView === 'lista' ? (
+          <>
+            <header className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 px-6 py-7 shadow-[0_18px_45px_rgba(15,23,42,0.08)] backdrop-blur sm:px-8 sm:py-9">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-3">
+                  <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                    Title OK
+                  </span>
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                    Consultas validadas
+                  </h1>
+                  <p className="max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+                    Itens da lista ValidarTemplates com titulo OK. Use Criar campanha para abrir o cadastro de automacao ou Novo para enviar outra consulta.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => void loadOkItems()}
+                    disabled={listaLoading}
+                    className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-8 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {listaLoading ? 'Atualizando...' : 'Atualizar lista'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPageView('novo')}
+                    className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                  >
+                    Novo
+                  </button>
+                </div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Acao</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{DEFAULT_VALIDATION_TITLE}</p>
-              </div>
-            </div>
-          </div>
-        </header>
+            </header>
 
-        <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.08)] backdrop-blur sm:p-8 lg:p-10">
+            {listaError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                {listaError}
+              </div>
+            )}
+
+            <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.08)] backdrop-blur sm:p-8">
+              {listaLoading && okItems.length === 0 ? (
+                <p className="text-center text-sm text-slate-600">Carregando itens...</p>
+              ) : null}
+              {!listaLoading && okItems.length === 0 && !listaError ? (
+                <p className="text-center text-sm text-slate-600">Nenhum item com Title OK encontrado.</p>
+              ) : null}
+              <ul className="space-y-4">
+                {okItems.map((item) => (
+                  <li
+                    key={item.Id}
+                    className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">ID {item.Id}</span>
+                        <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                          {item.Status || DEFAULT_VALIDATION_STATUS}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-6 text-slate-700">{truncateListaPreview(item.TextoConsulta, 200)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCriarCampanhaDesdeLista(item)}
+                      className="inline-flex min-h-[48px] shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                    >
+                      Criar campanha
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        ) : (
+          <>
+            <header className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 px-6 py-7 shadow-[0_18px_45px_rgba(15,23,42,0.08)] backdrop-blur sm:px-8 sm:py-9">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPageView('lista')}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      Voltar
+                    </button>
+                    <span className="inline-flex w-fit rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
+                      Nova validacao
+                    </span>
+                  </div>
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                    Validar consulta
+                  </h1>
+                  <p className="max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+                    Envie o texto da consulta para a lista ValidarTemplates e acompanhe o retorno automatico da validacao.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:w-fit">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Status inicial</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{DEFAULT_VALIDATION_STATUS}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Acao</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{DEFAULT_VALIDATION_TITLE}</p>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.08)] backdrop-blur sm:p-8 lg:p-10">
           <div className="mb-8 flex flex-col gap-3 border-b border-slate-100 pb-6">
             <p className="text-sm font-semibold text-slate-900">Texto de consulta</p>
             <p className="text-sm leading-6 text-slate-500">
@@ -408,6 +574,25 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
             {refreshError && (
               <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {refreshError}
+              </div>
+            )}
+
+            {approveError && (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {approveError}
+              </div>
+            )}
+
+            {showAprovarButton && (
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => void handleAprovar()}
+                  disabled={isApproving}
+                  className="inline-flex min-h-[52px] min-w-[200px] items-center justify-center rounded-2xl bg-emerald-600 px-10 py-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(5,150,105,0.28)] transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                >
+                  {isApproving ? 'Aprovando...' : 'Aprovar'}
+                </button>
               </div>
             )}
 
@@ -524,6 +709,16 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
             )}
           </section>
         )}
+
+          </>
+        )}
+
+        <AutomacaoCampanhaModal
+          isOpen={automacaoModalOpen}
+          initialValues={automacaoModalValues}
+          onClose={() => setAutomacaoModalOpen(false)}
+          onSaved={() => void loadOkItems()}
+        />
       </div>
     </section>
   );
