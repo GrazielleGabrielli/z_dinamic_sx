@@ -717,7 +717,9 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
           isOpen={automacaoModalOpen}
           initialValues={automacaoModalValues}
           onClose={() => setAutomacaoModalOpen(false)}
-          onSaved={() => void loadOkItems()}
+          onSaved={async () => {
+            await loadOkItems();
+          }}
         />
       </div>
     </section>

@@ -8,7 +8,7 @@ export interface AutomacaoCampanhaModalProps {
   isOpen: boolean;
   initialValues: AutomacaoCampanhaFormData;
   onClose: () => void;
-  onSaved?: (itemId: number) => void;
+  onSaved?: (itemId: number) => void | Promise<void>;
 }
 
 const emptyErrors: AutomacaoCampanhaFormErrors = {};
@@ -44,7 +44,15 @@ const AutomacaoCampanhaModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      setForm({ ...initialValues });
+      const text =
+        initialValues.TextoConsulta.trim().length > 0
+          ? initialValues.TextoConsulta
+          : initialValues.texto_regra;
+      setForm({
+        ...initialValues,
+        TextoConsulta: text,
+        texto_regra: text
+      });
       setErrors(emptyErrors);
       setSaveError('');
     }
@@ -84,6 +92,20 @@ const AutomacaoCampanhaModal = ({
       setErrors((current) => ({ ...current, [field]: undefined }));
     };
 
+  const handleTextoConsultaRegraChange = (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    const { value } = event.target;
+    setForm((current) => ({
+      ...current,
+      TextoConsulta: value,
+      texto_regra: value
+    }));
+    setErrors((current) => ({
+      ...current,
+      TextoConsulta: undefined,
+      texto_regra: undefined
+    }));
+  };
+
   const validate = (): boolean => {
     const next: AutomacaoCampanhaFormErrors = {};
 
@@ -109,8 +131,13 @@ const AutomacaoCampanhaModal = ({
 
     try {
       setIsSaving(true);
-      const id = await createAutomacaoCampanhaItem(form);
-      onSaved?.(id);
+      const synced = {
+        ...form,
+        TextoConsulta: form.TextoConsulta.trim(),
+        texto_regra: form.TextoConsulta.trim()
+      };
+      const id = await createAutomacaoCampanhaItem(synced);
+      await Promise.resolve(onSaved?.(id));
       onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao salvar.';
@@ -141,7 +168,7 @@ const AutomacaoCampanhaModal = ({
             <h2 id="automacao-modal-title" className="text-xl font-semibold text-slate-900">
               Automacao de campanha
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Revise os dados e conclua o cadastro na lista automacaoCampanha.</p>
+            <p className="mt-1 text-sm text-slate-500">Revise os dados e conclua o cadastro na lista AutomacaoCampanhas.</p>
           </div>
           <button
             type="button"
@@ -154,8 +181,8 @@ const AutomacaoCampanhaModal = ({
         </div>
 
         <form className="max-h-[min(70vh,720px)] overflow-y-auto px-6 py-6 sm:px-8" onSubmit={(e) => void handleSubmit(e)}>
-          <div className="space-y-5">
-            <div className="space-y-2">
+          <div className="grid w-full grid-cols-12 gap-6">
+            <div className="col-span-12 space-y-2">
               <label className={labelClass} htmlFor="ac-title">
                 Titulo
               </label>
@@ -163,21 +190,23 @@ const AutomacaoCampanhaModal = ({
               {errors.Title && <p className="text-sm text-red-600">{errors.Title}</p>}
             </div>
 
-            <div className="space-y-2">
-              <label className={labelClass} htmlFor="ac-texto-consulta">
-                Texto de consulta
+            <div className="col-span-12 space-y-2">
+              <label className={labelClass} htmlFor="ac-texto-consulta-regra">
+                Texto consulta / texto_regra
               </label>
               <textarea
-                id="ac-texto-consulta"
-                rows={6}
+                id="ac-texto-consulta-regra"
+                rows={8}
                 value={form.TextoConsulta}
-                onChange={handleChange('TextoConsulta')}
+                onChange={handleTextoConsultaRegraChange}
                 className={`${inputClass} resize-y font-mono text-xs leading-relaxed`}
               />
-              {errors.TextoConsulta && <p className="text-sm text-red-600">{errors.TextoConsulta}</p>}
+              {(errors.TextoConsulta || errors.texto_regra) && (
+                <p className="text-sm text-red-600">{errors.TextoConsulta || errors.texto_regra}</p>
+              )}
             </div>
 
-            <div className="space-y-2">
+            <div className="col-span-12 space-y-2">
               <label className={labelClass} htmlFor="ac-desc">
                 descricao_campanha
               </label>
@@ -185,60 +214,50 @@ const AutomacaoCampanhaModal = ({
               {errors.descricao_campanha && <p className="text-sm text-red-600">{errors.descricao_campanha}</p>}
             </div>
 
-            <div className="space-y-2">
-              <label className={labelClass} htmlFor="ac-regra">
-                texto_regra
+            <div className="col-span-12 space-y-2">
+              <label className={labelClass} htmlFor="ac-inicio">
+                Inicio
               </label>
-              <textarea id="ac-regra" rows={4} value={form.texto_regra} onChange={handleChange('texto_regra')} className={`${inputClass} resize-y`} />
-              {errors.texto_regra && <p className="text-sm text-red-600">{errors.texto_regra}</p>}
+              <input id="ac-inicio" type="datetime-local" value={form.Inicio} onChange={handleChange('Inicio')} className={inputClass} />
+              {errors.Inicio && <p className="text-sm text-red-600">{errors.Inicio}</p>}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className={labelClass} htmlFor="ac-inicio">
-                  Inicio
-                </label>
-                <input id="ac-inicio" type="datetime-local" value={form.Inicio} onChange={handleChange('Inicio')} className={inputClass} />
-                {errors.Inicio && <p className="text-sm text-red-600">{errors.Inicio}</p>}
-              </div>
-              <div className="space-y-2">
-                <label className={labelClass} htmlFor="ac-fim">
-                  Fim
-                </label>
-                <input id="ac-fim" type="datetime-local" value={form.Fim} onChange={handleChange('Fim')} className={inputClass} />
-                {errors.Fim && <p className="text-sm text-red-600">{errors.Fim}</p>}
-              </div>
+            <div className="col-span-12 space-y-2">
+              <label className={labelClass} htmlFor="ac-fim">
+                Fim
+              </label>
+              <input id="ac-fim" type="datetime-local" value={form.Fim} onChange={handleChange('Fim')} className={inputClass} />
+              {errors.Fim && <p className="text-sm text-red-600">{errors.Fim}</p>}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className={labelClass} htmlFor="ac-tipo">
-                  Tipo_campanha
-                </label>
-                <select id="ac-tipo" value={form.Tipo_campanha} onChange={handleChange('Tipo_campanha')} className={inputClass}>
-                  <option value="">Selecione</option>
-                  {tipoOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                {errors.Tipo_campanha && <p className="text-sm text-red-600">{errors.Tipo_campanha}</p>}
-              </div>
-              <div className="space-y-2">
-                <label className={labelClass} htmlFor="ac-enviar">
-                  EnviarPara
-                </label>
-                <select id="ac-enviar" value={form.EnviarPara} onChange={handleChange('EnviarPara')} className={inputClass}>
-                  <option value="">Selecione</option>
-                  {enviarOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                {errors.EnviarPara && <p className="text-sm text-red-600">{errors.EnviarPara}</p>}
-              </div>
+            <div className="col-span-12 space-y-2">
+              <label className={labelClass} htmlFor="ac-tipo">
+                Tipo_campanha
+              </label>
+              <select id="ac-tipo" value={form.Tipo_campanha} onChange={handleChange('Tipo_campanha')} className={inputClass}>
+                <option value="">Selecione</option>
+                {tipoOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              {errors.Tipo_campanha && <p className="text-sm text-red-600">{errors.Tipo_campanha}</p>}
+            </div>
+
+            <div className="col-span-12 space-y-2">
+              <label className={labelClass} htmlFor="ac-enviar">
+                EnviarPara
+              </label>
+              <select id="ac-enviar" value={form.EnviarPara} onChange={handleChange('EnviarPara')} className={inputClass}>
+                <option value="">Selecione</option>
+                {enviarOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              {errors.EnviarPara && <p className="text-sm text-red-600">{errors.EnviarPara}</p>}
             </div>
           </div>
 

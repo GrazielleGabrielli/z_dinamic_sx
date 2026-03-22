@@ -1,7 +1,7 @@
 import type { AutomacaoCampanhaFormData } from './automacaoCampanhaTypes';
 
-export const TIPO_CAMPANHA_OPCOES = ['Marketing', 'Operacional', 'Relacionamento', 'Outro'];
-export const ENVIAR_PARA_OPCOES = ['Todos', 'Segmento', 'Lista especifica', 'Outro'];
+export const TIPO_CAMPANHA_OPCOES = ['Incentivo', 'Comparativo', 'Ranking', 'Elegibilidade'];
+export const ENVIAR_PARA_OPCOES = ['Vendedor', 'Loja', 'Gerente'];
 
 const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
 
@@ -52,7 +52,7 @@ export const buildAutomacaoCampanhaInitialForm = (
     Title: '',
     TextoConsulta: textoConsulta,
     descricao_campanha: '',
-    texto_regra: '',
+    texto_regra: textoConsulta,
     Inicio: '',
     Fim: '',
     Tipo_campanha: '',
@@ -81,7 +81,7 @@ export const buildAutomacaoCampanhaInitialForm = (
       Title: getRowString(row, ['Title', 'Título', 'Titulo', 'titulo', 'Nome', 'nome']),
       TextoConsulta: textoConsulta,
       descricao_campanha: getRowString(row, ['descricao_campanha', 'Descricao_campanha', 'descricao', 'Descricao']),
-      texto_regra: getRowString(row, ['texto_regra', 'Texto_regra', 'regra', 'Regra']),
+      texto_regra: textoConsulta,
       Inicio: toDatetimeLocalValue(row.Inicio ?? row.inicio ?? row.DataInicio),
       Fim: toDatetimeLocalValue(row.Fim ?? row.fim ?? row.DataFim),
       Tipo_campanha: getRowString(row, ['Tipo_campanha', 'tipo_campanha', 'TipoCampanha']),

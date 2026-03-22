@@ -2,7 +2,7 @@ import { getSP } from '../../../services/core/sp';
 import type { AutomacaoCampanhaFormData } from './automacaoCampanhaTypes';
 import { datetimeLocalToIso } from './automacaoCampanhaUtils';
 
-const AUTOMACAO_CAMPANHA_LIST_TITLE = 'automacaoCampanha';
+const AUTOMACAO_CAMPANHA_LIST_TITLE = 'AutomacaoCampanhas';
 
 export async function createAutomacaoCampanhaItem(data: AutomacaoCampanhaFormData): Promise<number> {
   const sp = getSP();
@@ -16,7 +16,6 @@ export async function createAutomacaoCampanhaItem(data: AutomacaoCampanhaFormDat
 
   const payload: Record<string, unknown> = {
     Title: data.Title.trim(),
-    TextoConsulta: data.TextoConsulta.trim(),
     descricao_campanha: data.descricao_campanha.trim(),
     texto_regra: data.texto_regra.trim(),
     Tipo_campanha: data.Tipo_campanha.trim(),
@@ -34,13 +33,14 @@ export async function createAutomacaoCampanhaItem(data: AutomacaoCampanhaFormDat
   try {
     const result = await sp.web.lists.getByTitle(AUTOMACAO_CAMPANHA_LIST_TITLE).items.add(payload);
     const raw = (result as { data?: { Id?: number; ID?: number } }).data;
+    debugger
     const id = raw?.Id ?? raw?.ID;
     if (id === undefined) {
-      throw new Error('Resposta sem ID ao criar automacaoCampanha.');
+      throw new Error('Resposta sem ID ao criar item em AutomacaoCampanhas.');
     }
     return Number(id);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Falha ao criar item em automacaoCampanha.';
+    const message = error instanceof Error ? error.message : 'Falha ao criar item em AutomacaoCampanhas.';
     throw new Error(message);
   }
 }
