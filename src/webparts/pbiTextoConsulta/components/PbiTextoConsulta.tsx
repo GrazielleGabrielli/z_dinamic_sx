@@ -41,6 +41,44 @@ const normalizeValidationResult = (title: string): 'OK' | 'ERRO' | null => {
   return null;
 };
 
+type ParsedRespostaPBI =
+  | { kind: 'array'; firstJson: string; fullJson: string; count: number }
+  | { kind: 'text'; content: string }
+  | { kind: 'empty' };
+
+const parseRespostaPBIContent = (raw: string): ParsedRespostaPBI => {
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    return { kind: 'empty' };
+  }
+
+  try {
+    const data = JSON.parse(trimmed) as unknown;
+
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        return { kind: 'text', content: '[]' };
+      }
+
+      return {
+        kind: 'array',
+        firstJson: JSON.stringify(data[0], null, 2),
+        fullJson: JSON.stringify(data, null, 2),
+        count: data.length
+      };
+    }
+
+    if (data !== null && typeof data === 'object') {
+      return { kind: 'text', content: JSON.stringify(data, null, 2) };
+    }
+
+    return { kind: 'text', content: String(data) };
+  } catch {
+    return { kind: 'text', content: trimmed };
+  }
+};
+
 const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement => {
   const [formData, setFormData] = useState<ValidationPhaseOneFormData>(initialFormData);
   const [errors, setErrors] = useState<ValidationPhaseOneErrors>({});
@@ -52,8 +90,15 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [pollingMessage, setPollingMessage] = useState<string>('');
   const [validationResult, setValidationResult] = useState<'OK' | 'ERRO' | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string>('');
+  const [respostaPanelOpen, setRespostaPanelOpen] = useState(false);
 
   const textoConsultaLength = useMemo(() => formData.textoConsulta.length, [formData.textoConsulta]);
+  const respostaParsed = useMemo(
+    () => parseRespostaPBIContent(createdItem?.RespostaPBI ?? ''),
+    [createdItem?.RespostaPBI]
+  );
   const isValidationPending = createdItem?.Title.trim().toUpperCase() === DEFAULT_VALIDATION_TITLE;
   const shouldShowPowerAutomateLink =
     createdItem !== null &&
@@ -150,12 +195,45 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
     };
   }, [activeItemId, isPolling]);
 
+  useEffect(() => {
+    setRespostaPanelOpen(false);
+  }, [createdItem?.Id]);
+
+  useEffect(() => {
+    if (respostaParsed.kind !== 'array') {
+      setRespostaPanelOpen(false);
+    }
+  }, [respostaParsed.kind]);
+
+  useEffect(() => {
+    if (!respostaPanelOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setRespostaPanelOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [respostaPanelOpen]);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
 
     const nextErrors = validateForm();
     setErrors(nextErrors);
     setSubmitError('');
+    setRefreshError('');
     setPollingMessage('');
     setValidationResult(null);
     setCreatedItem(null);
@@ -191,56 +269,112 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
     }
   };
 
+  const handleRefreshItem = async (): Promise<void> => {
+    const itemId = createdItem?.Id ?? activeItemId;
+    if (!itemId) {
+      return;
+    }
+
+    setRefreshError('');
+
+    try {
+      setIsRefreshing(true);
+      const refreshedItem = await getValidationTemplateItemById(itemId);
+      setCreatedItem(refreshedItem);
+
+      const result = normalizeValidationResult(refreshedItem.Title);
+
+      if (result) {
+        setValidationResult(result);
+        setPollingMessage(`Validacao finalizada com resultado ${result}.`);
+        setIsPolling(false);
+      } else {
+        setPollingMessage('Dados atualizados. Aguardando retorno da validacao...');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel atualizar o item.';
+      setRefreshError(message);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <section className={styles.pbiTextoConsulta}>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-        <header className="space-y-3">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-              Validar consulta
-            </h1>
-            <p className="text-sm leading-6 text-slate-600 sm:text-base">
-              Informe o texto da consulta e inicie a validacao.
-            </p>
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 sm:px-6 lg:px-8">
+        <header className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 px-6 py-7 shadow-[0_18px_45px_rgba(15,23,42,0.08)] backdrop-blur sm:px-8 sm:py-9">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <span className="inline-flex w-fit rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
+                Validacao inicial
+              </span>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                Validar consulta
+              </h1>
+              <p className="max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+                Envie o texto da consulta para a lista ValidarTemplates e acompanhe o retorno automatico da validacao.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:w-fit">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Status inicial</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{DEFAULT_VALIDATION_STATUS}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Acao</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{DEFAULT_VALIDATION_TITLE}</p>
+              </div>
+            </div>
           </div>
         </header>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.08)] backdrop-blur sm:p-8 lg:p-10">
+          <div className="mb-8 flex flex-col gap-3 border-b border-slate-100 pb-6">
+            <p className="text-sm font-semibold text-slate-900">Texto de consulta</p>
+            <p className="text-sm leading-6 text-slate-500">
+              Cole abaixo a consulta que sera enviada para validacao automatica.
+            </p>
+          </div>
+
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <label className="text-sm font-medium text-slate-800" htmlFor="validation-texto-consulta">
                   Texto de consulta
                 </label>
-                <span className="text-xs font-medium text-slate-500">
+                <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                   {textoConsultaLength} caracteres
                 </span>
               </div>
               <textarea
                 id="validation-texto-consulta"
+                rows={7}
                 value={formData.textoConsulta}
                 onChange={handleFieldChange('textoConsulta')}
                 placeholder="Cole aqui o texto da consulta."
-                className={`min-h-[320px] w-full rounded-2xl border bg-white px-4 py-4 text-sm leading-6 text-slate-900 outline-none transition focus:ring-4 ${
+                className={`w-full rounded-[24px] border bg-slate-50/70 px-5 py-4 text-sm leading-7 text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:bg-white focus:ring-4 ${
                   errors.textoConsulta
                     ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
                     : 'border-slate-200 focus:border-indigo-400 focus:ring-indigo-100'
                 }`}
               />
-              {errors.textoConsulta && <p className="text-sm text-red-600">{errors.textoConsulta}</p>}
+              {errors.textoConsulta && <p className="text-sm font-medium text-red-600">{errors.textoConsulta}</p>}
             </div>
 
             {submitError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
                 {submitError}
               </div>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex flex-col gap-5 border-t border-slate-100 pt-8 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <p className="text-sm leading-6 text-slate-500 sm:pr-4">
+                O envio fica bloqueado enquanto houver uma validacao pendente.
+              </p>
               <button
                 type="submit"
                 disabled={isSubmitting || isPolling || isValidationPending}
-                className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="inline-flex min-h-[52px] min-w-[200px] shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-10 py-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(79,70,229,0.28)] transition duration-200 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:px-12 sm:py-[1.125rem]"
               >
                 {isSubmitting ? 'Enviando...' : isPolling ? 'Aguardando retorno...' : 'Validar'}
               </button>
@@ -249,50 +383,137 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
         </div>
 
         {createdItem && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
+          <section className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.08)] backdrop-blur sm:p-8 lg:p-10">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2">
                 <p className="text-sm font-semibold text-slate-900">Acompanhamento da validacao</p>
-                <p className="text-sm text-slate-600">{pollingMessage || 'Validacao iniciada.'}</p>
+                <p className="max-w-2xl text-sm leading-6 text-slate-600">{pollingMessage || 'Validacao iniciada.'}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Tempo</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{formatElapsedTime(elapsedSeconds)}</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch lg:flex-col xl:flex-row xl:items-start">
+                <button
+                  type="button"
+                  onClick={() => void handleRefreshItem()}
+                  disabled={isRefreshing}
+                  className="inline-flex min-h-[48px] min-w-[160px] shrink-0 items-center justify-center rounded-2xl border border-slate-300 bg-white px-8 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+                </button>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:min-w-[180px] lg:text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Tempo</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{formatElapsedTime(elapsedSeconds)}</p>
+                </div>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">ID</p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">{createdItem.Id}</p>
+            {refreshError && (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {refreshError}
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Status</p>
+            )}
+
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">ID</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{createdItem.Id}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Status</p>
                 <p className="mt-2 text-lg font-semibold text-slate-900">{createdItem.Status || DEFAULT_VALIDATION_STATUS}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Resultado</p>
-                <p
-                  className={`mt-2 text-lg font-semibold ${
-                    validationResult === 'OK'
-                      ? 'text-emerald-600'
-                      : validationResult === 'ERRO'
-                        ? 'text-red-600'
-                        : 'text-slate-900'
-                  }`}
-                >
-                  {createdItem.RespostaPBI || 'Aguardando retorno do campo RespostaPBI'}
-                </p>
+              <div
+                className={`rounded-2xl border bg-slate-50 p-5 md:col-span-3 ${
+                  validationResult === 'OK'
+                    ? 'border-emerald-200'
+                    : validationResult === 'ERRO'
+                      ? 'border-red-200'
+                      : 'border-slate-200'
+                }`}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Resultado</p>
+                  {validationResult && (
+                    <span
+                      className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                        validationResult === 'OK'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {validationResult}
+                    </span>
+                  )}
+                </div>
+                {respostaParsed.kind === 'empty' && (
+                  <p className="mt-3 text-sm font-medium text-slate-600">Aguardando retorno do campo RespostaPBI</p>
+                )}
+                {respostaParsed.kind === 'text' && (
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-white p-4 font-mono text-xs leading-relaxed text-slate-800">
+                    {respostaParsed.content}
+                  </pre>
+                )}
+                {respostaParsed.kind === 'array' && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs font-medium text-slate-500">
+                      Primeiro registro de {respostaParsed.count} {respostaParsed.count === 1 ? 'item' : 'itens'}
+                    </p>
+                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-white p-4 font-mono text-xs leading-relaxed text-slate-800">
+                      {respostaParsed.firstJson}
+                    </pre>
+                    {respostaParsed.count > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setRespostaPanelOpen(true)}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-2.5 text-sm font-semibold text-indigo-800 transition hover:bg-indigo-100"
+                      >
+                        Mostrar tudo
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
+            {respostaPanelOpen && respostaParsed.kind === 'array' && (
+              <div className="fixed inset-0 z-[1000] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="resposta-panel-title">
+                <button
+                  type="button"
+                  className="absolute inset-0 bg-slate-900/50 transition-opacity"
+                  onClick={() => setRespostaPanelOpen(false)}
+                  aria-label="Fechar painel"
+                />
+                <aside className="relative flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+                    <div>
+                      <p id="resposta-panel-title" className="text-base font-semibold text-slate-900">
+                        Resultado completo
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-500">{respostaParsed.count} itens</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRespostaPanelOpen(false)}
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:bg-slate-50"
+                      aria-label="Fechar"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-auto p-5 sm:p-6">
+                    <pre className="whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800">
+                      {respostaParsed.fullJson}
+                    </pre>
+                  </div>
+                </aside>
+              </div>
+            )}
+
             {shouldShowPowerAutomateLink && (
-              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-medium text-amber-900">
+              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                <p className="text-sm font-medium leading-6 text-amber-900">
                   A validacao ultrapassou 2 minutos. O sistema continuara tentando ate completar 5 minutos.
                 </p>
                 <a
-                  className="mt-2 inline-flex text-sm font-semibold text-amber-800 underline underline-offset-2"
+                  className="mt-4 inline-flex min-h-[48px] items-center justify-center rounded-xl border border-amber-300/80 bg-white px-6 py-3 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100/80"
                   href={POWER_AUTOMATE_FLOW_URL}
                   target="_blank"
                   rel="noreferrer"
