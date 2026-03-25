@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { Stack, Dropdown, IDropdownOption, ActionButton } from '@fluentui/react';
-import { IDynamicViewConfig } from '../../core/config/types';
+import { IDynamicViewConfig, IListViewFilterConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
@@ -9,6 +9,7 @@ import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens'
 import { generateAndDownloadPdf } from '../../core/pdf';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { DataTable } from './DataTable';
+import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss } from './tableLayoutClasses';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
   const columns = (listView.columns ?? []).map((c) => ({
@@ -32,9 +33,11 @@ function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partia
 
 export interface ITableViewProps {
   config: IDynamicViewConfig;
+  /** Filtros OData do item do dashboard (card/série) clicado; combinados com modo de visualização e filtros de coluna. */
+  dashboardListFilters?: IListViewFilterConfig[];
 }
 
-export const TableView: React.FC<ITableViewProps> = ({ config }) => {
+export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilters }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
 
@@ -63,6 +66,10 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
   useEffect(() => {
     setSelectedViewModeId(listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all');
   }, [listView?.activeViewModeId, listView?.viewModes]);
+
+  useEffect(() => {
+    setSkip(0);
+  }, [dashboardListFilters]);
 
   useEffect(() => {
     const usersService = new UsersService();
@@ -125,7 +132,11 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
     const listViewWithMode = { ...listView, activeViewModeId: selectedViewModeId };
     const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
     const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext });
-    const filterParts = [viewModeFilterStr, columnFilterStr].filter(Boolean);
+    const dashboardFilterStr =
+      dashboardListFilters && dashboardListFilters.length > 0
+        ? buildListFilter(dashboardListFilters, { dynamicContext })
+        : undefined;
+    const filterParts = [viewModeFilterStr, dashboardFilterStr, columnFilterStr].filter(Boolean);
     const combinedFilter = filterParts.length > 0 ? filterParts.join(' and ') : undefined;
     const request = engine.buildDataRequest({
       sortConfig: effectiveSort,
@@ -156,7 +167,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
           setLoading(false);
         }
       );
-  }, [listTitle, tableConfig, effectiveSort, skip, pageSize, columnFilters, selectedViewModeId, listView, fieldMetadata, dynamicContext]);
+  }, [listTitle, tableConfig, effectiveSort, skip, pageSize, columnFilters, selectedViewModeId, listView, fieldMetadata, dynamicContext, dashboardListFilters]);
 
   const handleSort = (field: string, direction: 'asc' | 'desc'): void => {
     setSortConfig({ field, direction });
@@ -192,7 +203,13 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
 
   const paginationBar =
     showPagination && (
-      <Stack horizontal tokens={{ childrenGap: 8 }} horizontalAlign="end" styles={{ root: { flexWrap: 'wrap' } }}>
+      <Stack
+        className={DINAMIC_SX_TABLE_CLASS.pagination}
+        horizontal
+        tokens={{ childrenGap: 8 }}
+        horizontalAlign="end"
+        styles={{ root: { flexWrap: 'wrap' } }}
+      >
         {layout === 'compact' && (
           <span style={{ alignSelf: 'center', marginRight: 8, fontSize: 12 }}>
             {from}–{to}
@@ -257,7 +274,25 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
   const viewModes = listView?.viewModes ?? [];
   const viewModeOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
 
-  if (!tableConfig) return <DataTable config={{ enabled: true, columns: [], sortable: false, emptyMessage: '' }} items={[]} loading={true} sortConfig={null} onSort={handleSort} engine={engine} />;
+  const mergedTableCss = mergeCustomTableCss(listView?.customTableCssSlots, listView?.customTableCss);
+  const tableCustomStyle =
+    mergedTableCss.length > 0 ? <style type="text/css">{mergedTableCss}</style> : null;
+
+  if (!tableConfig) {
+    return (
+      <>
+        {tableCustomStyle}
+        <DataTable
+          config={{ enabled: true, columns: [], sortable: false, emptyMessage: '' }}
+          items={[]}
+          loading={true}
+          sortConfig={null}
+          onSort={handleSort}
+          engine={engine}
+        />
+      </>
+    );
+  }
 
   const showPdfButton = listView?.pdfExportEnabled === true;
 
@@ -271,9 +306,20 @@ export const TableView: React.FC<ITableViewProps> = ({ config }) => {
   };
 
   return (
-    <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8 } }}>
+    <Stack
+      className={DINAMIC_SX_TABLE_CLASS.viewRoot}
+      tokens={{ childrenGap: 12 }}
+      styles={{ root: { marginTop: 8 } }}
+    >
+      {tableCustomStyle}
       {(viewModeOptions.length > 0 || showPdfButton) && (
-        <Stack horizontal tokens={{ childrenGap: 12 }} verticalAlign="end" styles={{ root: { flexWrap: 'wrap' } }}>
+        <Stack
+          className={DINAMIC_SX_TABLE_CLASS.toolbar}
+          horizontal
+          tokens={{ childrenGap: 12 }}
+          verticalAlign="end"
+          styles={{ root: { flexWrap: 'wrap' } }}
+        >
           {viewModeOptions.length > 0 && (
             <Dropdown
               label="Visualização"

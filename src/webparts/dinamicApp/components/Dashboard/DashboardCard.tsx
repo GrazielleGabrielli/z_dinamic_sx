@@ -13,13 +13,15 @@ import {
 interface IDashboardCardProps {
   result: IDashboardCardResult;
   cardConfig?: IDashboardCardConfig;
+  selected?: boolean;
+  onActivate?: () => void;
 }
 
 function formatValue(value: number): string {
   return value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
 
-export const DashboardCard: React.FC<IDashboardCardProps> = ({ result, cardConfig }) => {
+export const DashboardCard: React.FC<IDashboardCardProps> = ({ result, cardConfig, selected, onActivate }) => {
   const style = mergeWithDefaultStyle(cardConfig?.style);
   const containerStyles = getCardInlineStyles(style);
   const textStyles = getCardTextStyles(style);
@@ -43,15 +45,33 @@ export const DashboardCard: React.FC<IDashboardCardProps> = ({ result, cardConfi
         : null;
 
   const className = ['dashboard-card', ...containerClasses].filter(Boolean).join(' ');
+  const clickable = Boolean(onActivate) && result.status === 'ready';
 
   return (
     <div
       className={className}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-pressed={clickable ? selected : undefined}
+      onClick={clickable ? () => onActivate?.() : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onActivate?.();
+              }
+            }
+          : undefined
+      }
       style={{
         ...containerStyles,
         flex: '1 1 180px',
         minWidth: 160,
         maxWidth: 280,
+        cursor: clickable ? 'pointer' : undefined,
+        outline: selected ? '2px solid #0078d4' : undefined,
+        outlineOffset: selected ? 2 : undefined,
       }}
     >
       {result.status === 'loading' && (

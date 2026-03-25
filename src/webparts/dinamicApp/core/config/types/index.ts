@@ -137,6 +137,26 @@ export interface IListViewModeConfig {
   filters: IListViewFilterConfig[];
 }
 
+export type TTableCssSlot =
+  | 'viewRoot'
+  | 'toolbar'
+  | 'scrollWrap'
+  | 'table'
+  | 'thead'
+  | 'headerRow'
+  | 'headerCell'
+  | 'headerCellInner'
+  | 'headerFilterTrigger'
+  | 'body'
+  | 'row'
+  | 'cell'
+  | 'empty'
+  | 'loading'
+  | 'error'
+  | 'pagination';
+
+export type ITableLayoutCssSlots = Partial<Record<TTableCssSlot, string>>;
+
 export interface IListViewConfig {
   columns: IListViewColumnConfig[];
   filters: IListViewFilterConfig[];
@@ -144,6 +164,10 @@ export interface IListViewConfig {
   viewModes?: IListViewModeConfig[];
   activeViewModeId?: string;
   pdfExportEnabled?: boolean;
+  /** Declarações CSS por região da tabela (aba Layout); cada bloco é aplicado à classe correspondente. */
+  customTableCssSlots?: ITableLayoutCssSlots;
+  /** CSS livre (regras completas, seletores combinados, [data-field], etc.). */
+  customTableCss?: string;
 }
 
 // ─── PDF template ───────────────────────────────────────────────────────────
@@ -173,8 +197,23 @@ export interface IPdfTemplateSection {
 
 export type TPdfLayoutMode = 'onePerPage' | 'allOnOnePage' | 'breakWhenFull';
 
+export type TPdfPageFormat =
+  | 'A0'
+  | 'A1'
+  | 'A2'
+  | 'A3'
+  | 'A4'
+  | 'A5'
+  | 'A6'
+  | 'B4'
+  | 'B5'
+  | 'Letter'
+  | 'Legal'
+  | 'Tabloid'
+  | 'CreditCard';
+
 export interface IPdfTemplateConfig {
-  pageFormat: 'A4' | 'Letter';
+  pageFormat: TPdfPageFormat;
   orientation: 'portrait' | 'landscape';
   layoutMode?: TPdfLayoutMode;
   bodyBlockHeightMm?: number;

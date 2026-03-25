@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Panel,
   PanelType,
@@ -33,10 +33,18 @@ import type {
   IListViewFilterConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
+  ITableLayoutCssSlots,
   TPaginationLayout,
   TFilterOperator,
 } from '../../core/config/types';
 import { PdfTemplateEditor } from './PdfTemplateEditor';
+import {
+  DINAMIC_SX_TABLE_CLASS,
+  TABLE_LAYOUT_EDITOR_GROUPS,
+  TABLE_LAYOUT_EDITOR_ROWS,
+  TABLE_LAYOUT_SLOT_ORDER,
+} from './tableLayoutClasses';
+import { TableLayoutSlotPreview } from './TableLayoutSlotPreview';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
@@ -156,6 +164,11 @@ const FORMULA_TOKENS: { token: string; label: string }[] = [
   { token: '[false]', label: 'Falso' },
 ];
 
+const DEFAULT_VIEW_MODES_FALLBACK: IListViewModeConfig[] = [
+  { id: 'all', label: 'Todas', filters: [] },
+  { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
+];
+
 function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   if (!filters || filters.length === 0) return 'Sem filtros';
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
@@ -179,19 +192,26 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [pageSize, setPageSize] = useState(pagination.pageSize);
   const [paginationLayout, setPaginationLayout] = useState<TPaginationLayout>(pagination.layout ?? 'buttons');
   const [pdfExportEnabled, setPdfExportEnabled] = useState(listView.pdfExportEnabled ?? false);
-  const defaultViewModes: IListViewModeConfig[] = [
-    { id: 'all', label: 'Todas', filters: [] },
-    { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
-  ];
-  const [viewModes, setViewModes] = useState<IListViewModeConfig[]>(listView.viewModes?.length ? listView.viewModes : defaultViewModes);
+  const [cssSlotsState, setCssSlotsState] = useState<ITableLayoutCssSlots>(() => ({
+    ...(listView.customTableCssSlots ?? {}),
+  }));
+  const [customTableCssExtra, setCustomTableCssExtra] = useState(listView.customTableCss ?? '');
+  const [viewModes, setViewModes] = useState<IListViewModeConfig[]>(
+    listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK
+  );
   const [activeViewModeId, setActiveViewModeId] = useState<string>(listView.activeViewModeId ?? 'all');
   const [viewModeEditingId, setViewModeEditingId] = useState<string | null>(null);
   const [viewModeEditLabel, setViewModeEditLabel] = useState('');
   const [viewModeEditFilters, setViewModeEditFilters] = useState<IListViewFilterConfig[]>([]);
   const [formulasFilterIndex, setFormulasFilterIndex] = useState<number | null>(null);
   const [formulasTarget, setFormulasTarget] = useState<HTMLElement | null>(null);
+  const panelWasOpenRef = useRef(false);
 
   const fieldsService = useMemo(() => new FieldsService(), []);
+  const layoutRowBySlot = useMemo(
+    () => new Map(TABLE_LAYOUT_EDITOR_ROWS.map((r) => [r.slot, r] as const)),
+    []
+  );
 
   useEffect(() => {
     if (!isOpen || !listTitle.trim()) return;
@@ -200,7 +220,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     fieldsService
       .getVisibleFields(listTitle.trim())
       .then((f) => {
-        setOptions(buildOptions(f, listView.columns ?? []));
+        const configured = listView.columns ?? [];
+        const effectiveColumns =
+          configured.length === 0 && f.some((field) => field.InternalName === 'Title')
+            ? [{ field: 'Title' }]
+            : configured;
+        setOptions(buildOptions(f, effectiveColumns));
         const listIds = f
           .filter((x) => EXPANDABLE.indexOf(x.MappedType) !== -1 && x.LookupList)
           .map((x) => x.LookupList as string);
@@ -220,16 +245,24 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   }, [isOpen, listTitle]);
 
   useEffect(() => {
-    if (isOpen) {
-      setPaginationEnabled(pagination.enabled);
-      setPageSize(pagination.pageSize);
-      setPaginationLayout(pagination.layout ?? 'buttons');
-      setViewModes(listView.viewModes?.length ? listView.viewModes : defaultViewModes);
-      setActiveViewModeId(listView.activeViewModeId ?? 'all');
-      setLocalPdfTemplate(pdfTemplate);
-      setPdfExportEnabled(listView.pdfExportEnabled ?? false);
+    if (!isOpen) {
+      panelWasOpenRef.current = false;
+      return;
     }
-  }, [isOpen, pagination.enabled, pagination.pageSize, pagination.layout, listView.viewModes, listView.activeViewModeId, listView.pdfExportEnabled, pdfTemplate]);
+    if (panelWasOpenRef.current) {
+      return;
+    }
+    panelWasOpenRef.current = true;
+    setPaginationEnabled(pagination.enabled);
+    setPageSize(pagination.pageSize);
+    setPaginationLayout(pagination.layout ?? 'buttons');
+    setViewModes(listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
+    setActiveViewModeId(listView.activeViewModeId ?? 'all');
+    setLocalPdfTemplate(pdfTemplate);
+    setPdfExportEnabled(listView.pdfExportEnabled ?? false);
+    setCssSlotsState({ ...(listView.customTableCssSlots ?? {}) });
+    setCustomTableCssExtra(listView.customTableCss ?? '');
+  }, [isOpen, listView, pagination, pdfTemplate]);
 
 
   const toggle = (internalName: string): void => {
@@ -303,8 +336,23 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       layout: paginationLayout,
       pageSizeOptions: pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS,
     };
+    const nextSlots: ITableLayoutCssSlots = {};
+    for (let i = 0; i < TABLE_LAYOUT_SLOT_ORDER.length; i++) {
+      const slot = TABLE_LAYOUT_SLOT_ORDER[i];
+      const t = (cssSlotsState[slot] ?? '').trim();
+      if (t) nextSlots[slot] = t;
+    }
+    const extraTrim = customTableCssExtra.trim();
     onSave(
-      { ...listView, columns, viewModes, activeViewModeId, pdfExportEnabled },
+      {
+        ...listView,
+        columns,
+        viewModes,
+        activeViewModeId,
+        pdfExportEnabled,
+        ...(Object.keys(nextSlots).length > 0 ? { customTableCssSlots: nextSlots } : { customTableCssSlots: undefined }),
+        ...(extraTrim ? { customTableCss: extraTrim } : { customTableCss: undefined }),
+      },
       nextPagination,
       localPdfTemplate
     );
@@ -590,6 +638,150 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
                     Exportação para Excel em breve.
                   </Text>
+                </Stack>
+              </PivotItem>
+              <PivotItem itemKey="layout" headerText="Layout">
+                <Stack tokens={{ childrenGap: 0 }} styles={{ root: { paddingTop: 4, minWidth: 0, maxWidth: '100%', paddingBottom: 24 } }}>
+                  <Stack
+                    styles={{
+                      root: {
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        background: '#ffffff',
+                        paddingBottom: 12,
+                        paddingTop: 4,
+                        marginBottom: 4,
+                        borderBottom: '1px solid #edebe9',
+                      },
+                    }}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+                      <strong>Como usar:</strong> em cada campo, só declarações CSS (propriedade: valor;), aplicadas à classe indicada.
+                      Colunas específicas com <span style={{ fontFamily: 'monospace' }}>[data-field=&quot;NomeInterno&quot;]</span> vão no bloco
+                      &quot;CSS adicional&quot; no final. Use <span style={{ fontFamily: 'monospace' }}>!important</span> se o estilo padrão da lista
+                      tiver prioridade.
+                    </Text>
+                  </Stack>
+                  {TABLE_LAYOUT_EDITOR_GROUPS.map((group, gi) => (
+                    <Stack key={group.id} tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: gi === 0 ? 8 : 28 } }}>
+                      <Stack horizontal verticalAlign="start" tokens={{ childrenGap: 10 }} styles={{ root: { flexWrap: 'wrap' } }}>
+                        <div style={{ width: 4, minHeight: 28, background: '#0078d4', borderRadius: 2, flexShrink: 0, marginTop: 2 }} />
+                        <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 240px', minWidth: 0 } }}>
+                          <Text variant="medium" styles={{ root: { fontWeight: 600, color: '#201f1e' } }}>
+                            {group.label}
+                          </Text>
+                          <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+                            {group.blurb}
+                          </Text>
+                        </Stack>
+                      </Stack>
+                      {group.slots.map((slotKey) => {
+                        const row = layoutRowBySlot.get(slotKey);
+                        if (!row) return null;
+                        const cls = DINAMIC_SX_TABLE_CLASS[row.slot];
+                        return (
+                          <Stack
+                            key={row.slot}
+                            horizontal
+                            wrap
+                            verticalAlign="start"
+                            tokens={{ childrenGap: 16 }}
+                            styles={{
+                              root: {
+                                padding: '14px 16px',
+                                background: '#faf9f8',
+                                borderRadius: 8,
+                                border: '1px solid #edebe9',
+                                borderLeftWidth: 3,
+                                borderLeftColor: '#0078d4',
+                              },
+                            }}
+                          >
+                            <Stack styles={{ root: { flex: '2 1 340px', minWidth: 0 } }} tokens={{ childrenGap: 6 }}>
+                              <Text variant="smallPlus" styles={{ root: { fontWeight: 600, color: '#201f1e' } }}>
+                                {row.title}
+                              </Text>
+                              <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+                                {row.hint}
+                              </Text>
+                              <Text
+                                variant="small"
+                                styles={{
+                                  root: {
+                                    fontFamily: 'monospace',
+                                    color: '#0078d4',
+                                    marginTop: 2,
+                                    wordBreak: 'break-all',
+                                  },
+                                }}
+                              >
+                                .{cls}
+                              </Text>
+                              <TextField
+                                multiline
+                                resizable
+                                rows={3}
+                                ariaLabel={`CSS para ${row.title}`}
+                                value={cssSlotsState[row.slot] ?? ''}
+                                onChange={(_, v) =>
+                                  setCssSlotsState((prev) => ({
+                                    ...prev,
+                                    [row.slot]: v ?? '',
+                                  }))
+                                }
+                                placeholder="ex.: background: #f3f2f1; font-weight: 600;"
+                                styles={{ root: { marginTop: 4, maxWidth: '100%' } }}
+                              />
+                            </Stack>
+                            <Stack styles={{ root: { flex: '1 1 240px', minWidth: 200, maxWidth: '100%' } }}>
+                              <TableLayoutSlotPreview
+                                slot={row.slot}
+                                cssBody={cssSlotsState[row.slot] ?? ''}
+                                variant="embedded"
+                              />
+                            </Stack>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+                  ))}
+                  <Separator styles={{ root: { marginTop: 28, marginBottom: 4 } }} />
+                  <Stack
+                    tokens={{ childrenGap: 10 }}
+                    styles={{
+                      root: {
+                        padding: 16,
+                        background: '#fff9f5',
+                        borderRadius: 8,
+                        border: '1px solid #edebe9',
+                        borderLeft: '3px solid #ca5010',
+                      },
+                    }}
+                  >
+                    <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 10 }}>
+                      <Icon iconName="Code" styles={{ root: { color: '#ca5010', fontSize: 18 } }} />
+                      <Text variant="medium" styles={{ root: { fontWeight: 600, color: '#201f1e' } }}>
+                        CSS adicional (regras livres)
+                      </Text>
+                    </Stack>
+                    <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+                      Vários seletores, <span style={{ fontFamily: 'monospace' }}>:hover</span>, media queries. É aplicado depois dos blocos por
+                      componente.
+                    </Text>
+                    <TextField
+                      label="CSS livre"
+                      multiline
+                      rows={6}
+                      value={customTableCssExtra}
+                      onChange={(_, v) => setCustomTableCssExtra(v ?? '')}
+                      placeholder={
+                        `.${DINAMIC_SX_TABLE_CLASS.row}:nth-child(even) { background: #faf9f8 !important; }\n` +
+                        `.${DINAMIC_SX_TABLE_CLASS.cell}[data-field="Title"] { font-weight: 600; }`
+                      }
+                      styles={{ root: { maxWidth: '100%' } }}
+                    />
+                  </Stack>
                 </Stack>
               </PivotItem>
             </Pivot>

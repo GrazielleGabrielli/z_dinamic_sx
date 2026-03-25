@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Icon, Spinner, SpinnerSize, TooltipHost } from '@fluentui/react';
 import styles from './PbiTextoConsulta.module.scss';
 import type { IPbiTextoConsultaProps } from './IPbiTextoConsultaProps';
 import AutomacaoCampanhaModal from './AutomacaoCampanhaModal';
@@ -10,6 +11,7 @@ import {
   createValidationTemplateItem,
   DEFAULT_VALIDATION_TITLE,
   DEFAULT_VALIDATION_STATUS,
+  deleteValidationTemplateItem,
   getValidationTemplateItemById,
   getValidationTemplateItemsTitleOk,
   updateValidarTemplatesItemStatus
@@ -51,6 +53,8 @@ type ParsedRespostaPBI =
   | { kind: 'array'; firstJson: string; fullJson: string; count: number }
   | { kind: 'text'; content: string }
   | { kind: 'empty' };
+
+const isStatusFinalizado = (status: string): boolean => status.trim().toLowerCase() === 'finalizado';
 
 const parseRespostaPBIContent = (raw: string): ParsedRespostaPBI => {
   const trimmed = raw.trim();
@@ -107,12 +111,30 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
   const [okItems, setOkItems] = useState<ValidationTemplateItem[]>([]);
   const [listaLoading, setListaLoading] = useState(false);
   const [listaError, setListaError] = useState<string>('');
+  const [listaRespostaItem, setListaRespostaItem] = useState<ValidationTemplateItem | null>(null);
+  const [listaRespostaFullOpen, setListaRespostaFullOpen] = useState(false);
+  const [listaStatusTab, setListaStatusTab] = useState<'pendente' | 'finalizado'>('pendente');
+  const [listaDeletingId, setListaDeletingId] = useState<number | null>(null);
+  const [listaDeleteModalItem, setListaDeleteModalItem] = useState<ValidationTemplateItem | null>(null);
 
   const textoConsultaLength = useMemo(() => formData.textoConsulta.length, [formData.textoConsulta]);
   const respostaParsed = useMemo(
     () => parseRespostaPBIContent(createdItem?.RespostaPBI ?? ''),
     [createdItem?.RespostaPBI]
   );
+  const listaRespostaParsed = useMemo(
+    () => parseRespostaPBIContent(listaRespostaItem?.RespostaPBI ?? ''),
+    [listaRespostaItem?.RespostaPBI]
+  );
+  const okItemsPendente = useMemo(
+    () => okItems.filter((item) => !isStatusFinalizado(item.Status)),
+    [okItems]
+  );
+  const okItemsFinalizado = useMemo(
+    () => okItems.filter((item) => isStatusFinalizado(item.Status)),
+    [okItems]
+  );
+  const okItemsNaAba = listaStatusTab === 'finalizado' ? okItemsFinalizado : okItemsPendente;
   const isValidationPending = createdItem?.Title.trim().toUpperCase() === DEFAULT_VALIDATION_TITLE;
   const shouldShowPowerAutomateLink =
     createdItem !== null &&
@@ -155,6 +177,32 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
   const handleCriarCampanhaDesdeLista = (item: ValidationTemplateItem): void => {
     setAutomacaoModalValues(buildAutomacaoCampanhaInitialForm(item.TextoConsulta, item.RespostaPBI));
     setAutomacaoModalOpen(true);
+  };
+
+  const closeListaRespostaModal = (): void => {
+    setListaRespostaFullOpen(false);
+    setListaRespostaItem(null);
+  };
+
+  const handleExcluirItemValidarTemplates = async (): Promise<void> => {
+    if (!listaDeleteModalItem || isStatusFinalizado(listaDeleteModalItem.Status)) {
+      return;
+    }
+    setListaError('');
+    setListaDeletingId(listaDeleteModalItem.Id);
+    try {
+      await deleteValidationTemplateItem(listaDeleteModalItem.Id);
+      if (listaRespostaItem?.Id === listaDeleteModalItem.Id) {
+        closeListaRespostaModal();
+      }
+      setListaDeleteModalItem(null);
+      await loadOkItems();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao excluir o item.';
+      setListaError(message);
+    } finally {
+      setListaDeletingId(null);
+    }
   };
 
   const handleFieldChange =
@@ -424,14 +472,63 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
             )}
 
             <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.08)] backdrop-blur sm:p-8">
+              <div className="mb-6 flex flex-wrap gap-2 border-b border-slate-200 pb-4" role="tablist" aria-label="Filtro por status">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={listaStatusTab === 'pendente'}
+                  onClick={() => setListaStatusTab('pendente')}
+                  className={`inline-flex min-h-[44px] items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
+                    listaStatusTab === 'pendente'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Pendente
+                  <span
+                    className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${
+                      listaStatusTab === 'pendente' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {okItemsPendente.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={listaStatusTab === 'finalizado'}
+                  onClick={() => setListaStatusTab('finalizado')}
+                  className={`inline-flex min-h-[44px] items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
+                    listaStatusTab === 'finalizado'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Finalizado
+                  <span
+                    className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${
+                      listaStatusTab === 'finalizado' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {okItemsFinalizado.length}
+                  </span>
+                </button>
+              </div>
               {listaLoading && okItems.length === 0 ? (
                 <p className="text-center text-sm text-slate-600">Carregando itens...</p>
               ) : null}
               {!listaLoading && okItems.length === 0 && !listaError ? (
                 <p className="text-center text-sm text-slate-600">Nenhum item com Title OK encontrado.</p>
               ) : null}
+              {!listaLoading && okItems.length > 0 && okItemsNaAba.length === 0 && !listaError ? (
+                <p className="text-center text-sm text-slate-600">
+                  {listaStatusTab === 'finalizado'
+                    ? 'Nenhum item com Status Finalizado.'
+                    : 'Nenhum item pendente (fora de Finalizado).'}
+                </p>
+              ) : null}
               <ul className="space-y-4">
-                {okItems.map((item) => (
+                {okItemsNaAba.map((item) => (
                   <li
                     key={item.Id}
                     className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:flex-row sm:items-center sm:justify-between"
@@ -445,17 +542,206 @@ const PbiTextoConsulta = (_props: IPbiTextoConsultaProps): React.ReactElement =>
                       </div>
                       <p className="text-sm leading-6 text-slate-700">{truncateListaPreview(item.TextoConsulta, 200)}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCriarCampanhaDesdeLista(item)}
-                      className="inline-flex min-h-[48px] shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                    <div
+                      className="flex shrink-0 self-start divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm sm:self-center"
+                      role="group"
+                      aria-label={`Acoes do item ${item.Id}`}
                     >
-                      Criar campanha
-                    </button>
+                      <TooltipHost
+                        content="Ver RespostaPBI (itens retornados pela consulta)"
+                        calloutProps={{ gapSpace: 4 }}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Ver itens"
+                          onClick={() => {
+                            setListaRespostaFullOpen(false);
+                            setListaRespostaItem(item);
+                          }}
+                          className="flex h-9 w-9 items-center justify-center text-slate-600 transition hover:bg-slate-50"
+                        >
+                          <Icon iconName="List" styles={{ root: { fontSize: 16 } }} />
+                        </button>
+                      </TooltipHost>
+                      <TooltipHost
+                        content="Criar campanha na lista AutomacaoCampanhas"
+                        calloutProps={{ gapSpace: 4 }}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Criar campanha"
+                          onClick={() => handleCriarCampanhaDesdeLista(item)}
+                          className="flex h-9 w-9 items-center justify-center text-indigo-600 transition hover:bg-indigo-50"
+                        >
+                          <Icon iconName="Add" styles={{ root: { fontSize: 16 } }} />
+                        </button>
+                      </TooltipHost>
+                      {!isStatusFinalizado(item.Status) ? (
+                        <TooltipHost
+                          content="Excluir este item pendente da lista ValidarTemplates"
+                          calloutProps={{ gapSpace: 4 }}
+                        >
+                          <span className="inline-flex">
+                            <button
+                              type="button"
+                              aria-label="Excluir"
+                              onClick={() => setListaDeleteModalItem(item)}
+                              disabled={listaDeletingId === item.Id}
+                              className="flex h-9 w-9 items-center justify-center text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {listaDeletingId === item.Id ? (
+                                <Spinner size={SpinnerSize.xSmall} />
+                              ) : (
+                                <Icon iconName="Delete" styles={{ root: { fontSize: 16 } }} />
+                              )}
+                            </button>
+                          </span>
+                        </TooltipHost>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
             </div>
+
+            {listaRespostaItem && (
+              <div
+                className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 py-10 sm:p-6"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="lista-resposta-title"
+              >
+                <button
+                  type="button"
+                  className="fixed inset-0 cursor-default bg-transparent"
+                  onClick={closeListaRespostaModal}
+                  aria-label="Fechar"
+                />
+                <div className="relative z-[1] w-full max-w-3xl rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+                  <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+                    <div>
+                      <p id="lista-resposta-title" className="text-base font-semibold text-slate-900">
+                        RespostaPBI
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-500">ID {listaRespostaItem.Id}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeListaRespostaModal}
+                      className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:bg-slate-50"
+                      aria-label="Fechar"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="max-h-[min(70vh,640px)] overflow-auto p-5 sm:p-6">
+                    {listaRespostaParsed.kind === 'empty' && (
+                      <p className="text-sm font-medium text-slate-600">Sem conteudo em RespostaPBI.</p>
+                    )}
+                    {listaRespostaParsed.kind === 'text' && (
+                      <pre className="whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800">
+                        {listaRespostaParsed.content}
+                      </pre>
+                    )}
+                    {listaRespostaParsed.kind === 'array' && (
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium text-slate-500">
+                          Primeiro registro de {listaRespostaParsed.count}{' '}
+                          {listaRespostaParsed.count === 1 ? 'item' : 'itens'}
+                        </p>
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800">
+                          {listaRespostaParsed.firstJson}
+                        </pre>
+                        {listaRespostaParsed.count > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setListaRespostaFullOpen(true)}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-2.5 text-sm font-semibold text-indigo-800 transition hover:bg-indigo-100"
+                          >
+                            Mostrar tudo
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {listaRespostaFullOpen && listaRespostaParsed.kind === 'array' && listaRespostaItem && (
+              <div className="fixed inset-0 z-[1001] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="lista-resposta-full-title">
+                <button
+                  type="button"
+                  className="absolute inset-0 bg-slate-900/50 transition-opacity"
+                  onClick={() => setListaRespostaFullOpen(false)}
+                  aria-label="Fechar painel"
+                />
+                <aside className="relative flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+                    <div>
+                      <p id="lista-resposta-full-title" className="text-base font-semibold text-slate-900">
+                        Resultado completo
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-500">{listaRespostaParsed.count} itens</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setListaRespostaFullOpen(false)}
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:bg-slate-50"
+                      aria-label="Fechar"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-auto p-5 sm:p-6">
+                    <pre className="whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800">
+                      {listaRespostaParsed.fullJson}
+                    </pre>
+                  </div>
+                </aside>
+              </div>
+            )}
+
+            {listaDeleteModalItem && (
+              <div
+                className="fixed inset-0 z-[1002] flex items-center justify-center bg-slate-900/50 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="lista-delete-title"
+              >
+                <button
+                  type="button"
+                  className="fixed inset-0 cursor-default bg-transparent"
+                  onClick={() => setListaDeleteModalItem(null)}
+                  aria-label="Fechar"
+                />
+                <div className="relative z-[1] w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+                  <h3 id="lista-delete-title" className="text-lg font-semibold text-slate-900">
+                    Excluir item
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Confirma a exclusao do item ID {listaDeleteModalItem.Id} da lista ValidarTemplates?
+                  </p>
+                  <div className="mt-6 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setListaDeleteModalItem(null)}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleExcluirItemValidarTemplates()}
+                      disabled={listaDeletingId === listaDeleteModalItem.Id}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {listaDeletingId === listaDeleteModalItem.Id ? 'Excluindo...' : 'Excluir'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>

@@ -32,9 +32,9 @@ export async function createAutomacaoCampanhaItem(data: AutomacaoCampanhaFormDat
 
   try {
     const result = await sp.web.lists.getByTitle(AUTOMACAO_CAMPANHA_LIST_TITLE).items.add(payload);
-    const raw = (result as { data?: { Id?: number; ID?: number } }).data;
-    debugger
-    const id = raw?.Id ?? raw?.ID;
+    const r = result as { data?: { Id?: number; ID?: number }; Id?: number; ID?: number };
+    const blob = r.data !== undefined && r.data !== null ? r.data : r;
+    const id = blob.Id ?? blob.ID;
     if (id === undefined) {
       throw new Error('Resposta sem ID ao criar item em AutomacaoCampanhas.');
     }

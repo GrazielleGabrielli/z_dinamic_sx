@@ -10,6 +10,8 @@ import {
   IPdfTemplateElement,
 } from '../types';
 import { getDefaultConfig } from '../utils';
+import { isValidPdfPageFormat } from '../../pdf/pdfPageFormats';
+import { sanitizeTableCssSlots } from '../../../components/DataTable/tableLayoutClasses';
 
 const VALID_MODES = ['list', 'projectManagement', 'formManager'];
 const VALID_AGGREGATES = ['count', 'sum'];
@@ -119,7 +121,7 @@ function isValidPdfSection(s: unknown): boolean {
 function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
   if (!t || typeof t !== 'object') return false;
   const c = t as Record<string, unknown>;
-  if (c.pageFormat !== 'A4' && c.pageFormat !== 'Letter') return false;
+  if (!isValidPdfPageFormat(c.pageFormat)) return false;
   if (c.orientation !== 'portrait' && c.orientation !== 'landscape') return false;
   if (c.header !== undefined && !isValidPdfSection(c.header)) return false;
   if (c.footer !== undefined && !isValidPdfSection(c.footer)) return false;
@@ -152,15 +154,19 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     if (c.listView === undefined) {
       return { ...c, listView: defaults.listView };
     }
+    const lv = c.listView;
+    const cssSlots = sanitizeTableCssSlots(lv.customTableCssSlots);
     return {
       ...c,
       listView: {
-        columns: c.listView.columns ?? defaults.listView.columns,
-        filters: c.listView.filters ?? defaults.listView.filters,
-        sort: c.listView.sort ?? defaults.listView.sort,
-        viewModes: c.listView.viewModes ?? defaults.listView.viewModes,
-        activeViewModeId: c.listView.activeViewModeId ?? defaults.listView.activeViewModeId,
-        pdfExportEnabled: c.listView.pdfExportEnabled ?? false,
+        columns: lv.columns ?? defaults.listView.columns,
+        filters: lv.filters ?? defaults.listView.filters,
+        sort: lv.sort ?? defaults.listView.sort,
+        viewModes: lv.viewModes ?? defaults.listView.viewModes,
+        activeViewModeId: lv.activeViewModeId ?? defaults.listView.activeViewModeId,
+        pdfExportEnabled: lv.pdfExportEnabled ?? false,
+        ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
+        ...(typeof lv.customTableCss === 'string' ? { customTableCss: lv.customTableCss } : {}),
       },
       ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),
     };

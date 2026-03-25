@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   Stack,
   Text,
@@ -12,12 +12,16 @@ import {
   IChoiceGroupOption,
 } from '@fluentui/react';
 import type { IPdfTemplateConfig, IPdfTemplateElement, TPdfLayoutMode, TPdfElementScope } from '../../core/config/types';
+import {
+  getPdfPageSizeMm,
+  PDF_PAGE_FORMAT_DROPDOWN_OPTIONS,
+  normalizePdfPageFormat,
+} from '../../core/pdf/pdfPageFormats';
 
-const A4_W = 210;
-const A4_H = 297;
 const SCALE = 2;
-const CANVAS_W = A4_W * SCALE;
-const CANVAS_H = A4_H * SCALE;
+/** Largura mínima do editor para colocar painel de opções e folha lado a lado (painéis Fluent costumam ser < 720px úteis). */
+const SIDE_BY_SIDE_MIN_PX = 480;
+const SETTINGS_COL_PX = 280;
 
 function defaultTemplate(): IPdfTemplateConfig {
   return {
@@ -32,8 +36,16 @@ function defaultTemplate(): IPdfTemplateConfig {
 }
 
 function ensureTemplate(t: IPdfTemplateConfig | undefined): IPdfTemplateConfig {
-  if (t?.body?.elements && Array.isArray(t.body.elements)) return t;
-  return defaultTemplate();
+  const base = defaultTemplate();
+  if (t?.body?.elements && Array.isArray(t.body.elements)) {
+    return {
+      ...base,
+      ...t,
+      pageFormat: normalizePdfPageFormat(t.pageFormat),
+      body: t.body,
+    };
+  }
+  return base;
 }
 
 const PdfTemplateImagePreview: React.FC<{ url: string }> = ({ url }) => {
@@ -73,23 +85,47 @@ export interface IPdfTemplateEditorProps {
 
 export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, onChange, fieldOptions }) => {
   const config = ensureTemplate(value);
+  const { widthMm, heightMm } = useMemo(
+    () => getPdfPageSizeMm(config.pageFormat, config.orientation),
+    [config.pageFormat, config.orientation]
+  );
+  const canvasW = widthMm * SCALE;
+  const canvasH = heightMm * SCALE;
+  const pageFormatDropdownOptions: IDropdownOption[] = useMemo(
+    () => PDF_PAGE_FORMAT_DROPDOWN_OPTIONS.map((o) => ({ key: o.key, text: o.text })),
+    []
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ id: string; startPx: number; startPy: number; elX: number; elY: number } | null>(null);
   const [resizeState, setResizeState] = useState<{ id: string; handle: string; startPx: number; startPy: number; startW: number; startH: number; startElX: number; startElY: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const previewWrapRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const [sideBySide, setSideBySide] = useState(false);
 
   useEffect(() => {
     const el = previewWrapRef.current;
     if (!el) return;
     const update = (): void => {
       const w = el.clientWidth;
-      setPreviewScale(w > 0 ? Math.min(1, w / CANVAS_W) : 1);
+      setPreviewScale(w > 0 ? Math.min(1, w / canvasW) : 1);
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
+    return () => ro.disconnect();
+  }, [sideBySide, canvasW]);
+
+  useEffect(() => {
+    const root = layoutRef.current;
+    if (!root) return;
+    const update = (): void => {
+      setSideBySide(root.clientWidth >= SIDE_BY_SIDE_MIN_PX);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(root);
     return () => ro.disconnect();
   }, []);
 
@@ -280,105 +316,47 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
         Fixo: uma vez na página. Dinâmico: um por item. Campos: {'{{Campo}}'}. Funções: [now] data, [time] hora, [nPage] página, [totalPages] total, [itemIndex] índice.
       </Text>
-      <Stack tokens={{ childrenGap: 16 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
-        <div ref={previewWrapRef} style={{ width: '100%', minWidth: 0 }}>
-          <div
-            style={{
-              width: CANVAS_W * previewScale,
-              height: CANVAS_H * previewScale,
-              margin: '0 auto',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-          >
-            <div
-              ref={canvasRef}
-              style={{
-                width: CANVAS_W,
-                height: CANVAS_H,
-                background: '#fff',
-                border: '1px solid #edebe9',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                transform: `scale(${previewScale})`,
-                transformOrigin: 'top left',
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-              }}
-              onMouseMove={handleCanvasMouseMove}
-              onMouseUp={handleCanvasMouseUp}
-              onMouseLeave={handleCanvasMouseUp}
-            >
-          {hasFixedElements && (config.fixedBlockHeightMm ?? 0) > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: mmToPx(config.fixedBlockHeightMm ?? 0),
-                height: 2,
-                background: '#0078d4',
-                opacity: 0.6,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-          {bodyElements.map((el) => {
-            const isSelected = el.id === selectedId;
-            const scope = el.scope ?? 'dynamic';
-            const left = mmToPx(el.x);
-            const top = mmToPx(el.y);
-            const w = el.width !== undefined && el.width !== null ? mmToPx(el.width) : 80;
-            const h = el.height !== undefined && el.height !== null ? mmToPx(el.height) : 24;
-            return (
-              <div
-                key={el.id}
-                style={{
-                  position: 'absolute',
-                  left,
-                  top,
-                  width: w,
-                  height: el.type === 'text' ? undefined : h,
-                  minHeight: el.type === 'text' ? 18 : h,
-                  border: isSelected ? '2px solid #0078d4' : scope === 'fixed' ? '1px dashed #107c10' : '1px dashed #a19f9d',
-                  background: el.type === 'rect' ? (el.color ?? '#f3f2f1') : scope === 'fixed' ? 'rgba(16,124,16,0.06)' : 'transparent',
-                  cursor: 'move',
-                  fontSize: (el.fontSize ?? 11) * (SCALE * 0.6),
-                  fontWeight: el.fontWeight ?? 'normal',
-                  overflow: 'hidden',
-                  padding: 2,
-                  boxSizing: 'border-box',
-                }}
-                onMouseDown={(e) => handleElementMouseDown(e, el.id)}
-              >
-                {el.type === 'text' && (el.content ?? '').replace(/\{\{([^}]+)\}\}/g, '[$1]')}
-                {el.type === 'image' && (
-                  <PdfTemplateImagePreview url={(el.imageUrl ?? el.content ?? '').trim()} />
-                )}
-                {el.type === 'line' && <div style={{ width: '100%', height: 2, background: '#333', marginTop: (h - 2) / 2 }} />}
-                {isSelected && (
-                  <>
-                    <div style={{ position: 'absolute', right: -4, top: '50%', marginTop: -6, width: 8, height: 12, background: '#0078d4', cursor: 'ew-resize' }} onMouseDown={(e) => handleResizeStart(e, el.id, 'e')} />
-                    <div style={{ position: 'absolute', bottom: -4, left: '50%', marginLeft: -6, width: 12, height: 8, background: '#0078d4', cursor: 'ns-resize' }} onMouseDown={(e) => handleResizeStart(e, el.id, 's')} />
-                  </>
-                )}
-              </div>
-            );
-          })}
-            </div>
-          </div>
-        </div>
-        <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0, maxWidth: '100%' } }}>
-          <ChoiceGroup
-            label="Página"
-            options={[
-              { key: 'A4', text: 'A4' },
-              { key: 'Letter', text: 'Letter' },
-            ] as IChoiceGroupOption[]}
+      <div
+        ref={layoutRef}
+        style={{
+          width: '100%',
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: sideBySide ? 'row' : 'column',
+          flexWrap: 'nowrap',
+          alignItems: sideBySide ? 'flex-start' : 'stretch',
+          gap: 16,
+        }}
+      >
+        <Stack
+          tokens={{ childrenGap: 8 }}
+          styles={{
+            root: {
+              order: sideBySide ? 0 : 2,
+              width: sideBySide ? SETTINGS_COL_PX : '100%',
+              flex: sideBySide ? `0 0 ${SETTINGS_COL_PX}px` : '1 1 auto',
+              flexShrink: 0,
+              minWidth: 0,
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              maxHeight: sideBySide ? 'min(82vh, 920px)' : undefined,
+              overflowY: sideBySide ? 'auto' : 'visible',
+              paddingRight: sideBySide ? 4 : 0,
+            },
+          }}
+        >
+          <Dropdown
+            label="Formato da página (jsPDF)"
             selectedKey={config.pageFormat}
-            onChange={(_, o) => o && onChange({ ...config, pageFormat: o.key as 'A4' | 'Letter' })}
+            options={pageFormatDropdownOptions}
+            onChange={(_, o) =>
+              o &&
+              onChange({
+                ...config,
+                pageFormat: normalizePdfPageFormat(String(o.key)),
+              })
+            }
+            styles={{ root: { maxWidth: '100%' } }}
           />
           <ChoiceGroup
             label="Orientação"
@@ -524,7 +502,105 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
             </>
           )}
         </Stack>
-      </Stack>
+        <div
+          style={{
+            order: sideBySide ? 0 : 1,
+            flex: sideBySide ? '1 1 0%' : '1 1 auto',
+            minWidth: 0,
+            width: sideBySide ? undefined : '100%',
+          }}
+        >
+          <div ref={previewWrapRef} style={{ width: '100%', minWidth: 0 }}>
+            <div
+              style={{
+                width: canvasW * previewScale,
+                height: canvasH * previewScale,
+                margin: sideBySide ? 0 : '0 auto',
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+            >
+              <div
+                ref={canvasRef}
+                style={{
+                  width: canvasW,
+                  height: canvasH,
+                  background: '#fff',
+                  border: '1px solid #edebe9',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  transform: `scale(${previewScale})`,
+                  transformOrigin: 'top left',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                }}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                onMouseLeave={handleCanvasMouseUp}
+              >
+                {hasFixedElements && (config.fixedBlockHeightMm ?? 0) > 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: mmToPx(config.fixedBlockHeightMm ?? 0),
+                      height: 2,
+                      background: '#0078d4',
+                      opacity: 0.6,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                {bodyElements.map((el) => {
+                  const isSelected = el.id === selectedId;
+                  const scope = el.scope ?? 'dynamic';
+                  const left = mmToPx(el.x);
+                  const top = mmToPx(el.y);
+                  const w = el.width !== undefined && el.width !== null ? mmToPx(el.width) : 80;
+                  const h = el.height !== undefined && el.height !== null ? mmToPx(el.height) : 24;
+                  return (
+                    <div
+                      key={el.id}
+                      style={{
+                        position: 'absolute',
+                        left,
+                        top,
+                        width: w,
+                        height: el.type === 'text' ? undefined : h,
+                        minHeight: el.type === 'text' ? 18 : h,
+                        border: isSelected ? '2px solid #0078d4' : scope === 'fixed' ? '1px dashed #107c10' : '1px dashed #a19f9d',
+                        background: el.type === 'rect' ? (el.color ?? '#f3f2f1') : scope === 'fixed' ? 'rgba(16,124,16,0.06)' : 'transparent',
+                        cursor: 'move',
+                        fontSize: (el.fontSize ?? 11) * (SCALE * 0.6),
+                        fontWeight: el.fontWeight ?? 'normal',
+                        overflow: 'hidden',
+                        padding: 2,
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseDown={(e) => handleElementMouseDown(e, el.id)}
+                    >
+                      {el.type === 'text' && (el.content ?? '').replace(/\{\{([^}]+)\}\}/g, '[$1]')}
+                      {el.type === 'image' && (
+                        <PdfTemplateImagePreview url={(el.imageUrl ?? el.content ?? '').trim()} />
+                      )}
+                      {el.type === 'line' && <div style={{ width: '100%', height: 2, background: '#333', marginTop: (h - 2) / 2 }} />}
+                      {isSelected && (
+                        <>
+                          <div style={{ position: 'absolute', right: -4, top: '50%', marginTop: -6, width: 8, height: 12, background: '#0078d4', cursor: 'ew-resize' }} onMouseDown={(e) => handleResizeStart(e, el.id, 'e')} />
+                          <div style={{ position: 'absolute', bottom: -4, left: '50%', marginLeft: -6, width: 12, height: 8, background: '#0078d4', cursor: 'ns-resize' }} onMouseDown={(e) => handleResizeStart(e, el.id, 's')} />
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </Stack>
   );
 };

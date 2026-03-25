@@ -8,6 +8,7 @@ import { TableRow } from './TableRow';
 import { TableEmptyState } from './TableEmptyState';
 import { TableLoadingState } from './TableLoadingState';
 import { TableErrorState } from './TableErrorState';
+import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
 export interface IDataTableProps {
   config: ITableConfig;
@@ -57,8 +58,9 @@ export const DataTable: React.FC<IDataTableProps> = ({
   if (items.length === 0) return <TableEmptyState message={config.emptyMessage} />;
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className={DINAMIC_SX_TABLE_CLASS.scrollWrap} style={{ overflowX: 'auto' }}>
       <table
+        className={DINAMIC_SX_TABLE_CLASS.table}
         role="grid"
         style={{
           width: '100%',
@@ -75,7 +77,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
           onColumnFilter={onColumnFilter}
           onOpenFilter={handleOpenFilter}
         />
-        <tbody>
+        <tbody className={DINAMIC_SX_TABLE_CLASS.body}>
           {items.map((item, idx) => (
             <TableRow
               key={(item.Id as number) ?? idx}

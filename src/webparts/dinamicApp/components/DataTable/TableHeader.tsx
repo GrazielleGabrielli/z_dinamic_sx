@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Icon, IconButton } from '@fluentui/react';
 import type { ITableColumnConfig, ISortConfig } from '../../core/table/types';
 import { toggleSortDirection } from '../../core/table/utils/sortBuilder';
+import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
 export interface ITableHeaderProps {
   columns: ITableColumnConfig[];
@@ -33,11 +34,13 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
   const showFilterSort = tableSortable && onColumnFilter && onOpenFilter;
 
   return (
-    <thead>
-      <tr>
+    <thead className={DINAMIC_SX_TABLE_CLASS.thead}>
+      <tr className={DINAMIC_SX_TABLE_CLASS.headerRow}>
         {columns.map((col) => (
           <th
             key={col.id}
+            className={DINAMIC_SX_TABLE_CLASS.headerCell}
+            data-field={col.internalName}
             style={{
               textAlign: col.align ?? 'left',
               minWidth: col.minWidth,
@@ -48,11 +51,12 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
               fontWeight: 600,
             }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+            <span className={DINAMIC_SX_TABLE_CLASS.headerCellInner} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
               {col.label}
               {showFilterSort && col.sortable && (
                 <>
                   <span
+                    className={DINAMIC_SX_TABLE_CLASS.headerFilterTrigger}
                     role="presentation"
                     onClick={(ev) => { ev.stopPropagation(); onOpenFilter(col.internalName, ev.currentTarget as HTMLElement); }}
                     style={{ display: 'inline-flex', cursor: 'pointer' }}

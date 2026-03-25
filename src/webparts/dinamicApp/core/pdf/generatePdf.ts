@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { IPdfTemplateConfig, IPdfTemplateElement } from '../config/types';
+import { getPdfPageSizeMm, toJsPdfFormat } from './pdfPageFormats';
 
 function getImageUrl(el: IPdfTemplateElement): string {
   const url = (el.imageUrl ?? el.content ?? '').trim();
@@ -239,8 +240,13 @@ export async function generateAndDownloadPdf(
   filename: string = 'export.pdf'
 ): Promise<void> {
   const orientation = template.orientation === 'landscape' ? 'l' : 'p';
-  const format = template.pageFormat === 'Letter' ? 'letter' : 'a4';
+  const format = toJsPdfFormat(template.pageFormat);
   const doc = new jsPDF({ orientation, unit: 'mm', format });
+  const pageSizeMm = getPdfPageSizeMm(
+    template.pageFormat,
+    template.orientation === 'landscape' ? 'landscape' : 'portrait'
+  );
+  const pageHeightMm = pageSizeMm.heightMm;
 
   const bodyElements = template.body?.elements ?? [];
   const { fixed: fixedBodyElements, dynamic: dynamicBodyElements } = splitBodyByScope(bodyElements);
@@ -268,7 +274,6 @@ export async function generateAndDownloadPdf(
   const layoutMode = template.layoutMode ?? 'onePerPage';
   const headerHeight = template.header?.height ?? 0;
   const footerHeight = template.footer?.height ?? 0;
-  const pageHeightMm = orientation === 'p' ? 297 : 210;
   const marginBottom = footerHeight + 15;
   const fixedBlockHeight = getFixedBlockHeightMm(template, fixedBodyElements);
   const bodyBlockHeight = getBodyBlockHeightMm(template, dynamicBodyElements);

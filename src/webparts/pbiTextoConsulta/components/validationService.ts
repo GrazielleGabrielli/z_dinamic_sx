@@ -99,6 +99,21 @@ export async function updateValidarTemplatesItemStatus(itemId: number, status: s
   }
 }
 
+export async function deleteValidationTemplateItem(itemId: number): Promise<void> {
+  const sp = getSP();
+
+  if (!sp) {
+    throw new Error('Contexto do SharePoint nao inicializado.');
+  }
+
+  try {
+    await sp.web.lists.getByTitle(VALIDATION_TEMPLATES_LIST_TITLE).items.getById(itemId).delete();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Falha ao excluir item em ValidarTemplates.';
+    throw new Error(message);
+  }
+}
+
 export async function getValidationTemplateItemById(itemId: number): Promise<ValidationTemplateItem> {
   const sp = getSP();
 

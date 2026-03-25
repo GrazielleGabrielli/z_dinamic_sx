@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
+import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
 export const TableLoadingState: React.FC = () => (
   <Stack
+    className={DINAMIC_SX_TABLE_CLASS.loading}
     horizontalAlign="center"
     verticalAlign="center"
     tokens={{ childrenGap: 12 }}

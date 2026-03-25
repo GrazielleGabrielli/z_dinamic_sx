@@ -4,7 +4,7 @@ import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { Stack, Text, ActionButton, Spinner, SpinnerSize, MessageBar, MessageBarType } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
-import { IDashboardConfig, IDataSourceConfig, TChartType } from '../../core/config/types';
+import { IDashboardConfig, IDataSourceConfig, IChartSeriesConfig, TChartType } from '../../core/config/types';
 import { IChartSeriesResult } from '../../core/dashboard/types';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
 
@@ -67,9 +67,19 @@ interface IChartViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   onEditSeries: () => void;
+  onSeriesClick?: (series: IChartSeriesConfig) => void;
+  selectedSeriesId?: string | null;
+  showListFilterHint?: boolean;
 }
 
-export const ChartView: React.FC<IChartViewProps> = ({ config, dataSource, onEditSeries }) => {
+export const ChartView: React.FC<IChartViewProps> = ({
+  config,
+  dataSource,
+  onEditSeries,
+  onSeriesClick,
+  selectedSeriesId,
+  showListFilterHint,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const engine = useMemo(() => new DashboardEngine(), []);
@@ -115,9 +125,23 @@ export const ChartView: React.FC<IChartViewProps> = ({ config, dataSource, onEdi
     }
 
     const chartType = config.chartType ?? 'bar';
-    chartRef.current.setOption(buildOption(chartType, chartState.results), true);
-    chartRef.current.resize();
-  }, [chartState.results, config.chartType]);
+    const chart = chartRef.current;
+    chart.setOption(buildOption(chartType, chartState.results), true);
+    chart.resize();
+
+    chart.off('click');
+    if (onSeriesClick) {
+      chart.on('click', (params: { dataIndex?: number }) => {
+        const idx = params.dataIndex;
+        if (typeof idx !== 'number' || idx < 0) return;
+        const s = (config.chartSeries ?? [])[idx];
+        if (s) onSeriesClick(s);
+      });
+    }
+    return () => {
+      chart.off('click');
+    };
+  }, [chartState.results, config.chartType, config.chartSeries, onSeriesClick]);
 
   useEffect(() => {
     return () => {
@@ -192,6 +216,11 @@ export const ChartView: React.FC<IChartViewProps> = ({ config, dataSource, onEdi
         }}
       >
         <div ref={containerRef} style={{ width: '100%', height: 320 }} />
+        {selectedSeriesId && onSeriesClick && showListFilterHint === true && (
+          <Text variant="small" styles={{ root: { color: '#605e5c', marginTop: 8, display: 'block' } }}>
+            Filtro do gráfico ativo na listagem — clique na mesma fatia/barra para remover.
+          </Text>
+        )}
       </div>
     </div>
   );

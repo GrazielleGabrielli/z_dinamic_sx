@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { Stack, Text, ActionButton, MessageBar, MessageBarType } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
-import { IDashboardConfig, IDataSourceConfig } from '../../core/config/types';
+import { IDashboardCardConfig, IDashboardConfig, IDataSourceConfig, IChartSeriesConfig } from '../../core/config/types';
 import { generateDefaultCards } from '../../core/config/utils';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
 import { IDashboardCardResult } from '../../core/dashboard/types';
@@ -14,6 +14,12 @@ interface IDashboardViewProps {
   dataSource: IDataSourceConfig;
   onEditCards: () => void;
   onEditSeries: () => void;
+  onCardClick?: (card: IDashboardCardConfig) => void;
+  selectedCardId?: string | null;
+  onSeriesClick?: (series: IChartSeriesConfig) => void;
+  selectedSeriesId?: string | null;
+  /** Quando há filtros do dashboard aplicados na listagem (para texto auxiliar). */
+  dashboardAppliesListFilter?: boolean;
 }
 
 export const DashboardView: React.FC<IDashboardViewProps> = ({
@@ -21,9 +27,23 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   dataSource,
   onEditCards,
   onEditSeries,
+  onCardClick,
+  selectedCardId,
+  onSeriesClick,
+  selectedSeriesId,
+  dashboardAppliesListFilter,
 }) => {
   if (config.dashboardType === 'charts') {
-    return <ChartView config={config} dataSource={dataSource} onEditSeries={onEditSeries} />;
+    return (
+      <ChartView
+        config={config}
+        dataSource={dataSource}
+        onEditSeries={onEditSeries}
+        onSeriesClick={onSeriesClick}
+        selectedSeriesId={selectedSeriesId}
+        showListFilterHint={dashboardAppliesListFilter === true}
+      />
+    );
   }
 
   const engine = React.useMemo(() => new DashboardEngine(), []);
@@ -101,10 +121,24 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-        {results.map((result) => (
-          <DashboardCard key={result.id} result={result} cardConfig={getCardConfig(result.id)} />
-        ))}
+        {results.map((result) => {
+          const cfg = getCardConfig(result.id);
+          return (
+            <DashboardCard
+              key={result.id}
+              result={result}
+              cardConfig={cfg}
+              selected={selectedCardId === result.id}
+              onActivate={onCardClick && cfg ? () => onCardClick(cfg) : undefined}
+            />
+          );
+        })}
       </div>
+      {selectedCardId && onCardClick && dashboardAppliesListFilter === true && (
+        <Text variant="small" styles={{ root: { color: '#605e5c', marginTop: 12, display: 'block' } }}>
+          Filtro do card ativo na listagem — clique de novo no mesmo card para remover.
+        </Text>
+      )}
     </div>
   );
 };

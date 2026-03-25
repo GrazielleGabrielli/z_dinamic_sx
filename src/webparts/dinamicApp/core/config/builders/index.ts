@@ -36,6 +36,9 @@ export function buildConfig(params: {
       sort: params.listView?.sort ?? defaults.listView.sort,
       viewModes: params.listView?.viewModes ?? defaults.listView.viewModes,
       activeViewModeId: params.listView?.activeViewModeId ?? defaults.listView.activeViewModeId,
+      pdfExportEnabled: params.listView?.pdfExportEnabled ?? defaults.listView.pdfExportEnabled,
+      customTableCssSlots: params.listView?.customTableCssSlots ?? defaults.listView.customTableCssSlots,
+      customTableCss: params.listView?.customTableCss ?? defaults.listView.customTableCss,
     },
   };
 }

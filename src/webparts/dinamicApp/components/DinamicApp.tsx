@@ -1,9 +1,19 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Text, Stack, Separator, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { parseConfig } from '../core/config/validators';
-import { IDashboardCardConfig, IChartSeriesConfig, IDynamicViewConfig, IListViewConfig, IPaginationConfig, TChartType, TDashboardType } from '../core/config/types';
+import {
+  IDashboardCardConfig,
+  IChartSeriesConfig,
+  IDynamicViewConfig,
+  IListViewConfig,
+  IListViewFilterConfig,
+  IPaginationConfig,
+  TChartType,
+  TDashboardType,
+} from '../core/config/types';
+import { effectiveDashboardFilters } from '../core/dashboard/effectiveDashboardFilters';
 import { ConfigWizard } from './Wizard/ConfigWizard';
 import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
@@ -11,13 +21,42 @@ import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEdito
 import { TableView } from './DataTable/TableView';
 import { TableColumnsEditorPanel } from './DataTable/TableColumnsEditorPanel';
 
+type TDashboardListKey = `card:${string}` | `series:${string}`;
+
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
   const [isEditingSeries, setIsEditingSeries] = useState(false);
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
+  const [dashboardListSelection, setDashboardListSelection] = useState<{
+    key: TDashboardListKey;
+    filters: IListViewFilterConfig[];
+  } | null>(null);
 
   const config = parseConfig(configJson ?? undefined);
+
+  useEffect(() => {
+    setDashboardListSelection(null);
+  }, [config?.dataSource.title]);
+
+  const handleDashboardCardClick = useCallback((card: IDashboardCardConfig) => {
+    const filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];
+    const key = `card:${card.id}` as TDashboardListKey;
+    setDashboardListSelection((prev) => (prev?.key === key ? null : { key, filters }));
+  }, []);
+
+  const handleDashboardSeriesClick = useCallback((series: IChartSeriesConfig) => {
+    const filters = effectiveDashboardFilters(series) as IListViewFilterConfig[];
+    const key = `series:${series.id}` as TDashboardListKey;
+    setDashboardListSelection((prev) => (prev?.key === key ? null : { key, filters }));
+  }, []);
+
+  const dashKey = dashboardListSelection?.key;
+  const selectedCardId =
+    dashKey !== undefined && dashKey.indexOf('card:') === 0 ? dashKey.slice('card:'.length) : null;
+  const selectedSeriesId =
+    dashKey !== undefined && dashKey.indexOf('series:') === 0 ? dashKey.slice('series:'.length) : null;
+  const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
 
   const handleWizardComplete = (newConfig: IDynamicViewConfig): void => {
     onSaveConfig(newConfig);
@@ -112,6 +151,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
               dataSource={config.dataSource}
               onEditCards={() => setIsEditingCards(true)}
               onEditSeries={() => setIsEditingSeries(true)}
+              onCardClick={handleDashboardCardClick}
+              selectedCardId={selectedCardId}
+              onSeriesClick={handleDashboardSeriesClick}
+              selectedSeriesId={selectedSeriesId}
+              dashboardAppliesListFilter={dashboardAppliesListFilter}
             />
             <Separator />
           </>
@@ -141,7 +185,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
           </ActionButton>
         </Stack>
 
-        <TableView config={config} />
+        <TableView config={config} dashboardListFilters={dashboardListSelection?.filters} />
       </Stack>
 
       <CardEditorPanel
