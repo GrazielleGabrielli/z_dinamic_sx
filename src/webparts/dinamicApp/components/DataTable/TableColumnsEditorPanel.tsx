@@ -33,7 +33,6 @@ import type {
   IListViewFilterConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
-  ITableLayoutCssSlots,
   ITableRowStyleRule,
   TTableRowRuleOperator,
   TPaginationLayout,
@@ -42,12 +41,11 @@ import type {
 import { PdfTemplateEditor } from './PdfTemplateEditor';
 import {
   DINAMIC_SX_TABLE_CLASS,
-  TABLE_LAYOUT_EDITOR_GROUPS,
   TABLE_LAYOUT_EDITOR_ROWS,
-  TABLE_LAYOUT_SLOT_ORDER,
+  mergeCustomTableCss,
 } from './tableLayoutClasses';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
-import { TableLayoutSlotPreview } from './TableLayoutSlotPreview';
+import { TableLayoutLivePreview } from './TableLayoutLivePreview';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
@@ -182,6 +180,11 @@ const DEFAULT_VIEW_MODES_FALLBACK: IListViewModeConfig[] = [
   { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
 ];
 
+function normalizeHexColor(input: string | undefined, fallback: string): string {
+  const raw = (input ?? '').trim();
+  return /^#([0-9a-fA-F]{6})$/.test(raw) ? raw : fallback;
+}
+
 function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   if (!filters || filters.length === 0) return 'Sem filtros';
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
@@ -206,13 +209,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [pageSize, setPageSize] = useState(pagination.pageSize);
   const [paginationLayout, setPaginationLayout] = useState<TPaginationLayout>(pagination.layout ?? 'buttons');
   const [pdfExportEnabled, setPdfExportEnabled] = useState(listView.pdfExportEnabled ?? false);
-  const [cssSlotsState, setCssSlotsState] = useState<ITableLayoutCssSlots>(() => ({
-    ...(listView.customTableCssSlots ?? {}),
-  }));
-  const [customTableCssExtra, setCustomTableCssExtra] = useState(listView.customTableCss ?? '');
+  const [layoutCssText, setLayoutCssText] = useState<string>(
+    mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss)
+  );
+  const [layoutColor, setLayoutColor] = useState<string>('#0078d4');
   const [rowStyleRules, setRowStyleRules] = useState<ITableRowStyleRule[]>(() => [
     ...(listView.tableRowStyleRules ?? []),
   ]);
+  const [ruleColorMap, setRuleColorMap] = useState<Record<string, string>>({});
   const [viewModes, setViewModes] = useState<IListViewModeConfig[]>(
     listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK
   );
@@ -225,10 +229,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const panelWasOpenRef = useRef(false);
 
   const fieldsService = useMemo(() => new FieldsService(), []);
-  const layoutRowBySlot = useMemo(
-    () => new Map(TABLE_LAYOUT_EDITOR_ROWS.map((r) => [r.slot, r] as const)),
-    []
-  );
 
   useEffect(() => {
     if (!isOpen || !listTitle.trim()) return;
@@ -277,9 +277,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setActiveViewModeId(listView.activeViewModeId ?? 'all');
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
-    setCssSlotsState({ ...(listView.customTableCssSlots ?? {}) });
-    setCustomTableCssExtra(listView.customTableCss ?? '');
+    setLayoutCssText(mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss));
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
+    setRuleColorMap({});
     setLayoutSubTab('geral');
   }, [isOpen, listView, pagination, pdfTemplate]);
 
@@ -370,6 +370,25 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const removeRowStyleRule = (index: number): void => {
     setRowStyleRules((prev) => prev.filter((_, i) => i !== index));
   };
+  const appendLayoutCssColor = (property: 'background' | 'color' | 'border-color'): void => {
+    const line = `${property}: ${layoutColor};`;
+    setLayoutCssText((prev) => {
+      const t = prev.trim();
+      return t ? `${t}\n${line}` : line;
+    });
+  };
+  const appendRuleCssColor = (ruleId: string, index: number, property: 'background' | 'color' | 'border-color'): void => {
+    const c = ruleColorMap[ruleId] ?? '#0078d4';
+    const line = `${property}: ${c};`;
+    setRowStyleRules((prev) => {
+      const next = prev.slice();
+      const current = next[index];
+      if (!current) return prev;
+      const body = current.rowCss.trim();
+      next[index] = { ...current, rowCss: body ? `${body}\n${line}` : line };
+      return next;
+    });
+  };
 
   const handleSave = (): void => {
     const columns: IListViewColumnConfig[] = options
@@ -391,13 +410,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       layout: paginationLayout,
       pageSizeOptions: pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS,
     };
-    const nextSlots: ITableLayoutCssSlots = {};
-    for (let i = 0; i < TABLE_LAYOUT_SLOT_ORDER.length; i++) {
-      const slot = TABLE_LAYOUT_SLOT_ORDER[i];
-      const t = (cssSlotsState[slot] ?? '').trim();
-      if (t) nextSlots[slot] = t;
-    }
-    const extraTrim = customTableCssExtra.trim();
+    const cssTrim = layoutCssText.trim();
     const nextRowRules: ITableRowStyleRule[] = [];
     const seenIds = new Set<string>();
     for (let i = 0; i < rowStyleRules.length; i++) {
@@ -425,8 +438,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         viewModes,
         activeViewModeId,
         pdfExportEnabled,
-        ...(Object.keys(nextSlots).length > 0 ? { customTableCssSlots: nextSlots } : { customTableCssSlots: undefined }),
-        ...(extraTrim ? { customTableCss: extraTrim } : { customTableCss: undefined }),
+        customTableCssSlots: undefined,
+        ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
         ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       },
       nextPagination,
@@ -727,148 +740,61 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   styles={{ root: { marginBottom: 4, flexWrap: 'wrap', maxWidth: '100%' } }}
                 >
                   <PivotItem itemKey="geral" headerText="Geral">
-                <Stack tokens={{ childrenGap: 0 }} styles={{ root: { paddingTop: 4, minWidth: 0, maxWidth: '100%', paddingBottom: 24 } }}>
-                  <Stack
-                    styles={{
-                      root: {
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2,
-                        background: '#ffffff',
-                        paddingBottom: 12,
-                        paddingTop: 4,
-                        marginBottom: 4,
-                        borderBottom: '1px solid #edebe9',
-                      },
-                    }}
-                  >
-                    <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
-                      <strong>Como usar:</strong> em cada campo, só declarações CSS (propriedade: valor;), aplicadas à classe indicada.
-                      Colunas específicas com <span style={{ fontFamily: 'monospace' }}>[data-field=&quot;NomeInterno&quot;]</span> vão no bloco
-                      &quot;CSS adicional&quot; no final. Use <span style={{ fontFamily: 'monospace' }}>!important</span> se o estilo padrão da lista
-                      tiver prioridade.
-                    </Text>
-                  </Stack>
-                  {TABLE_LAYOUT_EDITOR_GROUPS.map((group, gi) => (
-                    <Stack key={group.id} tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: gi === 0 ? 8 : 28 } }}>
-                      <Stack horizontal verticalAlign="start" tokens={{ childrenGap: 10 }} styles={{ root: { flexWrap: 'wrap' } }}>
-                        <div style={{ width: 4, minHeight: 28, background: '#0078d4', borderRadius: 2, flexShrink: 0, marginTop: 2 }} />
-                        <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 240px', minWidth: 0 } }}>
-                          <Text variant="medium" styles={{ root: { fontWeight: 600, color: '#201f1e' } }}>
-                            {group.label}
-                          </Text>
-                          <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
-                            {group.blurb}
-                          </Text>
+                    <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
+                      <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+                        Use uma única caixa de CSS com seletores das classes da tabela. A pré-visualização ao lado reage ao digitar.
+                        Para estilos por valor de campo, use a aba <strong>Regras</strong>.
+                      </Text>
+                      <Stack horizontal wrap verticalAlign="start" tokens={{ childrenGap: 16 }}>
+                        <Stack styles={{ root: { flex: '1 1 480px', minWidth: 320 } }} tokens={{ childrenGap: 8 }}>
+                          <TextField
+                            label="CSS da tabela"
+                            multiline
+                            resizable
+                            rows={18}
+                            value={layoutCssText}
+                            onChange={(_, v) => setLayoutCssText(v ?? '')}
+                            placeholder={
+                              `.${DINAMIC_SX_TABLE_CLASS.headerCell} { background: #f3f2f1; }\n` +
+                              `.${DINAMIC_SX_TABLE_CLASS.row}:nth-child(even) { background: #faf9f8; }\n` +
+                              `.${DINAMIC_SX_TABLE_CLASS.cell}[data-field="Title"] { font-weight: 600; }`
+                            }
+                            styles={{ root: { maxWidth: '100%' } }}
+                          />
+                          <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 4 } }}>
+                            <input
+                              type="color"
+                              value={normalizeHexColor(layoutColor, '#0078d4')}
+                              onChange={(e) => setLayoutColor(e.target.value)}
+                              aria-label="Selecionar cor para CSS da tabela"
+                              style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+                            />
+                            <TextField
+                              label="Cor (hex)"
+                              value={layoutColor}
+                              onChange={(_, v) => setLayoutColor((v ?? '').trim() || '#000000')}
+                              styles={{ root: { width: 130 } }}
+                            />
+                            <DefaultButton text="Inserir background" onClick={() => appendLayoutCssColor('background')} />
+                            <DefaultButton text="Inserir color" onClick={() => appendLayoutCssColor('color')} />
+                            <DefaultButton text="Inserir border-color" onClick={() => appendLayoutCssColor('border-color')} />
+                          </Stack>
+                          <Stack
+                            tokens={{ childrenGap: 4 }}
+                            styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8', maxHeight: 220, overflowY: 'auto' } }}
+                          >
+                            {TABLE_LAYOUT_EDITOR_ROWS.map((row) => (
+                              <Text key={row.slot} variant="small" styles={{ root: { color: '#605e5c' } }}>
+                                <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{DINAMIC_SX_TABLE_CLASS[row.slot]}</span> - {row.title}
+                              </Text>
+                            ))}
+                          </Stack>
+                        </Stack>
+                        <Stack styles={{ root: { flex: '1 1 360px', minWidth: 280, maxWidth: '100%' } }}>
+                          <TableLayoutLivePreview cssText={layoutCssText} />
                         </Stack>
                       </Stack>
-                      {group.slots.map((slotKey) => {
-                        const row = layoutRowBySlot.get(slotKey);
-                        if (!row) return null;
-                        const cls = DINAMIC_SX_TABLE_CLASS[row.slot];
-                        return (
-                          <Stack
-                            key={row.slot}
-                            horizontal
-                            wrap
-                            verticalAlign="start"
-                            tokens={{ childrenGap: 16 }}
-                            styles={{
-                              root: {
-                                padding: '14px 16px',
-                                background: '#faf9f8',
-                                borderRadius: 8,
-                                border: '1px solid #edebe9',
-                                borderLeftWidth: 3,
-                                borderLeftColor: '#0078d4',
-                              },
-                            }}
-                          >
-                            <Stack styles={{ root: { flex: '2 1 340px', minWidth: 0 } }} tokens={{ childrenGap: 6 }}>
-                              <Text variant="smallPlus" styles={{ root: { fontWeight: 600, color: '#201f1e' } }}>
-                                {row.title}
-                              </Text>
-                              <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
-                                {row.hint}
-                              </Text>
-                              <Text
-                                variant="small"
-                                styles={{
-                                  root: {
-                                    fontFamily: 'monospace',
-                                    color: '#0078d4',
-                                    marginTop: 2,
-                                    wordBreak: 'break-all',
-                                  },
-                                }}
-                              >
-                                .{cls}
-                              </Text>
-                              <TextField
-                                multiline
-                                resizable
-                                rows={3}
-                                ariaLabel={`CSS para ${row.title}`}
-                                value={cssSlotsState[row.slot] ?? ''}
-                                onChange={(_, v) =>
-                                  setCssSlotsState((prev) => ({
-                                    ...prev,
-                                    [row.slot]: v ?? '',
-                                  }))
-                                }
-                                placeholder="ex.: background: #f3f2f1; font-weight: 600;"
-                                styles={{ root: { marginTop: 4, maxWidth: '100%' } }}
-                              />
-                            </Stack>
-                            <Stack styles={{ root: { flex: '1 1 240px', minWidth: 200, maxWidth: '100%' } }}>
-                              <TableLayoutSlotPreview
-                                slot={row.slot}
-                                cssBody={cssSlotsState[row.slot] ?? ''}
-                                variant="embedded"
-                              />
-                            </Stack>
-                          </Stack>
-                        );
-                      })}
                     </Stack>
-                  ))}
-                  <Separator styles={{ root: { marginTop: 28, marginBottom: 4 } }} />
-                  <Stack
-                    tokens={{ childrenGap: 10 }}
-                    styles={{
-                      root: {
-                        padding: 16,
-                        background: '#fff9f5',
-                        borderRadius: 8,
-                        border: '1px solid #edebe9',
-                        borderLeft: '3px solid #ca5010',
-                      },
-                    }}
-                  >
-                    <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 10 }}>
-                      <Icon iconName="Code" styles={{ root: { color: '#ca5010', fontSize: 18 } }} />
-                      <Text variant="medium" styles={{ root: { fontWeight: 600, color: '#201f1e' } }}>
-                        CSS adicional (regras livres)
-                      </Text>
-                    </Stack>
-                    <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
-                      Vários seletores, <span style={{ fontFamily: 'monospace' }}>:hover</span>, media queries. É aplicado depois dos blocos por
-                      componente.
-                    </Text>
-                    <TextField
-                      label="CSS livre"
-                      multiline
-                      rows={6}
-                      value={customTableCssExtra}
-                      onChange={(_, v) => setCustomTableCssExtra(v ?? '')}
-                      placeholder={
-                        `.${DINAMIC_SX_TABLE_CLASS.row}:nth-child(even) { background: #faf9f8 !important; }\n` +
-                        `.${DINAMIC_SX_TABLE_CLASS.cell}[data-field="Title"] { font-weight: 600; }`
-                      }
-                      styles={{ root: { maxWidth: '100%' } }}
-                    />
-                  </Stack>
-                </Stack>
                   </PivotItem>
                   <PivotItem itemKey="regras" headerText="Regras">
                     <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
@@ -935,9 +861,37 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                               placeholder="ex.: background: #fef9c3 !important; font-weight: 600;"
                               styles={{ root: { maxWidth: '100%' } }}
                             />
-                            <Text variant="small" styles={{ root: { fontFamily: 'monospace', color: '#605e5c' } }}>
+                            <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                              <input
+                                type="color"
+                                value={normalizeHexColor(ruleColorMap[rule.id], '#0078d4')}
+                                onChange={(e) =>
+                                  setRuleColorMap((prev) => ({
+                                    ...prev,
+                                    [rule.id]: e.target.value,
+                                  }))
+                                }
+                                aria-label={`Selecionar cor para regra ${ri + 1}`}
+                                style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+                              />
+                              <TextField
+                                label="Cor (hex)"
+                                value={ruleColorMap[rule.id] ?? '#0078d4'}
+                                onChange={(_, v) =>
+                                  setRuleColorMap((prev) => ({
+                                    ...prev,
+                                    [rule.id]: (v ?? '').trim() || '#000000',
+                                  }))
+                                }
+                                styles={{ root: { width: 130 } }}
+                              />
+                              <DefaultButton text="Inserir background" onClick={() => appendRuleCssColor(rule.id, ri, 'background')} />
+                              <DefaultButton text="Inserir color" onClick={() => appendRuleCssColor(rule.id, ri, 'color')} />
+                              <DefaultButton text="Inserir border-color" onClick={() => appendRuleCssColor(rule.id, ri, 'border-color')} />
+                            </Stack>
+                            {/* <Text variant="small" styles={{ root: { fontFamily: 'monospace', color: '#605e5c' } }}>
                               Marcador: data-dinamic-rules~=&quot;{toTableRowRuleDataToken(rule.id)}&quot;
-                            </Text>
+                            </Text> */}
                           </Stack>
                         );
                       })}
