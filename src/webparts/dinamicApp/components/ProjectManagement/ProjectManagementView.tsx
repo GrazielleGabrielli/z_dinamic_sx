@@ -327,18 +327,40 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ c
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               O item ainda não atende às regras de nenhuma coluna configurada.
             </Text>
-            {grouped.ungrouped.map((item) => (
-              <div key={Number(item.Id)} style={{ padding: 12, borderRadius: 8, border: '1px solid #edebe9', background: '#fff' }}>
-                <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-                  {valueToText(item[titleColumn.field], titleColumn.expandField) || `Item ${String(item.Id)}`}
-                </Text>
-                {detailColumns.map((detail) => (
-                  <Text key={detail.field} variant="small" styles={{ root: { color: '#605e5c', display: 'block', marginTop: 4 } }}>
-                    {(detail.label ?? detail.field)}: {valueToText(item[detail.field], detail.expandField) || '—'}
+            {grouped.ungrouped.map((item) => {
+              const itemId = Number(item.Id);
+              const disabled = updatingId === itemId;
+              return (
+                <div
+                  key={itemId}
+                  draggable={!disabled}
+                  onDragStart={(e) => {
+                    setDraggingId(itemId);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(itemId));
+                  }}
+                  onDragEnd={() => setDraggingId(null)}
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    border: draggingId === itemId ? '2px solid #0078d4' : '1px solid #edebe9',
+                    background: '#fff',
+                    cursor: disabled ? 'progress' : 'grab',
+                    opacity: disabled ? 0.6 : 1,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+                    {valueToText(item[titleColumn.field], titleColumn.expandField) || `Item ${itemId}`}
                   </Text>
-                ))}
-              </div>
-            ))}
+                  {detailColumns.map((detail) => (
+                    <Text key={detail.field} variant="small" styles={{ root: { color: '#605e5c', display: 'block', marginTop: 4 } }}>
+                      {(detail.label ?? detail.field)}: {valueToText(item[detail.field], detail.expandField) || '—'}
+                    </Text>
+                  ))}
+                </div>
+              );
+            })}
           </Stack>
         )}
       </Stack>
