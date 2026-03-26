@@ -35,9 +35,15 @@ export interface ITableViewProps {
   config: IDynamicViewConfig;
   /** Filtros OData do item do dashboard (card/série) clicado; combinados com modo de visualização e filtros de coluna. */
   dashboardListFilters?: IListViewFilterConfig[];
+  instanceScopeId: string;
 }
 
-export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilters }) => {
+function scopeTableCssByInstance(css: string, scopeClass: string): string {
+  if (!css.trim()) return '';
+  return css.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`);
+}
+
+export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilters, instanceScopeId }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
 
@@ -276,7 +282,9 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
 
   const mergedTableCss = mergeCustomTableCss(listView?.customTableCssSlots, listView?.customTableCss);
   const rowRulesCss = mergeRowStyleRulesCss(listView?.tableRowStyleRules);
-  const mergedLayoutCss = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
+  const instanceScopeClass = `dinamicSxScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const mergedLayoutCssRaw = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
+  const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
   const tableCustomStyle =
     mergedLayoutCss.length > 0 ? <style type="text/css">{mergedLayoutCss}</style> : null;
 
@@ -310,7 +318,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
 
   return (
     <Stack
-      className={DINAMIC_SX_TABLE_CLASS.viewRoot}
+      className={`${instanceScopeClass} ${DINAMIC_SX_TABLE_CLASS.viewRoot}`}
       tokens={{ childrenGap: 12 }}
       styles={{ root: { marginTop: 8 } }}
     >

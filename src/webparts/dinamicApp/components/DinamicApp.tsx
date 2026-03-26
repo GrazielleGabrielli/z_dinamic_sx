@@ -24,7 +24,7 @@ import { ProjectManagementView } from './ProjectManagement/ProjectManagementView
 
 type TDashboardListKey = `card:${string}` | `series:${string}`;
 
-const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveConfig }) => {
+const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceScopeId, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
   const [isEditingSeries, setIsEditingSeries] = useState(false);
@@ -200,7 +200,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
             onItemUpdated={triggerDashboardRefresh}
           />
         ) : (
-          <TableView config={config} dashboardListFilters={dashboardListSelection?.filters} />
+          <TableView
+            config={config}
+            dashboardListFilters={dashboardListSelection?.filters}
+            instanceScopeId={instanceScopeId}
+          />
         )}
       </Stack>
 

@@ -25,6 +25,7 @@ export default class DinamicAppWebPart extends BaseClientSideWebPart<IDynamicVie
     const element: React.ReactElement<IDinamicAppProps> = React.createElement(DinamicApp, {
       configJson: this.properties.configJson ?? '',
       siteUrl: this.context.pageContext.web.serverRelativeUrl,
+      instanceScopeId: this.instanceId,
       onSaveConfig: (config: IDynamicViewConfig) => this.saveConfig(config),
     });
 
