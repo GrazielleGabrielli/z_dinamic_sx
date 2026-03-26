@@ -4,6 +4,7 @@ import {
   IDashboardConfig,
   IDashboardCardConfig,
   IDashboardCardStyleConfig,
+  IProjectManagementConfig,
   IPaginationConfig,
   IListViewConfig,
   IPdfTemplateConfig,
@@ -100,6 +101,39 @@ function isValidListView(lv: unknown): lv is IListViewConfig {
   return true;
 }
 
+function sanitizeProjectManagementConfig(raw: unknown): IProjectManagementConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const src = raw as Record<string, unknown>;
+  const rawColumns = Array.isArray(src.columns) ? src.columns : [];
+  const columns: IProjectManagementConfig['columns'] = [];
+  for (let i = 0; i < rawColumns.length; i++) {
+    const entry = rawColumns[i];
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const id = typeof e.id === 'string' ? e.id.trim() : '';
+    const title = typeof e.title === 'string' ? e.title.trim() : '';
+    const rawRules = Array.isArray(e.rules) ? e.rules : [];
+    const rules: NonNullable<IProjectManagementConfig['columns']>[number]['rules'] = [];
+    for (let j = 0; j < rawRules.length; j++) {
+      const rr = rawRules[j];
+      if (!rr || typeof rr !== 'object') continue;
+      const r = rr as Record<string, unknown>;
+      const ruleId = typeof r.id === 'string' ? r.id.trim() : `rule_${i + 1}_${j + 1}`;
+      const field = typeof r.field === 'string' ? r.field.trim() : '';
+      const value = typeof r.value === 'string' ? r.value : '';
+      if (!field) continue;
+      rules.push({ id: ruleId, field, value });
+    }
+    if (!id || !title) continue;
+    columns.push({
+      id,
+      title,
+      rules,
+    });
+  }
+  return { columns };
+}
+
 function isValidPdfElement(el: unknown): el is IPdfTemplateElement {
   if (!el || typeof el !== 'object') return false;
   const e = el as Record<string, unknown>;
@@ -152,8 +186,9 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     if (!isValidConfig(parsed)) return undefined;
     const defaults = getDefaultConfig();
     const c = parsed as IDynamicViewConfig;
+    const projectManagement = sanitizeProjectManagementConfig(c.projectManagement);
     if (c.listView === undefined) {
-      return { ...c, listView: defaults.listView };
+      return { ...c, listView: defaults.listView, projectManagement: projectManagement ?? defaults.projectManagement };
     }
     const lv = c.listView;
     const cssSlots = sanitizeTableCssSlots(lv.customTableCssSlots);
@@ -171,6 +206,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         ...(typeof lv.customTableCss === 'string' ? { customTableCss: lv.customTableCss } : {}),
         ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
       },
+      projectManagement: projectManagement ?? defaults.projectManagement,
       ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),
     };
   } catch {

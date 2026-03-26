@@ -165,4 +165,16 @@ export class ItemsService {
   applyOrderBy(options: IItemsQueryOptions, sort: ISortConfig): IItemsQueryOptions {
     return { ...options, orderBy: sort };
   }
+
+  async updateItem(
+    listTitleOrId: string,
+    itemId: number,
+    values: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await listRef(this.sp, listTitleOrId).items.getById(itemId).update(values);
+    } catch (e) {
+      throw new Error(`ItemsService.updateItem("${listTitleOrId}", ${itemId}): ${e}`);
+    }
+  }
 }

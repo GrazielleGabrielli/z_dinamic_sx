@@ -26,7 +26,7 @@ const MODE_CARDS: IModeCard[] = [
     key: 'projectManagement',
     title: 'Gestão de Projetos',
     description: 'Kanban, linha do tempo e gestão de tarefas.',
-    enabled: false,
+    enabled: true,
   },
   {
     key: 'formManager',

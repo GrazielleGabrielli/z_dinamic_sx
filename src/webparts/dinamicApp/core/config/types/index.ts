@@ -191,6 +191,24 @@ export interface IListViewConfig {
   tableRowStyleRules?: ITableRowStyleRule[];
 }
 
+// ─── Project management ─────────────────────────────────────────────────────
+
+export interface IProjectManagementRuleConfig {
+  id: string;
+  field: string;
+  value: string;
+}
+
+export interface IProjectManagementColumnConfig {
+  id: string;
+  title: string;
+  rules: IProjectManagementRuleConfig[];
+}
+
+export interface IProjectManagementConfig {
+  columns: IProjectManagementColumnConfig[];
+}
+
 // ─── PDF template ───────────────────────────────────────────────────────────
 
 export type TPdfElementType = 'text' | 'image' | 'rect' | 'line';
@@ -252,6 +270,7 @@ export interface IDynamicViewConfig {
   dashboard: IDashboardConfig;
   pagination: IPaginationConfig;
   listView: IListViewConfig;
+  projectManagement?: IProjectManagementConfig;
   /** Config da tabela dinâmica (modo list). Quando presente, DataTable + TableEngine são usados. */
   tableConfig?: import('../../table').ITableConfig;
   pdfTemplate?: IPdfTemplateConfig;

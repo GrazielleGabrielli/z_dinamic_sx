@@ -9,6 +9,7 @@ export function buildConfig(params: {
   dashboard: Partial<IDashboardConfig>;
   pagination: Partial<IPaginationConfig>;
   listView?: Partial<IListViewConfig>;
+  projectManagement?: IDynamicViewConfig['projectManagement'];
 }): IDynamicViewConfig {
   const defaults = getDefaultConfig();
   return {
@@ -41,5 +42,6 @@ export function buildConfig(params: {
       customTableCss: params.listView?.customTableCss ?? defaults.listView.customTableCss,
       tableRowStyleRules: params.listView?.tableRowStyleRules ?? defaults.listView.tableRowStyleRules,
     },
+    projectManagement: params.projectManagement ?? defaults.projectManagement,
   };
 }

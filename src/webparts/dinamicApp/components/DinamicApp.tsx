@@ -20,6 +20,7 @@ import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
 import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEditorPanel';
 import { TableView } from './DataTable/TableView';
 import { TableColumnsEditorPanel } from './DataTable/TableColumnsEditorPanel';
+import { ProjectManagementView } from './ProjectManagement/ProjectManagementView';
 
 type TDashboardListKey = `card:${string}` | `series:${string}`;
 
@@ -96,13 +97,15 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
   const handleSaveTableColumns = (
     listView: IListViewConfig,
     pagination: IPaginationConfig,
-    pdfTemplate?: import('../core/config/types').IPdfTemplateConfig
+    pdfTemplate?: import('../core/config/types').IPdfTemplateConfig,
+    projectManagement?: import('../core/config/types').IProjectManagementConfig
   ): void => {
     if (!config) return;
     onSaveConfig({
       ...config,
       listView,
       pagination,
+      ...(projectManagement !== undefined && { projectManagement }),
       ...(pdfTemplate !== undefined && { pdfTemplate }),
     });
     setIsEditingTableColumns(false);
@@ -181,11 +184,15 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
             onClick={() => setIsEditingTableColumns(true)}
             styles={{ root: { height: 28, color: '#0078d4' } }}
           >
-            Editar colunas
+            {config.mode === 'projectManagement' ? 'Editar quadro' : 'Editar colunas'}
           </ActionButton>
         </Stack>
 
-        <TableView config={config} dashboardListFilters={dashboardListSelection?.filters} />
+        {config.mode === 'projectManagement' ? (
+          <ProjectManagementView config={config} dashboardListFilters={dashboardListSelection?.filters} />
+        ) : (
+          <TableView config={config} dashboardListFilters={dashboardListSelection?.filters} />
+        )}
       </Stack>
 
       <CardEditorPanel
@@ -209,9 +216,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
 
       <TableColumnsEditorPanel
         isOpen={isEditingTableColumns}
+        mode={config.mode}
         listTitle={config.dataSource.title}
         listView={config.listView}
         pagination={config.pagination}
+        projectManagement={config.projectManagement}
         pdfTemplate={config.pdfTemplate}
         onSave={handleSaveTableColumns}
         onDismiss={() => setIsEditingTableColumns(false)}

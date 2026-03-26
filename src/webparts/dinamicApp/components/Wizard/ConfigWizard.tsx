@@ -30,7 +30,7 @@ const STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modo
 function isStepValid(step: number, form: IWizardFormState): boolean {
   switch (step) {
     case 1: return form.title.trim().length > 0;
-    case 2: return form.mode === 'list';
+    case 2: return form.mode === 'list' || form.mode === 'projectManagement';
     case 3: return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
     case 4: return form.paginationEnabled ? form.pageSize > 0 : true;
     case 5: return (form.viewModes?.length ?? 0) > 0;
@@ -86,6 +86,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
           viewModes: form.viewModes,
           activeViewModeId: form.activeViewModeId,
         },
+        projectManagement: initialValues?.projectManagement,
       });
       onComplete(config);
     }

@@ -37,6 +37,9 @@ export function getDefaultConfig(): IDynamicViewConfig {
       customTableCssSlots: { ...DEFAULT_TABLE_LAYOUT_TEST_CSS_SLOTS },
       customTableCss: DEFAULT_TABLE_LAYOUT_TEST_CSS_FREE.trim(),
     },
+    projectManagement: {
+      columns: [],
+    },
   };
 }
 

@@ -27,6 +27,9 @@ import {
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
 import type {
+  IProjectManagementColumnConfig,
+  IProjectManagementConfig,
+  IProjectManagementRuleConfig,
   IListViewConfig,
   IListViewColumnConfig,
   IListViewModeConfig,
@@ -37,6 +40,7 @@ import type {
   TTableRowRuleOperator,
   TPaginationLayout,
   TFilterOperator,
+  TViewMode,
 } from '../../core/config/types';
 import { PdfTemplateEditor } from './PdfTemplateEditor';
 import {
@@ -49,11 +53,18 @@ import { TableLayoutLivePreview } from './TableLayoutLivePreview';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
+  mode: TViewMode;
   listTitle: string;
   listView: IListViewConfig;
   pagination: IPaginationConfig;
+  projectManagement?: IProjectManagementConfig;
   pdfTemplate?: IPdfTemplateConfig;
-  onSave: (listView: IListViewConfig, pagination: IPaginationConfig, pdfTemplate?: IPdfTemplateConfig) => void;
+  onSave: (
+    listView: IListViewConfig,
+    pagination: IPaginationConfig,
+    pdfTemplate?: IPdfTemplateConfig,
+    projectManagement?: IProjectManagementConfig
+  ) => void;
   onDismiss: () => void;
 }
 
@@ -180,6 +191,8 @@ const DEFAULT_VIEW_MODES_FALLBACK: IListViewModeConfig[] = [
   { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
 ];
 
+const DEFAULT_PROJECT_COLUMNS: IProjectManagementColumnConfig[] = [];
+
 function normalizeHexColor(input: string | undefined, fallback: string): string {
   const raw = (input ?? '').trim();
   return /^#([0-9a-fA-F]{6})$/.test(raw) ? raw : fallback;
@@ -192,9 +205,11 @@ function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
 
 export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = ({
   isOpen,
+  mode,
   listTitle,
   listView,
   pagination,
+  projectManagement,
   pdfTemplate,
   onSave,
   onDismiss,
@@ -213,6 +228,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss)
   );
   const [layoutColor, setLayoutColor] = useState<string>('#0078d4');
+  const [projectColumns, setProjectColumns] = useState<IProjectManagementColumnConfig[]>(
+    projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS
+  );
   const [rowStyleRules, setRowStyleRules] = useState<ITableRowStyleRule[]>(() => [
     ...(listView.tableRowStyleRules ?? []),
   ]);
@@ -278,10 +296,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
     setLayoutCssText(mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss));
+    setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
     setRuleColorMap({});
     setLayoutSubTab('geral');
-  }, [isOpen, listView, pagination, pdfTemplate]);
+  }, [isOpen, listView, pagination, pdfTemplate, projectManagement]);
 
 
   const toggle = (internalName: string): void => {
@@ -345,6 +364,82 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       })),
     ];
   }, [options]);
+
+  const projectRuleFieldOptions: IDropdownOption[] = useMemo(() => {
+    const empty: IDropdownOption = { key: '', text: '— selecione o campo —' };
+    return [
+      empty,
+      ...options.map((o) => ({
+        key: o.meta.InternalName,
+        text: `${o.meta.Title} (${o.meta.InternalName})`,
+      })),
+    ];
+  }, [options]);
+
+  const addProjectColumn = (): void => {
+    setProjectColumns((prev) => [
+      ...prev,
+      {
+        id: `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        title: `Coluna ${prev.length + 1}`,
+        rules: [],
+      },
+    ]);
+  };
+
+  const updateProjectColumn = (index: number, part: Partial<IProjectManagementColumnConfig>): void => {
+    setProjectColumns((prev) => {
+      const next = prev.slice();
+      if (next[index]) next[index] = { ...next[index], ...part };
+      return next;
+    });
+  };
+
+  const removeProjectColumn = (index: number): void => {
+    setProjectColumns((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addProjectRule = (columnIndex: number): void => {
+    setProjectColumns((prev) => {
+      const next = prev.slice();
+      const current = next[columnIndex];
+      if (!current) return prev;
+      const rules = current.rules ? current.rules.slice() : [];
+      rules.push({
+        id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        field: '',
+        value: '',
+      });
+      next[columnIndex] = { ...current, rules };
+      return next;
+    });
+  };
+
+  const updateProjectRule = (columnIndex: number, ruleIndex: number, part: Partial<IProjectManagementRuleConfig>): void => {
+    setProjectColumns((prev) => {
+      const next = prev.slice();
+      const current = next[columnIndex];
+      if (!current) return prev;
+      const rules = current.rules ? current.rules.slice() : [];
+      if (!rules[ruleIndex]) return prev;
+      rules[ruleIndex] = { ...rules[ruleIndex], ...part };
+      next[columnIndex] = { ...current, rules };
+      return next;
+    });
+  };
+
+  const removeProjectRule = (columnIndex: number, ruleIndex: number): void => {
+    setProjectColumns((prev) => {
+      const next = prev.slice();
+      const current = next[columnIndex];
+      if (!current) return prev;
+      next[columnIndex] = {
+        ...current,
+        rules: (current.rules ?? []).filter((_, i) => i !== ruleIndex),
+      };
+      return next;
+    });
+  };
 
   const addRowStyleRule = (): void => {
     setRowStyleRules((prev) => [
@@ -411,6 +506,25 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       pageSizeOptions: pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS,
     };
     const cssTrim = layoutCssText.trim();
+    const nextProjectColumns = projectColumns
+      .map((col, index) => ({
+        id: (col.id || `col_${index + 1}`).trim(),
+        title: col.title.trim(),
+        rules: (col.rules ?? [])
+          .map((rule, ruleIndex) => ({
+            id: (rule.id || `rule_${index + 1}_${ruleIndex + 1}`).trim(),
+            field: rule.field.trim(),
+            value: rule.value,
+          }))
+          .filter((rule) => rule.field),
+      }))
+      .filter((col) => col.id && col.title);
+    const nextProjectManagement =
+      mode === 'projectManagement'
+        ? {
+            columns: nextProjectColumns,
+          }
+        : undefined;
     const nextRowRules: ITableRowStyleRule[] = [];
     const seenIds = new Set<string>();
     for (let i = 0; i < rowStyleRules.length; i++) {
@@ -443,7 +557,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       },
       nextPagination,
-      localPdfTemplate
+      localPdfTemplate,
+      nextProjectManagement
     );
     onDismiss();
   };
@@ -517,7 +632,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         scrollableContent: { overflowX: 'hidden' },
         content: { overflowX: 'hidden', minWidth: 0 },
       }}
-      headerText="Editar lista / tabela"
+      headerText={mode === 'projectManagement' ? 'Editar quadro / cards' : 'Editar lista / tabela'}
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}
       onRenderFooterContent={() => (
@@ -542,6 +657,74 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
             >
               <PivotItem itemKey="lista" headerText="Lista">
                 <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
+            {mode === 'projectManagement' && (
+              <>
+                <Stack tokens={{ childrenGap: 8 }}>
+                  <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
+                    Quadro Kanban
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Cada coluna tem um título e várias regras. Quando o card é arrastado para a coluna, todos os campos definidos nas regras são atualizados no item.
+                  </Text>
+                  {projectColumns.map((col, index) => (
+                    <Stack
+                      key={col.id}
+                      tokens={{ childrenGap: 8 }}
+                      styles={{ root: { padding: 12, border: '1px solid #edebe9', borderRadius: 8, background: '#faf9f8' } }}
+                    >
+                      <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                        <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+                          Coluna {index + 1}
+                        </Text>
+                        <IconButton iconProps={{ iconName: 'Delete' }} title="Remover coluna" onClick={() => removeProjectColumn(index)} />
+                      </Stack>
+                      <TextField
+                        label="Título da coluna"
+                        value={col.title}
+                        onChange={(_, v) => updateProjectColumn(index, { title: v ?? '' })}
+                      />
+                      <Text variant="smallPlus" styles={{ root: { fontWeight: 600, marginTop: 4 } }}>
+                        Regras
+                      </Text>
+                      {(col.rules ?? []).map((rule, ruleIndex) => (
+                        <Stack
+                          key={rule.id}
+                          horizontal
+                          wrap
+                          verticalAlign="end"
+                          tokens={{ childrenGap: 8 }}
+                          styles={{ root: { padding: 8, borderRadius: 6, background: '#fff', border: '1px solid #edebe9' } }}
+                        >
+                          <Dropdown
+                            label="Campo"
+                            selectedKey={rule.field || ''}
+                            options={projectRuleFieldOptions}
+                            onChange={(_, opt) => updateProjectRule(index, ruleIndex, { field: String(opt?.key ?? '') })}
+                            styles={{ root: { flex: '1 1 220px', minWidth: 180 } }}
+                          />
+                          <TextField
+                            label="Valor"
+                            value={rule.value}
+                            onChange={(_, v) => updateProjectRule(index, ruleIndex, { value: v ?? '' })}
+                            styles={{ root: { flex: '1 1 180px', minWidth: 140 } }}
+                          />
+                          <IconButton
+                            iconProps={{ iconName: 'Delete' }}
+                            title="Remover regra"
+                            onClick={() => removeProjectRule(index, ruleIndex)}
+                          />
+                        </Stack>
+                      ))}
+                      <DefaultButton text="Adicionar regra" onClick={() => addProjectRule(index)} />
+                    </Stack>
+                  ))}
+                  <DefaultButton text="Adicionar coluna do quadro" iconProps={{ iconName: 'Add' }} onClick={addProjectColumn} />
+                </Stack>
+
+                <Separator />
+              </>
+            )}
+            {mode !== 'projectManagement' && (
             <Stack tokens={{ childrenGap: 8 }}>
               <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
                 Paginação
@@ -571,6 +754,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 </>
               )}
             </Stack>
+            )}
 
             <Separator />
 
@@ -658,10 +842,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 
             <Stack tokens={{ childrenGap: 8 }}>
               <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
-                Colunas
+                {mode === 'projectManagement' ? 'Campos do card' : 'Colunas'}
               </Text>
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Marque as colunas que deseja exibir. Para lookups e usuários, escolha o campo de exibição.
+                {mode === 'projectManagement'
+                  ? 'Marque os campos que deseja mostrar dentro do card. O primeiro campo selecionado vira o título do card.'
+                  : 'Marque as colunas que deseja exibir. Para lookups e usuários, escolha o campo de exibição.'}
               </Text>
             </Stack>
             {options.map((o) => (
