@@ -626,9 +626,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       isOpen={isOpen}
       onDismiss={onDismiss}
       type={PanelType.custom}
-      customWidth="98vw"
+      customWidth="68vw"
       styles={{
-        main: { width: 'min(98vw, calc(100vw - 16px))', maxWidth: 'min(98vw, calc(100vw - 16px))' },
+        main: { width: 'min(68vw, calc(100vw - 16px))', maxWidth: 'min(68vw, calc(100vw - 16px))' },
         scrollableContent: { overflowX: 'hidden' },
         content: { overflowX: 'hidden', minWidth: 0 },
       }}
@@ -756,89 +756,93 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
             </Stack>
             )}
 
-            <Separator />
+            {mode !== 'projectManagement' && (
+              <>
+                <Separator />
 
-            <Stack tokens={{ childrenGap: 8 }}>
-              <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
-                Modos de visualização
-              </Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Ex.: Todas (sem filtro), Minhas (Author/Id eq [Me]), ou filtros customizados. O usuário alterna entre eles na lista.
-              </Text>
-              <Dropdown
-                label="Modo padrão"
-                options={viewModeDefaultOptions}
-                selectedKey={activeViewModeId}
-                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setActiveViewModeId(String(opt.key))}
-                styles={{ root: { maxWidth: 280 } }}
-              />
-              {viewModes.map((m) => (
-                <div key={m.id} style={{ padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: viewModeEditingId === m.id ? '#f3f9ff' : '#fff' }}>
-                  {viewModeEditingId === m.id ? (
-                    <Stack tokens={{ childrenGap: 10 }}>
-                      <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
-                      {viewModeEditFilters.map((f, i) => (
-                        <Stack key={i} horizontal wrap verticalAlign="start" tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
-                          <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: '100%' } }} />
-                          <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { flex: '0 0 auto', width: 120, minWidth: 100 } }} />
-                          <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: '1 1 180px', minWidth: 0, maxWidth: '100%' } }}>
-                            <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
-                            <Text variant="small" styles={{ root: { marginTop: 0 } }}>
-                              <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
-                            </Text>
+                <Stack tokens={{ childrenGap: 8 }}>
+                  <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
+                    Modos de visualização
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Ex.: Todas (sem filtro), Minhas (Author/Id eq [Me]), ou filtros customizados. O usuário alterna entre eles na lista.
+                  </Text>
+                  <Dropdown
+                    label="Modo padrão"
+                    options={viewModeDefaultOptions}
+                    selectedKey={activeViewModeId}
+                    onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setActiveViewModeId(String(opt.key))}
+                    styles={{ root: { maxWidth: 280 } }}
+                  />
+                  {viewModes.map((m) => (
+                    <div key={m.id} style={{ padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: viewModeEditingId === m.id ? '#f3f9ff' : '#fff' }}>
+                      {viewModeEditingId === m.id ? (
+                        <Stack tokens={{ childrenGap: 10 }}>
+                          <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
+                          {viewModeEditFilters.map((f, i) => (
+                            <Stack key={i} horizontal wrap verticalAlign="start" tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
+                              <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: '100%' } }} />
+                              <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { flex: '0 0 auto', width: 120, minWidth: 100 } }} />
+                              <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: '1 1 180px', minWidth: 0, maxWidth: '100%' } }}>
+                                <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
+                                <Text variant="small" styles={{ root: { marginTop: 0 } }}>
+                                  <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
+                                </Text>
+                              </Stack>
+                              <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => removeViewModeFilter(i)} />
+                            </Stack>
+                          ))}
+                          <DefaultButton text="Adicionar filtro" onClick={addViewModeFilter} />
+                          <Stack horizontal tokens={{ childrenGap: 8 }}>
+                            <PrimaryButton text="Salvar" onClick={saveViewModeEdit} />
+                            <DefaultButton text="Cancelar" onClick={() => setViewModeEditingId(null)} />
                           </Stack>
-                          <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => removeViewModeFilter(i)} />
                         </Stack>
-                      ))}
-                      <DefaultButton text="Adicionar filtro" onClick={addViewModeFilter} />
-                      <Stack horizontal tokens={{ childrenGap: 8 }}>
-                        <PrimaryButton text="Salvar" onClick={saveViewModeEdit} />
-                        <DefaultButton text="Cancelar" onClick={() => setViewModeEditingId(null)} />
+                      ) : (
+                        <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                          <Stack tokens={{ childrenGap: 2 }}>
+                            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>{m.label}</Text>
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{viewModeFilterSummary(m.filters)}</Text>
+                          </Stack>
+                          <Stack horizontal tokens={{ childrenGap: 4 }}>
+                            <IconButton iconProps={{ iconName: 'Edit' }} title="Editar" onClick={() => startViewModeEdit(m)} />
+                            <IconButton iconProps={{ iconName: 'Delete' }} title="Remover" onClick={() => removeViewMode(m.id)} disabled={m.id === 'all' || m.id === 'mine'} />
+                          </Stack>
+                        </Stack>
+                      )}
+                    </div>
+                  ))}
+                  {viewModeEditingId !== null && !viewModes.some((m) => m.id === viewModeEditingId) && (
+                    <div style={{ padding: 10, border: '1px solid #c7e0f4', borderRadius: 6, background: '#f3f9ff' }}>
+                      <Stack tokens={{ childrenGap: 10 }}>
+                        <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
+                        {viewModeEditFilters.map((f, i) => (
+                          <Stack key={i} horizontal wrap verticalAlign="start" tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
+                            <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: '100%' } }} />
+                            <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { flex: '0 0 auto', width: 120, minWidth: 100 } }} />
+                            <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: '1 1 180px', minWidth: 0, maxWidth: '100%' } }}>
+                              <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
+                              <Text variant="small" styles={{ root: { marginTop: 0 } }}>
+                                <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
+                              </Text>
+                            </Stack>
+                            <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => removeViewModeFilter(i)} />
+                          </Stack>
+                        ))}
+                        <DefaultButton text="Adicionar filtro" onClick={addViewModeFilter} />
+                        <Stack horizontal tokens={{ childrenGap: 8 }}>
+                          <PrimaryButton text="Adicionar modo" onClick={saveViewModeEdit} />
+                          <DefaultButton text="Cancelar" onClick={() => setViewModeEditingId(null)} />
+                        </Stack>
                       </Stack>
-                    </Stack>
-                  ) : (
-                    <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
-                      <Stack tokens={{ childrenGap: 2 }}>
-                        <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>{m.label}</Text>
-                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{viewModeFilterSummary(m.filters)}</Text>
-                      </Stack>
-                      <Stack horizontal tokens={{ childrenGap: 4 }}>
-                        <IconButton iconProps={{ iconName: 'Edit' }} title="Editar" onClick={() => startViewModeEdit(m)} />
-                        <IconButton iconProps={{ iconName: 'Delete' }} title="Remover" onClick={() => removeViewMode(m.id)} disabled={m.id === 'all' || m.id === 'mine'} />
-                      </Stack>
-                    </Stack>
+                    </div>
                   )}
-                </div>
-              ))}
-              {viewModeEditingId !== null && !viewModes.some((m) => m.id === viewModeEditingId) && (
-                <div style={{ padding: 10, border: '1px solid #c7e0f4', borderRadius: 6, background: '#f3f9ff' }}>
-                  <Stack tokens={{ childrenGap: 10 }}>
-                    <TextField label="Nome" value={viewModeEditLabel} onChange={(_: React.FormEvent, v?: string) => setViewModeEditLabel(v ?? '')} />
-                    {viewModeEditFilters.map((f, i) => (
-                      <Stack key={i} horizontal wrap verticalAlign="start" tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
-                        <Dropdown placeholder="Campo" options={filterFieldOptions} selectedKey={f.field || ''} onChange={(_: React.FormEvent, opt?: IDropdownOption) => updateViewModeFilter(i, { field: (opt?.key as string) ?? '' })} styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: '100%' } }} />
-                        <Dropdown options={VIEW_MODE_OPERATORS} selectedKey={f.operator} onChange={(_: React.FormEvent, opt?: IDropdownOption) => opt !== undefined && opt !== null && updateViewModeFilter(i, { operator: String(opt.key) as TFilterOperator })} styles={{ root: { flex: '0 0 auto', width: 120, minWidth: 100 } }} />
-                        <Stack tokens={{ childrenGap: 2 }} styles={{ root: { flex: '1 1 180px', minWidth: 0, maxWidth: '100%' } }}>
-                          <TextField placeholder="Valor ou [Me]" value={f.value} onChange={(_: React.FormEvent, v?: string) => updateViewModeFilter(i, { value: v ?? '' })} />
-                          <Text variant="small" styles={{ root: { marginTop: 0 } }}>
-                            <Link onClick={(e) => openFormulas(i, e.currentTarget as HTMLElement)} style={{ cursor: 'pointer', color: '#0078d4' }}>Fórmulas</Link>
-                          </Text>
-                        </Stack>
-                        <IconButton iconProps={{ iconName: 'Delete' }} title="Remover filtro" onClick={() => removeViewModeFilter(i)} />
-                      </Stack>
-                    ))}
-                    <DefaultButton text="Adicionar filtro" onClick={addViewModeFilter} />
-                    <Stack horizontal tokens={{ childrenGap: 8 }}>
-                      <PrimaryButton text="Adicionar modo" onClick={saveViewModeEdit} />
-                      <DefaultButton text="Cancelar" onClick={() => setViewModeEditingId(null)} />
-                    </Stack>
-                  </Stack>
-                </div>
-              )}
-              {viewModeEditingId === null && <DefaultButton text="Adicionar modo de visualização" onClick={startViewModeAdd} />}
-            </Stack>
+                  {viewModeEditingId === null && <DefaultButton text="Adicionar modo de visualização" onClick={startViewModeAdd} />}
+                </Stack>
 
-            <Separator />
+                <Separator />
+              </>
+            )}
 
             <Stack tokens={{ childrenGap: 8 }}>
               <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>

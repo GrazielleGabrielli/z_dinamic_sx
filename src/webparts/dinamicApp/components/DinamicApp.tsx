@@ -29,6 +29,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
   const [isEditingCards, setIsEditingCards] = useState(false);
   const [isEditingSeries, setIsEditingSeries] = useState(false);
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [dashboardListSelection, setDashboardListSelection] = useState<{
     key: TDashboardListKey;
     filters: IListViewFilterConfig[];
@@ -58,6 +59,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
   const selectedSeriesId =
     dashKey !== undefined && dashKey.indexOf('series:') === 0 ? dashKey.slice('series:'.length) : null;
   const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
+  const triggerDashboardRefresh = useCallback(() => {
+    setDashboardRefreshKey((prev) => prev + 1);
+  }, []);
 
   const handleWizardComplete = (newConfig: IDynamicViewConfig): void => {
     onSaveConfig(newConfig);
@@ -152,6 +156,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
             <DashboardView
               config={config.dashboard}
               dataSource={config.dataSource}
+              refreshKey={dashboardRefreshKey}
               onEditCards={() => setIsEditingCards(true)}
               onEditSeries={() => setIsEditingSeries(true)}
               onCardClick={handleDashboardCardClick}
@@ -189,7 +194,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, onSaveCon
         </Stack>
 
         {config.mode === 'projectManagement' ? (
-          <ProjectManagementView config={config} dashboardListFilters={dashboardListSelection?.filters} />
+          <ProjectManagementView
+            config={config}
+            dashboardListFilters={dashboardListSelection?.filters}
+            onItemUpdated={triggerDashboardRefresh}
+          />
         ) : (
           <TableView config={config} dashboardListFilters={dashboardListSelection?.filters} />
         )}

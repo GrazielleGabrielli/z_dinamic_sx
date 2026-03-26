@@ -16,6 +16,7 @@ import { FieldsService, ItemsService, UsersService } from '../../../../services'
 export interface IProjectManagementViewProps {
   config: IDynamicViewConfig;
   dashboardListFilters?: IListViewFilterConfig[];
+  onItemUpdated?: () => void;
 }
 
 function valueToText(value: unknown, expandField?: string): string {
@@ -79,7 +80,7 @@ function coerceRuleValue(value: string, fieldMeta: IFieldMetadata | undefined): 
   return value;
 }
 
-export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ config, dashboardListFilters }) => {
+export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ config, dashboardListFilters, onItemUpdated }) => {
   const { dataSource, listView } = config;
   const pm = config.projectManagement;
   const listTitle = dataSource.title;
@@ -208,6 +209,7 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ c
           Number(item.Id) === draggingId ? { ...item, ...updateValues } : item
         )
       );
+      if (onItemUpdated) onItemUpdated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

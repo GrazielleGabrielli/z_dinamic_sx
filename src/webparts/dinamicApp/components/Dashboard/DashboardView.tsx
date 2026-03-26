@@ -12,6 +12,7 @@ import { ChartView } from './ChartView';
 interface IDashboardViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
+  refreshKey?: number;
   onEditCards: () => void;
   onEditSeries: () => void;
   onCardClick?: (card: IDashboardCardConfig) => void;
@@ -25,6 +26,7 @@ interface IDashboardViewProps {
 export const DashboardView: React.FC<IDashboardViewProps> = ({
   config,
   dataSource,
+  refreshKey = 0,
   onEditCards,
   onEditSeries,
   onCardClick,
@@ -38,6 +40,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
       <ChartView
         config={config}
         dataSource={dataSource}
+        refreshKey={refreshKey}
         onEditSeries={onEditSeries}
         onSeriesClick={onSeriesClick}
         selectedSeriesId={selectedSeriesId}
@@ -72,7 +75,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
     run
       .then((computed) => setResults(computed))
       .catch((err: Error) => setGlobalError(`Erro ao carregar dashboard: ${err.message}`));
-  }, [config, dataSource, fieldMetadata]);
+  }, [config, dataSource, fieldMetadata, refreshKey]);
 
   const cardsWithDefaults = useMemo(
     () => (config.cards.length > 0 ? config.cards : generateDefaultCards(config.cardsCount)),

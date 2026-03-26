@@ -56,40 +56,52 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   }, []);
 
   const valid = isStepValid(step, form);
+  const canSaveEdit =
+    form.title.trim().length > 0 &&
+    (form.mode === 'list' || form.mode === 'projectManagement') &&
+    (form.viewModes?.length ?? 0) > 0;
+
+  const buildCurrentConfig = useCallback((): IDynamicViewConfig => {
+    const existingCards = initialValues?.dashboard.cards ?? [];
+    const existingChartSeries = initialValues?.dashboard.chartSeries ?? [];
+    const existingListView = initialValues?.listView;
+    return buildConfig({
+      dataSource: { kind: form.kind, title: form.title },
+      mode: form.mode,
+      dashboard: {
+        enabled: form.dashboardEnabled,
+        dashboardType: form.dashboardType,
+        cardsCount: form.cardsCount,
+        cards: existingCards,
+        chartType: form.chartType,
+        chartSeries: existingChartSeries,
+      },
+      pagination: {
+        enabled: form.paginationEnabled,
+        pageSize: form.pageSize,
+        pageSizeOptions: form.pageSizeOptions,
+      },
+      listView: {
+        ...existingListView,
+        viewModes: form.viewModes,
+        activeViewModeId: form.activeViewModeId,
+      },
+      projectManagement: initialValues?.projectManagement,
+    });
+  }, [form, initialValues]);
 
   const handleNext = (): void => {
     if (!valid) return;
     if (step < TOTAL_STEPS) {
       setStep((s) => s + 1);
     } else {
-      const existingCards = initialValues?.dashboard.cards ?? [];
-      const existingChartSeries = initialValues?.dashboard.chartSeries ?? [];
-      const existingListView = initialValues?.listView;
-      const config = buildConfig({
-        dataSource: { kind: form.kind, title: form.title },
-        mode: form.mode,
-        dashboard: {
-          enabled: form.dashboardEnabled,
-          dashboardType: form.dashboardType,
-          cardsCount: form.cardsCount,
-          cards: existingCards,
-          chartType: form.chartType,
-          chartSeries: existingChartSeries,
-        },
-        pagination: {
-          enabled: form.paginationEnabled,
-          pageSize: form.pageSize,
-          pageSizeOptions: form.pageSizeOptions,
-        },
-        listView: {
-          ...existingListView,
-          viewModes: form.viewModes,
-          activeViewModeId: form.activeViewModeId,
-        },
-        projectManagement: initialValues?.projectManagement,
-      });
-      onComplete(config);
+      onComplete(buildCurrentConfig());
     }
+  };
+
+  const handleSaveAnyStep = (): void => {
+    if (!isEditMode || !canSaveEdit) return;
+    onComplete(buildCurrentConfig());
   };
 
   const handleBack = (): void => {
@@ -187,8 +199,15 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
         <div style={{ padding: '16px 32px', background: '#faf9f8' }}>
           <Stack horizontal tokens={{ childrenGap: 8 }}>
             {step > 1 && <DefaultButton text="Voltar" onClick={handleBack} />}
+            {isEditMode && (
+              <PrimaryButton
+                text="Salvar configuração"
+                onClick={handleSaveAnyStep}
+                disabled={!canSaveEdit}
+              />
+            )}
             <PrimaryButton
-              text={step === TOTAL_STEPS ? (isEditMode ? 'Salvar configuração' : 'Concluir configuração') : 'Próximo'}
+              text={step === TOTAL_STEPS ? 'Concluir configuração' : 'Próximo'}
               onClick={handleNext}
               disabled={!valid}
             />

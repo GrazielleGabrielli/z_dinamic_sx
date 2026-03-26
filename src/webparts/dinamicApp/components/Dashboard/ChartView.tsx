@@ -66,6 +66,7 @@ interface IChartState {
 interface IChartViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
+  refreshKey?: number;
   onEditSeries: () => void;
   onSeriesClick?: (series: IChartSeriesConfig) => void;
   selectedSeriesId?: string | null;
@@ -75,6 +76,7 @@ interface IChartViewProps {
 export const ChartView: React.FC<IChartViewProps> = ({
   config,
   dataSource,
+  refreshKey = 0,
   onEditSeries,
   onSeriesClick,
   selectedSeriesId,
@@ -113,7 +115,7 @@ export const ChartView: React.FC<IChartViewProps> = ({
       .computeAllSeries(config, dataSource, fieldMetadata)
       .then((results) => setChartState({ results, loading: false, error: undefined }))
       .catch((err: Error) => setChartState({ results: [], loading: false, error: `Erro ao carregar dados: ${err.message}` }));
-  }, [config, dataSource, fieldMetadata]);
+  }, [config, dataSource, fieldMetadata, refreshKey]);
 
   // container sempre montado no DOM — só visibility muda
   // assim containerRef.current nunca é null quando o effect de init roda
