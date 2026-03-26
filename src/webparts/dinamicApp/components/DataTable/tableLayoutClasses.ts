@@ -1,4 +1,5 @@
-import type { ITableLayoutCssSlots, TTableCssSlot } from '../../core/config/types';
+import type { ITableLayoutCssSlots, ITableRowStyleRule, TTableCssSlot } from '../../core/config/types';
+import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 
 export const DINAMIC_SX_TABLE_CLASS = {
   viewRoot: 'dinamicSxTableView',
@@ -182,5 +183,18 @@ export function mergeCustomTableCss(
   }
   const free = (legacyFreeform ?? '').trim();
   if (free) parts.push(free);
+  return parts.join('\n\n').trim();
+}
+
+export function mergeRowStyleRulesCss(rules: ITableRowStyleRule[] | undefined): string {
+  if (!rules?.length) return '';
+  const parts: string[] = [];
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    const body = (r.rowCss ?? '').trim();
+    if (!body) continue;
+    const token = toTableRowRuleDataToken(r.id);
+    parts.push(`.${DINAMIC_SX_TABLE_CLASS.row}[data-dinamic-rules~="${token}"] {\n${body}\n}`);
+  }
   return parts.join('\n\n').trim();
 }

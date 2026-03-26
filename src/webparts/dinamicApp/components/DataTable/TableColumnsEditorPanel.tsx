@@ -34,6 +34,8 @@ import type {
   IPaginationConfig,
   IPdfTemplateConfig,
   ITableLayoutCssSlots,
+  ITableRowStyleRule,
+  TTableRowRuleOperator,
   TPaginationLayout,
   TFilterOperator,
 } from '../../core/config/types';
@@ -44,6 +46,7 @@ import {
   TABLE_LAYOUT_EDITOR_ROWS,
   TABLE_LAYOUT_SLOT_ORDER,
 } from './tableLayoutClasses';
+import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutSlotPreview } from './TableLayoutSlotPreview';
 
 interface ITableColumnsEditorPanelProps {
@@ -129,6 +132,16 @@ const PAGINATION_LAYOUT_OPTIONS: IChoiceGroupOption[] = [
   { key: 'paged', text: 'Páginas (1 … 4 5 6 …)' },
 ];
 
+const ROW_STYLE_RULE_OPERATORS: { key: TTableRowRuleOperator; text: string }[] = [
+  { key: 'eq', text: 'É igual a' },
+  { key: 'ne', text: 'É diferente de' },
+  { key: 'contains', text: 'Contém' },
+  { key: 'startsWith', text: 'Começa com' },
+  { key: 'endsWith', text: 'Termina com' },
+  { key: 'empty', text: 'Está vazio' },
+  { key: 'notEmpty', text: 'Não está vazio' },
+];
+
 const VIEW_MODE_OPERATORS: IDropdownOption[] = [
   { key: 'eq', text: 'Igual a' },
   { key: 'ne', text: 'Diferente de' },
@@ -184,6 +197,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   onDismiss,
 }) => {
   const [activeTab, setActiveTab] = useState<string>('lista');
+  const [layoutSubTab, setLayoutSubTab] = useState<string>('geral');
   const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<IFieldOption[]>([]);
@@ -196,6 +210,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     ...(listView.customTableCssSlots ?? {}),
   }));
   const [customTableCssExtra, setCustomTableCssExtra] = useState(listView.customTableCss ?? '');
+  const [rowStyleRules, setRowStyleRules] = useState<ITableRowStyleRule[]>(() => [
+    ...(listView.tableRowStyleRules ?? []),
+  ]);
   const [viewModes, setViewModes] = useState<IListViewModeConfig[]>(
     listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK
   );
@@ -262,6 +279,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
     setCssSlotsState({ ...(listView.customTableCssSlots ?? {}) });
     setCustomTableCssExtra(listView.customTableCss ?? '');
+    setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
+    setLayoutSubTab('geral');
   }, [isOpen, listView, pagination, pdfTemplate]);
 
 
@@ -316,6 +335,42 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     return [empty, ...rest];
   }, [options, lookupListFields]);
 
+  const rowRuleFieldOptions: IDropdownOption[] = useMemo(() => {
+    const empty: IDropdownOption = { key: '', text: '— selecione o campo —' };
+    return [
+      empty,
+      ...options.map((o) => ({
+        key: o.meta.InternalName,
+        text: `${o.meta.Title} (${o.meta.InternalName})`,
+      })),
+    ];
+  }, [options]);
+
+  const addRowStyleRule = (): void => {
+    setRowStyleRules((prev) => [
+      ...prev,
+      {
+        id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        field: '',
+        operator: 'eq',
+        value: '',
+        rowCss: 'background: #fffbeb !important;',
+      },
+    ]);
+  };
+
+  const updateRowStyleRule = (index: number, part: Partial<ITableRowStyleRule>): void => {
+    setRowStyleRules((prev) => {
+      const next = prev.slice();
+      if (next[index]) next[index] = { ...next[index], ...part };
+      return next;
+    });
+  };
+
+  const removeRowStyleRule = (index: number): void => {
+    setRowStyleRules((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSave = (): void => {
     const columns: IListViewColumnConfig[] = options
       .filter((o) => o.selected)
@@ -343,6 +398,26 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       if (t) nextSlots[slot] = t;
     }
     const extraTrim = customTableCssExtra.trim();
+    const nextRowRules: ITableRowStyleRule[] = [];
+    const seenIds = new Set<string>();
+    for (let i = 0; i < rowStyleRules.length; i++) {
+      const r = rowStyleRules[i];
+      const field = r.field.trim();
+      const rowCss = r.rowCss.trim();
+      if (!field || !rowCss) continue;
+      let id = toTableRowRuleDataToken(r.id.trim() || `r_${Date.now()}_${i}`);
+      while (seenIds.has(id)) {
+        id = toTableRowRuleDataToken(`${id}_${i}`);
+      }
+      seenIds.add(id);
+      nextRowRules.push({
+        id,
+        field,
+        operator: r.operator,
+        value: r.value,
+        rowCss,
+      });
+    }
     onSave(
       {
         ...listView,
@@ -352,6 +427,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         pdfExportEnabled,
         ...(Object.keys(nextSlots).length > 0 ? { customTableCssSlots: nextSlots } : { customTableCssSlots: undefined }),
         ...(extraTrim ? { customTableCss: extraTrim } : { customTableCss: undefined }),
+        ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       },
       nextPagination,
       localPdfTemplate
@@ -641,6 +717,16 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 </Stack>
               </PivotItem>
               <PivotItem itemKey="layout" headerText="Layout">
+                <Pivot
+                  selectedKey={layoutSubTab}
+                  onLinkClick={(item) =>
+                    item?.props?.itemKey !== undefined &&
+                    item?.props?.itemKey !== null &&
+                    setLayoutSubTab(String(item.props.itemKey))
+                  }
+                  styles={{ root: { marginBottom: 4, flexWrap: 'wrap', maxWidth: '100%' } }}
+                >
+                  <PivotItem itemKey="geral" headerText="Geral">
                 <Stack tokens={{ childrenGap: 0 }} styles={{ root: { paddingTop: 4, minWidth: 0, maxWidth: '100%', paddingBottom: 24 } }}>
                   <Stack
                     styles={{
@@ -783,6 +869,82 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     />
                   </Stack>
                 </Stack>
+                  </PivotItem>
+                  <PivotItem itemKey="regras" headerText="Regras">
+                    <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
+                      <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.55 } }}>
+                        Aplique CSS na <strong>linha inteira</strong> (<span style={{ fontFamily: 'monospace' }}>&lt;tr&gt;</span>) quando o valor
+                        exibido de um campo atender à condição. A comparação usa o mesmo texto que aparece na célula (incluindo lookups).
+                        Várias regras podem valer ao mesmo tempo; cada uma adiciona um marcador em{' '}
+                        <span style={{ fontFamily: 'monospace' }}>data-dinamic-rules</span>.
+                      </Text>
+                      {rowStyleRules.map((rule, ri) => {
+                        const valueDisabled = rule.operator === 'empty' || rule.operator === 'notEmpty';
+                        return (
+                          <Stack
+                            key={rule.id}
+                            tokens={{ childrenGap: 10 }}
+                            styles={{
+                              root: {
+                                padding: 14,
+                                background: '#f3f9ff',
+                                borderRadius: 8,
+                                border: '1px solid #c7e0f4',
+                                borderLeftWidth: 3,
+                                borderLeftColor: '#0078d4',
+                              },
+                            }}
+                          >
+                            <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                              <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                                Regra {ri + 1}
+                              </Text>
+                              <IconButton iconProps={{ iconName: 'Delete' }} title="Remover regra" onClick={() => removeRowStyleRule(ri)} />
+                            </Stack>
+                            <Dropdown
+                              label="Campo"
+                              selectedKey={rule.field || ''}
+                              options={rowRuleFieldOptions}
+                              onChange={(_: React.FormEvent, opt?: IDropdownOption) =>
+                                updateRowStyleRule(ri, { field: String(opt?.key ?? '') })
+                              }
+                              styles={{ root: { maxWidth: '100%' } }}
+                            />
+                            <Dropdown
+                              label="Condição"
+                              selectedKey={rule.operator}
+                              options={ROW_STYLE_RULE_OPERATORS.map((o) => ({ key: o.key, text: o.text }))}
+                              onChange={(_: React.FormEvent, opt?: IDropdownOption) =>
+                                opt && updateRowStyleRule(ri, { operator: String(opt.key) as TTableRowRuleOperator })
+                              }
+                              styles={{ root: { maxWidth: '100%' } }}
+                            />
+                            <TextField
+                              label="Valor"
+                              value={rule.value}
+                              onChange={(_, v) => updateRowStyleRule(ri, { value: v ?? '' })}
+                              disabled={valueDisabled}
+                              description={valueDisabled ? 'Não usado para “vazio” / “não vazio”.' : undefined}
+                            />
+                            <TextField
+                              label="CSS da linha (declarações)"
+                              multiline
+                              rows={3}
+                              value={rule.rowCss}
+                              onChange={(_, v) => updateRowStyleRule(ri, { rowCss: v ?? '' })}
+                              placeholder="ex.: background: #fef9c3 !important; font-weight: 600;"
+                              styles={{ root: { maxWidth: '100%' } }}
+                            />
+                            <Text variant="small" styles={{ root: { fontFamily: 'monospace', color: '#605e5c' } }}>
+                              Marcador: data-dinamic-rules~=&quot;{toTableRowRuleDataToken(rule.id)}&quot;
+                            </Text>
+                          </Stack>
+                        );
+                      })}
+                      <DefaultButton text="Adicionar regra" iconProps={{ iconName: 'Add' }} onClick={addRowStyleRule} />
+                    </Stack>
+                  </PivotItem>
+                </Pivot>
               </PivotItem>
             </Pivot>
           </Stack>

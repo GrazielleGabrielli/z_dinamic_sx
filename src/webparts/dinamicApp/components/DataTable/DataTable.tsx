@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Callout, Stack, TextField, PrimaryButton } from '@fluentui/react';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
+import type { ITableRowStyleRule } from '../../core/config/types';
 import { TableHeader } from './TableHeader';
 import { TableRow } from './TableRow';
 import { TableEmptyState } from './TableEmptyState';
@@ -20,6 +21,7 @@ export interface IDataTableProps {
   columnFilters?: Record<string, string>;
   onColumnFilter?: (field: string, value: string) => void;
   engine: TableEngine;
+  rowStyleRules?: ITableRowStyleRule[];
 }
 
 export const DataTable: React.FC<IDataTableProps> = ({
@@ -32,6 +34,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
   columnFilters = {},
   onColumnFilter,
   engine,
+  rowStyleRules,
 }) => {
   const columns = engine.getVisibleColumns(config);
   const [filterColumn, setFilterColumn] = useState<string | null>(null);
@@ -84,6 +87,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
               item={item}
               columns={columns}
               engine={engine}
+              rowStyleRules={rowStyleRules}
             />
           ))}
         </tbody>

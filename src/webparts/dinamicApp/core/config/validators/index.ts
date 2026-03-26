@@ -12,6 +12,7 @@ import {
 import { getDefaultConfig } from '../utils';
 import { isValidPdfPageFormat } from '../../pdf/pdfPageFormats';
 import { sanitizeTableCssSlots } from '../../../components/DataTable/tableLayoutClasses';
+import { sanitizeTableRowStyleRules } from '../../table/utils/tableRowStyleRuleEval';
 
 const VALID_MODES = ['list', 'projectManagement', 'formManager'];
 const VALID_AGGREGATES = ['count', 'sum'];
@@ -156,6 +157,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     }
     const lv = c.listView;
     const cssSlots = sanitizeTableCssSlots(lv.customTableCssSlots);
+    const rowRules = sanitizeTableRowStyleRules(lv.tableRowStyleRules);
     return {
       ...c,
       listView: {
@@ -167,6 +169,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         pdfExportEnabled: lv.pdfExportEnabled ?? false,
         ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
         ...(typeof lv.customTableCss === 'string' ? { customTableCss: lv.customTableCss } : {}),
+        ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
       },
       ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),
     };

@@ -39,6 +39,7 @@ export function buildConfig(params: {
       pdfExportEnabled: params.listView?.pdfExportEnabled ?? defaults.listView.pdfExportEnabled,
       customTableCssSlots: params.listView?.customTableCssSlots ?? defaults.listView.customTableCssSlots,
       customTableCss: params.listView?.customTableCss ?? defaults.listView.customTableCss,
+      tableRowStyleRules: params.listView?.tableRowStyleRules ?? defaults.listView.tableRowStyleRules,
     },
   };
 }

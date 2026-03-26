@@ -157,6 +157,25 @@ export type TTableCssSlot =
 
 export type ITableLayoutCssSlots = Partial<Record<TTableCssSlot, string>>;
 
+export type TTableRowRuleOperator =
+  | 'eq'
+  | 'ne'
+  | 'contains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'empty'
+  | 'notEmpty';
+
+export interface ITableRowStyleRule {
+  id: string;
+  /** Nome interno do campo (ex.: Title). */
+  field: string;
+  operator: TTableRowRuleOperator;
+  value: string;
+  /** Declarações CSS na linha (<tr>) quando a condição for verdadeira. */
+  rowCss: string;
+}
+
 export interface IListViewConfig {
   columns: IListViewColumnConfig[];
   filters: IListViewFilterConfig[];
@@ -168,6 +187,8 @@ export interface IListViewConfig {
   customTableCssSlots?: ITableLayoutCssSlots;
   /** CSS livre (regras completas, seletores combinados, [data-field], etc.). */
   customTableCss?: string;
+  /** Estilo condicional por linha conforme valor de coluna (aba Layout → Regras). */
+  tableRowStyleRules?: ITableRowStyleRule[];
 }
 
 // ─── PDF template ───────────────────────────────────────────────────────────

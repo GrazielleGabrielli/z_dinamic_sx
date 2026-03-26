@@ -9,7 +9,7 @@ import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens'
 import { generateAndDownloadPdf } from '../../core/pdf';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { DataTable } from './DataTable';
-import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss } from './tableLayoutClasses';
+import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss } from './tableLayoutClasses';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
   const columns = (listView.columns ?? []).map((c) => ({
@@ -275,8 +275,10 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   const viewModeOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
 
   const mergedTableCss = mergeCustomTableCss(listView?.customTableCssSlots, listView?.customTableCss);
+  const rowRulesCss = mergeRowStyleRulesCss(listView?.tableRowStyleRules);
+  const mergedLayoutCss = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
   const tableCustomStyle =
-    mergedTableCss.length > 0 ? <style type="text/css">{mergedTableCss}</style> : null;
+    mergedLayoutCss.length > 0 ? <style type="text/css">{mergedLayoutCss}</style> : null;
 
   if (!tableConfig) {
     return (
@@ -289,6 +291,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
           sortConfig={null}
           onSort={handleSort}
           engine={engine}
+          rowStyleRules={listView?.tableRowStyleRules}
         />
       </>
     );
@@ -351,6 +354,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
         columnFilters={columnFilters}
         onColumnFilter={handleColumnFilter}
         engine={engine}
+        rowStyleRules={listView?.tableRowStyleRules}
       />
       {paginationBar}
     </Stack>
