@@ -1,9 +1,5 @@
 import { IDynamicViewConfig, IDashboardCardConfig, TAggregateType } from '../types';
 import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
-import {
-  DEFAULT_TABLE_LAYOUT_TEST_CSS_FREE,
-  DEFAULT_TABLE_LAYOUT_TEST_CSS_SLOTS,
-} from '../defaultTableLayoutTestCssSlots';
 
 export function getDefaultConfig(): IDynamicViewConfig {
   return {
@@ -34,8 +30,6 @@ export function getDefaultConfig(): IDynamicViewConfig {
         { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
       ],
       activeViewModeId: 'all',
-      customTableCssSlots: { ...DEFAULT_TABLE_LAYOUT_TEST_CSS_SLOTS },
-      customTableCss: DEFAULT_TABLE_LAYOUT_TEST_CSS_FREE.trim(),
     },
     projectManagement: {
       columns: [],
