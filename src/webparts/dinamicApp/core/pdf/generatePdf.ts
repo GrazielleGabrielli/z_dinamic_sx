@@ -2,6 +2,9 @@ import { jsPDF } from 'jspdf';
 import type { IPdfTemplateConfig, IPdfTemplateElement } from '../config/types';
 import { getPdfPageSizeMm, toJsPdfFormat } from './pdfPageFormats';
 
+const PT_TO_MM = 0.352778;
+const TEXT_LINE_HEIGHT_FACTOR = 1.15;
+
 function getImageUrl(el: IPdfTemplateElement): string {
   const url = (el.imageUrl ?? el.content ?? '').trim();
   return url;
@@ -110,30 +113,76 @@ function replacePdfFunctions(content: string, ctx: IPdfRenderContext): string {
     .replace(/\[itemIndex\]/g, String(ctx.itemIndex ?? 1));
 }
 
-function fitImageInBox(
-  boxW: number,
-  boxH: number,
-  imgW: number,
-  imgH: number
-): { drawW: number; drawH: number; offsetX: number; offsetY: number } {
-  if (imgW <= 0 || imgH <= 0) return { drawW: boxW, drawH: boxH, offsetX: 0, offsetY: 0 };
-  const imgAspect = imgW / imgH;
-  const boxAspect = boxW / boxH;
-  let drawW: number;
-  let drawH: number;
-  if (imgAspect > boxAspect) {
-    drawW = boxW;
-    drawH = boxW / imgAspect;
-  } else {
-    drawH = boxH;
-    drawW = boxH * imgAspect;
+function getTextLineHeightMm(fontSizePt: number): number {
+  return fontSizePt * PT_TO_MM * TEXT_LINE_HEIGHT_FACTOR;
+}
+
+function splitTextToLines(
+  doc: jsPDF,
+  text: string,
+  maxWidth: number | undefined
+): string[] {
+  if (!text) return [];
+  if (maxWidth !== undefined && maxWidth > 0) {
+    const lines = doc.splitTextToSize(text, maxWidth);
+    return Array.isArray(lines) ? lines.map((line) => String(line)) : [String(lines)];
   }
-  return {
-    drawW,
-    drawH,
-    offsetX: (boxW - drawW) / 2,
-    offsetY: (boxH - drawH) / 2,
-  };
+  return String(text).split('\n');
+}
+
+function truncateLinesToHeight(
+  lines: string[],
+  lineHeightMm: number,
+  maxHeightMm: number | undefined
+): string[] {
+  if (!lines.length) return lines;
+  if (maxHeightMm === undefined || maxHeightMm <= 0) return lines;
+  const maxLines = Math.max(1, Math.floor(maxHeightMm / lineHeightMm));
+  if (lines.length <= maxLines) return lines;
+  const next = lines.slice(0, maxLines);
+  const lastIdx = next.length - 1;
+  const last = next[lastIdx].replace(/\s+$/, '');
+  next[lastIdx] = last.length > 0 ? `${last}...` : '...';
+  return next;
+}
+
+function getDefaultTextHeightMm(fontSizePt: number): number {
+  return getTextLineHeightMm(fontSizePt) + 2;
+}
+
+function getElementHeightMm(el: IPdfTemplateElement): number {
+  if (el.height !== undefined && el.height !== null && el.height > 0) return el.height;
+  if (el.type === 'text') return getDefaultTextHeightMm(el.fontSize ?? 11);
+  if (el.type === 'line') return 1;
+  if (el.type === 'image') return 30;
+  return 10;
+}
+
+function getImageDrawBox(
+  el: IPdfTemplateElement,
+  loaded: ILoadedImage
+): { x: number; y: number; width: number; height: number } {
+  const hasWidth = el.width !== undefined && el.width !== null && el.width > 0;
+  const hasHeight = el.height !== undefined && el.height !== null && el.height > 0;
+  if (hasWidth && hasHeight) {
+    return {
+      x: el.x,
+      y: el.y,
+      width: el.width as number,
+      height: el.height as number,
+    };
+  }
+  if (hasWidth) {
+    const width = el.width as number;
+    const height = loaded.width > 0 ? (loaded.height / loaded.width) * width : 30;
+    return { x: el.x, y: el.y, width, height };
+  }
+  if (hasHeight) {
+    const height = el.height as number;
+    const width = loaded.height > 0 ? (loaded.width / loaded.height) * height : 40;
+    return { x: el.x, y: el.y, width, height };
+  }
+  return { x: el.x, y: el.y, width: 40, height: 30 };
 }
 
 function renderSection(
@@ -152,15 +201,16 @@ function renderSection(
       let text = replacePlaceholders(el.content, item);
       text = replacePdfFunctions(text, ctx);
       if (text) {
-        doc.setFontSize(el.fontSize ?? 11);
+        const fontSize = el.fontSize ?? 11;
+        const width = el.width !== undefined && el.width !== null && el.width > 0 ? el.width : undefined;
+        const lineHeightMm = getTextLineHeightMm(fontSize);
+        const maxHeightMm = el.height !== undefined && el.height !== null && el.height > 0 ? el.height : undefined;
+        const lines = truncateLinesToHeight(splitTextToLines(doc, text, width), lineHeightMm, maxHeightMm);
+        if (lines.length === 0) continue;
+        doc.setFontSize(fontSize);
         doc.setFont('helvetica', el.fontWeight === 'bold' ? 'bold' : 'normal');
         if (el.color) doc.setTextColor(el.color);
-        const w = el.width;
-        if (w && w > 0) {
-          doc.text(text, x, y, { maxWidth: w });
-        } else {
-          doc.text(text, x, y);
-        }
+        doc.text(lines, x, y, { ...(width !== undefined ? { maxWidth: width } : {}), baseline: 'top' as never });
         if (el.color) doc.setTextColor(0, 0, 0);
       }
     } else if (el.type === 'image') {
@@ -168,12 +218,10 @@ function renderSection(
       if (!url) continue;
       const loaded = imageDataMap[url] ?? null;
       if (!loaded) continue;
-      const boxW = el.width !== undefined && el.width !== null && el.width > 0 ? el.width : 40;
-      const boxH = el.height !== undefined && el.height !== null && el.height > 0 ? el.height : 30;
-      const { drawW, drawH, offsetX, offsetY } = fitImageInBox(boxW, boxH, loaded.width, loaded.height);
+      const drawBox = getImageDrawBox({ ...el, y }, loaded);
       try {
         const format = getDataUrlFormat(loaded.dataUrl);
-        doc.addImage(loaded.dataUrl, format, x + offsetX, y + offsetY, drawW, drawH);
+        doc.addImage(loaded.dataUrl, format, drawBox.x, drawBox.y, drawBox.width, drawBox.height);
       } catch {
         // ignore
       }
@@ -181,7 +229,8 @@ function renderSection(
       doc.setFillColor(el.color ?? '#f0f0f0');
       doc.rect(x, y, el.width, el.height, 'F');
     } else if (el.type === 'line' && el.width !== undefined) {
-      doc.setDrawColor(0, 0, 0);
+      if (el.color) doc.setDrawColor(el.color);
+      else doc.setDrawColor(0, 0, 0);
       doc.line(x, y, x + el.width, y);
     }
   }
@@ -205,7 +254,7 @@ function getFixedBlockHeightMm(template: IPdfTemplateConfig, fixedElements: IPdf
   let max = 0;
   for (let i = 0; i < fixedElements.length; i++) {
     const el = fixedElements[i];
-    const bottom = el.y + (el.height ?? 10);
+    const bottom = el.y + getElementHeightMm(el);
     if (bottom > max) max = bottom;
   }
   return max + 5;
@@ -218,7 +267,7 @@ function getBodyBlockHeightMm(template: IPdfTemplateConfig, dynamicElements: IPd
   let max = 40;
   for (let i = 0; i < dynamicElements.length; i++) {
     const el = dynamicElements[i];
-    const bottom = el.y + (el.height ?? 10);
+    const bottom = el.y + getElementHeightMm(el);
     if (bottom > max) max = bottom;
   }
   return max + 5;

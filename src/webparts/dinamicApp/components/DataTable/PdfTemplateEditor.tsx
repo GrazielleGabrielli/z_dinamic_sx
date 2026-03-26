@@ -22,6 +22,7 @@ const SCALE = 2;
 /** Largura mínima do editor para colocar painel de opções e folha lado a lado (painéis Fluent costumam ser < 720px úteis). */
 const SIDE_BY_SIDE_MIN_PX = 480;
 const SETTINGS_COL_PX = 280;
+const TEXT_LINE_HEIGHT_FACTOR = 1.15;
 
 function defaultTemplate(): IPdfTemplateConfig {
   return {
@@ -48,7 +49,7 @@ function ensureTemplate(t: IPdfTemplateConfig | undefined): IPdfTemplateConfig {
   return base;
 }
 
-const PdfTemplateImagePreview: React.FC<{ url: string }> = ({ url }) => {
+const PdfTemplateImagePreview: React.FC<{ url: string; fit: 'contain' | 'fill' }> = ({ url, fit }) => {
   const [error, setError] = useState(false);
   useEffect(() => setError(false), [url]);
   if (!url) {
@@ -70,7 +71,7 @@ const PdfTemplateImagePreview: React.FC<{ url: string }> = ({ url }) => {
       <img
         src={url}
         alt=""
-        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+        style={{ width: '100%', height: '100%', objectFit: fit }}
         onError={() => setError(true)}
       />
     </div>
@@ -180,6 +181,7 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
 
   const mmToPx = (mm: number): number => mm * SCALE;
   const pxToMm = (px: number): number => px / SCALE;
+  const getPreviewTextLineHeightPx = (fontSize?: number): number => ((fontSize ?? 11) * SCALE * 0.6) * TEXT_LINE_HEIGHT_FACTOR;
 
   const handleCanvasMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -577,14 +579,39 @@ export const PdfTemplateEditor: React.FC<IPdfTemplateEditorProps> = ({ value, on
                         fontSize: (el.fontSize ?? 11) * (SCALE * 0.6),
                         fontWeight: el.fontWeight ?? 'normal',
                         overflow: 'hidden',
-                        padding: 2,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        lineHeight: `${getPreviewTextLineHeightPx(el.fontSize)}px`,
+                        padding: el.type === 'text' ? 0 : 2,
                         boxSizing: 'border-box',
                       }}
                       onMouseDown={(e) => handleElementMouseDown(e, el.id)}
                     >
-                      {el.type === 'text' && (el.content ?? '').replace(/\{\{([^}]+)\}\}/g, '[$1]')}
+                      {el.type === 'text' && (
+                        <div
+                          style={{
+                            width: '100%',
+                            height: el.height !== undefined && el.height !== null ? h : 'auto',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {(el.content ?? '').replace(/\{\{([^}]+)\}\}/g, '[$1]')}
+                        </div>
+                      )}
                       {el.type === 'image' && (
-                        <PdfTemplateImagePreview url={(el.imageUrl ?? el.content ?? '').trim()} />
+                        <PdfTemplateImagePreview
+                          url={(el.imageUrl ?? el.content ?? '').trim()}
+                          fit={
+                            el.width !== undefined &&
+                            el.width !== null &&
+                            el.width > 0 &&
+                            el.height !== undefined &&
+                            el.height !== null &&
+                            el.height > 0
+                              ? 'fill'
+                              : 'contain'
+                          }
+                        />
                       )}
                       {el.type === 'line' && <div style={{ width: '100%', height: 2, background: '#333', marginTop: (h - 2) / 2 }} />}
                       {isSelected && (
