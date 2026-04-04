@@ -8,6 +8,7 @@ import {
   IDashboardConfig,
   IChartSeriesConfig,
   IDynamicViewConfig,
+  IListPageBlock,
   IListPageLayoutConfig,
   IListViewConfig,
   IListViewFilterConfig,
@@ -17,9 +18,11 @@ import {
 } from '../core/config/types';
 import {
   defaultListPageLayoutFromLegacy,
+  findListPageBlockById,
   getDashboardForEditor,
   getEffectiveListPageSections,
   LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID,
+  replaceBlockInListPageLayout,
   saveDashboardForListBlock,
 } from '../core/listPage/listPageLayoutUtils';
 import { effectiveDashboardFilters } from '../core/dashboard/effectiveDashboardFilters';
@@ -35,6 +38,7 @@ import { TableColumnsEditorPanel } from './DataTable/TableColumnsEditorPanel';
 import { ProjectManagementView } from './ProjectManagement/ProjectManagementView';
 import { ListPageRenderer, type TListPageDashboardListSelection } from './ListPage/ListPageRenderer';
 import { ListPageLayoutEditorPanel } from './ListPage/ListPageLayoutEditorPanel';
+import { ListPageBlockConfigPanel } from './ListPage/ListPageBlockConfigPanel';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceScopeId, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
@@ -42,6 +46,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
   const [isEditingSeries, setIsEditingSeries] = useState(false);
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
   const [isEditingPageLayout, setIsEditingPageLayout] = useState(false);
+  const [listPageContentBlockId, setListPageContentBlockId] = useState<string | null>(null);
   const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [dashboardListSelection, setDashboardListSelection] =
@@ -185,6 +190,23 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     setIsEditingPageLayout(false);
   };
 
+  const handleApplyListContentBlock = (next: IListPageBlock): void => {
+    if (!config?.listPageLayout) return;
+    onSaveConfig({
+      ...config,
+      listPageLayout: replaceBlockInListPageLayout(config.listPageLayout, next.id, next),
+    });
+    setListPageContentBlockId(null);
+  };
+
+  const editingListContentBlock =
+    listPageContentBlockId !== null && config?.listPageLayout
+      ? findListPageBlockById(config.listPageLayout, listPageContentBlockId)
+      : null;
+  const listContentBlockPanelOpen =
+    editingListContentBlock !== null &&
+    (editingListContentBlock.type === 'banner' || editingListContentBlock.type === 'editor');
+
   if (config === undefined || isEditingWebPart) {
     return (
       <ConfigWizard
@@ -279,6 +301,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
             onCardClick={handleDashboardCardClick}
             onSeriesClick={handleDashboardSeriesClick}
             dashboardAppliesListFilter={dashboardAppliesListFilter}
+            onConfigureListContentBlock={
+              config.listPageLayout !== undefined
+                ? (blockId) => setListPageContentBlockId(blockId)
+                : undefined
+            }
           />
         )}
       </Stack>
@@ -328,6 +355,13 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
         rootDashboard={config.dashboard}
         onSave={handleSaveListPageLayout}
         onDismiss={() => setIsEditingPageLayout(false)}
+      />
+
+      <ListPageBlockConfigPanel
+        isOpen={listContentBlockPanelOpen}
+        block={listContentBlockPanelOpen ? editingListContentBlock : null}
+        onDismiss={() => setListPageContentBlockId(null)}
+        onApply={handleApplyListContentBlock}
       />
     </>
   );

@@ -20,6 +20,7 @@ import type {
   TListPageBlockType,
   TListPageSectionLayout,
 } from '../../core/config/types';
+import { defaultBannerConfig, defaultRichEditorConfig } from '../../core/listPage/listPageBlockConfigUtils';
 import {
   cloneDashboardConfig,
   columnCountForLayout,
@@ -27,6 +28,7 @@ import {
   normalizeListPageLayoutDashboards,
   reshapeSectionColumns,
 } from '../../core/listPage/listPageLayoutUtils';
+import { ListPageBlockConfigPanel } from './ListPageBlockConfigPanel';
 
 export interface IListPageLayoutEditorPanelProps {
   isOpen: boolean;
@@ -47,7 +49,18 @@ const LAYOUT_OPTIONS: { key: TListPageSectionLayout; label: string }[] = [
 const BLOCK_OPTIONS: IDropdownOption[] = [
   { key: 'dashboard', text: 'Dashboard (cards ou gráficos)' },
   { key: 'list', text: 'Tabela / lista' },
+  { key: 'banner', text: 'Banner' },
+  { key: 'editor', text: 'Editor de conteúdo' },
 ];
+
+function blockTypeLabel(type: TListPageBlockType): string {
+  if (type === 'dashboard') return 'Dashboard';
+  if (type === 'list') return 'Tabela / lista';
+  if (type === 'banner') return 'Banner';
+  return 'Editor de conteúdo';
+}
+
+const VALID_SAVE_BLOCK_TYPES: TListPageBlockType[] = ['dashboard', 'list', 'banner', 'editor'];
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -59,10 +72,13 @@ function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
       id: s.id,
       layout: s.layout,
       columns: s.columns.map((col) =>
-        col.map((b) => ({
-          ...b,
-          ...(b.dashboard ? { dashboard: cloneDashboardConfig(b.dashboard) } : {}),
-        }))
+        col.map((b) => {
+          const x: IListPageBlock = { ...b };
+          if (b.dashboard) x.dashboard = cloneDashboardConfig(b.dashboard);
+          if (b.banner) x.banner = { ...b.banner };
+          if (b.editor) x.editor = { ...b.editor };
+          return x;
+        })
       ),
     })),
   };
@@ -76,6 +92,11 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   onDismiss,
 }) => {
   const [sections, setSections] = useState<IListPageSection[]>(() => value.sections.slice());
+  const [blockConfigPath, setBlockConfigPath] = useState<{
+    si: number;
+    ci: number;
+    bi: number;
+  } | null>(null);
   const openedRef = useRef(false);
 
   useEffect(() => {
@@ -126,7 +147,11 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
           ? dashboardsBefore >= 1
             ? { id: newId('blk'), type, dashboard: cloneDashboardConfig(rootDashboard) }
             : { id: newId('blk'), type }
-          : { id: newId('blk'), type };
+          : type === 'banner'
+          ? { id: newId('blk'), type: 'banner', banner: defaultBannerConfig() }
+          : type === 'editor'
+          ? { id: newId('blk'), type: 'editor', editor: defaultRichEditorConfig() }
+          : { id: newId('blk'), type: 'list' };
       cols[colIndex] = [...cols[colIndex], block];
       next[sectionIndex] = { ...sec, columns: cols };
       return normalizeListPageLayoutDashboards({ sections: next }, rootDashboard).sections;
@@ -153,7 +178,9 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       const nc = columnCountForLayout(s.layout);
       const cols: IListPageBlock[][] = [];
       for (let c = 0; c < nc; c++) {
-        cols.push((s.columns[c] ?? []).filter((b) => b.id && (b.type === 'dashboard' || b.type === 'list')));
+        cols.push(
+          (s.columns[c] ?? []).filter((b) => b.id && VALID_SAVE_BLOCK_TYPES.indexOf(b.type) !== -1)
+        );
       }
       cleaned.push({
         id: s.id.trim() || newId('sec'),
@@ -185,7 +212,32 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     onDismiss();
   };
 
+  const editingBlock =
+    blockConfigPath !== null
+      ? sections[blockConfigPath.si]?.columns[blockConfigPath.ci]?.[blockConfigPath.bi] ?? null
+      : null;
+
+  const applyBlockConfig = (next: IListPageBlock): void => {
+    if (!blockConfigPath) return;
+    const { si, ci, bi } = blockConfigPath;
+    setSections((prev) => {
+      const copy = prev.slice();
+      const sec = copy[si];
+      if (!sec) return prev;
+      const cols = sec.columns.map((c) => c.slice());
+      const col = cols[ci];
+      if (!col || col[bi] === undefined) return prev;
+      const nextCol = col.slice();
+      nextCol[bi] = next;
+      cols[ci] = nextCol;
+      copy[si] = { ...sec, columns: cols };
+      return copy;
+    });
+    setBlockConfigPath(null);
+  };
+
   return (
+    <>
     <Panel
       isOpen={isOpen}
       type={PanelType.custom}
@@ -203,7 +255,9 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     >
       <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 12, maxWidth: '100%' } }}>
         <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
-          Monte seções como em páginas modernas: escolha colunas por seção e adicione blocos de dashboard ou tabela. A configuração de cada bloco continua em &quot;Editar colunas&quot; (lista) e nos editores do dashboard.
+          Monte seções como em páginas modernas: colunas por seção e blocos (dashboard, tabela, banner ou
+          editor de conteúdo). Use a engrenagem para configurar banner e editor. Lista e dashboard usam os
+          botões da barra da página.
         </Text>
         {sections.map((sec, si) => (
           <Stack
@@ -269,13 +323,23 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
                       },
                     }}
                   >
-                    <Text variant="small">{b.type === 'dashboard' ? 'Dashboard' : 'Tabela / lista'}</Text>
-                    <IconButton
-                      iconProps={{ iconName: 'Delete' }}
-                      title="Remover bloco"
-                      ariaLabel="Remover bloco"
-                      onClick={() => removeBlock(si, ci, bi)}
-                    />
+                    <Text variant="small">{blockTypeLabel(b.type)}</Text>
+                    <Stack horizontal verticalAlign="center">
+                      {(b.type === 'banner' || b.type === 'editor') && (
+                        <IconButton
+                          iconProps={{ iconName: 'Settings' }}
+                          title="Configurar bloco"
+                          ariaLabel="Configurar bloco"
+                          onClick={() => setBlockConfigPath({ si, ci, bi })}
+                        />
+                      )}
+                      <IconButton
+                        iconProps={{ iconName: 'Delete' }}
+                        title="Remover bloco"
+                        ariaLabel="Remover bloco"
+                        onClick={() => removeBlock(si, ci, bi)}
+                      />
+                    </Stack>
                   </Stack>
                 ))}
                 <Dropdown
@@ -293,5 +357,12 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
         <DefaultButton text="Adicionar seção" iconProps={{ iconName: 'Add' }} onClick={addSection} />
       </Stack>
     </Panel>
+    <ListPageBlockConfigPanel
+      isOpen={blockConfigPath !== null && editingBlock !== null}
+      block={editingBlock}
+      onDismiss={() => setBlockConfigPath(null)}
+      onApply={applyBlockConfig}
+    />
+    </>
   );
 };

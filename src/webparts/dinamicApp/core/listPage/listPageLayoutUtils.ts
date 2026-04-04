@@ -9,6 +9,10 @@ import type {
   TChartType,
   TListPageSectionLayout,
 } from '../config/types';
+import {
+  sanitizeBannerConfig,
+  sanitizeRichEditorConfig,
+} from './listPageBlockConfigUtils';
 
 export const LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID = 'legacy_dashboard';
 export const LEGACY_LIST_PAGE_LIST_BLOCK_ID = 'legacy_list';
@@ -179,6 +183,36 @@ export function getDashboardForEditor(
   return config.dashboard;
 }
 
+export function findListPageBlockById(
+  layout: IListPageLayoutConfig | undefined,
+  blockId: string
+): IListPageBlock | null {
+  if (!layout) return null;
+  for (let si = 0; si < layout.sections.length; si++) {
+    const cols = layout.sections[si].columns;
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci];
+      for (let bi = 0; bi < col.length; bi++) {
+        if (col[bi].id === blockId) return col[bi];
+      }
+    }
+  }
+  return null;
+}
+
+export function replaceBlockInListPageLayout(
+  layout: IListPageLayoutConfig,
+  blockId: string,
+  next: IListPageBlock
+): IListPageLayoutConfig {
+  return {
+    sections: layout.sections.map((sec) => ({
+      ...sec,
+      columns: sec.columns.map((col) => col.map((b) => (b.id === blockId ? next : b))),
+    })),
+  };
+}
+
 export function updateDashboardBlockInLayout(
   layout: IListPageLayoutConfig,
   blockId: string,
@@ -244,7 +278,7 @@ export function getEffectiveListPageSections(config: IDynamicViewConfig): IListP
 }
 
 const VALID_LAYOUTS = new Set<string>(['one', 'two', 'three', 'oneThirdLeft', 'oneThirdRight']);
-const VALID_BLOCK_TYPES = new Set<string>(['dashboard', 'list']);
+const VALID_BLOCK_TYPES = new Set<string>(['dashboard', 'list', 'banner', 'editor']);
 
 export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -274,6 +308,22 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
           if (!VALID_BLOCK_TYPES.has(bt)) continue;
           const type = bt as IListPageBlock['type'];
           const nestedDash = type === 'dashboard' ? sanitizeBlockDashboard(bb.dashboard) : undefined;
+          if (type === 'banner') {
+            blocks.push({
+              id: bid,
+              type,
+              banner: sanitizeBannerConfig(bb.banner),
+            });
+            continue;
+          }
+          if (type === 'editor') {
+            blocks.push({
+              id: bid,
+              type,
+              editor: sanitizeRichEditorConfig(bb.editor),
+            });
+            continue;
+          }
           blocks.push({
             id: bid,
             type,

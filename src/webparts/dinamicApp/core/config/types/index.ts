@@ -288,13 +288,47 @@ export interface IPdfTemplateConfig {
 /** Layout de colunas por seção (estilo página moderna). */
 export type TListPageSectionLayout = 'one' | 'two' | 'three' | 'oneThirdLeft' | 'oneThirdRight';
 
-export type TListPageBlockType = 'dashboard' | 'list';
+export type TListPageBlockType = 'dashboard' | 'list' | 'banner' | 'editor';
+
+export type TListPageBannerContentAlign = 'left' | 'center' | 'right';
+
+export interface IListPageBannerBlockConfig {
+  imageUrl: string;
+  title: string;
+  subtitle: string;
+  linkUrl: string;
+  openInNewTab: boolean;
+  imageAlt: string;
+  contentAlign: TListPageBannerContentAlign;
+  heightPx: number;
+  /** 0–1 escurecimento sobre a imagem */
+  overlayOpacity: number;
+  showButton: boolean;
+  buttonText: string;
+}
+
+export interface IListPageRichEditorBlockConfig {
+  title: string;
+  /** HTML armazenado; filtrado na exibição conforme permissões */
+  html: string;
+  placeholder: string;
+  minHeightPx: number;
+  readOnly: boolean;
+  allowImages: boolean;
+  allowLinks: boolean;
+  allowTables: boolean;
+  allowLists: boolean;
+  allowHeaders: boolean;
+  allowVideoEmbed: boolean;
+}
 
 export interface IListPageBlock {
   id: string;
   type: TListPageBlockType;
   /** Só em `dashboard`. Se ausente e houver um único bloco dashboard, usa `IDynamicViewConfig.dashboard`. */
   dashboard?: IDashboardConfig;
+  banner?: IListPageBannerBlockConfig;
+  editor?: IListPageRichEditorBlockConfig;
 }
 
 export interface IListPageSection {

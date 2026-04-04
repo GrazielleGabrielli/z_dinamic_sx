@@ -13,6 +13,8 @@ import type {
 import { resolveDashboardForListBlock } from '../../core/listPage/listPageLayoutUtils';
 import { DashboardView } from '../Dashboard/DashboardView';
 import { TableView } from '../DataTable/TableView';
+import { ListPageBannerBlock } from './ListPageBannerBlock';
+import { ListPageRichEditorBlock } from './ListPageRichEditorBlock';
 
 export type TListPageDashboardListSelection = {
   blockId: string;
@@ -33,6 +35,8 @@ export interface IListPageRendererProps {
   onCardClick?: (card: IDashboardCardConfig, blockId: string) => void;
   onSeriesClick?: (series: IChartSeriesConfig, blockId: string) => void;
   dashboardAppliesListFilter: boolean;
+  /** Abre o painel de configuração do bloco (banner / editor) na página. */
+  onConfigureListContentBlock?: (blockId: string) => void;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -63,6 +67,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   onCardClick,
   onSeriesClick,
   dashboardAppliesListFilter,
+  onConfigureListContentBlock,
 }) => {
   const rootDash = config.dashboard;
 
@@ -99,6 +104,32 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           config={config}
           dashboardListFilters={dashboardListSelection?.filters}
           instanceScopeId={`${instanceScopeId}_${block.id}`}
+        />
+      );
+    }
+    if (block.type === 'banner') {
+      return (
+        <ListPageBannerBlock
+          key={block.id}
+          banner={block.banner}
+          onConfigure={
+            onConfigureListContentBlock !== undefined
+              ? () => onConfigureListContentBlock(block.id)
+              : undefined
+          }
+        />
+      );
+    }
+    if (block.type === 'editor') {
+      return (
+        <ListPageRichEditorBlock
+          key={block.id}
+          editor={block.editor}
+          onConfigure={
+            onConfigureListContentBlock !== undefined
+              ? () => onConfigureListContentBlock(block.id)
+              : undefined
+          }
         />
       );
     }
