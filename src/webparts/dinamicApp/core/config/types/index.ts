@@ -285,6 +285,29 @@ export interface IPdfTemplateConfig {
 
 // ─── Root config ─────────────────────────────────────────────────────────────
 
+/** Layout de colunas por seção (estilo página moderna). */
+export type TListPageSectionLayout = 'one' | 'two' | 'three' | 'oneThirdLeft' | 'oneThirdRight';
+
+export type TListPageBlockType = 'dashboard' | 'list';
+
+export interface IListPageBlock {
+  id: string;
+  type: TListPageBlockType;
+  /** Só em `dashboard`. Se ausente e houver um único bloco dashboard, usa `IDynamicViewConfig.dashboard`. */
+  dashboard?: IDashboardConfig;
+}
+
+export interface IListPageSection {
+  id: string;
+  layout: TListPageSectionLayout;
+  /** Uma entrada por coluna; cada coluna é uma pilha de blocos. */
+  columns: IListPageBlock[][];
+}
+
+export interface IListPageLayoutConfig {
+  sections: IListPageSection[];
+}
+
 export interface IDynamicViewConfig {
   dataSource: IDataSourceConfig;
   mode: TViewMode;
@@ -295,6 +318,11 @@ export interface IDynamicViewConfig {
   /** Config da tabela dinâmica (modo list). Quando presente, DataTable + TableEngine são usados. */
   tableConfig?: import('../../table').ITableConfig;
   pdfTemplate?: IPdfTemplateConfig;
+  /**
+   * Modo lista: seções com colunas e blocos (dashboard / tabela).
+   * Se ausente, usa o layout legado (dashboard acima + título + tabela).
+   */
+  listPageLayout?: IListPageLayoutConfig;
 }
 
 export interface IDynamicViewWebPartProps {

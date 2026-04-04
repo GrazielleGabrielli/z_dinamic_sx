@@ -1,4 +1,12 @@
-import { IDynamicViewConfig, IDataSourceConfig, IDashboardConfig, IPaginationConfig, IListViewConfig, TViewMode } from '../types';
+import {
+  IDynamicViewConfig,
+  IDataSourceConfig,
+  IDashboardConfig,
+  IPaginationConfig,
+  IListViewConfig,
+  IListPageLayoutConfig,
+  TViewMode,
+} from '../types';
 import { getDefaultConfig } from '../utils';
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
@@ -10,6 +18,7 @@ export function buildConfig(params: {
   pagination: Partial<IPaginationConfig>;
   listView?: Partial<IListViewConfig>;
   projectManagement?: IDynamicViewConfig['projectManagement'];
+  listPageLayout?: IListPageLayoutConfig;
 }): IDynamicViewConfig {
   const defaults = getDefaultConfig();
   return {
@@ -45,5 +54,6 @@ export function buildConfig(params: {
       ...(params.listView?.listRowActions?.length ? { listRowActions: params.listView.listRowActions } : {}),
     },
     projectManagement: params.projectManagement ?? defaults.projectManagement,
+    ...(params.listPageLayout?.sections?.length ? { listPageLayout: params.listPageLayout } : {}),
   };
 }

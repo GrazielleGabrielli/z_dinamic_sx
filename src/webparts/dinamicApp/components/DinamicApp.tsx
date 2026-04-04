@@ -1,18 +1,27 @@
 import * as React from 'react';
 import { useState, useCallback, useEffect } from 'react';
-import { Text, Stack, Separator, ActionButton } from '@fluentui/react';
+import { Text, Stack, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { parseConfig } from '../core/config/validators';
 import {
   IDashboardCardConfig,
+  IDashboardConfig,
   IChartSeriesConfig,
   IDynamicViewConfig,
+  IListPageLayoutConfig,
   IListViewConfig,
   IListViewFilterConfig,
   IPaginationConfig,
   TChartType,
   TDashboardType,
 } from '../core/config/types';
+import {
+  defaultListPageLayoutFromLegacy,
+  getDashboardForEditor,
+  getEffectiveListPageSections,
+  LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID,
+  saveDashboardForListBlock,
+} from '../core/listPage/listPageLayoutUtils';
 import { effectiveDashboardFilters } from '../core/dashboard/effectiveDashboardFilters';
 import {
   chartSeriesToDashboardCards,
@@ -20,25 +29,23 @@ import {
 } from '../core/dashboard/chartSeriesToDashboardCards';
 import { generateDefaultCards } from '../core/config/utils';
 import { ConfigWizard } from './Wizard/ConfigWizard';
-import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
 import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEditorPanel';
-import { TableView } from './DataTable/TableView';
 import { TableColumnsEditorPanel } from './DataTable/TableColumnsEditorPanel';
 import { ProjectManagementView } from './ProjectManagement/ProjectManagementView';
-
-type TDashboardListKey = `card:${string}` | `series:${string}`;
+import { ListPageRenderer, type TListPageDashboardListSelection } from './ListPage/ListPageRenderer';
+import { ListPageLayoutEditorPanel } from './ListPage/ListPageLayoutEditorPanel';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceScopeId, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
   const [isEditingSeries, setIsEditingSeries] = useState(false);
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
+  const [isEditingPageLayout, setIsEditingPageLayout] = useState(false);
+  const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
-  const [dashboardListSelection, setDashboardListSelection] = useState<{
-    key: TDashboardListKey;
-    filters: IListViewFilterConfig[];
-  } | null>(null);
+  const [dashboardListSelection, setDashboardListSelection] =
+    useState<TListPageDashboardListSelection | null>(null);
 
   const config = parseConfig(configJson ?? undefined);
 
@@ -46,23 +53,30 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     setDashboardListSelection(null);
   }, [config?.dataSource.title]);
 
-  const handleDashboardCardClick = useCallback((card: IDashboardCardConfig) => {
+  const handleDashboardCardClick = useCallback((card: IDashboardCardConfig, blockId: string) => {
     const filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];
-    const key = `card:${card.id}` as TDashboardListKey;
-    setDashboardListSelection((prev) => (prev?.key === key ? null : { key, filters }));
+    setDashboardListSelection((prev) =>
+      prev !== null &&
+      prev.kind === 'card' &&
+      prev.blockId === blockId &&
+      prev.entityId === card.id
+        ? null
+        : { blockId, kind: 'card', entityId: card.id, filters }
+    );
   }, []);
 
-  const handleDashboardSeriesClick = useCallback((series: IChartSeriesConfig) => {
+  const handleDashboardSeriesClick = useCallback((series: IChartSeriesConfig, blockId: string) => {
     const filters = effectiveDashboardFilters(series) as IListViewFilterConfig[];
-    const key = `series:${series.id}` as TDashboardListKey;
-    setDashboardListSelection((prev) => (prev?.key === key ? null : { key, filters }));
+    setDashboardListSelection((prev) =>
+      prev !== null &&
+      prev.kind === 'series' &&
+      prev.blockId === blockId &&
+      prev.entityId === series.id
+        ? null
+        : { blockId, kind: 'series', entityId: series.id, filters }
+    );
   }, []);
 
-  const dashKey = dashboardListSelection?.key;
-  const selectedCardId =
-    dashKey !== undefined && dashKey.indexOf('card:') === 0 ? dashKey.slice('card:'.length) : null;
-  const selectedSeriesId =
-    dashKey !== undefined && dashKey.indexOf('series:') === 0 ? dashKey.slice('series:'.length) : null;
   const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
   const triggerDashboardRefresh = useCallback(() => {
     setDashboardRefreshKey((prev) => prev + 1);
@@ -73,23 +87,20 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     setIsEditingWebPart(false);
   };
 
-  const handleSwitchDashboardToCharts = useCallback((): void => {
+  const handleSwitchDashboardToCharts = useCallback((blockId: string): void => {
     if (!config) return;
+    const dash = getDashboardForEditor(config, blockId);
     const cards =
-      config.dashboard.cards.length > 0
-        ? config.dashboard.cards
-        : generateDefaultCards(config.dashboard.cardsCount);
+      dash.cards.length > 0 ? dash.cards : generateDefaultCards(dash.cardsCount);
     const chartSeries = dashboardCardsToChartSeries(cards);
     setDashboardListSelection(null);
-    onSaveConfig({
-      ...config,
-      dashboard: {
-        ...config.dashboard,
-        dashboardType: 'charts',
-        chartSeries,
-        chartType: config.dashboard.chartType ?? 'bar',
-      },
-    });
+    const next: IDashboardConfig = {
+      ...dash,
+      dashboardType: 'charts',
+      chartSeries,
+      chartType: dash.chartType ?? 'bar',
+    };
+    onSaveConfig(saveDashboardForListBlock(config, blockId, next));
   }, [config, onSaveConfig]);
 
   const handleSaveCards = (
@@ -97,9 +108,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     options?: { dashboardType?: TDashboardType; chartType?: TChartType }
   ): void => {
     if (!config) return;
-    const nextType = options?.dashboardType ?? config.dashboard.dashboardType;
+    const bid = editingDashboardBlockId ?? LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID;
+    const source = getDashboardForEditor(config, bid);
+    const nextType = options?.dashboardType ?? source.dashboardType;
     const baseDash = {
-      ...config.dashboard,
+      ...source,
       cards,
       cardsCount: cards.length,
       ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
@@ -114,11 +127,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
           }
         : baseDash;
     if (nextType === 'charts') setDashboardListSelection(null);
-    onSaveConfig({
-      ...config,
-      dashboard,
-    });
+    onSaveConfig(saveDashboardForListBlock(config, bid, dashboard));
     setIsEditingCards(false);
+    setEditingDashboardBlockId(null);
   };
 
   const handleSaveSeries = (
@@ -126,9 +137,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     options?: { dashboardType?: TDashboardType; chartType?: TChartType }
   ): void => {
     if (!config) return;
-    const nextType = options?.dashboardType ?? config.dashboard.dashboardType;
+    const bid = editingDashboardBlockId ?? LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID;
+    const source = getDashboardForEditor(config, bid);
+    const nextType = options?.dashboardType ?? source.dashboardType;
     const baseDash = {
-      ...config.dashboard,
+      ...source,
       chartSeries,
       ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
       ...(options?.chartType !== undefined && { chartType: options.chartType }),
@@ -141,11 +154,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
             cardsCount: chartSeries.length,
           }
         : baseDash;
-    onSaveConfig({
-      ...config,
-      dashboard,
-    });
+    onSaveConfig(saveDashboardForListBlock(config, bid, dashboard));
     setIsEditingSeries(false);
+    setEditingDashboardBlockId(null);
   };
 
   const handleSaveTableColumns = (
@@ -165,6 +176,15 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     setIsEditingTableColumns(false);
   };
 
+  const handleSaveListPageLayout = (layout: IListPageLayoutConfig): void => {
+    if (!config) return;
+    onSaveConfig({
+      ...config,
+      listPageLayout: layout,
+    });
+    setIsEditingPageLayout(false);
+  };
+
   if (config === undefined || isEditingWebPart) {
     return (
       <ConfigWizard
@@ -176,9 +196,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     );
   }
 
-  const showDashboard =
-    config.dashboard.enabled &&
-    (config.dashboard.dashboardType === 'charts' || config.dashboard.cardsCount > 0);
+  const activeListDashboard = getDashboardForEditor(config, editingDashboardBlockId);
 
   return (
     <>
@@ -201,27 +219,6 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
       </div>
 
       <Stack styles={{ root: { padding: '20px 24px 0' } }}>
-        {showDashboard && (
-          <>
-            <DashboardView
-              config={config.dashboard}
-              dataSource={config.dataSource}
-              refreshKey={dashboardRefreshKey}
-              onEditCards={() => setIsEditingCards(true)}
-              onEditSeries={() => setIsEditingSeries(true)}
-              onSwitchToCharts={
-                config.dashboard.dashboardType === 'cards' ? handleSwitchDashboardToCharts : undefined
-              }
-              onCardClick={handleDashboardCardClick}
-              selectedCardId={selectedCardId}
-              onSeriesClick={handleDashboardSeriesClick}
-              selectedSeriesId={selectedSeriesId}
-              dashboardAppliesListFilter={dashboardAppliesListFilter}
-            />
-            <Separator />
-          </>
-        )}
-
         <Stack
           horizontal
           horizontalAlign="space-between"
@@ -237,13 +234,24 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
               Modo: {config.mode} · Origem: {config.dataSource.kind}
             </Text>
           </Stack>
-          <ActionButton
-            iconProps={{ iconName: 'ColumnOptions' }}
-            onClick={() => setIsEditingTableColumns(true)}
-            styles={{ root: { height: 28, color: '#0078d4' } }}
-          >
-            {config.mode === 'projectManagement' ? 'Editar quadro' : 'Editar colunas'}
-          </ActionButton>
+          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
+            {config.mode === 'list' && (
+              <ActionButton
+                iconProps={{ iconName: 'TripleColumn' }}
+                onClick={() => setIsEditingPageLayout(true)}
+                styles={{ root: { height: 28, color: '#0078d4' } }}
+              >
+                Layout da página
+              </ActionButton>
+            )}
+            <ActionButton
+              iconProps={{ iconName: 'ColumnOptions' }}
+              onClick={() => setIsEditingTableColumns(true)}
+              styles={{ root: { height: 28, color: '#0078d4' } }}
+            >
+              {config.mode === 'projectManagement' ? 'Editar quadro' : 'Editar colunas'}
+            </ActionButton>
+          </Stack>
         </Stack>
 
         {config.mode === 'projectManagement' ? (
@@ -253,10 +261,24 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
             onItemUpdated={triggerDashboardRefresh}
           />
         ) : (
-          <TableView
+          <ListPageRenderer
             config={config}
-            dashboardListFilters={dashboardListSelection?.filters}
+            sections={getEffectiveListPageSections(config)}
             instanceScopeId={instanceScopeId}
+            dashboardRefreshKey={dashboardRefreshKey}
+            dashboardListSelection={dashboardListSelection}
+            onEditCards={(blockId) => {
+              setEditingDashboardBlockId(blockId);
+              setIsEditingCards(true);
+            }}
+            onEditSeries={(blockId) => {
+              setEditingDashboardBlockId(blockId);
+              setIsEditingSeries(true);
+            }}
+            onSwitchToCharts={handleSwitchDashboardToCharts}
+            onCardClick={handleDashboardCardClick}
+            onSeriesClick={handleDashboardSeriesClick}
+            dashboardAppliesListFilter={dashboardAppliesListFilter}
           />
         )}
       </Stack>
@@ -264,22 +286,28 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
       <CardEditorPanel
         isOpen={isEditingCards}
         listTitle={config.dataSource.title}
-        cards={config.dashboard.cards}
-        cardsCount={config.dashboard.cardsCount}
-        dashboardType={config.dashboard.dashboardType}
-        chartType={config.dashboard.chartType}
+        cards={activeListDashboard.cards}
+        cardsCount={activeListDashboard.cardsCount}
+        dashboardType={activeListDashboard.dashboardType}
+        chartType={activeListDashboard.chartType}
         onSave={handleSaveCards}
-        onDismiss={() => setIsEditingCards(false)}
+        onDismiss={() => {
+          setIsEditingCards(false);
+          setEditingDashboardBlockId(null);
+        }}
       />
 
       <ChartSeriesEditorPanel
         isOpen={isEditingSeries}
         listTitle={config.dataSource.title}
-        series={config.dashboard.chartSeries ?? []}
-        dashboardType={config.dashboard.dashboardType}
-        chartType={config.dashboard.chartType}
+        series={activeListDashboard.chartSeries ?? []}
+        dashboardType={activeListDashboard.dashboardType}
+        chartType={activeListDashboard.chartType}
         onSave={handleSaveSeries}
-        onDismiss={() => setIsEditingSeries(false)}
+        onDismiss={() => {
+          setIsEditingSeries(false);
+          setEditingDashboardBlockId(null);
+        }}
       />
 
       <TableColumnsEditorPanel
@@ -292,6 +320,14 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
         pdfTemplate={config.pdfTemplate}
         onSave={handleSaveTableColumns}
         onDismiss={() => setIsEditingTableColumns(false)}
+      />
+
+      <ListPageLayoutEditorPanel
+        isOpen={isEditingPageLayout}
+        value={config.listPageLayout ?? defaultListPageLayoutFromLegacy(config)}
+        rootDashboard={config.dashboard}
+        onSave={handleSaveListPageLayout}
+        onDismiss={() => setIsEditingPageLayout(false)}
       />
     </>
   );

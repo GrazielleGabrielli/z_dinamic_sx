@@ -10,21 +10,23 @@ import { DashboardCard } from './DashboardCard';
 import { ChartView } from './ChartView';
 
 interface IDashboardViewProps {
+  dashboardBlockId: string;
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   refreshKey?: number;
-  onEditCards: () => void;
-  onEditSeries: () => void;
-  onSwitchToCharts?: () => void;
-  onCardClick?: (card: IDashboardCardConfig) => void;
+  onEditCards: (blockId: string) => void;
+  onEditSeries: (blockId: string) => void;
+  onSwitchToCharts?: (blockId: string) => void;
+  onCardClick?: (card: IDashboardCardConfig, blockId: string) => void;
   selectedCardId?: string | null;
-  onSeriesClick?: (series: IChartSeriesConfig) => void;
+  onSeriesClick?: (series: IChartSeriesConfig, blockId: string) => void;
   selectedSeriesId?: string | null;
   /** Quando há filtros do dashboard aplicados na listagem (para texto auxiliar). */
   dashboardAppliesListFilter?: boolean;
 }
 
 export const DashboardView: React.FC<IDashboardViewProps> = ({
+  dashboardBlockId,
   config,
   dataSource,
   refreshKey = 0,
@@ -43,8 +45,10 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         config={config}
         dataSource={dataSource}
         refreshKey={refreshKey}
-        onEditSeries={onEditSeries}
-        onSeriesClick={onSeriesClick}
+        onEditSeries={() => onEditSeries(dashboardBlockId)}
+        onSeriesClick={
+          onSeriesClick !== undefined ? (s) => onSeriesClick(s, dashboardBlockId) : undefined
+        }
         selectedSeriesId={selectedSeriesId}
         showListFilterHint={dashboardAppliesListFilter === true}
       />
@@ -110,7 +114,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
           {onSwitchToCharts !== undefined && (
             <ActionButton
               iconProps={{ iconName: 'BarChartVertical' }}
-              onClick={onSwitchToCharts}
+              onClick={() => onSwitchToCharts(dashboardBlockId)}
               styles={{ root: { height: 28, color: '#0078d4' } }}
             >
               Gráficos
@@ -118,7 +122,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
           )}
           <ActionButton
             iconProps={{ iconName: 'Edit' }}
-            onClick={onEditCards}
+            onClick={() => onEditCards(dashboardBlockId)}
             styles={{ root: { height: 28, color: '#0078d4' } }}
           >
             Editar cards
@@ -145,7 +149,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
               result={result}
               cardConfig={cfg}
               selected={selectedCardId === result.id}
-              onActivate={onCardClick && cfg ? () => onCardClick(cfg) : undefined}
+              onActivate={onCardClick && cfg ? () => onCardClick(cfg, dashboardBlockId) : undefined}
             />
           );
         })}

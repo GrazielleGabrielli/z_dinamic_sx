@@ -15,6 +15,10 @@ import { getDefaultConfig } from '../utils';
 import { isValidPdfPageFormat } from '../../pdf/pdfPageFormats';
 import { sanitizeTableCssSlots } from '../../../components/DataTable/tableLayoutClasses';
 import { sanitizeTableRowStyleRules } from '../../table/utils/tableRowStyleRuleEval';
+import {
+  normalizeListPageLayoutDashboards,
+  sanitizeListPageLayout,
+} from '../../listPage/listPageLayoutUtils';
 
 const VALID_MODES = ['list', 'projectManagement', 'formManager'];
 const VALID_AGGREGATES = ['count', 'sum'];
@@ -219,12 +223,29 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     const c = parsed as IDynamicViewConfig;
     const projectManagement = sanitizeProjectManagementConfig(c.projectManagement);
     if (c.listView === undefined) {
-      return { ...c, listView: defaults.listView, projectManagement: projectManagement ?? defaults.projectManagement };
+      const listPageLayoutEarly = sanitizeListPageLayout(
+        (c as unknown as Record<string, unknown>).listPageLayout
+      );
+      const listPageLayoutNorm =
+        listPageLayoutEarly !== undefined
+          ? normalizeListPageLayoutDashboards(listPageLayoutEarly, c.dashboard)
+          : undefined;
+      return {
+        ...c,
+        listView: defaults.listView,
+        projectManagement: projectManagement ?? defaults.projectManagement,
+        ...(listPageLayoutNorm ? { listPageLayout: listPageLayoutNorm } : {}),
+      };
     }
     const lv = c.listView;
     const cssSlots = sanitizeTableCssSlots(lv.customTableCssSlots);
     const rowRules = sanitizeTableRowStyleRules(lv.tableRowStyleRules);
     const listRowActions = sanitizeListRowActions(lv.listRowActions);
+    const listPageLayoutRaw = sanitizeListPageLayout((c as unknown as Record<string, unknown>).listPageLayout);
+    const listPageLayout =
+      listPageLayoutRaw !== undefined
+        ? normalizeListPageLayoutDashboards(listPageLayoutRaw, c.dashboard)
+        : undefined;
     return {
       ...c,
       listView: {
@@ -242,6 +263,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
       },
       projectManagement: projectManagement ?? defaults.projectManagement,
       ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),
+      ...(listPageLayout ? { listPageLayout } : {}),
     };
   } catch {
     return undefined;
