@@ -194,7 +194,7 @@ export function mergeRowStyleRulesCss(rules: ITableRowStyleRule[] | undefined): 
     const body = (r.rowCss ?? '').trim();
     if (!body) continue;
     const token = toTableRowRuleDataToken(r.id);
-    parts.push(`.${DINAMIC_SX_TABLE_CLASS.row}[data-dinamic-rules~="${token}"] {\n${body}\n}`);
+    parts.push(`.${DINAMIC_SX_TABLE_CLASS.cell}[data-dinamic-rules~="${token}"] {\n${body}\n}`);
   }
   return parts.join('\n\n').trim();
 }

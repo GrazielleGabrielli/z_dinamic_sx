@@ -47,6 +47,7 @@ import {
   DINAMIC_SX_TABLE_CLASS,
   TABLE_LAYOUT_EDITOR_ROWS,
   mergeCustomTableCss,
+  mergeRowStyleRulesCss,
 } from './tableLayoutClasses';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
@@ -234,6 +235,19 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [rowStyleRules, setRowStyleRules] = useState<ITableRowStyleRule[]>(() => [
     ...(listView.tableRowStyleRules ?? []),
   ]);
+  const layoutPreviewCss = useMemo(() => {
+    const layout = layoutCssText.trim();
+    const rules = mergeRowStyleRulesCss(rowStyleRules).trim();
+    return [layout, rules].filter(Boolean).join('\n\n');
+  }, [layoutCssText, rowStyleRules]);
+  const layoutPreviewRuleTokens = useMemo(
+    () =>
+      rowStyleRules
+        .filter((r) => (r.rowCss ?? '').trim().length > 0)
+        .map((r) => toTableRowRuleDataToken(r.id))
+        .slice(0, 2),
+    [rowStyleRules]
+  );
   const [ruleColorMap, setRuleColorMap] = useState<Record<string, string>>({});
   const [viewModes, setViewModes] = useState<IListViewModeConfig[]>(
     listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK
@@ -932,8 +946,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   <PivotItem itemKey="geral" headerText="Geral">
                     <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
                       <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
-                        Use uma única caixa de CSS com seletores das classes da tabela. A pré-visualização ao lado reage ao digitar.
-                        Para estilos por valor de campo, use a aba <strong>Regras</strong>.
+                        Use uma única caixa de CSS com seletores das classes da tabela. A pré-visualização ao lado reage ao digitar
+                        e inclui o CSS das regras de linha (aba <strong>Regras</strong>).
                       </Text>
                       <Stack horizontal wrap verticalAlign="start" tokens={{ childrenGap: 16 }}>
                         <Stack styles={{ root: { flex: '1 1 480px', minWidth: 320 } }} tokens={{ childrenGap: 8 }}>
@@ -981,7 +995,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                           </Stack>
                         </Stack>
                         <Stack styles={{ root: { flex: '1 1 360px', minWidth: 280, maxWidth: '100%' } }}>
-                          <TableLayoutLivePreview cssText={layoutCssText} />
+                          <TableLayoutLivePreview cssText={layoutPreviewCss} rulePreviewTokens={layoutPreviewRuleTokens} />
                         </Stack>
                       </Stack>
                     </Stack>
@@ -989,10 +1003,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   <PivotItem itemKey="regras" headerText="Regras">
                     <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
                       <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.55 } }}>
-                        Aplique CSS na <strong>linha inteira</strong> (<span style={{ fontFamily: 'monospace' }}>&lt;tr&gt;</span>) quando o valor
-                        exibido de um campo atender à condição. A comparação usa o mesmo texto que aparece na célula (incluindo lookups).
-                        Várias regras podem valer ao mesmo tempo; cada uma adiciona um marcador em{' '}
-                        <span style={{ fontFamily: 'monospace' }}>data-dinamic-rules</span>.
+                        Quando o valor exibido de um campo atender à condição, o mesmo CSS é aplicado em <strong>todas as células da linha</strong>{' '}
+                        (marcador <span style={{ fontFamily: 'monospace' }}>data-dinamic-rules</span> em cada <span style={{ fontFamily: 'monospace' }}>&lt;td&gt;</span>, para fundo e bordas ficarem corretos com{' '}
+                        <span style={{ fontFamily: 'monospace' }}>border-collapse</span>). A comparação usa o mesmo texto da célula (incluindo lookups).
+                        Várias regras podem valer ao mesmo tempo; cada uma acrescenta um token no marcador.
                       </Text>
                       {rowStyleRules.map((rule, ri) => {
                         const valueDisabled = rule.operator === 'empty' || rule.operator === 'notEmpty';

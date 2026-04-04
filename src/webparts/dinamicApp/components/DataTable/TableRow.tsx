@@ -21,13 +21,9 @@ export const TableRow: React.FC<ITableRowProps> = ({ item, columns, engine, rowS
   const dataRules = matchedTokens.length > 0 ? matchedTokens.join(' ') : undefined;
 
   return (
-    <tr
-      className={DINAMIC_SX_TABLE_CLASS.row}
-      style={{ borderBottom: '1px solid #f3f2f1' }}
-      {...(dataRules ? { 'data-dinamic-rules': dataRules } : {})}
-    >
+    <tr className={DINAMIC_SX_TABLE_CLASS.row}>
       {columns.map((col) => (
-        <TableCell key={col.id} item={item} column={col} engine={engine} />
+        <TableCell key={col.id} item={item} column={col} engine={engine} rowDataRules={dataRules} />
       ))}
     </tr>
   );

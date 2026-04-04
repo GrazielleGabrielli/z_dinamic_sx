@@ -22,6 +22,7 @@ import { IChartSeriesConfig, IDashboardCardFilter, TAggregateType, TFilterOperat
 import { FieldsService } from '../../../../../services';
 import type { IFieldMetadata } from '../../../../../services';
 import { ChartTypeCard } from '../ChartTypeCard';
+import { ChoiceFieldBreakdownModal } from '../ChoiceFieldBreakdownModal';
 
 const NUMERIC_MAPPED_TYPES: string[] = ['number', 'currency', 'calculated'];
 
@@ -321,6 +322,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
   const [localChartType, setLocalChartType] = useState<TChartType>(chartType);
   const [view, setView] = useState<TPanelView>('list');
   const [editingIndex, setEditingIndex] = useState<number | undefined>(undefined);
+  const [choiceModalOpen, setChoiceModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -356,6 +358,18 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
 
   const editingSeries = editingIndex !== undefined ? localSeries[editingIndex] : undefined;
 
+  const seriesFilterSummary = (s: IChartSeriesConfig): string | undefined => {
+    const list =
+      s.filters && s.filters.length > 0
+        ? s.filters
+        : s.filter
+          ? [s.filter]
+          : [];
+    if (list.length === 0) return undefined;
+    const f = list[0];
+    return `filtro: ${f.field} ${f.operator} "${f.value}"`;
+  };
+
   return (
     <Panel
       isOpen={isOpen}
@@ -384,6 +398,16 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
         </Stack>
       )}
     >
+      <ChoiceFieldBreakdownModal
+        isOpen={choiceModalOpen}
+        onDismiss={() => setChoiceModalOpen(false)}
+        listTitle={listTitle}
+        target="series"
+        onApply={(items, mergeMode) => {
+          const next = items as IChartSeriesConfig[];
+          setLocalSeries((prev) => (mergeMode === 'replace' ? next : [...prev, ...next]));
+        }}
+      />
       <div style={{ paddingTop: 16, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
         {view === 'list' && (
           <Stack tokens={{ childrenGap: 16 }}>
@@ -424,7 +448,9 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
                 Nenhuma série configurada ainda.
               </Text>
             )}
-            {localSeries.map((s, index) => (
+            {localSeries.map((s, index) => {
+              const sf = seriesFilterSummary(s);
+              return (
               <React.Fragment key={s.id}>
                 <div style={{ padding: '14px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Stack horizontal tokens={{ childrenGap: 10 }} verticalAlign="center">
@@ -433,7 +459,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
                       <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>{s.label}</Text>
                       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                         {s.aggregate === 'count' ? 'contagem' : `soma · ${s.field ?? ''}`}
-                        {s.filter !== undefined ? ` · filtro: ${s.filter.field} ${s.filter.operator} "${s.filter.value}"` : ''}
+                        {sf !== undefined ? ` · ${sf}` : ''}
                       </Text>
                     </Stack>
                   </Stack>
@@ -444,14 +470,22 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
                 </div>
                 {index < localSeries.length - 1 && <Separator styles={{ root: { padding: 0 } }} />}
               </React.Fragment>
-            ))}
-            <div style={{ marginTop: 20 }}>
+              );
+            })}
+            <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 20, flexWrap: 'wrap' } }}>
               <DefaultButton
                 iconProps={{ iconName: 'Add' }}
                 text="Adicionar série"
                 onClick={() => { setEditingIndex(undefined); setView('form'); }}
               />
-            </div>
+              {localDashboardType === 'charts' && (
+                <DefaultButton
+                  iconProps={{ iconName: 'LightningBolt' }}
+                  text="Avançada"
+                  onClick={() => setChoiceModalOpen(true)}
+                />
+              )}
+            </Stack>
             </Stack>
           </Stack>
         )}

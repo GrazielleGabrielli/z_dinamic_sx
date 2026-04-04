@@ -4,6 +4,8 @@ import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
 export interface ITableLayoutLivePreviewProps {
   cssText: string;
+  /** Tokens de regras com CSS (pré-visualização das linhas de exemplo). */
+  rulePreviewTokens?: readonly string[];
 }
 
 const scopeClass = 'dinamicSxLayoutLivePreviewScope';
@@ -12,7 +14,7 @@ const StackWrap: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{ padding: 10, border: '1px solid #edebe9', borderRadius: 8, background: '#fff' }}>{children}</div>
 );
 
-export const TableLayoutLivePreview: React.FC<ITableLayoutLivePreviewProps> = ({ cssText }) => {
+export const TableLayoutLivePreview: React.FC<ITableLayoutLivePreviewProps> = ({ cssText, rulePreviewTokens }) => {
   const cssTrim = (cssText ?? '').trim();
   const scopedCss = cssTrim
     ? cssTrim.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`)
@@ -47,12 +49,40 @@ export const TableLayoutLivePreview: React.FC<ITableLayoutLivePreviewProps> = ({
               </thead>
               <tbody className={DINAMIC_SX_TABLE_CLASS.body}>
                 <tr className={DINAMIC_SX_TABLE_CLASS.row}>
-                  <td className={DINAMIC_SX_TABLE_CLASS.cell} data-field="Title" style={{ border: '1px solid #edebe9', padding: 6 }}>Teste</td>
-                  <td className={DINAMIC_SX_TABLE_CLASS.cell} data-field="Status" style={{ border: '1px solid #edebe9', padding: 6 }}>Ativo</td>
+                  <td
+                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    data-field="Title"
+                    {...(rulePreviewTokens?.[0] ? { 'data-dinamic-rules': rulePreviewTokens[0] } : {})}
+                    style={{ border: '1px solid #edebe9', padding: 6 }}
+                  >
+                    Teste
+                  </td>
+                  <td
+                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    data-field="Status"
+                    {...(rulePreviewTokens?.[0] ? { 'data-dinamic-rules': rulePreviewTokens[0] } : {})}
+                    style={{ border: '1px solid #edebe9', padding: 6 }}
+                  >
+                    Ativo
+                  </td>
                 </tr>
                 <tr className={DINAMIC_SX_TABLE_CLASS.row}>
-                  <td className={DINAMIC_SX_TABLE_CLASS.cell} data-field="Title" style={{ border: '1px solid #edebe9', padding: 6 }}>Outro item</td>
-                  <td className={DINAMIC_SX_TABLE_CLASS.cell} data-field="Status" style={{ border: '1px solid #edebe9', padding: 6 }}>Pendente</td>
+                  <td
+                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    data-field="Title"
+                    {...(rulePreviewTokens?.[1] ? { 'data-dinamic-rules': rulePreviewTokens[1] } : {})}
+                    style={{ border: '1px solid #edebe9', padding: 6 }}
+                  >
+                    Outro item
+                  </td>
+                  <td
+                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    data-field="Status"
+                    {...(rulePreviewTokens?.[1] ? { 'data-dinamic-rules': rulePreviewTokens[1] } : {})}
+                    style={{ border: '1px solid #edebe9', padding: 6 }}
+                  >
+                    Pendente
+                  </td>
                 </tr>
               </tbody>
             </table>

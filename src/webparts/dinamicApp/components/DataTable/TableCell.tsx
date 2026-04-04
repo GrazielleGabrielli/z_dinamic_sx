@@ -7,9 +7,10 @@ export interface ITableCellProps {
   item: Record<string, unknown>;
   column: ITableColumnConfig;
   engine: TableEngine;
+  rowDataRules?: string;
 }
 
-export const TableCell: React.FC<ITableCellProps> = ({ item, column, engine }) => {
+export const TableCell: React.FC<ITableCellProps> = ({ item, column, engine, rowDataRules }) => {
   const resolvedValue = engine.resolveCellValue(item, column);
   const Renderer = engine.getRenderer(column);
   const content = Renderer({
@@ -22,6 +23,7 @@ export const TableCell: React.FC<ITableCellProps> = ({ item, column, engine }) =
     <td
       className={DINAMIC_SX_TABLE_CLASS.cell}
       data-field={column.internalName}
+      {...(rowDataRules ? { 'data-dinamic-rules': rowDataRules } : {})}
       style={{
         textAlign: column.align ?? 'left',
         padding: '8px 12px',

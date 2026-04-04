@@ -14,6 +14,11 @@ import {
   TDashboardType,
 } from '../core/config/types';
 import { effectiveDashboardFilters } from '../core/dashboard/effectiveDashboardFilters';
+import {
+  chartSeriesToDashboardCards,
+  dashboardCardsToChartSeries,
+} from '../core/dashboard/chartSeriesToDashboardCards';
+import { generateDefaultCards } from '../core/config/utils';
 import { ConfigWizard } from './Wizard/ConfigWizard';
 import { DashboardView } from './Dashboard/DashboardView';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
@@ -68,15 +73,50 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     setIsEditingWebPart(false);
   };
 
-  const handleSaveCards = (cards: IDashboardCardConfig[]): void => {
+  const handleSwitchDashboardToCharts = useCallback((): void => {
     if (!config) return;
+    const cards =
+      config.dashboard.cards.length > 0
+        ? config.dashboard.cards
+        : generateDefaultCards(config.dashboard.cardsCount);
+    const chartSeries = dashboardCardsToChartSeries(cards);
+    setDashboardListSelection(null);
     onSaveConfig({
       ...config,
       dashboard: {
         ...config.dashboard,
-        cards,
-        cardsCount: cards.length,
+        dashboardType: 'charts',
+        chartSeries,
+        chartType: config.dashboard.chartType ?? 'bar',
       },
+    });
+  }, [config, onSaveConfig]);
+
+  const handleSaveCards = (
+    cards: IDashboardCardConfig[],
+    options?: { dashboardType?: TDashboardType; chartType?: TChartType }
+  ): void => {
+    if (!config) return;
+    const nextType = options?.dashboardType ?? config.dashboard.dashboardType;
+    const baseDash = {
+      ...config.dashboard,
+      cards,
+      cardsCount: cards.length,
+      ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
+      ...(options?.chartType !== undefined && { chartType: options.chartType }),
+    };
+    const dashboard =
+      nextType === 'charts'
+        ? {
+            ...baseDash,
+            dashboardType: 'charts' as const,
+            chartSeries: dashboardCardsToChartSeries(cards),
+          }
+        : baseDash;
+    if (nextType === 'charts') setDashboardListSelection(null);
+    onSaveConfig({
+      ...config,
+      dashboard,
     });
     setIsEditingCards(false);
   };
@@ -86,14 +126,24 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     options?: { dashboardType?: TDashboardType; chartType?: TChartType }
   ): void => {
     if (!config) return;
+    const nextType = options?.dashboardType ?? config.dashboard.dashboardType;
+    const baseDash = {
+      ...config.dashboard,
+      chartSeries,
+      ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
+      ...(options?.chartType !== undefined && { chartType: options.chartType }),
+    };
+    const dashboard =
+      nextType === 'cards'
+        ? {
+            ...baseDash,
+            cards: chartSeriesToDashboardCards(chartSeries),
+            cardsCount: chartSeries.length,
+          }
+        : baseDash;
     onSaveConfig({
       ...config,
-      dashboard: {
-        ...config.dashboard,
-        chartSeries,
-        ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
-        ...(options?.chartType !== undefined && { chartType: options.chartType }),
-      },
+      dashboard,
     });
     setIsEditingSeries(false);
   };
@@ -159,6 +209,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
               refreshKey={dashboardRefreshKey}
               onEditCards={() => setIsEditingCards(true)}
               onEditSeries={() => setIsEditingSeries(true)}
+              onSwitchToCharts={
+                config.dashboard.dashboardType === 'cards' ? handleSwitchDashboardToCharts : undefined
+              }
               onCardClick={handleDashboardCardClick}
               selectedCardId={selectedCardId}
               onSeriesClick={handleDashboardSeriesClick}
@@ -213,6 +266,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
         listTitle={config.dataSource.title}
         cards={config.dashboard.cards}
         cardsCount={config.dashboard.cardsCount}
+        dashboardType={config.dashboard.dashboardType}
+        chartType={config.dashboard.chartType}
         onSave={handleSaveCards}
         onDismiss={() => setIsEditingCards(false)}
       />

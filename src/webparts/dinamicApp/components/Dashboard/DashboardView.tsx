@@ -15,6 +15,7 @@ interface IDashboardViewProps {
   refreshKey?: number;
   onEditCards: () => void;
   onEditSeries: () => void;
+  onSwitchToCharts?: () => void;
   onCardClick?: (card: IDashboardCardConfig) => void;
   selectedCardId?: string | null;
   onSeriesClick?: (series: IChartSeriesConfig) => void;
@@ -29,6 +30,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   refreshKey = 0,
   onEditCards,
   onEditSeries,
+  onSwitchToCharts,
   onCardClick,
   selectedCardId,
   onSeriesClick,
@@ -104,13 +106,24 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         >
           Dashboard
         </Text>
-        <ActionButton
-          iconProps={{ iconName: 'Edit' }}
-          onClick={onEditCards}
-          styles={{ root: { height: 28, color: '#0078d4' } }}
-        >
-          Editar cards
-        </ActionButton>
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }}>
+          {onSwitchToCharts !== undefined && (
+            <ActionButton
+              iconProps={{ iconName: 'BarChartVertical' }}
+              onClick={onSwitchToCharts}
+              styles={{ root: { height: 28, color: '#0078d4' } }}
+            >
+              Gráficos
+            </ActionButton>
+          )}
+          <ActionButton
+            iconProps={{ iconName: 'Edit' }}
+            onClick={onEditCards}
+            styles={{ root: { height: 28, color: '#0078d4' } }}
+          >
+            Editar cards
+          </ActionButton>
+        </Stack>
       </Stack>
 
       {globalError !== undefined && (
