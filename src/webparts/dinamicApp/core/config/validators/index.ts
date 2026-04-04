@@ -7,6 +7,7 @@ import {
   IProjectManagementConfig,
   IPaginationConfig,
   IListViewConfig,
+  IListRowActionConfig,
   IPdfTemplateConfig,
   IPdfTemplateElement,
 } from '../types';
@@ -101,6 +102,36 @@ function isValidListView(lv: unknown): lv is IListViewConfig {
   return true;
 }
 
+function sanitizeListRowActions(raw: unknown): IListRowActionConfig[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const presets = new Set(['view', 'edit', 'link', 'custom']);
+  const out: IListRowActionConfig[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const entry = raw[i];
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const id = typeof e.id === 'string' ? e.id.trim() : '';
+    const title = typeof e.title === 'string' ? e.title.trim() : '';
+    const urlTemplate = typeof e.urlTemplate === 'string' ? e.urlTemplate.trim() : '';
+    if (!id || !title || !urlTemplate) continue;
+    const iconKey = typeof e.iconPreset === 'string' ? e.iconPreset : 'link';
+    const iconPreset = presets.has(iconKey) ? (iconKey as IListRowActionConfig['iconPreset']) : 'link';
+    const scope = e.scope === 'wholeRow' ? 'wholeRow' : 'icon';
+    const customIconName =
+      typeof e.customIconName === 'string' && e.customIconName.trim() ? e.customIconName.trim() : undefined;
+    out.push({
+      id,
+      title,
+      iconPreset,
+      ...(customIconName ? { customIconName } : {}),
+      urlTemplate,
+      openInNewTab: e.openInNewTab === true,
+      scope,
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 function sanitizeProjectManagementConfig(raw: unknown): IProjectManagementConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const src = raw as Record<string, unknown>;
@@ -193,6 +224,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     const lv = c.listView;
     const cssSlots = sanitizeTableCssSlots(lv.customTableCssSlots);
     const rowRules = sanitizeTableRowStyleRules(lv.tableRowStyleRules);
+    const listRowActions = sanitizeListRowActions(lv.listRowActions);
     return {
       ...c,
       listView: {
@@ -202,9 +234,11 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         viewModes: lv.viewModes ?? defaults.listView.viewModes,
         activeViewModeId: lv.activeViewModeId ?? defaults.listView.activeViewModeId,
         pdfExportEnabled: lv.pdfExportEnabled ?? false,
+        ...(lv.listCardViewEnabled === true ? { listCardViewEnabled: true } : {}),
         ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
         ...(typeof lv.customTableCss === 'string' ? { customTableCss: lv.customTableCss } : {}),
         ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
+        ...(listRowActions ? { listRowActions } : {}),
       },
       projectManagement: projectManagement ?? defaults.projectManagement,
       ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),

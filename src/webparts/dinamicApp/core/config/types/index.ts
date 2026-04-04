@@ -176,6 +176,23 @@ export interface ITableRowStyleRule {
   rowCss: string;
 }
 
+export type TListRowActionIconPreset = 'view' | 'edit' | 'link' | 'custom';
+
+/** `icon` = só o botão; `wholeRow` = linha da tabela ou card inteiro também abre a URL desta ação. */
+export type TListRowActionScope = 'icon' | 'wholeRow';
+
+export interface IListRowActionConfig {
+  id: string;
+  title: string;
+  iconPreset: TListRowActionIconPreset;
+  /** Quando iconPreset é custom, nome do ícone Fluent (ex.: Mail, Share). */
+  customIconName?: string;
+  /** URL com `{Campo}` ou `{Lookup/Campo}` e tokens dinâmicos [me], [siteurl], etc. */
+  urlTemplate: string;
+  openInNewTab?: boolean;
+  scope: TListRowActionScope;
+}
+
 export interface IListViewConfig {
   columns: IListViewColumnConfig[];
   filters: IListViewFilterConfig[];
@@ -183,12 +200,16 @@ export interface IListViewConfig {
   viewModes?: IListViewModeConfig[];
   activeViewModeId?: string;
   pdfExportEnabled?: boolean;
+  /** Quando true, a lista exibe alternância Tabela / Cards na barra de ferramentas. */
+  listCardViewEnabled?: boolean;
   /** Declarações CSS por região da tabela (aba Layout); cada bloco é aplicado à classe correspondente. */
   customTableCssSlots?: ITableLayoutCssSlots;
   /** CSS livre (regras completas, seletores combinados, [data-field], etc.). */
   customTableCss?: string;
   /** Estilo condicional por linha conforme valor de coluna (aba Layout → Regras). */
   tableRowStyleRules?: ITableRowStyleRule[];
+  /** Ações por item (ícones e/ou clique na linha/card). Configurado na aba Ações do painel. */
+  listRowActions?: IListRowActionConfig[];
 }
 
 // ─── Project management ─────────────────────────────────────────────────────

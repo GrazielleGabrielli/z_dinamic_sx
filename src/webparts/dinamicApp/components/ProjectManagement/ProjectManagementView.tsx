@@ -8,7 +8,7 @@ import type {
   IListViewFilterConfig,
   IProjectManagementColumnConfig,
 } from '../../core/config/types';
-import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
+import { buildListFilter, getActiveViewModeFilters, isNoteFieldPath } from '../../core/listView';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { FieldsService, ItemsService, UsersService } from '../../../../services';
@@ -137,14 +137,17 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ c
         const selectExpand = buildSelectExpand(listView.columns, ruleFields);
         const listViewWithMode = { ...listView, activeViewModeId: listView.activeViewModeId ?? listView.viewModes?.[0]?.id ?? 'all' };
         const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
-        const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext });
+        const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext, fieldsMetadata: fieldMetadata });
         const dashboardFilterStr =
           dashboardListFilters && dashboardListFilters.length > 0
-            ? buildListFilter(dashboardListFilters, { dynamicContext })
+            ? buildListFilter(dashboardListFilters, { dynamicContext, fieldsMetadata: fieldMetadata })
             : undefined;
         const filterParts = [viewModeFilterStr, dashboardFilterStr].filter(Boolean);
         const filter = filterParts.length > 0 ? filterParts.join(' and ') : undefined;
-        const orderBy = listView.sort?.field ? { field: listView.sort.field, ascending: listView.sort.ascending } : undefined;
+        const orderBy =
+          listView.sort?.field && !isNoteFieldPath(listView.sort.field, fieldMetadata)
+            ? { field: listView.sort.field, ascending: listView.sort.ascending }
+            : undefined;
         return itemsService.getItems<Record<string, unknown>>(listTitle, {
           select: selectExpand.select,
           expand: selectExpand.expand.length > 0 ? selectExpand.expand : undefined,

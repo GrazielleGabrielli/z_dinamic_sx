@@ -50,6 +50,19 @@ export class TableEngine {
   }
 
   buildSort(sortConfig: ISortConfig | null | undefined): { field: string; ascending: boolean } | undefined {
+    if (!sortConfig?.field) return undefined;
+    const cols = this._config?.columns ?? [];
+    const field = sortConfig.field;
+    let blocked = false;
+    for (let i = 0; i < cols.length; i++) {
+      const c = cols[i];
+      const prefix = c.internalName + '/';
+      if (field === c.internalName || field.indexOf(prefix) === 0) {
+        if (!c.sortable) blocked = true;
+        break;
+      }
+    }
+    if (blocked) return undefined;
     return buildOrderBy(sortConfig);
   }
 

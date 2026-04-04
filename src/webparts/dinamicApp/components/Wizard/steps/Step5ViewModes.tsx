@@ -15,6 +15,7 @@ import {
 import { FieldsService } from '../../../../../services';
 import type { IFieldMetadata } from '../../../../../services';
 import type { IListViewModeConfig, IListViewFilterConfig, TFilterOperator } from '../../../core/config/types';
+import { isNoteFieldMeta } from '../../../core/listView';
 import { IWizardFormState } from '../types';
 
 const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
@@ -31,7 +32,8 @@ function buildExpandOptionsFromLookupList(fields: IFieldMetadata[]): IDropdownOp
     (f) =>
       SIMPLE_FIELD_TYPES.indexOf(f.MappedType) !== -1 &&
       f.InternalName !== 'Id' &&
-      f.InternalName !== 'Title'
+      f.InternalName !== 'Title' &&
+      !isNoteFieldMeta(f)
   );
   const options: IDropdownOption[] = [
     { key: 'Id', text: 'Id' },
@@ -103,6 +105,7 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, onChang
     const rest: IDropdownOption[] = [];
     for (let i = 0; i < listFields.length; i++) {
       const f = listFields[i];
+      if (isNoteFieldMeta(f)) continue;
       if (EXPANDABLE.indexOf(f.MappedType) === -1) {
         rest.push({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` });
       } else {

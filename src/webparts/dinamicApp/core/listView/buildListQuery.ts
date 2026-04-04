@@ -1,6 +1,8 @@
+import type { IFieldMetadata } from '../../../../services/shared/types';
 import { IListViewConfig, IListViewFilterConfig, TFilterOperator } from '../config/types';
 import type { IDynamicContext } from '../dynamicTokens/types';
 import { resolveObjectTokens } from '../dynamicTokens';
+import { isNoteFieldPath } from './fieldQueryRestrictions';
 
 const NUMERIC_OPERATORS: TFilterOperator[] = ['gt', 'lt', 'ge', 'le'];
 const ODATA_OPERATORS: TFilterOperator[] = ['eq', 'ne', 'gt', 'lt', 'ge', 'le', 'contains'];
@@ -43,6 +45,7 @@ function buildFilterSegment(f: IListViewFilterConfig): string {
 export interface IBuildListFilterOptions {
   replaceMe?: string | number;
   dynamicContext?: IDynamicContext;
+  fieldsMetadata?: IFieldMetadata[];
 }
 
 export function buildListFilter(
@@ -65,7 +68,9 @@ export function buildListFilter(
     });
   }
   const segments = resolved
-    .map((f) => buildFilterSegment(f))
+    .map((f) =>
+      options?.fieldsMetadata?.length && isNoteFieldPath(f.field, options.fieldsMetadata) ? '' : buildFilterSegment(f)
+    )
     .filter((s) => s.length > 0);
   if (segments.length === 0) return undefined;
   return segments.join(' and ');
@@ -112,6 +117,7 @@ export interface IListQueryOptions {
 export interface IBuildListQueryOptions {
   replaceMe?: string | number;
   dynamicContext?: IDynamicContext;
+  fieldsMetadata?: IFieldMetadata[];
 }
 
 export function buildListQuery(
@@ -124,10 +130,15 @@ export function buildListQuery(
   const filter = buildListFilter(viewModeFilters, {
     replaceMe: options?.replaceMe,
     dynamicContext: options?.dynamicContext,
+    fieldsMetadata: options?.fieldsMetadata,
   });
+  const sortField = listView.sort?.field;
+  const orderByBlocked =
+    !sortField ||
+    (options?.fieldsMetadata?.length && isNoteFieldPath(sortField, options.fieldsMetadata));
   const orderBy =
-    listView.sort && listView.sort.field
-      ? { field: listView.sort.field, ascending: listView.sort.ascending }
+    listView.sort && sortField && !orderByBlocked
+      ? { field: sortField, ascending: listView.sort.ascending }
       : undefined;
 
   return { select, expand: expand.length ? expand : undefined, filter, orderBy };

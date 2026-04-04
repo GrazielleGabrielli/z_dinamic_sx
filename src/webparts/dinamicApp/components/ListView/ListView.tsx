@@ -144,8 +144,8 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
   );
 
   const queryOptions = useMemo(
-    () => buildListQuery(effectiveListView, { dynamicContext }),
-    [effectiveListView, dynamicContext]
+    () => buildListQuery(effectiveListView, { dynamicContext, fieldsMetadata: listFieldMetadata }),
+    [effectiveListView, dynamicContext, listFieldMetadata]
   );
 
   useEffect(() => {

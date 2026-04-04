@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Stack, Dropdown, IDropdownOption, ActionButton } from '@fluentui/react';
+import { Stack, Dropdown, IDropdownOption, ActionButton, ChoiceGroup, IChoiceGroupOption } from '@fluentui/react';
 import { IDynamicViewConfig, IListViewFilterConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
@@ -9,6 +9,7 @@ import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens'
 import { generateAndDownloadPdf } from '../../core/pdf';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { DataTable } from './DataTable';
+import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss } from './tableLayoutClasses';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
@@ -68,10 +69,16 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   );
   const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
   const [dynamicContext, setDynamicContext] = useState<IDynamicContext | undefined>(undefined);
+  const [listDisplayMode, setListDisplayMode] = useState<'table' | 'cards'>('table');
+  const listCardViewEnabled = listView?.listCardViewEnabled === true;
 
   useEffect(() => {
     setSelectedViewModeId(listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all');
   }, [listView?.activeViewModeId, listView?.viewModes]);
+
+  useEffect(() => {
+    if (!listCardViewEnabled) setListDisplayMode('table');
+  }, [listCardViewEnabled]);
 
   useEffect(() => {
     setSkip(0);
@@ -118,7 +125,21 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
     if (!fieldMetadata) return;
     const normalized = engine.normalizeTableConfig(initialTableConfig, fieldMetadata);
     setTableConfig(normalized);
-    if (normalized.defaultSort && !sortConfig) setSortConfig(normalized.defaultSort);
+    setSortConfig((prev) => {
+      if (prev?.field) {
+        const field = prev.field;
+        for (let i = 0; i < normalized.columns.length; i++) {
+          const c = normalized.columns[i];
+          const prefix = c.internalName + '/';
+          if (field === c.internalName || field.indexOf(prefix) === 0) {
+            if (!c.sortable) return normalized.defaultSort ?? null;
+            break;
+          }
+        }
+      }
+      if (prev) return prev;
+      return normalized.defaultSort ?? null;
+    });
   }, [fieldMetadata, initialTableConfig]);
 
   const effectiveSort = sortConfig ?? tableConfig?.defaultSort ?? null;
@@ -137,10 +158,10 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
     const columnFilterStr = buildColumnFilterString(columnFilters);
     const listViewWithMode = { ...listView, activeViewModeId: selectedViewModeId };
     const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
-    const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext });
+    const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext, fieldsMetadata: fieldMetadata });
     const dashboardFilterStr =
       dashboardListFilters && dashboardListFilters.length > 0
-        ? buildListFilter(dashboardListFilters, { dynamicContext })
+        ? buildListFilter(dashboardListFilters, { dynamicContext, fieldsMetadata: fieldMetadata })
         : undefined;
     const filterParts = [viewModeFilterStr, dashboardFilterStr, columnFilterStr].filter(Boolean);
     const combinedFilter = filterParts.length > 0 ? filterParts.join(' and ') : undefined;
@@ -280,6 +301,14 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   const viewModes = listView?.viewModes ?? [];
   const viewModeOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
 
+  const listPresentationOptions: IChoiceGroupOption[] = useMemo(
+    () => [
+      { key: 'table', text: 'Tabela', iconProps: { iconName: 'Table' } },
+      { key: 'cards', text: 'Cards', iconProps: { iconName: 'Tiles' } },
+    ],
+    []
+  );
+
   const mergedTableCss = mergeCustomTableCss(listView?.customTableCssSlots, listView?.customTableCss);
   const rowRulesCss = mergeRowStyleRulesCss(listView?.tableRowStyleRules);
   const instanceScopeClass = `dinamicSxScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
@@ -287,6 +316,9 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
   const tableCustomStyle =
     mergedLayoutCss.length > 0 ? <style type="text/css">{mergedLayoutCss}</style> : null;
+
+  const actionContext = dynamicContext ?? { now: new Date() };
+  const listRowActions = listView?.listRowActions;
 
   if (!tableConfig) {
     return (
@@ -300,6 +332,8 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
           onSort={handleSort}
           engine={engine}
           rowStyleRules={listView?.tableRowStyleRules}
+          rowActions={listRowActions}
+          dynamicContext={actionContext}
         />
       </>
     );
@@ -323,7 +357,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
       styles={{ root: { marginTop: 8 } }}
     >
       {tableCustomStyle}
-      {(viewModeOptions.length > 0 || showPdfButton) && (
+      {(viewModeOptions.length > 0 || showPdfButton || listCardViewEnabled) && (
         <Stack
           className={DINAMIC_SX_TABLE_CLASS.toolbar}
           horizontal
@@ -342,6 +376,15 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
               styles={{ root: { maxWidth: 220 } }}
             />
           )}
+          {listCardViewEnabled && (
+            <ChoiceGroup
+              label="Apresentação"
+              selectedKey={listDisplayMode}
+              options={listPresentationOptions}
+              onChange={(_, opt) => opt && setListDisplayMode(opt.key as 'table' | 'cards')}
+              styles={{ flexContainer: { display: 'flex', flexWrap: 'wrap', columnGap: '12px', rowGap: '4px' } }}
+            />
+          )}
           {showPdfButton && (
             <ActionButton
               iconProps={{ iconName: 'PDF' }}
@@ -352,18 +395,39 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
           )}
         </Stack>
       )}
-      <DataTable
-        config={tableConfig}
-        items={items}
-        loading={loading}
-        error={error}
-        sortConfig={effectiveSort}
-        onSort={handleSort}
-        columnFilters={columnFilters}
-        onColumnFilter={handleColumnFilter}
-        engine={engine}
-        rowStyleRules={listView?.tableRowStyleRules}
-      />
+      {listDisplayMode === 'cards' && listCardViewEnabled ? (
+        <ListItemsCardGrid
+          columns={engine.getVisibleColumns(tableConfig)}
+          items={items}
+          loading={loading}
+          error={error}
+          emptyMessage={tableConfig.emptyMessage ?? 'Nenhum item encontrado.'}
+          engine={engine}
+          sortConfig={effectiveSort}
+          onSort={handleSort}
+          tableSortable={tableConfig.sortable}
+          columnFilters={columnFilters}
+          onColumnFilter={handleColumnFilter}
+          dense={tableConfig.dense}
+          rowActions={listRowActions}
+          dynamicContext={actionContext}
+        />
+      ) : (
+        <DataTable
+          config={tableConfig}
+          items={items}
+          loading={loading}
+          error={error}
+          sortConfig={effectiveSort}
+          onSort={handleSort}
+          columnFilters={columnFilters}
+          onColumnFilter={handleColumnFilter}
+          engine={engine}
+          rowStyleRules={listView?.tableRowStyleRules}
+          rowActions={listRowActions}
+          dynamicContext={actionContext}
+        />
+      )}
       {paginationBar}
     </Stack>
   );

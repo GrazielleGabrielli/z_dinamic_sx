@@ -30,6 +30,7 @@ export function getDefaultConfig(): IDynamicViewConfig {
         { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
       ],
       activeViewModeId: 'all',
+      listCardViewEnabled: false,
     },
     projectManagement: {
       columns: [],

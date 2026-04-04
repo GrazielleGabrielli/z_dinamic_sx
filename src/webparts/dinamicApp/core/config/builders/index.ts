@@ -38,9 +38,11 @@ export function buildConfig(params: {
       viewModes: params.listView?.viewModes ?? defaults.listView.viewModes,
       activeViewModeId: params.listView?.activeViewModeId ?? defaults.listView.activeViewModeId,
       pdfExportEnabled: params.listView?.pdfExportEnabled ?? defaults.listView.pdfExportEnabled,
+      listCardViewEnabled: params.listView?.listCardViewEnabled ?? defaults.listView.listCardViewEnabled ?? false,
       customTableCssSlots: params.listView?.customTableCssSlots ?? defaults.listView.customTableCssSlots,
       customTableCss: params.listView?.customTableCss ?? defaults.listView.customTableCss,
       tableRowStyleRules: params.listView?.tableRowStyleRules ?? defaults.listView.tableRowStyleRules,
+      ...(params.listView?.listRowActions?.length ? { listRowActions: params.listView.listRowActions } : {}),
     },
     projectManagement: params.projectManagement ?? defaults.projectManagement,
   };

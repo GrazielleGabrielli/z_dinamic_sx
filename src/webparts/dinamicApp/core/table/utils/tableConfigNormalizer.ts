@@ -32,7 +32,8 @@ export function normalizeColumnConfig(
     : undefined);
 
   const nonSortableMulti = fieldType === 'lookupMulti' || fieldType === 'userMulti';
-  const sortable = nonSortableMulti ? false : (column.sortable ?? defaultSortable(fieldType));
+  const nonSortableNote = fieldType === 'note';
+  const sortable = nonSortableMulti || nonSortableNote ? false : (column.sortable ?? defaultSortable(fieldType));
 
   return {
     id: column.id ?? internalName,
@@ -62,11 +63,26 @@ export function normalizeTableConfig(
     normalizeColumnConfig(c, byName.get(c.internalName ?? c.id ?? ''))
   );
 
+  let defaultSort = config.defaultSort;
+  if (defaultSort?.field) {
+    const root = defaultSort.field.split('/')[0];
+    let colForSort: ITableColumnConfig | undefined;
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i].internalName === root) {
+        colForSort = columns[i];
+        break;
+      }
+    }
+    if (colForSort && !colForSort.sortable) {
+      defaultSort = undefined;
+    }
+  }
+
   return {
     enabled: config.enabled !== false,
     columns,
     sortable: config.sortable !== false,
-    defaultSort: config.defaultSort,
+    defaultSort,
     allowColumnToggle: config.allowColumnToggle,
     allowColumnReorder: config.allowColumnReorder,
     stickyHeader: config.stickyHeader,

@@ -12,6 +12,8 @@ export interface ITableHeaderProps {
   columnFilters?: Record<string, string>;
   onColumnFilter?: (field: string, value: string) => void;
   onOpenFilter?: (field: string, target: HTMLElement) => void;
+  showActionsColumn?: boolean;
+  actionsColumnLabel?: string;
 }
 
 export const TableHeader: React.FC<ITableHeaderProps> = ({
@@ -21,6 +23,8 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
   tableSortable,
   onColumnFilter,
   onOpenFilter,
+  showActionsColumn,
+  actionsColumnLabel,
 }) => {
   const handleSortClick = (col: ITableColumnConfig, ev: React.MouseEvent<unknown>): void => {
     ev.stopPropagation();
@@ -91,6 +95,22 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
             </span>
           </th>
         ))}
+        {showActionsColumn ? (
+          <th
+            className={DINAMIC_SX_TABLE_CLASS.headerCell}
+            data-field="__actions"
+            style={{
+              textAlign: 'right',
+              width: 1,
+              padding: '8px 12px',
+              borderBottom: '1px solid #edebe9',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {actionsColumnLabel ?? 'Ações'}
+          </th>
+        ) : null}
       </tr>
     </thead>
   );

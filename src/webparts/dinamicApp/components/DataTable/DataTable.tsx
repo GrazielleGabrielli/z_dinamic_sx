@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Callout, Stack, TextField, PrimaryButton } from '@fluentui/react';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
-import type { ITableRowStyleRule } from '../../core/config/types';
+import type { IListRowActionConfig, ITableRowStyleRule } from '../../core/config/types';
+import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { TableHeader } from './TableHeader';
 import { TableRow } from './TableRow';
 import { TableEmptyState } from './TableEmptyState';
@@ -22,6 +23,8 @@ export interface IDataTableProps {
   onColumnFilter?: (field: string, value: string) => void;
   engine: TableEngine;
   rowStyleRules?: ITableRowStyleRule[];
+  rowActions?: IListRowActionConfig[];
+  dynamicContext?: IDynamicContext;
 }
 
 export const DataTable: React.FC<IDataTableProps> = ({
@@ -35,8 +38,12 @@ export const DataTable: React.FC<IDataTableProps> = ({
   onColumnFilter,
   engine,
   rowStyleRules,
+  rowActions,
+  dynamicContext,
 }) => {
   const columns = engine.getVisibleColumns(config);
+  const actionContext: IDynamicContext = dynamicContext ?? { now: new Date() };
+  const showActionsColumn = Boolean(rowActions && rowActions.length > 0);
   const [filterColumn, setFilterColumn] = useState<string | null>(null);
   const [filterTarget, setFilterTarget] = useState<HTMLElement | null>(null);
   const [filterInputValue, setFilterInputValue] = useState('');
@@ -79,6 +86,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
           columnFilters={columnFilters}
           onColumnFilter={onColumnFilter}
           onOpenFilter={handleOpenFilter}
+          showActionsColumn={showActionsColumn}
         />
         <tbody className={DINAMIC_SX_TABLE_CLASS.body}>
           {items.map((item, idx) => (
@@ -88,6 +96,8 @@ export const DataTable: React.FC<IDataTableProps> = ({
               columns={columns}
               engine={engine}
               rowStyleRules={rowStyleRules}
+              rowActions={rowActions}
+              dynamicContext={actionContext}
             />
           ))}
         </tbody>

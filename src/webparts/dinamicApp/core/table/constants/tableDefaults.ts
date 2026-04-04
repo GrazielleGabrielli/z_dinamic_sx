@@ -18,7 +18,6 @@ export const ALIGN_BY_FIELD_TYPE: Partial<Record<InternalFieldType, TTableColumn
 
 export const SORTABLE_BY_DEFAULT: InternalFieldType[] = [
   'text',
-  'note',
   'number',
   'currency',
   'date',

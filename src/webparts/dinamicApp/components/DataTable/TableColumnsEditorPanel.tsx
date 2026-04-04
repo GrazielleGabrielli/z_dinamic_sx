@@ -36,7 +36,9 @@ import type {
   IListViewFilterConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
+  IListRowActionConfig,
   ITableRowStyleRule,
+  TListRowActionIconPreset,
   TTableRowRuleOperator,
   TPaginationLayout,
   TFilterOperator,
@@ -49,6 +51,7 @@ import {
   mergeCustomTableCss,
   mergeRowStyleRulesCss,
 } from './tableLayoutClasses';
+import { isNoteFieldMeta } from '../../core/listView';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
 
@@ -123,7 +126,8 @@ function buildExpandOptionsFromLookupList(fields: IFieldMetadata[]): IDropdownOp
     (f) =>
       SIMPLE_FIELD_TYPES.indexOf(f.MappedType) !== -1 &&
       f.InternalName !== 'Id' &&
-      f.InternalName !== 'Title'
+      f.InternalName !== 'Title' &&
+      !isNoteFieldMeta(f)
   );
   const options: IDropdownOption[] = [
     { key: 'Id', text: 'Id' },
@@ -150,6 +154,18 @@ const ROW_STYLE_RULE_OPERATORS: { key: TTableRowRuleOperator; text: string }[] =
   { key: 'endsWith', text: 'Termina com' },
   { key: 'empty', text: 'Está vazio' },
   { key: 'notEmpty', text: 'Não está vazio' },
+];
+
+const LIST_ROW_ICON_PRESET_OPTIONS: IDropdownOption[] = [
+  { key: 'view', text: 'Ver (olho)' },
+  { key: 'edit', text: 'Editar' },
+  { key: 'link', text: 'Link' },
+  { key: 'custom', text: 'Personalizado (nome Fluent)' },
+];
+
+const LIST_ROW_SCOPE_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'icon', text: 'Somente ícone' },
+  { key: 'wholeRow', text: 'Linha ou card inteiro' },
 ];
 
 const VIEW_MODE_OPERATORS: IDropdownOption[] = [
@@ -225,6 +241,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [pageSize, setPageSize] = useState(pagination.pageSize);
   const [paginationLayout, setPaginationLayout] = useState<TPaginationLayout>(pagination.layout ?? 'buttons');
   const [pdfExportEnabled, setPdfExportEnabled] = useState(listView.pdfExportEnabled ?? false);
+  const [listCardViewEnabled, setListCardViewEnabled] = useState(listView.listCardViewEnabled ?? false);
   const [layoutCssText, setLayoutCssText] = useState<string>(
     mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss)
   );
@@ -235,6 +252,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [rowStyleRules, setRowStyleRules] = useState<ITableRowStyleRule[]>(() => [
     ...(listView.tableRowStyleRules ?? []),
   ]);
+  const [rowActions, setRowActions] = useState<IListRowActionConfig[]>(() => [...(listView.listRowActions ?? [])]);
   const layoutPreviewCss = useMemo(() => {
     const layout = layoutCssText.trim();
     const rules = mergeRowStyleRulesCss(rowStyleRules).trim();
@@ -309,9 +327,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setActiveViewModeId(listView.activeViewModeId ?? 'all');
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
+    setListCardViewEnabled(listView.listCardViewEnabled ?? false);
     setLayoutCssText(mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss));
     setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
+    setRowActions([...(listView.listRowActions ?? [])]);
     setRuleColorMap({});
     setLayoutSubTab('geral');
   }, [isOpen, listView, pagination, pdfTemplate, projectManagement]);
@@ -348,6 +368,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     const rest: IDropdownOption[] = [];
     for (let i = 0; i < options.length; i++) {
       const o = options[i];
+      if (isNoteFieldMeta(o.meta)) continue;
       if (EXPANDABLE.indexOf(o.meta.MappedType) === -1) {
         rest.push({ key: o.meta.InternalName, text: `${o.meta.Title} (${o.meta.InternalName})` });
       } else {
@@ -479,6 +500,30 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const removeRowStyleRule = (index: number): void => {
     setRowStyleRules((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const addListRowAction = (): void => {
+    setRowActions((prev) => [
+      ...prev,
+      {
+        id: `act_${Date.now()}`,
+        title: 'Abrir',
+        iconPreset: 'view',
+        urlTemplate: '',
+        scope: 'icon',
+      },
+    ]);
+  };
+  const updateListRowAction = (index: number, part: Partial<IListRowActionConfig>): void => {
+    setRowActions((prev) => {
+      const next = prev.slice();
+      if (next[index]) next[index] = { ...next[index], ...part };
+      return next;
+    });
+  };
+  const removeListRowAction = (index: number): void => {
+    setRowActions((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const appendLayoutCssColor = (property: 'background' | 'color' | 'border-color'): void => {
     const line = `${property}: ${layoutColor};`;
     setLayoutCssText((prev) => {
@@ -559,6 +604,29 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         rowCss,
       });
     }
+    const nextListRowActions: IListRowActionConfig[] = [];
+    for (let i = 0; i < rowActions.length; i++) {
+      const a = rowActions[i];
+      const title = a.title.trim();
+      const urlTemplate = a.urlTemplate.trim();
+      const id = (a.id || '').trim() || `act_${Date.now()}_${i}`;
+      if (!title || !urlTemplate) continue;
+      const iconPreset: TListRowActionIconPreset =
+        a.iconPreset === 'view' || a.iconPreset === 'edit' || a.iconPreset === 'link' || a.iconPreset === 'custom'
+          ? a.iconPreset
+          : 'link';
+      const custom =
+        iconPreset === 'custom' && (a.customIconName ?? '').trim() ? { customIconName: (a.customIconName ?? '').trim() } : {};
+      nextListRowActions.push({
+        id,
+        title,
+        iconPreset,
+        ...custom,
+        urlTemplate,
+        openInNewTab: a.openInNewTab === true,
+        scope: a.scope === 'wholeRow' ? 'wholeRow' : 'icon',
+      });
+    }
     onSave(
       {
         ...listView,
@@ -566,9 +634,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         viewModes,
         activeViewModeId,
         pdfExportEnabled,
+        listCardViewEnabled,
         customTableCssSlots: undefined,
         ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
         ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
+        ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
       },
       nextPagination,
       localPdfTemplate,
@@ -854,6 +924,17 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   {viewModeEditingId === null && <DefaultButton text="Adicionar modo de visualização" onClick={startViewModeAdd} />}
                 </Stack>
 
+                <Stack tokens={{ childrenGap: 6 }}>
+                  <Checkbox
+                    label="Permitir visualização em cards na lista"
+                    checked={listCardViewEnabled}
+                    onChange={(_, v) => setListCardViewEnabled(!!v)}
+                  />
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Exibe na lista a opção Tabela ou Cards (mesmas colunas em grade de cartões).
+                  </Text>
+                </Stack>
+
                 <Separator />
               </>
             )}
@@ -912,6 +993,96 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
             ))}
                 </Stack>
               </PivotItem>
+              {mode !== 'projectManagement' ? (
+                <PivotItem itemKey="acoes" headerText="Ações">
+                  <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
+                    <Text
+                      variant="small"
+                      block
+                      styles={{
+                        root: {
+                          display: 'block',
+                          color: '#605e5c',
+                          lineHeight: 1.55,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word',
+                        },
+                      }}
+                    >
+                      {
+                        'Botões por item na tabela e nos cards. Opcionalmente a linha ou o card inteiro abre a URL da ação marcada como "Linha ou card inteiro" (usa a primeira ação assim na lista). ' +
+                        'Campos: {{ID}}, {{ Title }} (duplas chaves), {Id}, {Title}; lookup {Autor/Title}; tokens [me], [siteurl], [query:chave], etc.'
+                      }
+                    </Text>
+                    {rowActions.map((act, ai) => (
+                      <Stack
+                        key={act.id}
+                        tokens={{ childrenGap: 10 }}
+                        styles={{
+                          root: {
+                            padding: 14,
+                            background: '#faf9f8',
+                            borderRadius: 8,
+                            border: '1px solid #edebe9',
+                            maxWidth: '100%',
+                          },
+                        }}
+                      >
+                        <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                          <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                            Ação {ai + 1}
+                          </Text>
+                          <IconButton iconProps={{ iconName: 'Delete' }} title="Remover" ariaLabel="Remover ação" onClick={() => removeListRowAction(ai)} />
+                        </Stack>
+                        <TextField label="Título (tooltip)" value={act.title} onChange={(_, v) => updateListRowAction(ai, { title: v ?? '' })} styles={{ root: { maxWidth: '100%' } }} />
+                        <Dropdown
+                          label="Ícone"
+                          selectedKey={act.iconPreset}
+                          options={LIST_ROW_ICON_PRESET_OPTIONS}
+                          onChange={(_, opt) =>
+                            opt && updateListRowAction(ai, { iconPreset: String(opt.key) as TListRowActionIconPreset })
+                          }
+                          styles={{ root: { maxWidth: 320 } }}
+                        />
+                        {act.iconPreset === 'custom' && (
+                          <TextField
+                            label="Nome do ícone Fluent"
+                            value={act.customIconName ?? ''}
+                            onChange={(_, v) => updateListRowAction(ai, { customIconName: v ?? '' })}
+                            placeholder="Ex.: Mail, Share"
+                            styles={{ root: { maxWidth: '100%' } }}
+                          />
+                        )}
+                        <TextField
+                          label="URL"
+                          multiline
+                          resizable
+                          rows={3}
+                          value={act.urlTemplate}
+                          onChange={(_, v) => updateListRowAction(ai, { urlTemplate: v ?? '' })}
+                          placeholder="https://...?Form={{ID}} ou ?id={Id}"
+                          styles={{ root: { maxWidth: '100%' } }}
+                        />
+                        <Checkbox
+                          label="Abrir em nova aba"
+                          checked={act.openInNewTab === true}
+                          onChange={(_, v) => updateListRowAction(ai, { openInNewTab: !!v })}
+                        />
+                        <ChoiceGroup
+                          label="Clique"
+                          selectedKey={act.scope}
+                          options={LIST_ROW_SCOPE_OPTIONS}
+                          onChange={(_, opt) =>
+                            opt && updateListRowAction(ai, { scope: opt.key as IListRowActionConfig['scope'] })
+                          }
+                        />
+                      </Stack>
+                    ))}
+                    <DefaultButton text="Adicionar ação" iconProps={{ iconName: 'Add' }} onClick={addListRowAction} />
+                  </Stack>
+                </PivotItem>
+              ) : null}
               <PivotItem itemKey="pdf" headerText="PDF">
                 <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
                   <Checkbox
