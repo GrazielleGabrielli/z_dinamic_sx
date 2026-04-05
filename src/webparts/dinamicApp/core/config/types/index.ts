@@ -288,9 +288,41 @@ export interface IPdfTemplateConfig {
 /** Layout de colunas por seção (estilo página moderna). */
 export type TListPageSectionLayout = 'one' | 'two' | 'three' | 'oneThirdLeft' | 'oneThirdRight';
 
-export type TListPageBlockType = 'dashboard' | 'list' | 'banner' | 'editor';
+export type TListPageBlockType =
+  | 'dashboard'
+  | 'list'
+  | 'banner'
+  | 'editor'
+  | 'sectionTitle'
+  | 'alert';
 
 export type TListPageBannerContentAlign = 'left' | 'center' | 'right';
+
+export type TListPageSectionTitleSize = 'sm' | 'md' | 'lg';
+
+export interface IListPageSectionTitleBlockConfig {
+  title: string;
+  subtitle: string;
+  iconName: string;
+  align: TListPageBannerContentAlign;
+  showDivider: boolean;
+  size: TListPageSectionTitleSize;
+  marginTopPx: number;
+  marginBottomPx: number;
+}
+
+export type TListPageAlertVariant = 'info' | 'success' | 'warning' | 'error';
+
+export interface IListPageAlertBlockConfig {
+  title: string;
+  message: string;
+  variant: TListPageAlertVariant;
+  iconName: string;
+  dismissible: boolean;
+  emphasized: boolean;
+  linkUrl: string;
+  linkText: string;
+}
 
 export interface IListPageBannerBlockConfig {
   imageUrl: string;
@@ -329,6 +361,8 @@ export interface IListPageBlock {
   dashboard?: IDashboardConfig;
   banner?: IListPageBannerBlockConfig;
   editor?: IListPageRichEditorBlockConfig;
+  sectionTitle?: IListPageSectionTitleBlockConfig;
+  alert?: IListPageAlertBlockConfig;
 }
 
 export interface IListPageSection {

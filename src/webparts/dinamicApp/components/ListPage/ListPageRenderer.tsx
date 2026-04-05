@@ -13,8 +13,10 @@ import type {
 import { resolveDashboardForListBlock } from '../../core/listPage/listPageLayoutUtils';
 import { DashboardView } from '../Dashboard/DashboardView';
 import { TableView } from '../DataTable/TableView';
+import { ListPageAlertBlock } from './ListPageAlertBlock';
 import { ListPageBannerBlock } from './ListPageBannerBlock';
 import { ListPageRichEditorBlock } from './ListPageRichEditorBlock';
+import { ListPageSectionTitleBlock } from './ListPageSectionTitleBlock';
 
 export type TListPageDashboardListSelection = {
   blockId: string;
@@ -125,6 +127,32 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
         <ListPageRichEditorBlock
           key={block.id}
           editor={block.editor}
+          onConfigure={
+            onConfigureListContentBlock !== undefined
+              ? () => onConfigureListContentBlock(block.id)
+              : undefined
+          }
+        />
+      );
+    }
+    if (block.type === 'sectionTitle') {
+      return (
+        <ListPageSectionTitleBlock
+          key={block.id}
+          sectionTitle={block.sectionTitle}
+          onConfigure={
+            onConfigureListContentBlock !== undefined
+              ? () => onConfigureListContentBlock(block.id)
+              : undefined
+          }
+        />
+      );
+    }
+    if (block.type === 'alert') {
+      return (
+        <ListPageAlertBlock
+          key={block.id}
+          alert={block.alert}
           onConfigure={
             onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)

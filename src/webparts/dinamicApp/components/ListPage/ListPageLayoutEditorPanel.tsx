@@ -20,7 +20,12 @@ import type {
   TListPageBlockType,
   TListPageSectionLayout,
 } from '../../core/config/types';
-import { defaultBannerConfig, defaultRichEditorConfig } from '../../core/listPage/listPageBlockConfigUtils';
+import {
+  defaultAlertConfig,
+  defaultBannerConfig,
+  defaultRichEditorConfig,
+  defaultSectionTitleConfig,
+} from '../../core/listPage/listPageBlockConfigUtils';
 import {
   cloneDashboardConfig,
   columnCountForLayout,
@@ -51,16 +56,27 @@ const BLOCK_OPTIONS: IDropdownOption[] = [
   { key: 'list', text: 'Tabela / lista' },
   { key: 'banner', text: 'Banner' },
   { key: 'editor', text: 'Editor de conteúdo' },
+  { key: 'sectionTitle', text: 'Título de seção' },
+  { key: 'alert', text: 'Alerta / aviso' },
 ];
 
 function blockTypeLabel(type: TListPageBlockType): string {
   if (type === 'dashboard') return 'Dashboard';
   if (type === 'list') return 'Tabela / lista';
   if (type === 'banner') return 'Banner';
-  return 'Editor de conteúdo';
+  if (type === 'editor') return 'Editor de conteúdo';
+  if (type === 'sectionTitle') return 'Título de seção';
+  return 'Alerta / aviso';
 }
 
-const VALID_SAVE_BLOCK_TYPES: TListPageBlockType[] = ['dashboard', 'list', 'banner', 'editor'];
+const VALID_SAVE_BLOCK_TYPES: TListPageBlockType[] = [
+  'dashboard',
+  'list',
+  'banner',
+  'editor',
+  'sectionTitle',
+  'alert',
+];
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -77,6 +93,8 @@ function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
           if (b.dashboard) x.dashboard = cloneDashboardConfig(b.dashboard);
           if (b.banner) x.banner = { ...b.banner };
           if (b.editor) x.editor = { ...b.editor };
+          if (b.sectionTitle) x.sectionTitle = { ...b.sectionTitle };
+          if (b.alert) x.alert = { ...b.alert };
           return x;
         })
       ),
@@ -151,6 +169,10 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
           ? { id: newId('blk'), type: 'banner', banner: defaultBannerConfig() }
           : type === 'editor'
           ? { id: newId('blk'), type: 'editor', editor: defaultRichEditorConfig() }
+          : type === 'sectionTitle'
+          ? { id: newId('blk'), type: 'sectionTitle', sectionTitle: defaultSectionTitleConfig() }
+          : type === 'alert'
+          ? { id: newId('blk'), type: 'alert', alert: defaultAlertConfig() }
           : { id: newId('blk'), type: 'list' };
       cols[colIndex] = [...cols[colIndex], block];
       next[sectionIndex] = { ...sec, columns: cols };
@@ -255,9 +277,9 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     >
       <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 12, maxWidth: '100%' } }}>
         <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
-          Monte seções como em páginas modernas: colunas por seção e blocos (dashboard, tabela, banner ou
-          editor de conteúdo). Use a engrenagem para configurar banner e editor. Lista e dashboard usam os
-          botões da barra da página.
+          Monte seções como em páginas modernas: colunas por seção e blocos (dashboard, tabela, banner, editor,
+          título de seção ou alerta). Use a engrenagem para configurar esses blocos de conteúdo. Lista e
+          dashboard usam os botões da barra da página.
         </Text>
         {sections.map((sec, si) => (
           <Stack
@@ -325,7 +347,10 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
                   >
                     <Text variant="small">{blockTypeLabel(b.type)}</Text>
                     <Stack horizontal verticalAlign="center">
-                      {(b.type === 'banner' || b.type === 'editor') && (
+                      {(b.type === 'banner' ||
+                        b.type === 'editor' ||
+                        b.type === 'sectionTitle' ||
+                        b.type === 'alert') && (
                         <IconButton
                           iconProps={{ iconName: 'Settings' }}
                           title="Configurar bloco"

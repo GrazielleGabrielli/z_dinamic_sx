@@ -10,8 +10,10 @@ import type {
   TListPageSectionLayout,
 } from '../config/types';
 import {
+  sanitizeAlertConfig,
   sanitizeBannerConfig,
   sanitizeRichEditorConfig,
+  sanitizeSectionTitleConfig,
 } from './listPageBlockConfigUtils';
 
 export const LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID = 'legacy_dashboard';
@@ -278,7 +280,14 @@ export function getEffectiveListPageSections(config: IDynamicViewConfig): IListP
 }
 
 const VALID_LAYOUTS = new Set<string>(['one', 'two', 'three', 'oneThirdLeft', 'oneThirdRight']);
-const VALID_BLOCK_TYPES = new Set<string>(['dashboard', 'list', 'banner', 'editor']);
+const VALID_BLOCK_TYPES = new Set<string>([
+  'dashboard',
+  'list',
+  'banner',
+  'editor',
+  'sectionTitle',
+  'alert',
+]);
 
 export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -321,6 +330,22 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
               id: bid,
               type,
               editor: sanitizeRichEditorConfig(bb.editor),
+            });
+            continue;
+          }
+          if (type === 'sectionTitle') {
+            blocks.push({
+              id: bid,
+              type,
+              sectionTitle: sanitizeSectionTitleConfig(bb.sectionTitle),
+            });
+            continue;
+          }
+          if (type === 'alert') {
+            blocks.push({
+              id: bid,
+              type,
+              alert: sanitizeAlertConfig(bb.alert),
             });
             continue;
           }

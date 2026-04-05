@@ -1,7 +1,11 @@
 import type {
+  IListPageAlertBlockConfig,
   IListPageBannerBlockConfig,
   IListPageRichEditorBlockConfig,
+  IListPageSectionTitleBlockConfig,
+  TListPageAlertVariant,
   TListPageBannerContentAlign,
+  TListPageSectionTitleSize,
 } from '../config/types';
 
 export function defaultBannerConfig(): IListPageBannerBlockConfig {
@@ -36,7 +40,35 @@ export function defaultRichEditorConfig(): IListPageRichEditorBlockConfig {
   };
 }
 
+export function defaultSectionTitleConfig(): IListPageSectionTitleBlockConfig {
+  return {
+    title: '',
+    subtitle: '',
+    iconName: '',
+    align: 'left',
+    showDivider: true,
+    size: 'md',
+    marginTopPx: 0,
+    marginBottomPx: 16,
+  };
+}
+
+export function defaultAlertConfig(): IListPageAlertBlockConfig {
+  return {
+    title: '',
+    message: '',
+    variant: 'info',
+    iconName: '',
+    dismissible: false,
+    emphasized: true,
+    linkUrl: '',
+    linkText: '',
+  };
+}
+
 const ALIGN: TListPageBannerContentAlign[] = ['left', 'center', 'right'];
+const SECTION_TITLE_SIZES: TListPageSectionTitleSize[] = ['sm', 'md', 'lg'];
+const ALERT_VARIANTS: TListPageAlertVariant[] = ['info', 'success', 'warning', 'error'];
 
 function clamp(n: number, min: number, max: number): number {
   if (isNaN(n)) return min;
@@ -79,5 +111,44 @@ export function sanitizeRichEditorConfig(raw: unknown): IListPageRichEditorBlock
   if (o.allowLists === false) d.allowLists = false;
   if (o.allowHeaders === false) d.allowHeaders = false;
   if (o.allowVideoEmbed === true) d.allowVideoEmbed = true;
+  return d;
+}
+
+export function sanitizeSectionTitleConfig(raw: unknown): IListPageSectionTitleBlockConfig {
+  const d = defaultSectionTitleConfig();
+  if (!raw || typeof raw !== 'object') return d;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.title === 'string') d.title = o.title;
+  if (typeof o.subtitle === 'string') d.subtitle = o.subtitle;
+  if (typeof o.iconName === 'string') d.iconName = o.iconName.trim();
+  const al = typeof o.align === 'string' ? o.align : '';
+  if (ALIGN.indexOf(al as TListPageBannerContentAlign) !== -1) {
+    d.align = al as TListPageBannerContentAlign;
+  }
+  if (o.showDivider === false) d.showDivider = false;
+  const sz = typeof o.size === 'string' ? o.size : '';
+  if (SECTION_TITLE_SIZES.indexOf(sz as TListPageSectionTitleSize) !== -1) {
+    d.size = sz as TListPageSectionTitleSize;
+  }
+  if (typeof o.marginTopPx === 'number') d.marginTopPx = clamp(Math.round(o.marginTopPx), 0, 120);
+  if (typeof o.marginBottomPx === 'number') d.marginBottomPx = clamp(Math.round(o.marginBottomPx), 0, 120);
+  return d;
+}
+
+export function sanitizeAlertConfig(raw: unknown): IListPageAlertBlockConfig {
+  const d = defaultAlertConfig();
+  if (!raw || typeof raw !== 'object') return d;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.title === 'string') d.title = o.title;
+  if (typeof o.message === 'string') d.message = o.message;
+  const v = typeof o.variant === 'string' ? o.variant : '';
+  if (ALERT_VARIANTS.indexOf(v as TListPageAlertVariant) !== -1) {
+    d.variant = v as TListPageAlertVariant;
+  }
+  if (typeof o.iconName === 'string') d.iconName = o.iconName.trim();
+  if (o.dismissible === true) d.dismissible = true;
+  if (o.emphasized === false) d.emphasized = false;
+  if (typeof o.linkUrl === 'string') d.linkUrl = o.linkUrl.trim();
+  if (typeof o.linkText === 'string') d.linkText = o.linkText;
   return d;
 }

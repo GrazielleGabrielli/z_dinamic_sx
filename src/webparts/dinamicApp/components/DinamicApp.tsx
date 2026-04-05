@@ -205,7 +205,10 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
       : null;
   const listContentBlockPanelOpen =
     editingListContentBlock !== null &&
-    (editingListContentBlock.type === 'banner' || editingListContentBlock.type === 'editor');
+    (editingListContentBlock.type === 'banner' ||
+      editingListContentBlock.type === 'editor' ||
+      editingListContentBlock.type === 'sectionTitle' ||
+      editingListContentBlock.type === 'alert');
 
   if (config === undefined || isEditingWebPart) {
     return (
