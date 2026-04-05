@@ -1,8 +1,23 @@
 import * as React from 'react';
 import { useMemo } from 'react';
 import { Text } from '@fluentui/react';
-import ReactQuill from 'react-quill';
+import * as ReactQuillPkg from 'react-quill';
 import type { IListPageRichEditorBlockConfig } from '../../core/config/types';
+
+type TQuillEditorProps = {
+  key?: string;
+  theme?: string;
+  value?: string;
+  onChange?: (html: string) => void;
+  modules?: unknown;
+  formats?: string[];
+  placeholder?: string;
+};
+
+const ReactQuill = (
+  (ReactQuillPkg as unknown as { default?: React.ComponentType<TQuillEditorProps> }).default ??
+  (ReactQuillPkg as unknown as React.ComponentType<TQuillEditorProps>)
+);
 import 'react-quill/dist/quill.snow.css';
 
 export type TListPageRichQuillPermissions = Pick<

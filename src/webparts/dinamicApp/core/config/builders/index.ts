@@ -5,6 +5,7 @@ import {
   IPaginationConfig,
   IListViewConfig,
   IListPageLayoutConfig,
+  IFormManagerConfig,
   TViewMode,
 } from '../types';
 import { getDefaultConfig } from '../utils';
@@ -19,6 +20,7 @@ export function buildConfig(params: {
   listView?: Partial<IListViewConfig>;
   projectManagement?: IDynamicViewConfig['projectManagement'];
   listPageLayout?: IListPageLayoutConfig;
+  formManager?: IFormManagerConfig;
 }): IDynamicViewConfig {
   const defaults = getDefaultConfig();
   return {
@@ -55,5 +57,6 @@ export function buildConfig(params: {
     },
     projectManagement: params.projectManagement ?? defaults.projectManagement,
     ...(params.listPageLayout?.sections?.length ? { listPageLayout: params.listPageLayout } : {}),
+    ...(params.formManager ? { formManager: params.formManager } : {}),
   };
 }

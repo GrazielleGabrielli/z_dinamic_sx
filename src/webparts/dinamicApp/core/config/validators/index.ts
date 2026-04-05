@@ -19,6 +19,7 @@ import {
   normalizeListPageLayoutDashboards,
   sanitizeListPageLayout,
 } from '../../listPage/listPageLayoutUtils';
+import { sanitizeFormManagerConfig } from '../../formManager/sanitizeFormManagerConfig';
 
 const VALID_MODES = ['list', 'projectManagement', 'formManager'];
 const VALID_AGGREGATES = ['count', 'sum'];
@@ -222,6 +223,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     const defaults = getDefaultConfig();
     const c = parsed as IDynamicViewConfig;
     const projectManagement = sanitizeProjectManagementConfig(c.projectManagement);
+    const formManager = sanitizeFormManagerConfig((c as unknown as Record<string, unknown>).formManager);
     if (c.listView === undefined) {
       const listPageLayoutEarly = sanitizeListPageLayout(
         (c as unknown as Record<string, unknown>).listPageLayout
@@ -234,6 +236,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         ...c,
         listView: defaults.listView,
         projectManagement: projectManagement ?? defaults.projectManagement,
+        ...(formManager ? { formManager } : {}),
         ...(listPageLayoutNorm ? { listPageLayout: listPageLayoutNorm } : {}),
       };
     }
@@ -248,6 +251,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         : undefined;
     return {
       ...c,
+      ...(formManager ? { formManager } : {}),
       listView: {
         columns: lv.columns ?? defaults.listView.columns,
         filters: lv.filters ?? defaults.listView.filters,

@@ -716,7 +716,13 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         scrollableContent: { overflowX: 'hidden' },
         content: { overflowX: 'hidden', minWidth: 0 },
       }}
-      headerText={mode === 'projectManagement' ? 'Editar quadro / cards' : 'Editar lista / tabela'}
+      headerText={
+        mode === 'projectManagement'
+          ? 'Editar quadro / cards'
+          : mode === 'formManager'
+            ? 'Colunas do gestor / lista'
+            : 'Editar lista / tabela'
+      }
       closeButtonAriaLabel="Fechar"
       isFooterAtBottom={true}
       onRenderFooterContent={() => (

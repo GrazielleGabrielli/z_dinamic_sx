@@ -177,4 +177,26 @@ export class ItemsService {
       throw new Error(`ItemsService.updateItem("${listTitleOrId}", ${itemId}): ${e}`);
     }
   }
+
+  async addItem(listTitleOrId: string, values: Record<string, unknown>): Promise<number> {
+    try {
+      const result = await listRef(this.sp, listTitleOrId).items.add(values);
+      const id = (result as { data?: { Id?: number } })?.data?.Id;
+      if (typeof id !== 'number') {
+        throw new Error('Resposta sem Id');
+      }
+      return id;
+    } catch (e) {
+      throw new Error(`ItemsService.addItem("${listTitleOrId}"): ${e}`);
+    }
+  }
+
+  async countItems(listTitleOrId: string, filter: string): Promise<number> {
+    try {
+      const items = await listRef(this.sp, listTitleOrId).items.filter(filter).select('Id').top(5000)();
+      return Array.isArray(items) ? items.length : 0;
+    } catch (e) {
+      throw new Error(`ItemsService.countItems("${listTitleOrId}"): ${e}`);
+    }
+  }
 }

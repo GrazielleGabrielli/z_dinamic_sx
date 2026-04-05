@@ -8,6 +8,7 @@ import {
   IDashboardConfig,
   IChartSeriesConfig,
   IDynamicViewConfig,
+  IFormManagerConfig,
   IListPageBlock,
   IListPageLayoutConfig,
   IListViewConfig,
@@ -30,7 +31,7 @@ import {
   chartSeriesToDashboardCards,
   dashboardCardsToChartSeries,
 } from '../core/dashboard/chartSeriesToDashboardCards';
-import { generateDefaultCards } from '../core/config/utils';
+import { generateDefaultCards, getDefaultFormManagerConfig } from '../core/config/utils';
 import { ConfigWizard } from './Wizard/ConfigWizard';
 import { CardEditorPanel } from './Dashboard/CardEditor/CardEditorPanel';
 import { ChartSeriesEditorPanel } from './Dashboard/ChartEditor/ChartSeriesEditorPanel';
@@ -39,6 +40,8 @@ import { ProjectManagementView } from './ProjectManagement/ProjectManagementView
 import { ListPageRenderer, type TListPageDashboardListSelection } from './ListPage/ListPageRenderer';
 import { ListPageLayoutEditorPanel } from './ListPage/ListPageLayoutEditorPanel';
 import { ListPageBlockConfigPanel } from './ListPage/ListPageBlockConfigPanel';
+import { FormManagerView } from './FormManager/FormManagerView';
+import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceScopeId, onSaveConfig }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
@@ -46,6 +49,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
   const [isEditingSeries, setIsEditingSeries] = useState(false);
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
   const [isEditingPageLayout, setIsEditingPageLayout] = useState(false);
+  const [isEditingFormManager, setIsEditingFormManager] = useState(false);
   const [listPageContentBlockId, setListPageContentBlockId] = useState<string | null>(null);
   const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
@@ -190,6 +194,12 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     setIsEditingPageLayout(false);
   };
 
+  const handleSaveFormManagerConfig = (formManager: IFormManagerConfig): void => {
+    if (!config) return;
+    onSaveConfig({ ...config, formManager });
+    setIsEditingFormManager(false);
+  };
+
   const handleApplyListContentBlock = (next: IListPageBlock): void => {
     if (!config?.listPageLayout) return;
     onSaveConfig({
@@ -269,6 +279,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
                 Layout da página
               </ActionButton>
             )}
+            {config.mode !== 'formManager' && (
             <ActionButton
               iconProps={{ iconName: 'ColumnOptions' }}
               onClick={() => setIsEditingTableColumns(true)}
@@ -276,10 +287,22 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
             >
               {config.mode === 'projectManagement' ? 'Editar quadro' : 'Editar colunas'}
             </ActionButton>
+            )}
+            {config.mode === 'formManager' && (
+              <ActionButton
+                iconProps={{ iconName: 'FormLibrary' }}
+                onClick={() => setIsEditingFormManager(true)}
+                styles={{ root: { height: 28, color: '#0078d4' } }}
+              >
+                Configurar formulário
+              </ActionButton>
+            )}
           </Stack>
         </Stack>
 
-        {config.mode === 'projectManagement' ? (
+        {config.mode === 'formManager' ? (
+          <FormManagerView config={config} />
+        ) : config.mode === 'projectManagement' ? (
           <ProjectManagementView
             config={config}
             dashboardListFilters={dashboardListSelection?.filters}
@@ -366,6 +389,16 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
         onDismiss={() => setListPageContentBlockId(null)}
         onApply={handleApplyListContentBlock}
       />
+
+      {config.mode === 'formManager' && (
+        <FormManagerConfigPanel
+          isOpen={isEditingFormManager}
+          listTitle={config.dataSource.title}
+          value={config.formManager ?? getDefaultFormManagerConfig()}
+          onSave={handleSaveFormManagerConfig}
+          onDismiss={() => setIsEditingFormManager(false)}
+        />
+      )}
     </>
   );
 };

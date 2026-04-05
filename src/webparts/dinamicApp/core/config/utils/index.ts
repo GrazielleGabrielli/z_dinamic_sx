@@ -1,5 +1,14 @@
-import { IDynamicViewConfig, IDashboardCardConfig, TAggregateType } from '../types';
+import { IDynamicViewConfig, IDashboardCardConfig, TAggregateType, IFormManagerConfig } from '../types';
 import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
+
+export function getDefaultFormManagerConfig(): IFormManagerConfig {
+  return {
+    sections: [{ id: 'main', title: 'Geral', visible: true }],
+    fields: [],
+    rules: [],
+    steps: [{ id: 'main', title: 'Geral', fieldNames: [] }],
+  };
+}
 
 export function getDefaultConfig(): IDynamicViewConfig {
   return {

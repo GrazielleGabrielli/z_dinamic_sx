@@ -10,6 +10,7 @@ import {
 } from '@fluentui/react';
 import { IDynamicViewConfig } from '../../core/config/types';
 import { buildConfig } from '../../core/config/builders';
+import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { IWizardFormState, WIZARD_INITIAL_STATE, configToWizardState } from './types';
 import { Step1DataSource } from './steps/Step1DataSource';
 import { Step2Mode } from './steps/Step2Mode';
@@ -30,7 +31,7 @@ const STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modo
 function isStepValid(step: number, form: IWizardFormState): boolean {
   switch (step) {
     case 1: return form.title.trim().length > 0;
-    case 2: return form.mode === 'list' || form.mode === 'projectManagement';
+    case 2: return form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager';
     case 3: return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
     case 4: return form.paginationEnabled ? form.pageSize > 0 : true;
     case 5: return (form.viewModes?.length ?? 0) > 0;
@@ -58,7 +59,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   const valid = isStepValid(step, form);
   const canSaveEdit =
     form.title.trim().length > 0 &&
-    (form.mode === 'list' || form.mode === 'projectManagement') &&
+    (form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager') &&
     (form.viewModes?.length ?? 0) > 0;
 
   const buildCurrentConfig = useCallback((): IDynamicViewConfig => {
@@ -87,6 +88,10 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
         activeViewModeId: form.activeViewModeId,
       },
       projectManagement: initialValues?.projectManagement,
+      formManager:
+        form.mode === 'formManager'
+          ? (initialValues?.formManager ?? getDefaultFormManagerConfig())
+          : initialValues?.formManager,
     });
   }, [form, initialValues]);
 

@@ -32,7 +32,7 @@ const MODE_CARDS: IModeCard[] = [
     key: 'formManager',
     title: 'Formulário + Gestor',
     description: 'Criação e gestão de formulários customizados.',
-    enabled: false,
+    enabled: true,
   },
 ];
 
@@ -93,22 +93,6 @@ export const Step2Mode: React.FC<IStep2Props> = ({ form, onChange }) => {
                     {modeCard.description}
                   </Text>
                 </Stack>
-
-                {!modeCard.enabled && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: '#605e5c',
-                      background: '#edebe9',
-                      padding: '2px 8px',
-                      borderRadius: 12,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Em breve
-                  </span>
-                )}
 
                 {isSelected && (
                   <span

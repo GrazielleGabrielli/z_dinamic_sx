@@ -376,6 +376,15 @@ export interface IListPageLayoutConfig {
   sections: IListPageSection[];
 }
 
+export type { IFormManagerConfig, TFormRule, TFormManagerFormMode } from './formManager';
+export type {
+  IFormFieldConfig,
+  IFormSectionConfig,
+  IFormStepConfig,
+  TFormConditionNode,
+  TFormSubmitKind,
+} from './formManager';
+
 export interface IDynamicViewConfig {
   dataSource: IDataSourceConfig;
   mode: TViewMode;
@@ -383,6 +392,8 @@ export interface IDynamicViewConfig {
   pagination: IPaginationConfig;
   listView: IListViewConfig;
   projectManagement?: IProjectManagementConfig;
+  /** Modo formulário + gestor: layout, campos e regras dinâmicas. */
+  formManager?: import('./formManager').IFormManagerConfig;
   /** Config da tabela dinâmica (modo list). Quando presente, DataTable + TableEngine são usados. */
   tableConfig?: import('../../table').ITableConfig;
   pdfTemplate?: IPdfTemplateConfig;
