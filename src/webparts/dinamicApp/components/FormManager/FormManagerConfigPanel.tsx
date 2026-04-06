@@ -18,6 +18,7 @@ import {
   PivotItem,
   Link,
   Icon,
+  IconButton,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
@@ -26,9 +27,16 @@ import type {
   IFormFieldConfig,
   IFormSectionConfig,
   IFormStepConfig,
+  IFormCustomButtonConfig,
+  TFormButtonAction,
   TFormConditionOp,
+  TFormCustomButtonBehavior,
+  TFormManagerFormMode,
   TFormRule,
+  TFormStepLayoutKind,
+  TFormStepNavButtonsKind,
 } from '../../core/config/types/formManager';
+import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 import {
@@ -55,6 +63,7 @@ import {
   templateFieldRulesChoiceRequiresOther,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
+import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -69,11 +78,66 @@ function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
   return next;
 }
 
+const REQ_FIELD_BG_OK = '#dff6dd';
+const REQ_FIELD_BG_BAD = '#fde7e9';
+const REQ_FIELD_BORDER_OK = '#92c353';
+const REQ_FIELD_BORDER_BAD = '#d13438';
+
+function hasAnyFieldInAnyStep(steps: IFormStepConfig[]): boolean {
+  for (let s = 0; s < steps.length; s++) {
+    if (steps[s].fieldNames.length > 0) return true;
+  }
+  return false;
+}
+
+function requiredListFieldIsSatisfied(
+  m: IFieldMetadata,
+  steps: IFormStepConfig[],
+  fields: IFormFieldConfig[]
+): boolean {
+  if (!m.Required) return true;
+  const hasAny = hasAnyFieldInAnyStep(steps);
+  const inSteps = steps.some((st) => st.fieldNames.indexOf(m.InternalName) !== -1);
+  const inFields = fields.some((f) => f.internalName === m.InternalName);
+  if (!hasAny) return inFields;
+  return inSteps;
+}
+
+function requiredFieldRowStyles(
+  m: IFieldMetadata | undefined,
+  steps: IFormStepConfig[],
+  fields: IFormFieldConfig[]
+): { background: string; border: string } | undefined {
+  if (!m || !m.Required) return undefined;
+  const ok = requiredListFieldIsSatisfied(m, steps, fields);
+  return {
+    background: ok ? REQ_FIELD_BG_OK : REQ_FIELD_BG_BAD,
+    border: `1px solid ${ok ? REQ_FIELD_BORDER_OK : REQ_FIELD_BORDER_BAD}`,
+  };
+}
+
+function requiredListFieldsMissingFromSteps(meta: IFieldMetadata[], steps: IFormStepConfig[]): IFieldMetadata[] {
+  if (!hasAnyFieldInAnyStep(steps)) return [];
+  const inSteps = new Set<string>();
+  for (let s = 0; s < steps.length; s++) {
+    const fn = steps[s].fieldNames;
+    for (let i = 0; i < fn.length; i++) inSteps.add(fn[i]);
+  }
+  const missing: IFieldMetadata[] = [];
+  for (let m = 0; m < meta.length; m++) {
+    const f = meta[m];
+    if (!f.Required) continue;
+    if (!inSteps.has(f.InternalName)) missing.push(f);
+  }
+  return missing;
+}
+
 const DND_FIELD = 'fm/field:';
 const DND_STEP = 'fm/step:';
 const DND_MCOL = 'fm/mcol:';
 const DND_POOL = 'fm/pool:';
 const DND_FS = 'fm/fs:';
+const DND_BTN = 'fm/btn:';
 
 function dragPayload(kind: string, index: number): string {
   return kind + String(index);
@@ -193,6 +257,66 @@ function emptyEffect(): IConditionalEffectUi {
   return { kind: 'showField', targetField: '' };
 }
 
+function parseCsvFieldNames(s: string): string[] {
+  return s
+    .split(/[,;]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function fieldNamesToCsv(names: string[]): string {
+  return names.join(', ');
+}
+
+const BUTTON_BEHAVIOR_OPTIONS: IDropdownOption[] = [
+  { key: 'actionsOnly', text: 'Só executar ações' },
+  { key: 'draft', text: 'Ações e depois rascunho' },
+  { key: 'submit', text: 'Ações e depois enviar' },
+  { key: 'close', text: 'Ações e depois fechar formulário' },
+];
+
+const BUTTON_ACTION_KIND_OPTIONS: IDropdownOption[] = [
+  { key: 'showFields', text: 'Mostrar campos' },
+  { key: 'hideFields', text: 'Ocultar campos' },
+  { key: 'setFieldValue', text: 'Definir valor de um campo' },
+  { key: 'joinFields', text: 'Juntar vários campos num campo' },
+];
+
+function defaultActionForKind(kind: TFormButtonAction['kind']): TFormButtonAction {
+  switch (kind) {
+    case 'hideFields':
+      return { kind: 'hideFields', fields: [] };
+    case 'setFieldValue':
+      return { kind: 'setFieldValue', field: '', valueTemplate: '' };
+    case 'joinFields':
+      return { kind: 'joinFields', targetField: '', sourceFields: [], separator: ' ' };
+    default:
+      return { kind: 'showFields', fields: [] };
+  }
+}
+
+function modesFromCheckboxes(c: boolean, e: boolean, v: boolean): TFormManagerFormMode[] | undefined {
+  if (c && e && v) return undefined;
+  const out: TFormManagerFormMode[] = [];
+  if (c) out.push('create');
+  if (e) out.push('edit');
+  if (v) out.push('view');
+  return out;
+}
+
+function checkboxesFromModes(modes: TFormManagerFormMode[] | undefined): {
+  c: boolean;
+  e: boolean;
+  v: boolean;
+} {
+  if (!modes || modes.length === 0) return { c: true, e: true, v: true };
+  return {
+    c: modes.indexOf('create') !== -1,
+    e: modes.indexOf('edit') !== -1,
+    v: modes.indexOf('view') !== -1,
+  };
+}
+
 function sectionsFromSteps(steps: IFormStepConfig[]): IFormSectionConfig[] {
   const out: IFormSectionConfig[] = [];
   for (let i = 0; i < steps.length; i++) {
@@ -298,6 +422,18 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [steps, setSteps] = useState<IFormStepConfig[]>(() => buildInitialFieldsAndSteps(value).steps);
   const [helpJson, setHelpJson] = useState(() => JSON.stringify(value.dynamicHelp ?? [], null, 2));
   const [managerColumnFields, setManagerColumnFields] = useState<string[]>(() => value.managerColumnFields ?? []);
+  const [customButtons, setCustomButtons] = useState<IFormCustomButtonConfig[]>(() =>
+    (value.customButtons ?? []).map((b) => ({
+      ...b,
+      actions: b.actions.map((a) => ({ ...a })),
+    }))
+  );
+  const [showDefaultFormButtons, setShowDefaultFormButtons] = useState(() => value.showDefaultFormButtons === true);
+  const [stepLayout, setStepLayout] = useState<TFormStepLayoutKind>(() => value.stepLayout ?? 'segmented');
+  const [stepNavButtons, setStepNavButtons] = useState<TFormStepNavButtonsKind>(
+    () => value.stepNavButtons ?? 'fluent'
+  );
+  const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
   const [attachMin, setAttachMin] = useState('');
   const [attachMax, setAttachMax] = useState('');
   const [attachMsg, setAttachMsg] = useState('');
@@ -317,12 +453,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setRules(value.rules ?? []);
     setHelpJson(JSON.stringify(value.dynamicHelp ?? [], null, 2));
     setManagerColumnFields(value.managerColumnFields ?? []);
+    setCustomButtons(
+      (value.customButtons ?? []).map((b) => ({
+        ...b,
+        actions: b.actions.map((a) => ({ ...a })),
+      }))
+    );
+    setShowDefaultFormButtons(value.showDefaultFormButtons === true);
+    setStepLayout(value.stepLayout ?? 'segmented');
+    setStepNavButtons(value.stepNavButtons ?? 'fluent');
     const att = parseAttachmentUiRule(value.rules ?? []);
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
     setAttachMsg(att.message);
     setErr(undefined);
     setFieldPanelName(null);
+    setStepSectionOpen({});
   }, [isOpen, value]);
 
   useEffect(() => {
@@ -345,6 +491,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const conditionalCards = useMemo(() => parseConditionalCardsFromRules(rules).cards, [rules]);
 
   const customs = useMemo(() => customRulesOnly(rules), [rules]);
+
+  const requiredFieldsMissingFromSteps = useMemo(
+    () => requiredListFieldsMissingFromSteps(meta, steps),
+    [meta, steps]
+  );
+
+  const anyStepHasFields = useMemo(() => hasAnyFieldInAnyStep(steps), [steps]);
+
+  const metaSortedForPool = useMemo(() => {
+    return meta
+      .slice()
+      .sort((a, b) => {
+        if (a.Required !== b.Required) return a.Required ? -1 : 1;
+        return a.Title.localeCompare(b.Title, 'pt');
+      });
+  }, [meta]);
 
   const setCardsAndRules = useCallback((cards: IConditionalRuleCard[]) => {
     setRules((r) => mergeCardRulesIntoAll(r, cards));
@@ -377,6 +539,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const removeField = (internalName: string): void => {
+    setErr(undefined);
+    if (hasAnyFieldInAnyStep(steps)) {
+      for (let mi = 0; mi < meta.length; mi++) {
+        if (meta[mi].InternalName === internalName && meta[mi].Required) {
+          setErr(
+            `O campo «${meta[mi].Title}» é obrigatório na lista e tem de constar em alguma etapa.`
+          );
+          return;
+        }
+      }
+    }
     setFields((prev) => prev.filter((f) => f.internalName !== internalName));
     setSteps((prev) =>
       prev.map((s) => ({
@@ -447,6 +620,16 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       setErr('JSON de ajuda dinâmica inválido.');
       return;
     }
+    if (meta.length > 0) {
+      const missingReq = requiredListFieldsMissingFromSteps(meta, steps);
+      if (missingReq.length > 0) {
+        setErr(
+          'Campos obrigatórios na lista têm de constar em alguma etapa: ' +
+            missingReq.map((f) => `${f.Title} (${f.InternalName})`).join(', ')
+        );
+        return;
+      }
+    }
     const withRules = mergeAttachmentUiRule(rules, {
       minCount: numOpt(attachMin),
       maxCount: numOpt(attachMax),
@@ -460,6 +643,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       steps,
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
+      ...(customButtons.length ? { customButtons } : {}),
+      stepLayout,
+      ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
+      ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -528,6 +715,62 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setManagerColumnFields((prev) => reorderByIndex(prev, from, to));
   };
 
+  const addCustomButton = (): void => {
+    setCustomButtons((b) =>
+      b.concat([
+        {
+          id: newId('btn'),
+          label: 'Novo botão',
+          appearance: 'default',
+          behavior: 'actionsOnly',
+          actions: [],
+        },
+      ])
+    );
+  };
+
+  const patchCustomButton = (i: number, patch: Partial<IFormCustomButtonConfig>): void => {
+    setCustomButtons((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  };
+
+  const removeCustomButton = (i: number): void => {
+    setCustomButtons((prev) => prev.filter((_, j) => j !== i));
+  };
+
+  const reorderCustomButton = (from: number, to: number): void => {
+    setCustomButtons((prev) => reorderByIndex(prev, from, to));
+  };
+
+  const addButtonAction = (bi: number): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) =>
+        j === bi ? { ...b, actions: b.actions.concat([{ kind: 'showFields', fields: [] }]) } : b
+      )
+    );
+  };
+
+  const patchButtonAction = (bi: number, ai: number, next: TFormButtonAction): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) => {
+        if (j !== bi) return b;
+        const acts = b.actions.map((a, k) => (k === ai ? next : a));
+        return { ...b, actions: acts };
+      })
+    );
+  };
+
+  const removeButtonAction = (bi: number, ai: number): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) =>
+        j === bi ? { ...b, actions: b.actions.filter((_, k) => k !== ai) } : b
+      )
+    );
+  };
+
+  const setButtonModesFromTriState = (bi: number, c: boolean, e: boolean, v: boolean): void => {
+    patchCustomButton(bi, { modes: modesFromCheckboxes(c, e, v) });
+  };
+
   let fieldPanelConfig: IFormFieldConfig | undefined;
   let fieldPanelMeta: IFieldMetadata | undefined;
   if (fieldPanelName) {
@@ -566,9 +809,26 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       steps,
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
+      ...(customButtons.length ? { customButtons } : {}),
+      stepLayout,
+      ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
+      ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
     };
     return JSON.stringify(raw, null, 2);
-  }, [fields, rules, steps, helpJson, managerColumnFields, attachMin, attachMax, attachMsg]);
+  }, [
+    fields,
+    rules,
+    steps,
+    helpJson,
+    managerColumnFields,
+    customButtons,
+    stepLayout,
+    stepNavButtons,
+    showDefaultFormButtons,
+    attachMin,
+    attachMax,
+    attachMsg,
+  ]);
 
   const addConditionalCard = (): void => {
     const card: IConditionalRuleCard = {
@@ -653,13 +913,32 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       <Pivot>
         <PivotItem headerText="Estrutura">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+            {requiredFieldsMissingFromSteps.length > 0 && (
+              <MessageBar messageBarType={MessageBarType.warning}>
+                Campos marcados como obrigatórios na lista ainda não estão em nenhuma etapa:{' '}
+                {requiredFieldsMissingFromSteps.map((f) => `${f.Title} (${f.InternalName})`).join(', ')}
+              </MessageBar>
+            )}
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho.
+              Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa.
             </Text>
+            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Layout das etapas no formulário</Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Quando existir mais de uma etapa, o utilizador vê a navegação neste estilo.
+            </Text>
+            <FormStepLayoutPicker value={stepLayout} onChange={setStepLayout} />
+            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Botões «Etapa anterior» / «Próxima etapa»</Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Estilo apenas dos botões de navegação no rodapé (não altera o passador de etapas em cima).
+            </Text>
+            <FormStepNavButtonsPicker value={stepNavButtons} onChange={setStepNavButtons} />
             <Stack horizontal tokens={{ childrenGap: 8 }}>
               <PrimaryButton text="Nova etapa" onClick={addStep} />
             </Stack>
-            {steps.map((st, si) => (
+            {steps.map((st, si) => {
+              const panelOpen =
+                stepSectionOpen[st.id] !== undefined ? stepSectionOpen[st.id] : si === 0;
+              return (
               <Stack
                 key={st.id}
                 styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
@@ -683,6 +962,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     reorderStep(from, si);
                   }}
                 >
+                  <IconButton
+                    iconProps={{ iconName: panelOpen ? 'ChevronDown' : 'ChevronRight' }}
+                    title={panelOpen ? 'Recolher' : 'Expandir'}
+                    aria-expanded={panelOpen}
+                    onClick={() => {
+                      setStepSectionOpen((p) => ({
+                        ...p,
+                        [st.id]: !panelOpen,
+                      }));
+                    }}
+                  />
                   <span
                     draggable
                     title="Arrastar etapa"
@@ -699,8 +989,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     value={st.title}
                     onChange={(_, v) => updateStep(si, { title: v ?? '' })}
                   />
+                  {!panelOpen && (
+                    <Text variant="small" styles={{ root: { color: '#605e5c', alignSelf: 'center' } }}>
+                      {st.fieldNames.length} campo(s)
+                    </Text>
+                  )}
                   <DefaultButton text="Remover etapa" onClick={() => removeStep(si)} />
                 </Stack>
+                {panelOpen && (
                 <Stack tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 4 } }}>
                   {st.fieldNames.map((fname, fIdx) => {
                     let mm: IFieldMetadata | undefined;
@@ -710,6 +1006,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         break;
                       }
                     }
+                    const reqStyles = requiredFieldRowStyles(mm, steps, fields);
                     return (
                       <Stack
                         key={fname}
@@ -720,9 +1017,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         styles={{
                           root: {
                             padding: '8px 10px',
-                            background: '#faf9f8',
                             borderRadius: 4,
-                            border: '1px solid #edebe9',
+                            ...(reqStyles ?? { background: '#faf9f8', border: '1px solid #edebe9' }),
                           },
                         }}
                         onDragOver={(e) => {
@@ -744,13 +1040,25 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                           <Icon iconName="GripperBarVertical" />
                         </span>
                         <Text styles={{ root: { fontWeight: 600, minWidth: 120 } }}>
-                          {mm ? mm.Title : fname}
+                          {mm ? mm.Title : fname === FORM_ATTACHMENTS_FIELD_INTERNAL ? 'Anexos ao item' : fname}
                         </Text>
                         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                          {fname} · {mm ? mm.MappedType : '—'}
+                          {fname} · {fname === FORM_ATTACHMENTS_FIELD_INTERNAL ? 'anexos' : mm ? mm.MappedType : '—'}
+                          {mm?.Required ? ' · obrigatório na lista' : ''}
                         </Text>
-                        <DefaultButton text="Regras…" onClick={() => setFieldPanelName(fname)} />
-                        <DefaultButton text="Remover" onClick={() => removeField(fname)} />
+                        {fname !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
+                          <DefaultButton text="Regras…" onClick={() => setFieldPanelName(fname)} />
+                        )}
+                        <DefaultButton
+                          text="Remover"
+                          onClick={() => removeField(fname)}
+                          disabled={anyStepHasFields && mm?.Required === true}
+                          title={
+                            anyStepHasFields && mm?.Required === true
+                              ? 'Obrigatório na lista: tem de permanecer numa etapa'
+                              : undefined
+                          }
+                        />
                       </Stack>
                     );
                   })}
@@ -776,13 +1084,54 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     </Text>
                   </Stack>
                 </Stack>
+                )}
               </Stack>
-            ))}
+              );
+            })}
             <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>Campos fora do formulário</Text>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Arraste um campo para uma etapa acima ou marque para incluir na primeira etapa.
             </Text>
-            {meta.map((m) => {
+            {(() => {
+              let attInPool = false;
+              for (let i = 0; i < fields.length; i++) {
+                if (fields[i].internalName === FORM_ATTACHMENTS_FIELD_INTERNAL) {
+                  attInPool = true;
+                  break;
+                }
+              }
+              if (attInPool) return null;
+              return (
+                <Stack
+                  key={FORM_ATTACHMENTS_FIELD_INTERNAL}
+                  horizontal
+                  verticalAlign="center"
+                  tokens={{ childrenGap: 8 }}
+                  wrap
+                >
+                  <span
+                    draggable
+                    title="Arrastar para uma etapa"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', dragPayloadPool(FORM_ATTACHMENTS_FIELD_INTERNAL));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                  >
+                    <Icon iconName="GripperBarVertical" />
+                  </span>
+                  <Checkbox
+                    label="Anexos ao item (ficheiros)"
+                    checked={false}
+                    onChange={(_, c) => (c ? addField(FORM_ATTACHMENTS_FIELD_INTERNAL) : undefined)}
+                  />
+                  <Text variant="small" styles={{ root: { minWidth: 80 } }}>
+                    anexos
+                  </Text>
+                </Stack>
+              );
+            })()}
+            {metaSortedForPool.map((m) => {
               let inForm = false;
               for (let i = 0; i < fields.length; i++) {
                 if (fields[i].internalName === m.InternalName) {
@@ -791,6 +1140,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 }
               }
               if (inForm) return null;
+              const poolReqStyles = requiredFieldRowStyles(m, steps, fields);
               return (
                 <Stack
                   key={m.InternalName}
@@ -798,6 +1148,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   verticalAlign="center"
                   tokens={{ childrenGap: 8 }}
                   wrap
+                  styles={{
+                    root: poolReqStyles
+                      ? { padding: '8px 10px', borderRadius: 4, ...poolReqStyles }
+                      : undefined,
+                  }}
                 >
                   <span
                     draggable
@@ -811,11 +1166,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     <Icon iconName="GripperBarVertical" />
                   </span>
                   <Checkbox
-                    label={`${m.Title} (${m.InternalName})`}
+                    label={`${m.Title} (${m.InternalName})${m.Required ? ' *' : ''}`}
                     checked={false}
                     onChange={(_, c) => (c ? addField(m.InternalName) : undefined)}
                   />
-                  <Text variant="small" styles={{ root: { minWidth: 80 } }}>{m.MappedType}</Text>
+                  <Text variant="small" styles={{ root: { minWidth: 80 } }}>
+                    {m.MappedType}
+                    {m.Required ? ' · obrig. lista' : ''}
+                  </Text>
                 </Stack>
               );
             })}
@@ -871,11 +1229,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     checked={fc.visible !== false}
                     onChange={(_, c) => updateFieldAt(fc.internalName, { visible: !!c })}
                   />
-                  <Checkbox
-                    label="Obrigatório"
-                    checked={fc.required === true}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { required: !!c })}
-                  />
+                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
+                    <Checkbox
+                      label="Obrigatório"
+                      checked={fc.required === true}
+                      onChange={(_, c) => updateFieldAt(fc.internalName, { required: !!c })}
+                    />
+                  )}
                   <Checkbox
                     label="Só leitura"
                     checked={fc.readOnly === true}
@@ -891,20 +1251,32 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     value={fc.helpText ?? ''}
                     onChange={(_, v) => updateFieldAt(fc.internalName, { helpText: v || undefined })}
                   />
-                  <TextField
-                    label="Padrão (texto/token)"
-                    value={def}
-                    onChange={(_, v) => {
-                      const st = fieldRuleStateFromRules(fc.internalName, rules);
-                      st.defaultValue = v ?? '';
-                      setRules((r) => mergeFieldRules(r, fc.internalName, buildFieldUiRules(fc.internalName, st)));
-                    }}
-                  />
-                  <DefaultButton
-                    text={n ? `${n} regra(s)` : 'Regras…'}
-                    onClick={() => setFieldPanelName(fc.internalName)}
-                  />
-                  {m && <Text variant="small">({m.MappedType})</Text>}
+                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
+                    <TextField
+                      label="Padrão (texto/token)"
+                      value={def}
+                      onChange={(_, v) => {
+                        const st = fieldRuleStateFromRules(fc.internalName, rules);
+                        st.defaultValue = v ?? '';
+                        setRules((r) => mergeFieldRules(r, fc.internalName, buildFieldUiRules(fc.internalName, st)));
+                      }}
+                    />
+                  )}
+                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
+                    <Text variant="small" styles={{ root: { color: '#605e5c', maxWidth: 280 } }}>
+                      Obrigatoriedade e limites de ficheiros: aba Gestor (anexos).
+                    </Text>
+                  ) : (
+                    <DefaultButton
+                      text={n ? `${n} regra(s)` : 'Regras…'}
+                      onClick={() => setFieldPanelName(fc.internalName)}
+                    />
+                  )}
+                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
+                    <Text variant="small">(anexos)</Text>
+                  ) : (
+                    m && <Text variant="small">({m.MappedType})</Text>
+                  )}
                 </Stack>
               );
             })}
@@ -1028,6 +1400,202 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             {!conditionalCards.length && <Text>Nenhuma regra condicional. Use &quot;Nova regra&quot;.</Text>}
           </Stack>
         </PivotItem>
+        <PivotItem headerText="Botões">
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Botões extra no rodapé do formulário. Ao clicar, as ações executam por ordem (mostrar/ocultar campos,
+              preencher valores). Para texto composto a partir de campos, use o prefixo str: e placeholders no formato
+              {' {{NomeInterno}} '} (igual à expressão de texto da regra de valor calculado).
+            </Text>
+            <Checkbox
+              label="Mostrar também os botões padrão (Enviar, Rascunho, Fechar)"
+              checked={showDefaultFormButtons}
+              onChange={(_, c) => setShowDefaultFormButtons(!!c)}
+            />
+            <PrimaryButton text="Adicionar botão" onClick={addCustomButton} />
+            {customButtons.map((btn, bi) => {
+              const chk = checkboxesFromModes(btn.modes);
+              return (
+                <Stack
+                  key={btn.id}
+                  styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
+                  tokens={{ childrenGap: 10 }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_BTN);
+                    if (from === undefined || from === bi) return;
+                    reorderCustomButton(from, bi);
+                  }}
+                >
+                  <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                    <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+                      <span
+                        draggable
+                        title="Arrastar para reordenar"
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', dragPayload(DND_BTN, bi));
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                      >
+                        <Icon iconName="GripperBarVertical" />
+                      </span>
+                      <Text styles={{ root: { fontWeight: 600 } }}>{btn.label || btn.id}</Text>
+                    </Stack>
+                    <DefaultButton text="Remover botão" onClick={() => removeCustomButton(bi)} />
+                  </Stack>
+                  <TextField
+                    label="Texto do botão"
+                    value={btn.label}
+                    onChange={(_, v) => patchCustomButton(bi, { label: v ?? '' })}
+                  />
+                  <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
+                    <Dropdown
+                      label="Estilo"
+                      options={[
+                        { key: 'default', text: 'Secundário' },
+                        { key: 'primary', text: 'Primário' },
+                      ]}
+                      selectedKey={btn.appearance === 'primary' ? 'primary' : 'default'}
+                      onChange={(_, o) =>
+                        o && patchCustomButton(bi, { appearance: o.key === 'primary' ? 'primary' : 'default' })
+                      }
+                    />
+                    <Dropdown
+                      label="Depois das ações"
+                      options={BUTTON_BEHAVIOR_OPTIONS}
+                      selectedKey={(btn.behavior ?? 'actionsOnly') as string}
+                      onChange={(_, o) =>
+                        o &&
+                        patchCustomButton(bi, {
+                          behavior: String(o.key) as TFormCustomButtonBehavior,
+                        })
+                      }
+                    />
+                  </Stack>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Modos (vazio = todos)
+                  </Text>
+                  <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                    <Checkbox
+                      label="Criar"
+                      checked={chk.c}
+                      onChange={(_, c) => setButtonModesFromTriState(bi, !!c, chk.e, chk.v)}
+                    />
+                    <Checkbox
+                      label="Editar"
+                      checked={chk.e}
+                      onChange={(_, c) => setButtonModesFromTriState(bi, chk.c, !!c, chk.v)}
+                    />
+                    <Checkbox
+                      label="Ver"
+                      checked={chk.v}
+                      onChange={(_, c) => setButtonModesFromTriState(bi, chk.c, chk.e, !!c)}
+                    />
+                  </Stack>
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ações (por ordem)</Text>
+                  {btn.actions.map((act, ai) => (
+                    <Stack
+                      key={ai}
+                      styles={{ root: { background: '#faf9f8', padding: 8, borderRadius: 4 } }}
+                      tokens={{ childrenGap: 8 }}
+                    >
+                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                        <Dropdown
+                          label="Tipo"
+                          options={BUTTON_ACTION_KIND_OPTIONS}
+                          selectedKey={act.kind}
+                          onChange={(_, o) => {
+                            if (!o) return;
+                            patchButtonAction(bi, ai, defaultActionForKind(String(o.key) as TFormButtonAction['kind']));
+                          }}
+                        />
+                        <DefaultButton text="Remover ação" onClick={() => removeButtonAction(bi, ai)} />
+                      </Stack>
+                      {(act.kind === 'showFields' || act.kind === 'hideFields') && (
+                        <TextField
+                          label="Campos (internal name, vírgula)"
+                          multiline
+                          rows={2}
+                          value={fieldNamesToCsv(act.fields)}
+                          onChange={(_, v) =>
+                            patchButtonAction(bi, ai, {
+                              ...act,
+                              fields: parseCsvFieldNames(v ?? ''),
+                            })
+                          }
+                        />
+                      )}
+                      {act.kind === 'setFieldValue' && (
+                        <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                          <Dropdown
+                            label="Campo"
+                            options={[{ key: '', text: '—' }, ...fieldOptions]}
+                            selectedKey={act.field || ''}
+                            onChange={(_, o) =>
+                              patchButtonAction(bi, ai, {
+                                ...act,
+                                field: o ? String(o.key) : '',
+                              })
+                            }
+                          />
+                          <TextField
+                            label="Valor fixo ou str:{{Campo}}"
+                            styles={{ root: { minWidth: 280 } }}
+                            value={act.valueTemplate}
+                            onChange={(_, v) =>
+                              patchButtonAction(bi, ai, { ...act, valueTemplate: v ?? '' })
+                            }
+                          />
+                        </Stack>
+                      )}
+                      {act.kind === 'joinFields' && (
+                        <Stack tokens={{ childrenGap: 8 }}>
+                          <Dropdown
+                            label="Campo destino"
+                            options={[{ key: '', text: '—' }, ...fieldOptions]}
+                            selectedKey={act.targetField || ''}
+                            onChange={(_, o) =>
+                              patchButtonAction(bi, ai, {
+                                ...act,
+                                targetField: o ? String(o.key) : '',
+                              })
+                            }
+                          />
+                          <TextField
+                            label="Separador"
+                            value={act.separator}
+                            onChange={(_, v) =>
+                              patchButtonAction(bi, ai, { ...act, separator: v ?? ' ' })
+                            }
+                          />
+                          <TextField
+                            label="Campos origem (vírgula)"
+                            multiline
+                            rows={2}
+                            value={fieldNamesToCsv(act.sourceFields)}
+                            onChange={(_, v) =>
+                              patchButtonAction(bi, ai, {
+                                ...act,
+                                sourceFields: parseCsvFieldNames(v ?? ''),
+                              })
+                            }
+                          />
+                        </Stack>
+                      )}
+                    </Stack>
+                  ))}
+                  <DefaultButton text="Adicionar ação" onClick={() => addButtonAction(bi)} />
+                </Stack>
+              );
+            })}
+            {!customButtons.length && <Text>Nenhum botão personalizado.</Text>}
+          </Stack>
+        </PivotItem>
         <PivotItem headerText="Ajuda dinâmica">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -1112,7 +1680,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         </Stack>
       )}
       <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 24 } }}>
-        <PrimaryButton text="Salvar" onClick={handleSave} />
+        <PrimaryButton text="Salvar" onClick={handleSave} disabled={loading} />
         <DefaultButton
           text="Restaurar padrão (estrutura)"
           onClick={() => {

@@ -376,7 +376,17 @@ export interface IListPageLayoutConfig {
   sections: IListPageSection[];
 }
 
-export type { IFormManagerConfig, TFormRule, TFormManagerFormMode } from './formManager';
+export type {
+  IFormManagerConfig,
+  IFormCustomButtonConfig,
+  TFormButtonAction,
+  TFormCustomButtonBehavior,
+  TFormRule,
+  TFormManagerFormMode,
+  TFormStepLayoutKind,
+  TFormStepNavButtonsKind,
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+} from './formManager';
 export type {
   IFormFieldConfig,
   IFormSectionConfig,

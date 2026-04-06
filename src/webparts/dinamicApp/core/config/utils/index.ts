@@ -7,6 +7,8 @@ export function getDefaultFormManagerConfig(): IFormManagerConfig {
     fields: [],
     rules: [],
     steps: [{ id: 'main', title: 'Geral', fieldNames: [] }],
+    stepLayout: 'segmented',
+    showDefaultFormButtons: false,
   };
 }
 

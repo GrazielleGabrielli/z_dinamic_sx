@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Stack, Spinner, MessageBar, MessageBarType, DefaultButton, Text } from '@fluentui/react';
+import { Stack, Spinner, MessageBar, MessageBarType, Text } from '@fluentui/react';
 import type { IDynamicViewConfig } from '../../core/config/types';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
@@ -203,12 +203,9 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
   return (
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8, maxWidth: 720 } }}>
       {loadError && <MessageBar messageBarType={MessageBarType.error}>{loadError}</MessageBar>}
-      <Stack horizontal horizontalAlign="space-between" verticalAlign="center" wrap>
-        <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-          {formMode === 'create' ? 'Novo registro' : `Editar #${activeItem?.Id ?? ''}`}
-        </Text>
-        <DefaultButton text="Novo registro" onClick={resetToNew} />
-      </Stack>
+      <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+        {formMode === 'create' ? 'Novo registro' : `Editar #${activeItem?.Id ?? ''}`}
+      </Text>
       {itemLoading ? (
         <Spinner label="Carregando item..." />
       ) : (

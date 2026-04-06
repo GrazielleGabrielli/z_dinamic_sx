@@ -212,6 +212,9 @@ export type TFormRule =
   | IFormRuleAsyncCountLimit
   | IFormRuleEffectiveSection;
 
+/** Nome interno reservado para anexos ao item (não é coluna SharePoint). */
+export const FORM_ATTACHMENTS_FIELD_INTERNAL = '__formAttachments';
+
 export interface IFormFieldConfig {
   internalName: string;
   label?: string;
@@ -242,6 +245,53 @@ export interface IFormStepConfig {
   fieldNames: string[];
 }
 
+/** Navegação visual entre etapas no formulário (várias etapas). */
+export type TFormStepLayoutKind = 'rail' | 'segmented' | 'timeline' | 'cards';
+
+/** Estilo dos botões «Etapa anterior» / «Próxima etapa» no rodapé (independe do layout do passador de etapas). */
+export type TFormStepNavButtonsKind = 'fluent' | 'pills' | 'dots' | 'icons' | 'links';
+
+export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'close';
+
+export interface IFormButtonActionShowFields {
+  kind: 'showFields';
+  fields: string[];
+}
+
+export interface IFormButtonActionHideFields {
+  kind: 'hideFields';
+  fields: string[];
+}
+
+export interface IFormButtonActionSetFieldValue {
+  kind: 'setFieldValue';
+  field: string;
+  /** Texto fixo ou expressão `str:{{Campo}}` (mesma sintaxe de setComputed texto) */
+  valueTemplate: string;
+}
+
+export interface IFormButtonActionJoinFields {
+  kind: 'joinFields';
+  targetField: string;
+  sourceFields: string[];
+  separator: string;
+}
+
+export type TFormButtonAction =
+  | IFormButtonActionShowFields
+  | IFormButtonActionHideFields
+  | IFormButtonActionSetFieldValue
+  | IFormButtonActionJoinFields;
+
+export interface IFormCustomButtonConfig {
+  id: string;
+  label: string;
+  appearance?: 'primary' | 'default';
+  behavior?: TFormCustomButtonBehavior;
+  modes?: TFormManagerFormMode[];
+  actions: TFormButtonAction[];
+}
+
 export interface IFormManagerConfig {
   sections: IFormSectionConfig[];
   fields: IFormFieldConfig[];
@@ -251,4 +301,12 @@ export interface IFormManagerConfig {
   managerColumnFields?: string[];
   /** Ajuda dinâmica por campo quando condição */
   dynamicHelp?: { field: string; when: TFormConditionNode; helpText: string }[];
+  /** Botões com ações ao clicar (mostrar/ocultar campos, valores, juntar campos) */
+  customButtons?: IFormCustomButtonConfig[];
+  /** Apresentação das etapas quando há mais de uma */
+  stepLayout?: TFormStepLayoutKind;
+  /** Estilo dos botões anterior/próximo etapa no rodapé */
+  stepNavButtons?: TFormStepNavButtonsKind;
+  /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
+  showDefaultFormButtons?: boolean;
 }

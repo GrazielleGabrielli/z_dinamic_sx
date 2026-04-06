@@ -15,6 +15,7 @@ import { IWizardFormState, WIZARD_INITIAL_STATE, configToWizardState } from './t
 import { Step1DataSource } from './steps/Step1DataSource';
 import { Step2Mode } from './steps/Step2Mode';
 import { Step3Dashboard } from './steps/Step3Dashboard';
+import { Step3FormStepLayout } from './steps/Step3FormStepLayout';
 import { Step4Pagination } from './steps/Step4Pagination';
 import { Step5ViewModes } from './steps/Step5ViewModes';
 
@@ -26,14 +27,14 @@ interface IConfigWizardProps {
 }
 
 const LIST_STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modos de visualização'];
-const FORM_MANAGER_STEP_LABELS = ['Fonte de dados', 'Modo'];
+const FORM_MANAGER_STEP_LABELS = ['Fonte de dados', 'Modo', 'Layout das etapas'];
 
 function isFormManagerWizard(form: IWizardFormState): boolean {
   return form.mode === 'formManager';
 }
 
 function totalStepsForForm(form: IWizardFormState): number {
-  return isFormManagerWizard(form) ? 2 : 5;
+  return isFormManagerWizard(form) ? 3 : 5;
 }
 
 function stepLabelsForForm(form: IWizardFormState): string[] {
@@ -41,14 +42,16 @@ function stepLabelsForForm(form: IWizardFormState): string[] {
 }
 
 function stepIndicesForForm(form: IWizardFormState): number[] {
-  return isFormManagerWizard(form) ? [1, 2] : [1, 2, 3, 4, 5];
+  return isFormManagerWizard(form) ? [1, 2, 3] : [1, 2, 3, 4, 5];
 }
 
 function isStepValid(step: number, form: IWizardFormState): boolean {
   switch (step) {
     case 1: return form.title.trim().length > 0;
     case 2: return form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager';
-    case 3: return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
+    case 3:
+      if (isFormManagerWizard(form)) return true;
+      return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
     case 4: return form.paginationEnabled ? form.pageSize > 0 : true;
     case 5: return (form.viewModes?.length ?? 0) > 0;
     default: return false;
@@ -73,8 +76,8 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   }, []);
 
   useEffect(() => {
-    if (form.mode === 'formManager' && step > 2) {
-      setStep(2);
+    if (form.mode === 'formManager' && step > 3) {
+      setStep(3);
     }
   }, [form.mode, step]);
 
@@ -114,7 +117,10 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
       projectManagement: initialValues?.projectManagement,
       formManager:
         form.mode === 'formManager'
-          ? (initialValues?.formManager ?? getDefaultFormManagerConfig())
+          ? {
+              ...(initialValues?.formManager ?? getDefaultFormManagerConfig()),
+              stepLayout: form.formStepLayout,
+            }
           : initialValues?.formManager,
     });
   }, [form, initialValues]);
@@ -139,13 +145,31 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   };
 
   const renderStep = (): React.ReactElement => {
+    if (isFormManagerWizard(form)) {
+      switch (step) {
+        case 1:
+          return <Step1DataSource form={form} onChange={updateForm} />;
+        case 2:
+          return <Step2Mode form={form} onChange={updateForm} />;
+        case 3:
+          return <Step3FormStepLayout form={form} onChange={updateForm} />;
+        default:
+          return <></>;
+      }
+    }
     switch (step) {
-      case 1: return <Step1DataSource form={form} onChange={updateForm} />;
-      case 2: return <Step2Mode form={form} onChange={updateForm} />;
-      case 3: return <Step3Dashboard form={form} onChange={updateForm} />;
-      case 4: return <Step4Pagination form={form} onChange={updateForm} />;
-      case 5: return <Step5ViewModes form={form} listTitle={form.title} onChange={updateForm} />;
-      default: return <></>;
+      case 1:
+        return <Step1DataSource form={form} onChange={updateForm} />;
+      case 2:
+        return <Step2Mode form={form} onChange={updateForm} />;
+      case 3:
+        return <Step3Dashboard form={form} onChange={updateForm} />;
+      case 4:
+        return <Step4Pagination form={form} onChange={updateForm} />;
+      case 5:
+        return <Step5ViewModes form={form} listTitle={form.title} onChange={updateForm} />;
+      default:
+        return <></>;
     }
   };
 
@@ -163,7 +187,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
       <div
         style={{
           width: '100%',
-          maxWidth: 580,
+          maxWidth: isFormManagerWizard(form) ? 960 : 580,
           background: '#fff',
           borderRadius: 12,
           border: '1px solid #edebe9',
@@ -214,7 +238,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
                   color: step === s ? '#0078d4' : '#605e5c',
                 }}
               >
-                {s}. {LIST_STEP_LABELS[s - 1]}
+                {s}. {stepLabelsForForm(form)[s - 1] ?? ''}
               </button>
             ))}
           </Stack>

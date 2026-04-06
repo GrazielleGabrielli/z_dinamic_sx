@@ -3,11 +3,19 @@ import type {
   IFormFieldConfig,
   IFormSectionConfig,
   IFormStepConfig,
+  IFormCustomButtonConfig,
+  TFormButtonAction,
+  TFormManagerFormMode,
   TFormRule,
   TFormConditionNode,
   TFormConditionOp,
+  TFormStepLayoutKind,
+  TFormStepNavButtonsKind,
   IFormCompareRef,
 } from '../config/types/formManager';
+
+const STEP_LAYOUT_SET = new Set<string>(['rail', 'segmented', 'timeline', 'cards']);
+const STEP_NAV_BUTTONS_SET = new Set<string>(['fluent', 'pills', 'dots', 'icons', 'links']);
 
 function sanitizeCompareRef(raw: unknown): IFormCompareRef | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -275,6 +283,71 @@ function sanitizeSection(raw: unknown): IFormSectionConfig | undefined {
   };
 }
 
+function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const a = raw as Record<string, unknown>;
+  const kind = a.kind;
+  if (kind === 'showFields' || kind === 'hideFields') {
+    const fields = Array.isArray(a.fields)
+      ? (a.fields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+      : [];
+    if (!fields.length) return undefined;
+    return kind === 'showFields' ? { kind: 'showFields', fields } : { kind: 'hideFields', fields };
+  }
+  if (kind === 'setFieldValue') {
+    const field = typeof a.field === 'string' ? a.field.trim() : '';
+    const valueTemplate = typeof a.valueTemplate === 'string' ? a.valueTemplate : '';
+    if (!field) return undefined;
+    return { kind: 'setFieldValue', field, valueTemplate };
+  }
+  if (kind === 'joinFields') {
+    const targetField = typeof a.targetField === 'string' ? a.targetField.trim() : '';
+    const sourceFields = Array.isArray(a.sourceFields)
+      ? (a.sourceFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+      : [];
+    const separator = typeof a.separator === 'string' ? a.separator : ' ';
+    if (!targetField || !sourceFields.length) return undefined;
+    return { kind: 'joinFields', targetField, sourceFields, separator };
+  }
+  return undefined;
+}
+
+function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const b = raw as Record<string, unknown>;
+  const id = typeof b.id === 'string' ? b.id.trim() : '';
+  if (!id) return undefined;
+  const labelRaw = typeof b.label === 'string' ? b.label.trim() : '';
+  const label = labelRaw || id;
+  const appearance = b.appearance === 'primary' ? 'primary' : 'default';
+  const behaviorRaw = b.behavior;
+  const behavior: IFormCustomButtonConfig['behavior'] =
+    behaviorRaw === 'draft'
+      ? 'draft'
+      : behaviorRaw === 'submit'
+        ? 'submit'
+        : behaviorRaw === 'close'
+          ? 'close'
+          : 'actionsOnly';
+  const modes = Array.isArray(b.modes)
+    ? (b.modes as string[]).filter((m) => m === 'create' || m === 'edit' || m === 'view') as TFormManagerFormMode[]
+    : undefined;
+  const actionsRaw = Array.isArray(b.actions) ? b.actions : [];
+  const actions: TFormButtonAction[] = [];
+  for (let i = 0; i < actionsRaw.length; i++) {
+    const act = sanitizeButtonAction(actionsRaw[i]);
+    if (act) actions.push(act);
+  }
+  return {
+    id,
+    label,
+    appearance,
+    behavior,
+    ...(modes?.length ? { modes } : {}),
+    actions,
+  };
+}
+
 function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const s = raw as Record<string, unknown>;
@@ -327,6 +400,19 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     const when = sanitizeConditionNode(d.when);
     if (field && helpText.trim() && when) dynamicHelp.push({ field, when, helpText });
   }
+  const customButtonsRaw = Array.isArray(o.customButtons) ? o.customButtons : [];
+  const customButtons: IFormCustomButtonConfig[] = [];
+  for (let i = 0; i < customButtonsRaw.length; i++) {
+    const btn = sanitizeCustomButton(customButtonsRaw[i]);
+    if (btn) customButtons.push(btn);
+  }
+  const slRaw = o.stepLayout;
+  const stepLayout: TFormStepLayoutKind | undefined =
+    typeof slRaw === 'string' && STEP_LAYOUT_SET.has(slRaw) ? (slRaw as TFormStepLayoutKind) : undefined;
+  const snRaw = o.stepNavButtons;
+  const stepNavButtons: TFormStepNavButtonsKind | undefined =
+    typeof snRaw === 'string' && STEP_NAV_BUTTONS_SET.has(snRaw) ? (snRaw as TFormStepNavButtonsKind) : undefined;
+  const showDefaultFormButtons = o.showDefaultFormButtons === true;
   return {
     sections,
     fields,
@@ -334,5 +420,9 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(steps.length ? { steps } : {}),
     ...(managerColumnFields?.length ? { managerColumnFields } : {}),
     ...(dynamicHelp.length ? { dynamicHelp } : {}),
+    ...(customButtons.length ? { customButtons } : {}),
+    ...(stepLayout ? { stepLayout } : {}),
+    ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
+    ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
   };
 }

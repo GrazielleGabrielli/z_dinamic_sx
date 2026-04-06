@@ -9,6 +9,7 @@ import type {
   TFormSubmitKind,
   IFormCompareRef,
 } from '../config/types/formManager';
+import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../config/types/formManager';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -230,7 +231,7 @@ function evalArithmetic(expr: string): number | undefined {
   return v;
 }
 
-function evalComputedExpression(expr: string, values: Record<string, unknown>): unknown {
+export function evaluateFormValueExpression(expr: string, values: Record<string, unknown>): unknown {
   const t = expr.trim();
   if (t.indexOf('str:') === 0) {
     return t.slice(4).replace(/\{\{([^}]+)\}\}/g, (_, name) => {
@@ -359,10 +360,16 @@ function multiCount(raw: unknown): number {
   return 1;
 }
 
+export interface IFormButtonVisibilityOverlay {
+  show?: Set<string>;
+  hide?: Set<string>;
+}
+
 export function buildFormDerivedState(
   cfg: IFormManagerConfig,
   fieldConfigs: IFormFieldConfig[],
-  ctx: IFormRuleRuntimeContext
+  ctx: IFormRuleRuntimeContext,
+  buttonOverlay?: IFormButtonVisibilityOverlay
 ): IFormDerivedUiState {
   const { values, formMode, dynamicContext } = ctx;
   const fieldVisible: Record<string, boolean> = {};
@@ -428,7 +435,7 @@ export function buildFormDerivedState(
         lookupFilters[rule.field] = { parentField: rule.parentField, odataFilterTemplate: rule.odataFilterTemplate };
         break;
       case 'setComputed': {
-        const v = evalComputedExpression(rule.expression, values);
+        const v = evaluateFormValueExpression(rule.expression, values);
         if (v !== undefined) computedDisplay[rule.field] = v;
         break;
       }
@@ -474,6 +481,17 @@ export function buildFormDerivedState(
     if (evaluateCondition(h.when, values, dynamicContext)) dynamicHelpByField[h.field] = h.helpText;
   }
 
+  if (buttonOverlay?.show) {
+    buttonOverlay.show.forEach((k) => {
+      if (k) fieldVisible[k] = true;
+    });
+  }
+  if (buttonOverlay?.hide) {
+    buttonOverlay.hide.forEach((k) => {
+      if (k) fieldVisible[k] = false;
+    });
+  }
+
   return {
     fieldVisible,
     sectionVisible,
@@ -497,13 +515,14 @@ export function collectFormValidationErrors(
   cfg: IFormManagerConfig,
   fieldConfigs: IFormFieldConfig[],
   ctx: IFormRuleRuntimeContext,
-  attachmentCtx?: IFormValidationAttachmentContext
+  attachmentCtx?: IFormValidationAttachmentContext,
+  buttonOverlay?: IFormButtonVisibilityOverlay
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const { values, formMode, submitKind, dynamicContext } = ctx;
   if (formMode === 'view') return errors;
 
-  const derived = buildFormDerivedState(cfg, fieldConfigs, ctx);
+  const derived = buildFormDerivedState(cfg, fieldConfigs, ctx, buttonOverlay);
   const rules = cfg.rules ?? [];
   const fieldVisible = (name: string): boolean => derived.fieldVisible[name] !== false;
   const isDraft = submitKind === 'draft';
@@ -512,6 +531,7 @@ export function collectFormValidationErrors(
     for (let i = 0; i < fieldConfigs.length; i++) {
       const fc = fieldConfigs[i];
       const name = fc.internalName;
+      if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
       if (!fieldVisible(name)) continue;
       const req = derived.fieldRequired[name] === true;
       if (req && isEmptyish(values[name])) errors[name] = 'Obrigatório.';
@@ -570,6 +590,7 @@ export function collectFormValidationErrors(
       case 'setRequired': {
         if (isDraft) break;
         if (!whenOk) break;
+        if (rule.field === FORM_ATTACHMENTS_FIELD_INTERNAL) break;
         if (!fieldVisible(rule.field)) break;
         if (rule.required && isEmptyish(values[rule.field])) errors[rule.field] = 'Obrigatório.';
         break;
