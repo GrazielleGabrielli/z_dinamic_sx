@@ -17,6 +17,7 @@ import {
   Pivot,
   PivotItem,
   Link,
+  Icon,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
@@ -57,6 +58,123 @@ import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr.slice();
+  const next = arr.slice();
+  const moved = next.splice(from, 1);
+  const item = moved[0] as T;
+  next.splice(to, 0, item);
+  return next;
+}
+
+const DND_FIELD = 'fm/field:';
+const DND_STEP = 'fm/step:';
+const DND_MCOL = 'fm/mcol:';
+const DND_POOL = 'fm/pool:';
+const DND_FS = 'fm/fs:';
+
+function dragPayload(kind: string, index: number): string {
+  return kind + String(index);
+}
+
+function parseDragIndex(data: string, prefix: string): number | undefined {
+  if (data.indexOf(prefix) !== 0) return undefined;
+  const n = parseInt(data.slice(prefix.length), 10);
+  return isNaN(n) ? undefined : n;
+}
+
+function dragPayloadPool(internalName: string): string {
+  return DND_POOL + encodeURIComponent(internalName);
+}
+
+function parsePoolDrag(data: string): string | undefined {
+  if (data.indexOf(DND_POOL) !== 0) return undefined;
+  try {
+    return decodeURIComponent(data.slice(DND_POOL.length));
+  } catch {
+    return undefined;
+  }
+}
+
+function dragPayloadFieldInStep(stepIdx: number, idxInStep: number, internalName: string): string {
+  return DND_FS + String(stepIdx) + ':' + String(idxInStep) + ':' + encodeURIComponent(internalName);
+}
+
+function parseFieldInStepDrag(data: string): { fromStep: number; fromIdx: number; name: string } | undefined {
+  if (data.indexOf(DND_FS) !== 0) return undefined;
+  const rest = data.slice(DND_FS.length);
+  const p1 = rest.indexOf(':');
+  const p2 = rest.indexOf(':', p1 + 1);
+  if (p1 === -1 || p2 === -1) return undefined;
+  const fromStep = parseInt(rest.slice(0, p1), 10);
+  const fromIdx = parseInt(rest.slice(p1 + 1, p2), 10);
+  let name = '';
+  try {
+    name = decodeURIComponent(rest.slice(p2 + 1));
+  } catch {
+    return undefined;
+  }
+  if (isNaN(fromStep) || isNaN(fromIdx) || !name) return undefined;
+  return { fromStep, fromIdx, name };
+}
+
+function insertFieldNameIntoStep(
+  st: IFormStepConfig[],
+  fieldName: string,
+  toStepIdx: number,
+  insertBefore: number
+): IFormStepConfig[] {
+  const next = st.map((s) => ({
+    ...s,
+    fieldNames: s.fieldNames.filter((n) => n !== fieldName),
+  }));
+  const tgt = next[toStepIdx];
+  if (!tgt) return next;
+  const fn = tgt.fieldNames.slice();
+  const pos = Math.max(0, Math.min(insertBefore, fn.length));
+  fn.splice(pos, 0, fieldName);
+  next[toStepIdx] = { ...tgt, fieldNames: fn };
+  return next;
+}
+
+function fieldsAlignedToSteps(flds: IFormFieldConfig[], st: IFormStepConfig[]): IFormFieldConfig[] {
+  const byName: Record<string, IFormFieldConfig> = {};
+  for (let i = 0; i < flds.length; i++) {
+    byName[flds[i].internalName] = flds[i];
+  }
+  const out: IFormFieldConfig[] = [];
+  const seen: Record<string, boolean> = {};
+  for (let s = 0; s < st.length; s++) {
+    const sid = st[s].id;
+    for (let j = 0; j < st[s].fieldNames.length; j++) {
+      const n = st[s].fieldNames[j];
+      const fc = byName[n];
+      if (fc) {
+        out.push({ ...fc, sectionId: sid });
+        seen[n] = true;
+      }
+    }
+  }
+  for (let i = 0; i < flds.length; i++) {
+    const n = flds[i].internalName;
+    if (!seen[n]) {
+      out.push({ ...flds[i], sectionId: st[0]?.id ?? flds[i].sectionId });
+    }
+  }
+  return out;
+}
+
+function resyncStepsOrderFromFields(flds: IFormFieldConfig[], st: IFormStepConfig[]): IFormStepConfig[] {
+  const orderMap: Record<string, number> = {};
+  for (let i = 0; i < flds.length; i++) {
+    orderMap[flds[i].internalName] = i;
+  }
+  return st.map((s) => ({
+    ...s,
+    fieldNames: s.fieldNames.slice().sort((a, b) => (orderMap[a] ?? 99999) - (orderMap[b] ?? 99999)),
+  }));
 }
 
 function numOpt(s: string): number | undefined {
@@ -226,11 +344,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const conditionalCards = useMemo(() => parseConditionalCardsFromRules(rules).cards, [rules]);
 
-  const stepOptions: IDropdownOption[] = useMemo(
-    () => steps.map((s) => ({ key: s.id, text: s.title })),
-    [steps]
-  );
-
   const customs = useMemo(() => customRulesOnly(rules), [rules]);
 
   const setCardsAndRules = useCallback((cards: IConditionalRuleCard[]) => {
@@ -238,15 +351,29 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   }, []);
 
   const addField = (internalName: string): void => {
-    if (!internalName || fields.some((f) => f.internalName === internalName)) return;
-    const st = ensureAtLeastOneStep(steps);
-    const sid = st[0].id;
-    setSteps(
-      st.map((s, i) =>
+    if (!internalName) return;
+    setSteps((prevSteps) => {
+      const st = ensureAtLeastOneStep(prevSteps);
+      let already = false;
+      for (let s = 0; s < st.length; s++) {
+        if (st[s].fieldNames.indexOf(internalName) !== -1) {
+          already = true;
+          break;
+        }
+      }
+      if (already) return prevSteps;
+      const sid = st[0].id;
+      const nextSteps = st.map((s, i) =>
         i === 0 ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
-      )
-    );
-    setFields((prev) => [...prev, { internalName, sectionId: sid }]);
+      );
+      setFields((prev) => {
+        const withF = prev.some((f) => f.internalName === internalName)
+          ? prev
+          : prev.concat([{ internalName, sectionId: sid }]);
+        return fieldsAlignedToSteps(withF, nextSteps);
+      });
+      return nextSteps;
+    });
   };
 
   const removeField = (internalName: string): void => {
@@ -259,14 +386,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     );
   };
 
-  const moveField = (index: number, dir: -1 | 1): void => {
+  const reorderField = (from: number, to: number): void => {
     setFields((prev) => {
-      const j = index + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const next = prev.slice();
-      const t = next[index];
-      next[index] = next[j];
-      next[j] = t;
+      const next = reorderByIndex(prev, from, to);
+      setSteps((st) => resyncStepsOrderFromFields(next, st));
       return next;
     });
   };
@@ -275,18 +398,44 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setFields((prev) => prev.map((f) => (f.internalName === internalName ? { ...f, ...patch } : f)));
   };
 
-  const assignFieldToStep = (internalName: string, stepId: string): void => {
-    setSteps((prev) => {
-      const cleared = prev.map((s) => ({
-        ...s,
-        fieldNames: s.fieldNames.filter((n) => n !== internalName),
-      }));
-      return cleared.map((s) =>
-        s.id === stepId ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
-      );
-    });
-    updateFieldAt(internalName, { sectionId: stepId });
-  };
+  const handleStructureFieldDrop = useCallback((toStepIdx: number, insertBefore: number) => {
+    return (e: React.DragEvent<HTMLElement>): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      const d = e.dataTransfer.getData('text/plain');
+      const poolName = parsePoolDrag(d);
+      if (poolName) {
+        setSteps((prevSteps) => {
+          const nextSteps = insertFieldNameIntoStep(prevSteps, poolName, toStepIdx, insertBefore);
+          setFields((prevFields) => {
+            let f = prevFields;
+            const sid = nextSteps[toStepIdx] ? nextSteps[toStepIdx].id : '';
+            let has = false;
+            for (let i = 0; i < f.length; i++) {
+              if (f[i].internalName === poolName) {
+                has = true;
+                break;
+              }
+            }
+            if (!has) {
+              f = f.concat([{ internalName: poolName, sectionId: sid }]);
+            }
+            return fieldsAlignedToSteps(f, nextSteps);
+          });
+          return nextSteps;
+        });
+        return;
+      }
+      const fs = parseFieldInStepDrag(d);
+      if (fs) {
+        setSteps((prevSteps) => {
+          const nextSteps = insertFieldNameIntoStep(prevSteps, fs.name, toStepIdx, insertBefore);
+          setFields((prevFields) => fieldsAlignedToSteps(prevFields, nextSteps));
+          return nextSteps;
+        });
+      }
+    };
+  }, []);
 
   const handleSave = (): void => {
     setErr(undefined);
@@ -329,14 +478,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   };
 
-  const moveStep = (i: number, dir: -1 | 1): void => {
+  const reorderStep = (from: number, to: number): void => {
     setSteps((prev) => {
-      const j = i + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const n = prev.slice();
-      const t = n[i];
-      n[i] = n[j];
-      n[j] = t;
+      const n = reorderByIndex(prev, from, to);
+      setFields((flds) => fieldsAlignedToSteps(flds, n));
       return n;
     });
   };
@@ -356,10 +501,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       }
       next[0] = { ...t0, fieldNames: merged };
       setFields((pf) =>
-        pf.map((f) =>
-          removed.fieldNames.indexOf(f.internalName) !== -1
-            ? { ...f, sectionId: next[0].id }
-            : f
+        fieldsAlignedToSteps(
+          pf.map((f) =>
+            removed.fieldNames.indexOf(f.internalName) !== -1
+              ? { ...f, sectionId: next[0].id }
+              : f
+          ),
+          next
         )
       );
       return next;
@@ -376,16 +524,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     });
   };
 
-  const moveManagerCol = (i: number, dir: -1 | 1): void => {
-    setManagerColumnFields((prev) => {
-      const j = i + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const n = prev.slice();
-      const t = n[i];
-      n[i] = n[j];
-      n[j] = t;
-      return n;
-    });
+  const reorderManagerCol = (from: number, to: number): void => {
+    setManagerColumnFields((prev) => reorderByIndex(prev, from, to));
   };
 
   let fieldPanelConfig: IFormFieldConfig | undefined;
@@ -514,7 +654,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         <PivotItem headerText="Estrutura">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              As etapas definem a ordem do assistente no formulário e os títulos dos blocos. Cada campo pertence a uma etapa (o id da etapa é gravado como seção no JSON para o motor).
+              Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho.
             </Text>
             <Stack horizontal tokens={{ childrenGap: 8 }}>
               <PrimaryButton text="Nova etapa" onClick={addStep} />
@@ -525,59 +665,157 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
                 tokens={{ childrenGap: 8 }}
               >
-                <Stack horizontal verticalAlign="end" tokens={{ childrenGap: 8 }} wrap>
+                <Stack
+                  horizontal
+                  verticalAlign="end"
+                  tokens={{ childrenGap: 8 }}
+                  wrap
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_STEP);
+                    if (from === undefined || from === si) return;
+                    reorderStep(from, si);
+                  }}
+                >
+                  <span
+                    draggable
+                    title="Arrastar etapa"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', dragPayload(DND_STEP, si));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                  >
+                    <Icon iconName="GripperBarVertical" />
+                  </span>
                   <TextField
                     label={`Título da etapa (${st.id})`}
                     value={st.title}
                     onChange={(_, v) => updateStep(si, { title: v ?? '' })}
                   />
-                  <DefaultButton text="↑" onClick={() => moveStep(si, -1)} />
-                  <DefaultButton text="↓" onClick={() => moveStep(si, 1)} />
                   <DefaultButton text="Remover etapa" onClick={() => removeStep(si)} />
+                </Stack>
+                <Stack tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 4 } }}>
+                  {st.fieldNames.map((fname, fIdx) => {
+                    let mm: IFieldMetadata | undefined;
+                    for (let mi = 0; mi < meta.length; mi++) {
+                      if (meta[mi].InternalName === fname) {
+                        mm = meta[mi];
+                        break;
+                      }
+                    }
+                    return (
+                      <Stack
+                        key={fname}
+                        horizontal
+                        verticalAlign="center"
+                        tokens={{ childrenGap: 8 }}
+                        wrap
+                        styles={{
+                          root: {
+                            padding: '8px 10px',
+                            background: '#faf9f8',
+                            borderRadius: 4,
+                            border: '1px solid #edebe9',
+                          },
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDrop={handleStructureFieldDrop(si, fIdx)}
+                      >
+                        <span
+                          draggable
+                          title="Arrastar campo"
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', dragPayloadFieldInStep(si, fIdx, fname));
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                        >
+                          <Icon iconName="GripperBarVertical" />
+                        </span>
+                        <Text styles={{ root: { fontWeight: 600, minWidth: 120 } }}>
+                          {mm ? mm.Title : fname}
+                        </Text>
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          {fname} · {mm ? mm.MappedType : '—'}
+                        </Text>
+                        <DefaultButton text="Regras…" onClick={() => setFieldPanelName(fname)} />
+                        <DefaultButton text="Remover" onClick={() => removeField(fname)} />
+                      </Stack>
+                    );
+                  })}
+                  <Stack
+                    styles={{
+                      root: {
+                        minHeight: 40,
+                        padding: 8,
+                        borderRadius: 4,
+                        border: '1px dashed #c8c6c4',
+                        background: '#ffffff',
+                      },
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={handleStructureFieldDrop(si, st.fieldNames.length)}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
+                      Soltar aqui para colocar no fim desta etapa
+                    </Text>
+                  </Stack>
                 </Stack>
               </Stack>
             ))}
-            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>Campos (lista SharePoint)</Text>
+            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>Campos fora do formulário</Text>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Marque os campos usados no formulário, escolha a etapa e abra o painel para regras por tipo.
+              Arraste um campo para uma etapa acima ou marque para incluir na primeira etapa.
             </Text>
             {meta.map((m) => {
-              let fi = -1;
-              for (let idx = 0; idx < fields.length; idx++) {
-                if (fields[idx].internalName === m.InternalName) {
-                  fi = idx;
+              let inForm = false;
+              for (let i = 0; i < fields.length; i++) {
+                if (fields[i].internalName === m.InternalName) {
+                  inForm = true;
                   break;
                 }
               }
-              const used = fi !== -1;
-              const fc = used ? fields[fi] : undefined;
+              if (inForm) return null;
               return (
                 <Stack
                   key={m.InternalName}
                   horizontal
+                  verticalAlign="center"
                   tokens={{ childrenGap: 8 }}
-                  verticalAlign="end"
                   wrap
                 >
+                  <span
+                    draggable
+                    title="Arrastar para uma etapa"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', dragPayloadPool(m.InternalName));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                  >
+                    <Icon iconName="GripperBarVertical" />
+                  </span>
                   <Checkbox
                     label={`${m.Title} (${m.InternalName})`}
-                    checked={used}
-                    onChange={(_, c) => (c ? addField(m.InternalName) : removeField(m.InternalName))}
+                    checked={false}
+                    onChange={(_, c) => (c ? addField(m.InternalName) : undefined)}
                   />
                   <Text variant="small" styles={{ root: { minWidth: 80 } }}>{m.MappedType}</Text>
-                  {used && fc && (
-                    <>
-                      <Dropdown
-                        label="Etapa"
-                        options={stepOptions}
-                        selectedKey={fc.sectionId ?? steps[0]?.id ?? ''}
-                        onChange={(_, o) => o && assignFieldToStep(m.InternalName, String(o.key))}
-                      />
-                      <DefaultButton text="↑" onClick={() => moveField(fi, -1)} />
-                      <DefaultButton text="↓" onClick={() => moveField(fi, 1)} />
-                      <DefaultButton text="Regras…" onClick={() => setFieldPanelName(m.InternalName)} />
-                    </>
-                  )}
                 </Stack>
               );
             })}
@@ -586,9 +824,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         <PivotItem headerText="Regras rápidas">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Ajustes base por campo. Regras geradas pela UI aparecem no motor com prefixo ui_f_.
+              Ajustes base por campo. Reordene linhas arrastando a alça. Regras geradas pela UI aparecem no motor com prefixo ui_f_.
             </Text>
-            {fields.map((fc) => {
+            {fields.map((fc, fIdx) => {
                 let m: IFieldMetadata | undefined;
                 for (let mi = 0; mi < meta.length; mi++) {
                   if (meta[mi].InternalName === fc.internalName) {
@@ -605,7 +843,28 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   tokens={{ childrenGap: 8 }}
                   verticalAlign="end"
                   wrap
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_FIELD);
+                    if (from === undefined || from === fIdx) return;
+                    reorderField(from, fIdx);
+                  }}
                 >
+                  <span
+                    draggable
+                    title="Arrastar para reordenar"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', dragPayload(DND_FIELD, fIdx));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                  >
+                    <Icon iconName="GripperBarVertical" />
+                  </span>
                   <Text styles={{ root: { minWidth: 140, fontWeight: 600 } }}>{fc.internalName}</Text>
                   <Checkbox
                     label="Visível"
@@ -794,12 +1053,36 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 onChange={(_, c) => toggleManagerCol(m.InternalName, !!c)}
               />
             ))}
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ordem das colunas selecionadas</Text>
+            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ordem das colunas selecionadas (arraste pela alça)</Text>
             {managerColumnFields.map((name, mi) => (
-              <Stack key={name} horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+              <Stack
+                key={name}
+                horizontal
+                verticalAlign="center"
+                tokens={{ childrenGap: 8 }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_MCOL);
+                  if (from === undefined || from === mi) return;
+                  reorderManagerCol(from, mi);
+                }}
+              >
+                <span
+                  draggable
+                  title="Arrastar para reordenar"
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', dragPayload(DND_MCOL, mi));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                >
+                  <Icon iconName="GripperBarVertical" />
+                </span>
                 <Text styles={{ root: { minWidth: 160 } }}>{name}</Text>
-                <DefaultButton text="↑" onClick={() => moveManagerCol(mi, -1)} />
-                <DefaultButton text="↓" onClick={() => moveManagerCol(mi, 1)} />
               </Stack>
             ))}
             <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Anexos (formulário)</Text>

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Stack,
   Text,
@@ -25,8 +25,24 @@ interface IConfigWizardProps {
   onCancel?: () => void;
 }
 
-const TOTAL_STEPS = 5;
-const STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modos de visualização'];
+const LIST_STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modos de visualização'];
+const FORM_MANAGER_STEP_LABELS = ['Fonte de dados', 'Modo'];
+
+function isFormManagerWizard(form: IWizardFormState): boolean {
+  return form.mode === 'formManager';
+}
+
+function totalStepsForForm(form: IWizardFormState): number {
+  return isFormManagerWizard(form) ? 2 : 5;
+}
+
+function stepLabelsForForm(form: IWizardFormState): string[] {
+  return isFormManagerWizard(form) ? FORM_MANAGER_STEP_LABELS : LIST_STEP_LABELS;
+}
+
+function stepIndicesForForm(form: IWizardFormState): number[] {
+  return isFormManagerWizard(form) ? [1, 2] : [1, 2, 3, 4, 5];
+}
 
 function isStepValid(step: number, form: IWizardFormState): boolean {
   switch (step) {
@@ -56,11 +72,19 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     setForm((prev) => ({ ...prev, ...partial }));
   }, []);
 
+  useEffect(() => {
+    if (form.mode === 'formManager' && step > 2) {
+      setStep(2);
+    }
+  }, [form.mode, step]);
+
+  const totalSteps = totalStepsForForm(form);
+  const stepLabels = stepLabelsForForm(form);
   const valid = isStepValid(step, form);
   const canSaveEdit =
     form.title.trim().length > 0 &&
     (form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager') &&
-    (form.viewModes?.length ?? 0) > 0;
+    (form.mode === 'formManager' || (form.viewModes?.length ?? 0) > 0);
 
   const buildCurrentConfig = useCallback((): IDynamicViewConfig => {
     const existingCards = initialValues?.dashboard.cards ?? [];
@@ -97,7 +121,8 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
 
   const handleNext = (): void => {
     if (!valid) return;
-    if (step < TOTAL_STEPS) {
+    const max = totalStepsForForm(form);
+    if (step < max) {
       setStep((s) => s + 1);
     } else {
       onComplete(buildCurrentConfig());
@@ -158,21 +183,21 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
             </Stack>
             <Stack horizontalAlign="end" tokens={{ childrenGap: 2 }}>
               <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
-                Passo {step} de {TOTAL_STEPS}
+                Passo {step} de {totalSteps}
               </Text>
               <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
-                {STEP_LABELS[step - 1]}
+                {stepLabels[step - 1] ?? ''}
               </Text>
             </Stack>
           </Stack>
           <div style={{ marginTop: 16 }}>
             <ProgressIndicator
-              percentComplete={step / TOTAL_STEPS}
+              percentComplete={step / totalSteps}
               styles={{ itemProgress: { padding: 0 } }}
             />
           </div>
           <Stack horizontal tokens={{ childrenGap: 0 }} styles={{ root: { marginTop: 12, marginBottom: 4 } }}>
-            {[1, 2, 3, 4, 5].map((s) => (
+            {stepIndicesForForm(form).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -189,7 +214,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
                   color: step === s ? '#0078d4' : '#605e5c',
                 }}
               >
-                {s}. {STEP_LABELS[s - 1]}
+                {s}. {LIST_STEP_LABELS[s - 1]}
               </button>
             ))}
           </Stack>
@@ -212,7 +237,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
               />
             )}
             <PrimaryButton
-              text={step === TOTAL_STEPS ? 'Concluir configuração' : 'Próximo'}
+              text={step === totalSteps ? 'Concluir configuração' : 'Próximo'}
               onClick={handleNext}
               disabled={!valid}
             />
