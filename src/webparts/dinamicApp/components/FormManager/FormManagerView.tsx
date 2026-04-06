@@ -222,6 +222,9 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
           currentUserId={currentUserId}
           onSubmit={handleSubmit}
           onDismiss={resetToNew}
+          onAfterItemUpdated={async () => {
+            if (activeItem) await loadItemById(Number(activeItem.Id));
+          }}
         />
       )}
     </Stack>

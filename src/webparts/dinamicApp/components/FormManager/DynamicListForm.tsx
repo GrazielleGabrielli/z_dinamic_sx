@@ -21,6 +21,7 @@ import type {
   IFormFieldConfig,
   IFormCustomButtonConfig,
   TFormButtonAction,
+  TFormCustomButtonOperation,
   TFormManagerFormMode,
   TFormSubmitKind,
   TFormRule,
@@ -39,6 +40,7 @@ import { formValuesToSharePointPayload } from '../../core/formManager/formShareP
 import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidation';
+import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
 import { ItemsService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 
@@ -54,6 +56,37 @@ export interface IDynamicListFormProps {
   currentUserId: number;
   onSubmit: (payload: Record<string, unknown>, submitKind: TFormSubmitKind, pendingFiles: File[]) => Promise<void>;
   onDismiss: () => void;
+  /** Chamado após botão «Atualizar» personalizado gravar com sucesso (ex.: recarregar item). */
+  onAfterItemUpdated?: () => void | Promise<void>;
+}
+
+async function uploadListItemAttachments(listTitle: string, itemId: number, files: File[]): Promise<void> {
+  if (!files.length) return;
+  const sp = getSP();
+  const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(listTitle);
+  const list = isGuid ? sp.web.lists.getById(listTitle) : sp.web.lists.getByTitle(listTitle);
+  const item = list.items.getById(itemId) as unknown as {
+    attachmentFiles: { add(name: string, content: ArrayBuffer): Promise<unknown> };
+  };
+  for (let i = 0; i < files.length; i++) {
+    const buf = await files[i].arrayBuffer();
+    await item.attachmentFiles.add(files[i].name, buf);
+  }
+}
+
+function isCustomButtonVisible(b: IFormCustomButtonConfig, formMode: TFormManagerFormMode): boolean {
+  if (b.modes !== undefined && b.modes.length === 0) return false;
+  if (b.modes?.length && b.modes.indexOf(formMode) === -1) return false;
+  const op: TFormCustomButtonOperation = b.operation ?? 'legacy';
+  if (op === 'delete') {
+    if (formMode === 'create') return false;
+    const sv = b.deleteShowInView !== false;
+    const se = b.deleteShowInEdit !== false;
+    if (formMode === 'view' && !sv) return false;
+    if (formMode === 'edit' && !se) return false;
+  }
+  if (op === 'update' && formMode === 'create') return false;
+  return true;
 }
 
 function itemToFormValues(
@@ -116,6 +149,34 @@ function cloneStringSet(s: Set<string>): Set<string> {
   return n;
 }
 
+const REQ_EMPTY_BORDER = '#a4262c';
+
+function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
+  if (mappedType === 'boolean') {
+    return v === undefined || v === null;
+  }
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string' && v.trim() === '') return true;
+  if (Array.isArray(v) && v.length === 0) return true;
+  if (typeof v === 'object' && v !== null && 'Id' in (v as object)) {
+    const id = (v as Record<string, unknown>).Id;
+    if (id === null || id === undefined || id === '') return true;
+  }
+  return false;
+}
+
+function stylesTextFieldRequiredEmpty(active: boolean): { fieldGroup?: Record<string, string | number> } | undefined {
+  if (!active) return undefined;
+  return {
+    fieldGroup: {
+      borderColor: REQ_EMPTY_BORDER,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      borderRadius: 2,
+    },
+  };
+}
+
 function lookupIdFromValue(v: unknown): number | undefined {
   if (typeof v === 'number' && isFinite(v)) return v;
   if (typeof v === 'object' && v !== null && 'Id' in v) {
@@ -137,6 +198,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   currentUserId,
   onSubmit,
   onDismiss,
+  onAfterItemUpdated,
 }) => {
   const fieldConfigs: IFormFieldConfig[] =
     formManager.fields.length > 0
@@ -374,7 +436,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   };
 
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
-    const actions = btn.actions ?? [];
+    const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
+    const actions = op === 'redirect' ? [] : btn.actions ?? [];
     const deltas = collectButtonOverlayDeltas(actions);
     const mergedValues = applyButtonActionsToValues(actions, values);
     const mergedOverlay = {
@@ -383,10 +446,83 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     };
     for (let i = 0; i < deltas.show.length; i++) mergedOverlay.show.add(deltas.show[i]);
     for (let i = 0; i < deltas.hide.length; i++) mergedOverlay.hide.add(deltas.hide[i]);
-    flushSync(() => {
-      setValues(mergedValues);
-      setButtonOverlay(mergedOverlay);
-    });
+    if (op !== 'redirect') {
+      flushSync(() => {
+        setValues(mergedValues);
+        setButtonOverlay(mergedOverlay);
+      });
+    }
+
+    if (op === 'redirect') {
+      const tpl = (btn.redirectUrlTemplate ?? '').trim();
+      if (!tpl) {
+        setFormError('Configure o URL de redirecionamento no gestor de formulário.');
+        return;
+      }
+      const url = interpolateFormButtonRedirectUrl(tpl, mergedValues, { itemId, formMode });
+      window.location.assign(url);
+      return;
+    }
+
+    if (op === 'add') {
+      setFormError(undefined);
+      const ok = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
+      if (!ok) return;
+      setSubmitting(true);
+      try {
+        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names);
+        const newId = await itemsService.addItem(listTitle, payload);
+        await uploadListItemAttachments(listTitle, newId, pendingFiles);
+        onDismiss();
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    if (op === 'update') {
+      if (!itemId || formMode === 'create') {
+        setFormError('Atualizar requer um item aberto (parâmetros Form / FormID na página).');
+        return;
+      }
+      setFormError(undefined);
+      const ok = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
+      if (!ok) return;
+      setSubmitting(true);
+      try {
+        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names);
+        await itemsService.updateItem(listTitle, itemId, payload);
+        await uploadListItemAttachments(listTitle, itemId, pendingFiles);
+        await onAfterItemUpdated?.();
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    if (op === 'delete') {
+      if (!itemId || formMode === 'create') {
+        setFormError('Eliminar só está disponível ao editar ou ver um item existente.');
+        return;
+      }
+      if (!window.confirm('Eliminar este item permanentemente?')) return;
+      setFormError(undefined);
+      setSubmitting(true);
+      try {
+        await itemsService.deleteItem(listTitle, itemId);
+        onDismiss();
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     const behavior = btn.behavior ?? 'actionsOnly';
     if (behavior === 'close') {
       onDismiss();
@@ -427,10 +563,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) {
       const readOnly = formMode === 'view' || derived.fieldDisabled[name] === true;
       const attErr = localErrors._attachments;
+      const attReq = derived.fieldRequired[name] === true;
+      const attachmentSatisfied =
+        pendingFiles.length > 0 || (formMode !== 'create' && attachmentCount > 0);
+      const attReqEmpty = attReq && !readOnly && !attachmentSatisfied;
       if (formMode === 'view') {
         return (
           <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 12 } }}>
-            <Label>{fc.label ?? 'Anexos ao item'}</Label>
+            <Label required={attReq}>{fc.label ?? 'Anexos ao item'}</Label>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               {attachmentCount} anexo(s) no item. Não é possível adicionar novos em modo ver.
             </Text>
@@ -451,7 +591,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           label={fc.label ?? 'Anexos ao item'}
           description={fc.helpText}
           errorMessage={attErr}
-          required={derived.fieldRequired[name] === true}
+          required={attReq}
+          requiredEmptyHighlight={attReqEmpty}
         />
       );
     }
@@ -462,12 +603,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const err = localErrors[name];
     const label = fc.label ?? m.Title;
     const help = derived.dynamicHelpByField[name] ?? fc.helpText;
-    const req = derived.fieldRequired[name] === true;
+    const isRequired = derived.fieldRequired[name] === true || m.Required === true;
+    const canFill = formMode !== 'view' && !readOnly;
+    const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(values[name], m.MappedType);
     const comp = derived.computedDisplay[name];
     if (comp !== undefined) {
       return (
         <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
-          <Label required={req}>{label}</Label>
+          <Label required={isRequired}>{label}</Label>
           <Text styles={{ root: { color: '#323130' } }}>{String(comp)}</Text>
           {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
         </Stack>
@@ -479,15 +622,28 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     switch (m.MappedType) {
       case 'boolean':
         return (
-          <Toggle
+          <Stack
             key={name}
-            label={label}
-            onText="Sim"
-            offText="Não"
-            checked={values[name] === true || values[name] === 1}
-            onChange={(_, c) => updateField(name, !!c)}
-            disabled={readOnly}
-          />
+            tokens={{ childrenGap: 6 }}
+            styles={{
+              root: {
+                marginBottom: 12,
+                ...(showReqEmpty
+                  ? { borderLeft: `3px solid ${REQ_EMPTY_BORDER}`, paddingLeft: 8, paddingTop: 2, paddingBottom: 2 }
+                  : {}),
+              },
+            }}
+          >
+            <Label required={isRequired}>{label}</Label>
+            <Toggle
+              ariaLabel={label}
+              onText="Sim"
+              offText="Não"
+              checked={values[name] === true || values[name] === 1}
+              onChange={(_, c) => updateField(name, !!c)}
+              disabled={readOnly}
+            />
+          </Stack>
         );
       case 'number':
       case 'currency':
@@ -499,20 +655,24 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             placeholder={fc.placeholder}
             value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
             onChange={(_, v) => updateField(name, v === '' ? null : Number(v))}
-            required={req}
+            required={isRequired}
             {...common}
             description={help}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
       case 'datetime':
         return (
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 8 } }}>
-            <Label required={req}>{label}</Label>
+            <Label required={isRequired}>{label}</Label>
             <DatePicker
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => updateField(name, d ? d.toISOString() : null)}
               disabled={readOnly}
-              textField={{ errorMessage: err }}
+              textField={{
+                errorMessage: err,
+                styles: stylesTextFieldRequiredEmpty(showReqEmpty),
+              }}
             />
             {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
@@ -527,9 +687,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             options={opts}
             selectedKey={values[name] !== undefined && values[name] !== null ? String(values[name]) : ''}
             onChange={(_, o) => o && updateField(name, o.key)}
-            required={req}
+            required={isRequired}
             errorMessage={err}
             disabled={readOnly}
+            styles={
+              showReqEmpty
+                ? {
+                    dropdown: {
+                      borderColor: REQ_EMPTY_BORDER,
+                      borderWidth: 1,
+                      borderStyle: 'solid',
+                      borderRadius: 2,
+                    },
+                  }
+                : undefined
+            }
           />
         );
       }
@@ -558,9 +730,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               const next = selected.indexOf(k) !== -1 ? selected.filter((x) => x !== k) : [...selected, k];
               updateField(name, next);
             }}
-            required={req}
+            required={isRequired}
             errorMessage={err}
             disabled={readOnly}
+            styles={
+              showReqEmpty
+                ? {
+                    dropdown: {
+                      borderColor: REQ_EMPTY_BORDER,
+                      borderWidth: 1,
+                      borderStyle: 'solid',
+                      borderRadius: 2,
+                    },
+                  }
+                : undefined
+            }
           />
         );
       }
@@ -578,9 +762,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               if (!o || o.key === '') updateField(name, null);
               else updateField(name, { Id: Number(o.key), Title: o.text });
             }}
-            required={req}
+            required={isRequired}
             errorMessage={err}
             disabled={readOnly}
+            styles={
+              showReqEmpty
+                ? {
+                    dropdown: {
+                      borderColor: REQ_EMPTY_BORDER,
+                      borderWidth: 1,
+                      borderStyle: 'solid',
+                      borderRadius: 2,
+                    },
+                  }
+                : undefined
+            }
           />
         );
       }
@@ -593,9 +789,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             placeholder={fc.placeholder}
             value={id !== undefined ? String(id) : ''}
             onChange={(_, v) => updateField(name, v === '' ? null : { Id: Number(v), Title: '' })}
-            required={req}
+            required={isRequired}
             {...common}
             description={help ?? 'Informe o ID numérico do usuário no site.'}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
       }
@@ -609,9 +806,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             placeholder={fc.placeholder}
             value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
             onChange={(_, v) => updateField(name, v ?? '')}
-            required={req}
+            required={isRequired}
             {...common}
             description={help}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
       default:
@@ -622,9 +820,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             placeholder={fc.placeholder}
             value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
             onChange={(_, v) => updateField(name, v ?? '')}
-            required={req}
+            required={isRequired}
             {...common}
             description={help}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
     }
@@ -692,11 +891,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       {renderFields('main')}
       <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
         {(formManager.customButtons ?? [])
-          .filter((b) => {
-            if (b.modes !== undefined && b.modes.length === 0) return false;
-            if (!b.modes?.length) return true;
-            return b.modes.indexOf(formMode) !== -1;
-          })
+          .filter((b) => isCustomButtonVisible(b, formMode))
           .map((b) =>
             b.appearance === 'primary' ? (
               <PrimaryButton

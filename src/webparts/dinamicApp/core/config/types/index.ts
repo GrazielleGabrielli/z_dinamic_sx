@@ -381,6 +381,7 @@ export type {
   IFormCustomButtonConfig,
   TFormButtonAction,
   TFormCustomButtonBehavior,
+  TFormCustomButtonOperation,
   TFormRule,
   TFormManagerFormMode,
   TFormStepLayoutKind,

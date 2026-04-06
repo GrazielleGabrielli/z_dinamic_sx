@@ -10,6 +10,8 @@ export interface IFormAttachmentUploaderProps {
   description?: string;
   errorMessage?: string;
   required?: boolean;
+  /** Borda de alerta quando obrigatório e ainda sem ficheiros (modo edição com anexos existentes não destaca). */
+  requiredEmptyHighlight?: boolean;
 }
 
 function mergeFiles(prev: File[], added: FileList | null): File[] {
@@ -27,6 +29,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   description,
   errorMessage,
   required,
+  requiredEmptyHighlight,
 }) => {
   const onInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -53,7 +56,20 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
         </Text>
       )}
       {!disabled && (
-        <input type="file" multiple onChange={onInputChange} style={{ maxWidth: '100%' }} />
+        <div
+          style={
+            requiredEmptyHighlight
+              ? {
+                  padding: 8,
+                  borderRadius: 2,
+                  border: '1px solid #a4262c',
+                  background: '#fef6f6',
+                }
+              : undefined
+          }
+        >
+          <input type="file" multiple onChange={onInputChange} style={{ maxWidth: '100%' }} />
+        </div>
       )}
       {files.length > 0 && (
         <Stack tokens={{ childrenGap: 4 }}>

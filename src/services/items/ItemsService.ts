@@ -191,6 +191,14 @@ export class ItemsService {
     }
   }
 
+  async deleteItem(listTitleOrId: string, itemId: number): Promise<void> {
+    try {
+      await listRef(this.sp, listTitleOrId).items.getById(itemId).delete();
+    } catch (e) {
+      throw new Error(`ItemsService.deleteItem("${listTitleOrId}", ${itemId}): ${e}`);
+    }
+  }
+
   async countItems(listTitleOrId: string, filter: string): Promise<number> {
     try {
       const items = await listRef(this.sp, listTitleOrId).items.filter(filter).select('Id').top(5000)();

@@ -253,6 +253,9 @@ export type TFormStepNavButtonsKind = 'fluent' | 'pills' | 'dots' | 'icons' | 'l
 
 export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'close';
 
+/** Operação principal do botão personalizado (além das ações em cadeia). */
+export type TFormCustomButtonOperation = 'legacy' | 'redirect' | 'add' | 'update' | 'delete';
+
 export interface IFormButtonActionShowFields {
   kind: 'showFields';
   fields: string[];
@@ -288,6 +291,14 @@ export interface IFormCustomButtonConfig {
   label: string;
   appearance?: 'primary' | 'default';
   behavior?: TFormCustomButtonBehavior;
+  /** Omitido ou legacy: usa apenas `behavior` + ações. */
+  operation?: TFormCustomButtonOperation;
+  /** Só para operation === 'redirect'. Placeholders {{NomeInterno}} e especiais {{FormID}}, {{Form}} (modo: Display|Edit|New). */
+  redirectUrlTemplate?: string;
+  /** operation === 'delete': mostrar em modo ver (Disp). Omitido = true. */
+  deleteShowInView?: boolean;
+  /** operation === 'delete': mostrar em modo editar. Omitido = true. */
+  deleteShowInEdit?: boolean;
   modes?: TFormManagerFormMode[];
   actions: TFormButtonAction[];
 }

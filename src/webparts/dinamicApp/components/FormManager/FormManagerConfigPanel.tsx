@@ -31,6 +31,7 @@ import type {
   TFormButtonAction,
   TFormConditionOp,
   TFormCustomButtonBehavior,
+  TFormCustomButtonOperation,
   TFormManagerFormMode,
   TFormRule,
   TFormStepLayoutKind,
@@ -268,6 +269,27 @@ function fieldNamesToCsv(names: string[]): string {
   return names.join(', ');
 }
 
+const REDIRECT_KEY_FORM = '__FORM__';
+const REDIRECT_KEY_FORMID = '__FORMID__';
+
+function redirectTokenForKey(key: string): string {
+  if (key === REDIRECT_KEY_FORM) return '{{Form}}';
+  if (key === REDIRECT_KEY_FORMID) return '{{FormID}}';
+  return `{{${key}}}`;
+}
+
+function replaceFirstEmptyRedirectBrace(url: string, key: string): string {
+  return url.replace(/\{\{\s*\}\}/, redirectTokenForKey(key));
+}
+
+const BUTTON_OPERATION_OPTIONS: IDropdownOption[] = [
+  { key: 'legacy', text: 'Ações em cadeia (rascunho, enviar, fechar…)' },
+  { key: 'redirect', text: 'Redirecionar (URL com {{campo}})' },
+  { key: 'add', text: 'Adicionar — criar novo item na lista' },
+  { key: 'update', text: 'Atualizar — gravar o item atual (Form/FormID)' },
+  { key: 'delete', text: 'Eliminar — apagar o item atual' },
+];
+
 const BUTTON_BEHAVIOR_OPTIONS: IDropdownOption[] = [
   { key: 'actionsOnly', text: 'Só executar ações' },
   { key: 'draft', text: 'Ações e depois rascunho' },
@@ -442,6 +464,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [err, setErr] = useState<string | undefined>(undefined);
   const [jsonOpen, setJsonOpen] = useState(false);
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
+  const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
+  const [redirectInsertNonceByBtn, setRedirectInsertNonceByBtn] = useState<Record<string, number>>({});
+  const [redirectReplaceNonceByBtn, setRedirectReplaceNonceByBtn] = useState<Record<string, number>>({});
 
   const fieldsService = useMemo(() => new FieldsService(), []);
 
@@ -506,6 +531,19 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         if (a.Required !== b.Required) return a.Required ? -1 : 1;
         return a.Title.localeCompare(b.Title, 'pt');
       });
+  }, [meta]);
+
+  const redirectDynamicFieldOptions = useMemo((): IDropdownOption[] => {
+    const base: IDropdownOption[] = [
+      { key: REDIRECT_KEY_FORM, text: '{{Form}} — modo (Display / Edit / New)' },
+      { key: REDIRECT_KEY_FORMID, text: '{{FormID}} — id do item na lista' },
+    ];
+    return base.concat(
+      meta.map((m) => ({
+        key: m.InternalName,
+        text: `${m.Title}  →  {{${m.InternalName}}}`,
+      }))
+    );
   }, [meta]);
 
   const setCardsAndRules = useCallback((cards: IConditionalRuleCard[]) => {
@@ -722,6 +760,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           id: newId('btn'),
           label: 'Novo botão',
           appearance: 'default',
+          operation: 'legacy',
           behavior: 'actionsOnly',
           actions: [],
         },
@@ -1453,6 +1492,123 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     value={btn.label}
                     onChange={(_, v) => patchCustomButton(bi, { label: v ?? '' })}
                   />
+                  <Dropdown
+                    label="Tipo de operação"
+                    options={BUTTON_OPERATION_OPTIONS}
+                    selectedKey={(btn.operation ?? 'legacy') as string}
+                    onChange={(_, o) => {
+                      if (!o) return;
+                      const k = String(o.key) as TFormCustomButtonOperation;
+                      patchCustomButton(bi, {
+                        operation: k,
+                        ...(k === 'redirect'
+                          ? { redirectUrlTemplate: btn.redirectUrlTemplate ?? '', actions: [] }
+                          : {}),
+                      });
+                    }}
+                  />
+                  {(btn.operation ?? 'legacy') === 'redirect' && (
+                    <Stack tokens={{ childrenGap: 10 }}>
+                      <TextField
+                        label="URL de destino"
+                        description="Escreva o endereço. Use {{}} vazio para escolher um campo na lista abaixo, ou o menu «Inserir valor dinâmico»."
+                        multiline
+                        rows={3}
+                        value={btn.redirectUrlTemplate ?? ''}
+                        onChange={(_, v) => {
+                          const next = v ?? '';
+                          patchCustomButton(bi, { redirectUrlTemplate: next });
+                          if (/\{\{\s*\}\}/.test(next)) {
+                            setRedirectReplaceBraceForBtnId(btn.id);
+                          } else if (redirectReplaceBraceForBtnId === btn.id) {
+                            setRedirectReplaceBraceForBtnId(null);
+                          }
+                        }}
+                      />
+                      <Dropdown
+                        key={`redirect-ins-${btn.id}-${redirectInsertNonceByBtn[btn.id] ?? 0}`}
+                        label="Inserir valor dinâmico (no fim do URL)"
+                        options={[{ key: '', text: '— escolher campo —' }, ...redirectDynamicFieldOptions]}
+                        selectedKey=""
+                        onChange={(_, o) => {
+                          if (!o || o.key === '') return;
+                          const tok = redirectTokenForKey(String(o.key));
+                          patchCustomButton(bi, {
+                            redirectUrlTemplate: (btn.redirectUrlTemplate ?? '') + tok,
+                          });
+                          setRedirectInsertNonceByBtn((p) => ({
+                            ...p,
+                            [btn.id]: (p[btn.id] ?? 0) + 1,
+                          }));
+                        }}
+                      />
+                      {redirectReplaceBraceForBtnId === btn.id && (
+                        <Stack
+                          tokens={{ childrenGap: 8 }}
+                          styles={{
+                            root: {
+                              padding: 12,
+                              background: '#f3f9ff',
+                              borderRadius: 4,
+                              border: '1px solid #0078d4',
+                            },
+                          }}
+                        >
+                          <Text variant="small" styles={{ root: { fontWeight: 600, color: '#0078d4' } }}>
+                            Placeholder {'{{}}'} detetado — escolha o valor dinâmico (substitui o primeiro {'{{}}'} vazio):
+                          </Text>
+                          <Dropdown
+                            key={`redirect-repl-${btn.id}-${redirectReplaceNonceByBtn[btn.id] ?? 0}`}
+                            label="Campo ou token"
+                            options={[{ key: '', text: '— selecionar —' }, ...redirectDynamicFieldOptions]}
+                            selectedKey=""
+                            onChange={(_, o) => {
+                              if (!o || o.key === '') return;
+                              const cur = btn.redirectUrlTemplate ?? '';
+                              const next = replaceFirstEmptyRedirectBrace(cur, String(o.key));
+                              patchCustomButton(bi, { redirectUrlTemplate: next });
+                              setRedirectReplaceNonceByBtn((p) => ({
+                                ...p,
+                                [btn.id]: (p[btn.id] ?? 0) + 1,
+                              }));
+                              if (!/\{\{\s*\}\}/.test(next)) {
+                                setRedirectReplaceBraceForBtnId(null);
+                              }
+                            }}
+                          />
+                        </Stack>
+                      )}
+                    </Stack>
+                  )}
+                  {(btn.operation ?? 'legacy') === 'add' && (
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      Cria um novo item na lista com os valores atuais do formulário (validação igual a «Enviar»).
+                    </Text>
+                  )}
+                  {(btn.operation ?? 'legacy') === 'update' && (
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      Atualiza o item aberto. O sistema usa o contexto da página (ex.: FormID na query). Modo novo não aplica.
+                    </Text>
+                  )}
+                  {(btn.operation ?? 'legacy') === 'delete' && (
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                        Mostrar o botão eliminar em:
+                      </Text>
+                      <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                        <Checkbox
+                          label="Modo ver (Disp)"
+                          checked={btn.deleteShowInView !== false}
+                          onChange={(_, c) => patchCustomButton(bi, { deleteShowInView: !!c })}
+                        />
+                        <Checkbox
+                          label="Modo editar"
+                          checked={btn.deleteShowInEdit !== false}
+                          onChange={(_, c) => patchCustomButton(bi, { deleteShowInEdit: !!c })}
+                        />
+                      </Stack>
+                    </Stack>
+                  )}
                   <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
                     <Dropdown
                       label="Estilo"
@@ -1465,17 +1621,19 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         o && patchCustomButton(bi, { appearance: o.key === 'primary' ? 'primary' : 'default' })
                       }
                     />
-                    <Dropdown
-                      label="Depois das ações"
-                      options={BUTTON_BEHAVIOR_OPTIONS}
-                      selectedKey={(btn.behavior ?? 'actionsOnly') as string}
-                      onChange={(_, o) =>
-                        o &&
-                        patchCustomButton(bi, {
-                          behavior: String(o.key) as TFormCustomButtonBehavior,
-                        })
-                      }
-                    />
+                    {(btn.operation ?? 'legacy') === 'legacy' && (
+                      <Dropdown
+                        label="Depois das ações"
+                        options={BUTTON_BEHAVIOR_OPTIONS}
+                        selectedKey={(btn.behavior ?? 'actionsOnly') as string}
+                        onChange={(_, o) =>
+                          o &&
+                          patchCustomButton(bi, {
+                            behavior: String(o.key) as TFormCustomButtonBehavior,
+                          })
+                        }
+                      />
+                    )}
                   </Stack>
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Modos (vazio = todos)
@@ -1497,99 +1655,107 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       onChange={(_, c) => setButtonModesFromTriState(bi, chk.c, chk.e, !!c)}
                     />
                   </Stack>
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ações (por ordem)</Text>
-                  {btn.actions.map((act, ai) => (
-                    <Stack
-                      key={ai}
-                      styles={{ root: { background: '#faf9f8', padding: 8, borderRadius: 4 } }}
-                      tokens={{ childrenGap: 8 }}
-                    >
-                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                        <Dropdown
-                          label="Tipo"
-                          options={BUTTON_ACTION_KIND_OPTIONS}
-                          selectedKey={act.kind}
-                          onChange={(_, o) => {
-                            if (!o) return;
-                            patchButtonAction(bi, ai, defaultActionForKind(String(o.key) as TFormButtonAction['kind']));
-                          }}
-                        />
-                        <DefaultButton text="Remover ação" onClick={() => removeButtonAction(bi, ai)} />
-                      </Stack>
-                      {(act.kind === 'showFields' || act.kind === 'hideFields') && (
-                        <TextField
-                          label="Campos (internal name, vírgula)"
-                          multiline
-                          rows={2}
-                          value={fieldNamesToCsv(act.fields)}
-                          onChange={(_, v) =>
-                            patchButtonAction(bi, ai, {
-                              ...act,
-                              fields: parseCsvFieldNames(v ?? ''),
-                            })
-                          }
-                        />
-                      )}
-                      {act.kind === 'setFieldValue' && (
-                        <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                          <Dropdown
-                            label="Campo"
-                            options={[{ key: '', text: '—' }, ...fieldOptions]}
-                            selectedKey={act.field || ''}
-                            onChange={(_, o) =>
-                              patchButtonAction(bi, ai, {
-                                ...act,
-                                field: o ? String(o.key) : '',
-                              })
-                            }
-                          />
-                          <TextField
-                            label="Valor fixo ou str:{{Campo}}"
-                            styles={{ root: { minWidth: 280 } }}
-                            value={act.valueTemplate}
-                            onChange={(_, v) =>
-                              patchButtonAction(bi, ai, { ...act, valueTemplate: v ?? '' })
-                            }
-                          />
+                  {(btn.operation ?? 'legacy') !== 'redirect' && (
+                    <>
+                      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ações (por ordem)</Text>
+                      {btn.actions.map((act, ai) => (
+                        <Stack
+                          key={ai}
+                          styles={{ root: { background: '#faf9f8', padding: 8, borderRadius: 4 } }}
+                          tokens={{ childrenGap: 8 }}
+                        >
+                          <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                            <Dropdown
+                              label="Tipo"
+                              options={BUTTON_ACTION_KIND_OPTIONS}
+                              selectedKey={act.kind}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                patchButtonAction(
+                                  bi,
+                                  ai,
+                                  defaultActionForKind(String(o.key) as TFormButtonAction['kind'])
+                                );
+                              }}
+                            />
+                            <DefaultButton text="Remover ação" onClick={() => removeButtonAction(bi, ai)} />
+                          </Stack>
+                          {(act.kind === 'showFields' || act.kind === 'hideFields') && (
+                            <TextField
+                              label="Campos (internal name, vírgula)"
+                              multiline
+                              rows={2}
+                              value={fieldNamesToCsv(act.fields)}
+                              onChange={(_, v) =>
+                                patchButtonAction(bi, ai, {
+                                  ...act,
+                                  fields: parseCsvFieldNames(v ?? ''),
+                                })
+                              }
+                            />
+                          )}
+                          {act.kind === 'setFieldValue' && (
+                            <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                              <Dropdown
+                                label="Campo"
+                                options={[{ key: '', text: '—' }, ...fieldOptions]}
+                                selectedKey={act.field || ''}
+                                onChange={(_, o) =>
+                                  patchButtonAction(bi, ai, {
+                                    ...act,
+                                    field: o ? String(o.key) : '',
+                                  })
+                                }
+                              />
+                              <TextField
+                                label="Valor fixo ou str:{{Campo}}"
+                                styles={{ root: { minWidth: 280 } }}
+                                value={act.valueTemplate}
+                                onChange={(_, v) =>
+                                  patchButtonAction(bi, ai, { ...act, valueTemplate: v ?? '' })
+                                }
+                              />
+                            </Stack>
+                          )}
+                          {act.kind === 'joinFields' && (
+                            <Stack tokens={{ childrenGap: 8 }}>
+                              <Dropdown
+                                label="Campo destino"
+                                options={[{ key: '', text: '—' }, ...fieldOptions]}
+                                selectedKey={act.targetField || ''}
+                                onChange={(_, o) =>
+                                  patchButtonAction(bi, ai, {
+                                    ...act,
+                                    targetField: o ? String(o.key) : '',
+                                  })
+                                }
+                              />
+                              <TextField
+                                label="Separador"
+                                value={act.separator}
+                                onChange={(_, v) =>
+                                  patchButtonAction(bi, ai, { ...act, separator: v ?? ' ' })
+                                }
+                              />
+                              <TextField
+                                label="Campos origem (vírgula)"
+                                multiline
+                                rows={2}
+                                value={fieldNamesToCsv(act.sourceFields)}
+                                onChange={(_, v) =>
+                                  patchButtonAction(bi, ai, {
+                                    ...act,
+                                    sourceFields: parseCsvFieldNames(v ?? ''),
+                                  })
+                                }
+                              />
+                            </Stack>
+                          )}
                         </Stack>
-                      )}
-                      {act.kind === 'joinFields' && (
-                        <Stack tokens={{ childrenGap: 8 }}>
-                          <Dropdown
-                            label="Campo destino"
-                            options={[{ key: '', text: '—' }, ...fieldOptions]}
-                            selectedKey={act.targetField || ''}
-                            onChange={(_, o) =>
-                              patchButtonAction(bi, ai, {
-                                ...act,
-                                targetField: o ? String(o.key) : '',
-                              })
-                            }
-                          />
-                          <TextField
-                            label="Separador"
-                            value={act.separator}
-                            onChange={(_, v) =>
-                              patchButtonAction(bi, ai, { ...act, separator: v ?? ' ' })
-                            }
-                          />
-                          <TextField
-                            label="Campos origem (vírgula)"
-                            multiline
-                            rows={2}
-                            value={fieldNamesToCsv(act.sourceFields)}
-                            onChange={(_, v) =>
-                              patchButtonAction(bi, ai, {
-                                ...act,
-                                sourceFields: parseCsvFieldNames(v ?? ''),
-                              })
-                            }
-                          />
-                        </Stack>
-                      )}
-                    </Stack>
-                  ))}
-                  <DefaultButton text="Adicionar ação" onClick={() => addButtonAction(bi)} />
+                      ))}
+                      <DefaultButton text="Adicionar ação" onClick={() => addButtonAction(bi)} />
+                    </>
+                  )}
                 </Stack>
               );
             })}

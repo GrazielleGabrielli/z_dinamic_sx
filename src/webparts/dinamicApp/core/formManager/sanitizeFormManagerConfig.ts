@@ -5,6 +5,7 @@ import type {
   IFormStepConfig,
   IFormCustomButtonConfig,
   TFormButtonAction,
+  TFormCustomButtonOperation,
   TFormManagerFormMode,
   TFormRule,
   TFormConditionNode,
@@ -16,6 +17,7 @@ import type {
 
 const STEP_LAYOUT_SET = new Set<string>(['rail', 'segmented', 'timeline', 'cards']);
 const STEP_NAV_BUTTONS_SET = new Set<string>(['fluent', 'pills', 'dots', 'icons', 'links']);
+const BUTTON_OPERATION_SET = new Set<string>(['legacy', 'redirect', 'add', 'update', 'delete']);
 
 function sanitizeCompareRef(raw: unknown): IFormCompareRef | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -329,20 +331,33 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
         : behaviorRaw === 'close'
           ? 'close'
           : 'actionsOnly';
+  const opRaw = b.operation;
+  const operation: TFormCustomButtonOperation | undefined =
+    typeof opRaw === 'string' && BUTTON_OPERATION_SET.has(opRaw) ? (opRaw as TFormCustomButtonOperation) : undefined;
+  const redirectUrlTemplate =
+    typeof b.redirectUrlTemplate === 'string' ? b.redirectUrlTemplate : undefined;
+  const deleteShowInView = b.deleteShowInView === false ? false : undefined;
+  const deleteShowInEdit = b.deleteShowInEdit === false ? false : undefined;
   const modes = Array.isArray(b.modes)
     ? (b.modes as string[]).filter((m) => m === 'create' || m === 'edit' || m === 'view') as TFormManagerFormMode[]
     : undefined;
   const actionsRaw = Array.isArray(b.actions) ? b.actions : [];
-  const actions: TFormButtonAction[] = [];
+  const actionsSan: TFormButtonAction[] = [];
   for (let i = 0; i < actionsRaw.length; i++) {
     const act = sanitizeButtonAction(actionsRaw[i]);
-    if (act) actions.push(act);
+    if (act) actionsSan.push(act);
   }
+  const opResolved = operation ?? 'legacy';
+  const actions: TFormButtonAction[] = opResolved === 'redirect' ? [] : actionsSan;
   return {
     id,
     label,
     appearance,
     behavior,
+    ...(operation && operation !== 'legacy' ? { operation } : {}),
+    ...(redirectUrlTemplate !== undefined && redirectUrlTemplate.trim() ? { redirectUrlTemplate } : {}),
+    ...(deleteShowInView === false ? { deleteShowInView: false } : {}),
+    ...(deleteShowInEdit === false ? { deleteShowInEdit: false } : {}),
     ...(modes?.length ? { modes } : {}),
     actions,
   };
