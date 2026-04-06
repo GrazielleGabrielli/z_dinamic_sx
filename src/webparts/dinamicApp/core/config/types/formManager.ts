@@ -300,6 +300,12 @@ export interface IFormCustomButtonConfig {
   /** operation === 'delete': mostrar em modo editar. Omitido = true. */
   deleteShowInEdit?: boolean;
   modes?: TFormManagerFormMode[];
+  /** false: botão ignorado na UI. */
+  enabled?: boolean;
+  /** Visibilidade condicional (omitido = sem filtro por dados). */
+  when?: TFormConditionNode;
+  /** Títulos de grupos SharePoint; vazio/omitido = qualquer usuário. */
+  groupTitles?: string[];
   actions: TFormButtonAction[];
 }
 

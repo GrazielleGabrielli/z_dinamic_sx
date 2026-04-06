@@ -33,6 +33,7 @@ import {
   collectFormValidationErrors,
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
+  shouldShowCustomButton,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
 } from '../../core/formManager/formRuleEngine';
@@ -72,21 +73,6 @@ async function uploadListItemAttachments(listTitle: string, itemId: number, file
     const buf = await files[i].arrayBuffer();
     await item.attachmentFiles.add(files[i].name, buf);
   }
-}
-
-function isCustomButtonVisible(b: IFormCustomButtonConfig, formMode: TFormManagerFormMode): boolean {
-  if (b.modes !== undefined && b.modes.length === 0) return false;
-  if (b.modes?.length && b.modes.indexOf(formMode) === -1) return false;
-  const op: TFormCustomButtonOperation = b.operation ?? 'legacy';
-  if (op === 'delete') {
-    if (formMode === 'create') return false;
-    const sv = b.deleteShowInView !== false;
-    const se = b.deleteShowInEdit !== false;
-    if (formMode === 'view' && !sv) return false;
-    if (formMode === 'edit' && !se) return false;
-  }
-  if (op === 'update' && formMode === 'create') return false;
-  return true;
 }
 
 function itemToFormValues(
@@ -891,7 +877,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       {renderFields('main')}
       <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
         {(formManager.customButtons ?? [])
-          .filter((b) => isCustomButtonVisible(b, formMode))
+          .filter((b) => shouldShowCustomButton(b, runtimeCtx()))
           .map((b) =>
             b.appearance === 'primary' ? (
               <PrimaryButton

@@ -341,6 +341,11 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   const modes = Array.isArray(b.modes)
     ? (b.modes as string[]).filter((m) => m === 'create' || m === 'edit' || m === 'view') as TFormManagerFormMode[]
     : undefined;
+  const enabled = b.enabled === false ? false : true;
+  const when = sanitizeConditionNode(b.when);
+  const groupTitles = Array.isArray(b.groupTitles)
+    ? (b.groupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+    : undefined;
   const actionsRaw = Array.isArray(b.actions) ? b.actions : [];
   const actionsSan: TFormButtonAction[] = [];
   for (let i = 0; i < actionsRaw.length; i++) {
@@ -359,6 +364,9 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(deleteShowInView === false ? { deleteShowInView: false } : {}),
     ...(deleteShowInEdit === false ? { deleteShowInEdit: false } : {}),
     ...(modes?.length ? { modes } : {}),
+    ...(enabled === false ? { enabled: false } : {}),
+    ...(when ? { when } : {}),
+    ...(groupTitles?.length ? { groupTitles } : {}),
     actions,
   };
 }

@@ -149,6 +149,8 @@ export interface IConditionalRuleCard {
   enabled?: boolean;
   when: IWhenUi;
   modes?: TFormManagerFormMode[];
+  /** Títulos de grupos SharePoint; vazio = todos os utilizadores. */
+  groupTitles?: string[];
   effects: IConditionalEffectUi[];
 }
 
@@ -163,7 +165,11 @@ export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] 
   let idx = 0;
   for (let i = 0; i < card.effects.length; i++) {
     const e = card.effects[i];
-    const base = { when, ...(card.modes?.length ? { modes: card.modes } : {}) };
+    const base = {
+      when,
+      ...(card.modes?.length ? { modes: card.modes } : {}),
+      ...(card.groupTitles?.length ? { groupTitles: card.groupTitles } : {}),
+    };
     const id = (suffix: string): string => `ui_card_${card.id}_${idx++}_${suffix}`;
     switch (e.kind) {
       case 'showField':
@@ -288,12 +294,19 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
     const w = whenNodeToUi(first.when);
     if (!w) return;
     const modes = first.modes;
+    const groupTitles = first.groupTitles;
     const effects: IConditionalEffectUi[] = [];
     for (let j = 0; j < list.length; j++) {
       const eff = effectFromRule(list[j]);
       if (eff) effects.push(eff);
     }
-    cards.push({ id: cardId, when: w, ...(modes?.length ? { modes } : {}), effects });
+    cards.push({
+      id: cardId,
+      when: w,
+      ...(modes?.length ? { modes } : {}),
+      ...(groupTitles?.length ? { groupTitles } : {}),
+      effects,
+    });
   });
   return { cards, cardRuleIds };
 }
@@ -724,5 +737,9 @@ export function describeConditionalCardPT(card: IConditionalRuleCard): string {
     w.op === 'isEmpty' || w.op === 'isFilled' || w.op === 'isTrue' || w.op === 'isFalse'
       ? ''
       : ` ${w.compareValue}`;
-  return `Quando ${w.field} ${op}${val} → ${card.effects.length} efeito(s)`;
+  const g =
+    card.groupTitles && card.groupTitles.length
+      ? ` · grupos: ${card.groupTitles.join(', ')}`
+      : '';
+  return `Quando ${w.field} ${op}${val} → ${card.effects.length} efeito(s)${g}`;
 }

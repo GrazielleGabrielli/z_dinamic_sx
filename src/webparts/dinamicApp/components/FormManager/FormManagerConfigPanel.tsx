@@ -62,6 +62,8 @@ import {
   fieldRuleStateFromRules,
   templateConditionalShowWhenEquals,
   templateFieldRulesChoiceRequiresOther,
+  whenUiToNode,
+  whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
@@ -269,6 +271,39 @@ function fieldNamesToCsv(names: string[]): string {
   return names.join(', ');
 }
 
+function buttonSetFieldValueChoiceDropdown(
+  fieldInternalName: string,
+  valueTemplate: string | undefined,
+  fieldMeta: IFieldMetadata[]
+): { options: IDropdownOption[]; selectedKey: string } | null {
+  const tpl = valueTemplate ?? '';
+  const low = tpl.trim().toLowerCase();
+  if (low.length >= 4 && low.slice(0, 4) === 'str:') {
+    return null;
+  }
+  let fm: IFieldMetadata | undefined;
+  for (let i = 0; i < fieldMeta.length; i++) {
+    if (fieldMeta[i].InternalName === fieldInternalName) {
+      fm = fieldMeta[i];
+      break;
+    }
+  }
+  const choices =
+    fm && fm.MappedType === 'choice' && fm.Choices && fm.Choices.length > 0 ? fm.Choices : null;
+  if (!choices) {
+    return null;
+  }
+  const opts: IDropdownOption[] = [{ key: '', text: '—' }];
+  for (let i = 0; i < choices.length; i++) {
+    const c = choices[i];
+    opts.push({ key: c, text: c });
+  }
+  if (tpl && choices.indexOf(tpl) === -1) {
+    opts.push({ key: tpl, text: `${tpl} (valor atual)` });
+  }
+  return { options: opts, selectedKey: tpl };
+}
+
 const REDIRECT_KEY_FORM = '__FORM__';
 const REDIRECT_KEY_FORMID = '__FORMID__';
 
@@ -456,6 +491,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     () => value.stepNavButtons ?? 'fluent'
   );
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
+  const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
   const [attachMin, setAttachMin] = useState('');
   const [attachMax, setAttachMax] = useState('');
   const [attachMsg, setAttachMsg] = useState('');
@@ -494,6 +530,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setErr(undefined);
     setFieldPanelName(null);
     setStepSectionOpen({});
+    setButtonSectionOpen({});
   }, [isOpen, value]);
 
   useEffect(() => {
@@ -770,6 +807,18 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const patchCustomButton = (i: number, patch: Partial<IFormCustomButtonConfig>): void => {
     setCustomButtons((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  };
+
+  const patchButtonWhenUi = (bi: number, partial: Partial<IWhenUi>): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) => {
+        if (j !== bi) return b;
+        const baseLeaf = b.when ? whenNodeToUi(b.when) : undefined;
+        const base: IWhenUi = baseLeaf ?? defaultWhenUi(meta);
+        const merged: IWhenUi = { ...base, ...partial };
+        return { ...b, when: whenUiToNode(merged) };
+      })
+    );
   };
 
   const removeCustomButton = (i: number): void => {
@@ -1218,233 +1267,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             })}
           </Stack>
         </PivotItem>
-        <PivotItem headerText="Regras rápidas">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Ajustes base por campo. Reordene linhas arrastando a alça. Regras geradas pela UI aparecem no motor com prefixo ui_f_.
-            </Text>
-            {fields.map((fc, fIdx) => {
-                let m: IFieldMetadata | undefined;
-                for (let mi = 0; mi < meta.length; mi++) {
-                  if (meta[mi].InternalName === fc.internalName) {
-                    m = meta[mi];
-                    break;
-                  }
-                }
-              const n = countFieldUiRules(fc.internalName, rules);
-              const def = fieldRuleStateFromRules(fc.internalName, rules).defaultValue;
-              return (
-                <Stack
-                  key={fc.internalName}
-                  horizontal
-                  tokens={{ childrenGap: 8 }}
-                  verticalAlign="end"
-                  wrap
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_FIELD);
-                    if (from === undefined || from === fIdx) return;
-                    reorderField(from, fIdx);
-                  }}
-                >
-                  <span
-                    draggable
-                    title="Arrastar para reordenar"
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', dragPayload(DND_FIELD, fIdx));
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
-                  >
-                    <Icon iconName="GripperBarVertical" />
-                  </span>
-                  <Text styles={{ root: { minWidth: 140, fontWeight: 600 } }}>{fc.internalName}</Text>
-                  <Checkbox
-                    label="Visível"
-                    checked={fc.visible !== false}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { visible: !!c })}
-                  />
-                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
-                    <Checkbox
-                      label="Obrigatório"
-                      checked={fc.required === true}
-                      onChange={(_, c) => updateFieldAt(fc.internalName, { required: !!c })}
-                    />
-                  )}
-                  <Checkbox
-                    label="Só leitura"
-                    checked={fc.readOnly === true}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { readOnly: !!c })}
-                  />
-                  <Checkbox
-                    label="Desativado"
-                    checked={fc.disabled === true}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { disabled: !!c })}
-                  />
-                  <TextField
-                    label="Ajuda"
-                    value={fc.helpText ?? ''}
-                    onChange={(_, v) => updateFieldAt(fc.internalName, { helpText: v || undefined })}
-                  />
-                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
-                    <TextField
-                      label="Padrão (texto/token)"
-                      value={def}
-                      onChange={(_, v) => {
-                        const st = fieldRuleStateFromRules(fc.internalName, rules);
-                        st.defaultValue = v ?? '';
-                        setRules((r) => mergeFieldRules(r, fc.internalName, buildFieldUiRules(fc.internalName, st)));
-                      }}
-                    />
-                  )}
-                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
-                    <Text variant="small" styles={{ root: { color: '#605e5c', maxWidth: 280 } }}>
-                      Obrigatoriedade e limites de ficheiros: aba Gestor (anexos).
-                    </Text>
-                  ) : (
-                    <DefaultButton
-                      text={n ? `${n} regra(s)` : 'Regras…'}
-                      onClick={() => setFieldPanelName(fc.internalName)}
-                    />
-                  )}
-                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
-                    <Text variant="small">(anexos)</Text>
-                  ) : (
-                    m && <Text variant="small">({m.MappedType})</Text>
-                  )}
-                </Stack>
-              );
-            })}
-            {!fields.length && <Text>Nenhum campo no formulário. Use a aba Estrutura.</Text>}
-          </Stack>
-        </PivotItem>
-        <PivotItem headerText="Regras condicionais">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
-              <PrimaryButton text="Nova regra" onClick={addConditionalCard} />
-              <DefaultButton
-                text="Modelo: mostrar B quando A = valor"
-                onClick={() => applyPresetConditional('showWhenEq')}
-              />
-              <DefaultButton
-                text="Modelo: obrigar B quando A = valor"
-                onClick={() => applyPresetConditional('choiceRequire')}
-              />
-            </Stack>
-            {conditionalCards.map((card, ci) => (
-              <Stack
-                key={card.id}
-                styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
-                tokens={{ childrenGap: 8 }}
-              >
-                <Stack horizontal horizontalAlign="space-between">
-                  <Text styles={{ root: { fontWeight: 600 } }}>{describeConditionalCardPT(card)}</Text>
-                  <Stack horizontal tokens={{ childrenGap: 4 }}>
-                    <DefaultButton text="Duplicar" onClick={() => duplicateCard(ci)} />
-                    <DefaultButton text="Excluir" onClick={() => removeCard(ci)} />
-                  </Stack>
-                </Stack>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Quando</Text>
-                <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                  <Dropdown
-                    label="Campo"
-                    options={fieldOptions}
-                    selectedKey={card.when.field}
-                    onChange={(_, o) => o && patchWhen(ci, { field: String(o.key) })}
-                  />
-                  <Dropdown
-                    label="Operador"
-                    options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                    selectedKey={card.when.op}
-                    onChange={(_, o) => o && patchWhen(ci, { op: o.key as TFormConditionOp })}
-                  />
-                  <Dropdown
-                    label="Comparar com"
-                    options={[
-                      { key: 'literal', text: 'Texto fixo' },
-                      { key: 'field', text: 'Outro campo' },
-                      { key: 'token', text: 'Token' },
-                    ]}
-                    selectedKey={card.when.compareKind}
-                    onChange={(_, o) => o && patchWhen(ci, { compareKind: o.key as IWhenUi['compareKind'] })}
-                  />
-                  <TextField
-                    label="Valor"
-                    value={card.when.compareValue}
-                    onChange={(_, v) => patchWhen(ci, { compareValue: v ?? '' })}
-                    disabled={
-                      card.when.op === 'isEmpty' ||
-                      card.when.op === 'isFilled' ||
-                      card.when.op === 'isTrue' ||
-                      card.when.op === 'isFalse'
-                    }
-                  />
-                </Stack>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Então</Text>
-                {card.effects.map((eff, ei) => (
-                  <Stack key={ei} horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                    <Dropdown
-                      label="Efeito"
-                      options={CONDITIONAL_EFFECT_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                      selectedKey={eff.kind}
-                      onChange={(_, o) =>
-                        o && patchEffect(ci, ei, { kind: o.key as TConditionalEffectKind })
-                      }
-                    />
-                    {eff.kind !== 'message' && (
-                      <Dropdown
-                        label="Campo alvo"
-                        options={[{ key: '', text: '—' }, ...fieldOptions]}
-                        selectedKey={eff.targetField ?? ''}
-                        onChange={(_, o) =>
-                          patchEffect(ci, ei, { targetField: o ? String(o.key) : undefined })
-                        }
-                      />
-                    )}
-                    {eff.kind === 'message' && (
-                      <>
-                        <Dropdown
-                          label="Tipo"
-                          options={[
-                            { key: 'info', text: 'Info' },
-                            { key: 'warning', text: 'Aviso' },
-                            { key: 'error', text: 'Erro' },
-                          ]}
-                          selectedKey={eff.messageVariant ?? 'info'}
-                          onChange={(_, o) =>
-                            o &&
-                            patchEffect(ci, ei, { messageVariant: o.key as 'info' | 'warning' | 'error' })
-                          }
-                        />
-                        <TextField
-                          label="Texto"
-                          value={eff.messageText ?? ''}
-                          onChange={(_, v) => patchEffect(ci, ei, { messageText: v ?? '' })}
-                        />
-                      </>
-                    )}
-                    <DefaultButton text="Remover efeito" onClick={() => removeEffect(ci, ei)} />
-                  </Stack>
-                ))}
-                <DefaultButton text="Adicionar efeito" onClick={() => addEffect(ci)} />
-                <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
-                  Prévia: {compileConditionalCard(card).length} regra(s) gerada(s)
-                </Text>
-              </Stack>
-            ))}
-            {!conditionalCards.length && <Text>Nenhuma regra condicional. Use &quot;Nova regra&quot;.</Text>}
-          </Stack>
-        </PivotItem>
         <PivotItem headerText="Botões">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Botões extra no rodapé do formulário. Ao clicar, as ações executam por ordem (mostrar/ocultar campos,
               preencher valores). Para texto composto a partir de campos, use o prefixo str: e placeholders no formato
-              {' {{NomeInterno}} '} (igual à expressão de texto da regra de valor calculado).
+              {' {{NomeInterno}} '} (igual à expressão de texto da regra de valor calculado). Visibilidade por grupo e
+              por condição em dados (ex.: coluna Status) usa os campos abaixo em cada botão. Condições compostas
+              (várias cláusulas) só em JSON avançado.
             </Text>
             <Checkbox
               label="Mostrar também os botões padrão (Enviar, Rascunho, Fechar)"
@@ -1454,6 +1284,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             <PrimaryButton text="Adicionar botão" onClick={addCustomButton} />
             {customButtons.map((btn, bi) => {
               const chk = checkboxesFromModes(btn.modes);
+              const leafWhen = btn.when ? whenNodeToUi(btn.when) : undefined;
+              const panelOpen =
+                buttonSectionOpen[btn.id] !== undefined ? buttonSectionOpen[btn.id] : bi === 0;
               return (
                 <Stack
                   key={btn.id}
@@ -1472,6 +1305,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 >
                   <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
                     <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+                      <IconButton
+                        iconProps={{ iconName: panelOpen ? 'ChevronDown' : 'ChevronRight' }}
+                        title={panelOpen ? 'Recolher' : 'Expandir'}
+                        aria-expanded={panelOpen}
+                        onClick={() => {
+                          setButtonSectionOpen((p) => ({
+                            ...p,
+                            [btn.id]: !panelOpen,
+                          }));
+                        }}
+                      />
                       <span
                         draggable
                         title="Arrastar para reordenar"
@@ -1487,6 +1331,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     </Stack>
                     <DefaultButton text="Remover botão" onClick={() => removeCustomButton(bi)} />
                   </Stack>
+                  {panelOpen && (
+                  <>
                   <TextField
                     label="Texto do botão"
                     value={btn.label}
@@ -1655,6 +1501,78 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       onChange={(_, c) => setButtonModesFromTriState(bi, chk.c, chk.e, !!c)}
                     />
                   </Stack>
+                  <Checkbox
+                    label="Botão ativo"
+                    checked={btn.enabled !== false}
+                    onChange={(_, c) => patchCustomButton(bi, { enabled: c ? undefined : false })}
+                  />
+                  <TextField
+                    label="Grupos do SharePoint (títulos, vírgula)"
+                    description="Vazio = qualquer utilizador. Igual às regras: compara o título do grupo, sem diferenciar maiúsculas."
+                    value={fieldNamesToCsv(btn.groupTitles ?? [])}
+                    onChange={(_, v) => {
+                      const parsed = parseCsvFieldNames(v ?? '');
+                      patchCustomButton(bi, { groupTitles: parsed.length ? parsed : undefined });
+                    }}
+                  />
+                  <Checkbox
+                    label="Mostrar só quando a condição abaixo for verdadeira"
+                    checked={!!btn.when}
+                    onChange={(_, c) => {
+                      if (c) patchCustomButton(bi, { when: whenUiToNode(defaultWhenUi(meta)) });
+                      else patchCustomButton(bi, { when: undefined });
+                    }}
+                  />
+                  {btn.when && !leafWhen && (
+                    <MessageBar messageBarType={MessageBarType.warning}>
+                      Condição composta (várias cláusulas). Edição completa: JSON avançado. Desmarque a caixa acima
+                      para remover a condição.
+                    </MessageBar>
+                  )}
+                  {btn.when && leafWhen && (
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Condição nos dados do formulário
+                      </Text>
+                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                        <Dropdown
+                          label="Campo"
+                          options={fieldOptions}
+                          selectedKey={leafWhen.field}
+                          onChange={(_, o) => o && patchButtonWhenUi(bi, { field: String(o.key) })}
+                        />
+                        <Dropdown
+                          label="Operador"
+                          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                          selectedKey={leafWhen.op}
+                          onChange={(_, o) => o && patchButtonWhenUi(bi, { op: o.key as TFormConditionOp })}
+                        />
+                        <Dropdown
+                          label="Comparar com"
+                          options={[
+                            { key: 'literal', text: 'Texto fixo' },
+                            { key: 'field', text: 'Outro campo' },
+                            { key: 'token', text: 'Token' },
+                          ]}
+                          selectedKey={leafWhen.compareKind}
+                          onChange={(_, o) =>
+                            o && patchButtonWhenUi(bi, { compareKind: o.key as IWhenUi['compareKind'] })
+                          }
+                        />
+                        <TextField
+                          label="Valor"
+                          value={leafWhen.compareValue}
+                          onChange={(_, v) => patchButtonWhenUi(bi, { compareValue: v ?? '' })}
+                          disabled={
+                            leafWhen.op === 'isEmpty' ||
+                            leafWhen.op === 'isFilled' ||
+                            leafWhen.op === 'isTrue' ||
+                            leafWhen.op === 'isFalse'
+                          }
+                        />
+                      </Stack>
+                    </Stack>
+                  )}
                   {(btn.operation ?? 'legacy') !== 'redirect' && (
                     <>
                       <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ações (por ordem)</Text>
@@ -1694,29 +1612,51 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               }
                             />
                           )}
-                          {act.kind === 'setFieldValue' && (
-                            <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                              <Dropdown
-                                label="Campo"
-                                options={[{ key: '', text: '—' }, ...fieldOptions]}
-                                selectedKey={act.field || ''}
-                                onChange={(_, o) =>
-                                  patchButtonAction(bi, ai, {
-                                    ...act,
-                                    field: o ? String(o.key) : '',
-                                  })
-                                }
-                              />
-                              <TextField
-                                label="Valor fixo ou str:{{Campo}}"
-                                styles={{ root: { minWidth: 280 } }}
-                                value={act.valueTemplate}
-                                onChange={(_, v) =>
-                                  patchButtonAction(bi, ai, { ...act, valueTemplate: v ?? '' })
-                                }
-                              />
-                            </Stack>
-                          )}
+                          {act.kind === 'setFieldValue' && (() => {
+                            const choiceVal = buttonSetFieldValueChoiceDropdown(
+                              act.field,
+                              act.valueTemplate,
+                              meta
+                            );
+                            return (
+                              <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                                <Dropdown
+                                  label="Campo"
+                                  options={[{ key: '', text: '—' }, ...fieldOptions]}
+                                  selectedKey={act.field || ''}
+                                  onChange={(_, o) =>
+                                    patchButtonAction(bi, ai, {
+                                      ...act,
+                                      field: o ? String(o.key) : '',
+                                    })
+                                  }
+                                />
+                                {choiceVal ? (
+                                  <Dropdown
+                                    label="Valor"
+                                    styles={{ root: { minWidth: 280 } }}
+                                    options={choiceVal.options}
+                                    selectedKey={choiceVal.selectedKey}
+                                    onChange={(_, o) =>
+                                      patchButtonAction(bi, ai, {
+                                        ...act,
+                                        valueTemplate: o ? String(o.key) : '',
+                                      })
+                                    }
+                                  />
+                                ) : (
+                                  <TextField
+                                    label="Valor fixo ou str:{{Campo}}"
+                                    styles={{ root: { minWidth: 280 } }}
+                                    value={act.valueTemplate}
+                                    onChange={(_, v) =>
+                                      patchButtonAction(bi, ai, { ...act, valueTemplate: v ?? '' })
+                                    }
+                                  />
+                                )}
+                              </Stack>
+                            );
+                          })()}
                           {act.kind === 'joinFields' && (
                             <Stack tokens={{ childrenGap: 8 }}>
                               <Dropdown
@@ -1756,10 +1696,242 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       <DefaultButton text="Adicionar ação" onClick={() => addButtonAction(bi)} />
                     </>
                   )}
+                  </>
+                  )}
                 </Stack>
               );
             })}
             {!customButtons.length && <Text>Nenhum botão personalizado.</Text>}
+          </Stack>
+        </PivotItem>
+        <PivotItem headerText="Regras rápidas">
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Ajustes base por campo. Reordene linhas arrastando a alça. Regras geradas pela UI aparecem no motor com prefixo ui_f_.
+            </Text>
+            {fields.map((fc, fIdx) => {
+                let m: IFieldMetadata | undefined;
+                for (let mi = 0; mi < meta.length; mi++) {
+                  if (meta[mi].InternalName === fc.internalName) {
+                    m = meta[mi];
+                    break;
+                  }
+                }
+              const n = countFieldUiRules(fc.internalName, rules);
+              const def = fieldRuleStateFromRules(fc.internalName, rules).defaultValue;
+              return (
+                <Stack
+                  key={fc.internalName}
+                  horizontal
+                  tokens={{ childrenGap: 8 }}
+                  verticalAlign="end"
+                  wrap
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_FIELD);
+                    if (from === undefined || from === fIdx) return;
+                    reorderField(from, fIdx);
+                  }}
+                >
+                  <span
+                    draggable
+                    title="Arrastar para reordenar"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', dragPayload(DND_FIELD, fIdx));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                  >
+                    <Icon iconName="GripperBarVertical" />
+                  </span>
+                  <Text styles={{ root: { minWidth: 140, fontWeight: 600 } }}>{fc.internalName}</Text>
+                  <Checkbox
+                    label="Visível"
+                    checked={fc.visible !== false}
+                    onChange={(_, c) => updateFieldAt(fc.internalName, { visible: !!c })}
+                  />
+                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
+                    <Checkbox
+                      label="Obrigatório"
+                      checked={fc.required === true}
+                      onChange={(_, c) => updateFieldAt(fc.internalName, { required: !!c })}
+                    />
+                  )}
+                  <Checkbox
+                    label="Só leitura"
+                    checked={fc.readOnly === true}
+                    onChange={(_, c) => updateFieldAt(fc.internalName, { readOnly: !!c })}
+                  />
+                  <Checkbox
+                    label="Desativado"
+                    checked={fc.disabled === true}
+                    onChange={(_, c) => updateFieldAt(fc.internalName, { disabled: !!c })}
+                  />
+                  <TextField
+                    label="Ajuda"
+                    value={fc.helpText ?? ''}
+                    onChange={(_, v) => updateFieldAt(fc.internalName, { helpText: v || undefined })}
+                  />
+                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
+                    <TextField
+                      label="Padrão (texto/token)"
+                      value={def}
+                      onChange={(_, v) => {
+                        const st = fieldRuleStateFromRules(fc.internalName, rules);
+                        st.defaultValue = v ?? '';
+                        setRules((r) => mergeFieldRules(r, fc.internalName, buildFieldUiRules(fc.internalName, st)));
+                      }}
+                    />
+                  )}
+                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
+                    <Text variant="small" styles={{ root: { color: '#605e5c', maxWidth: 280 } }}>
+                      Obrigatoriedade e limites de ficheiros: aba Gestor (anexos).
+                    </Text>
+                  ) : (
+                    <DefaultButton
+                      text={n ? `${n} regra(s)` : 'Regras…'}
+                      onClick={() => setFieldPanelName(fc.internalName)}
+                    />
+                  )}
+                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
+                    <Text variant="small">(anexos)</Text>
+                  ) : (
+                    m && <Text variant="small">({m.MappedType})</Text>
+                  )}
+                </Stack>
+              );
+            })}
+            {!fields.length && <Text>Nenhum campo no formulário. Use a aba Estrutura.</Text>}
+          </Stack>
+        </PivotItem>
+        <PivotItem headerText="Regras condicionais">
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+            <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
+              <PrimaryButton text="Nova regra" onClick={addConditionalCard} />
+              <DefaultButton
+                text="Modelo: mostrar B quando A = valor"
+                onClick={() => applyPresetConditional('showWhenEq')}
+              />
+              <DefaultButton
+                text="Modelo: obrigar B quando A = valor"
+                onClick={() => applyPresetConditional('choiceRequire')}
+              />
+            </Stack>
+            {conditionalCards.map((card, ci) => (
+              <Stack
+                key={card.id}
+                styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
+                tokens={{ childrenGap: 8 }}
+              >
+                <Stack horizontal horizontalAlign="space-between">
+                  <Text styles={{ root: { fontWeight: 600 } }}>{describeConditionalCardPT(card)}</Text>
+                  <Stack horizontal tokens={{ childrenGap: 4 }}>
+                    <DefaultButton text="Duplicar" onClick={() => duplicateCard(ci)} />
+                    <DefaultButton text="Excluir" onClick={() => removeCard(ci)} />
+                  </Stack>
+                </Stack>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Quando</Text>
+                <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                  <Dropdown
+                    label="Campo"
+                    options={fieldOptions}
+                    selectedKey={card.when.field}
+                    onChange={(_, o) => o && patchWhen(ci, { field: String(o.key) })}
+                  />
+                  <Dropdown
+                    label="Operador"
+                    options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                    selectedKey={card.when.op}
+                    onChange={(_, o) => o && patchWhen(ci, { op: o.key as TFormConditionOp })}
+                  />
+                  <Dropdown
+                    label="Comparar com"
+                    options={[
+                      { key: 'literal', text: 'Texto fixo' },
+                      { key: 'field', text: 'Outro campo' },
+                      { key: 'token', text: 'Token' },
+                    ]}
+                    selectedKey={card.when.compareKind}
+                    onChange={(_, o) => o && patchWhen(ci, { compareKind: o.key as IWhenUi['compareKind'] })}
+                  />
+                  <TextField
+                    label="Valor"
+                    value={card.when.compareValue}
+                    onChange={(_, v) => patchWhen(ci, { compareValue: v ?? '' })}
+                    disabled={
+                      card.when.op === 'isEmpty' ||
+                      card.when.op === 'isFilled' ||
+                      card.when.op === 'isTrue' ||
+                      card.when.op === 'isFalse'
+                    }
+                  />
+                </Stack>
+                <TextField
+                  label="Grupos do SharePoint (títulos, vírgula)"
+                  description="Vazio = qualquer utilizador. As regras geradas só aplicam se o utilizador pertencer a um destes grupos."
+                  value={fieldNamesToCsv(card.groupTitles ?? [])}
+                  onChange={(_, v) => {
+                    const parsed = parseCsvFieldNames(v ?? '');
+                    patchCard(ci, { groupTitles: parsed.length ? parsed : undefined });
+                  }}
+                />
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Então</Text>
+                {card.effects.map((eff, ei) => (
+                  <Stack key={ei} horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                    <Dropdown
+                      label="Efeito"
+                      options={CONDITIONAL_EFFECT_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                      selectedKey={eff.kind}
+                      onChange={(_, o) =>
+                        o && patchEffect(ci, ei, { kind: o.key as TConditionalEffectKind })
+                      }
+                    />
+                    {eff.kind !== 'message' && (
+                      <Dropdown
+                        label="Campo alvo"
+                        options={[{ key: '', text: '—' }, ...fieldOptions]}
+                        selectedKey={eff.targetField ?? ''}
+                        onChange={(_, o) =>
+                          patchEffect(ci, ei, { targetField: o ? String(o.key) : undefined })
+                        }
+                      />
+                    )}
+                    {eff.kind === 'message' && (
+                      <>
+                        <Dropdown
+                          label="Tipo"
+                          options={[
+                            { key: 'info', text: 'Info' },
+                            { key: 'warning', text: 'Aviso' },
+                            { key: 'error', text: 'Erro' },
+                          ]}
+                          selectedKey={eff.messageVariant ?? 'info'}
+                          onChange={(_, o) =>
+                            o &&
+                            patchEffect(ci, ei, { messageVariant: o.key as 'info' | 'warning' | 'error' })
+                          }
+                        />
+                        <TextField
+                          label="Texto"
+                          value={eff.messageText ?? ''}
+                          onChange={(_, v) => patchEffect(ci, ei, { messageText: v ?? '' })}
+                        />
+                      </>
+                    )}
+                    <DefaultButton text="Remover efeito" onClick={() => removeEffect(ci, ei)} />
+                  </Stack>
+                ))}
+                <DefaultButton text="Adicionar efeito" onClick={() => addEffect(ci)} />
+                <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
+                  Prévia: {compileConditionalCard(card).length} regra(s) gerada(s)
+                </Text>
+              </Stack>
+            ))}
+            {!conditionalCards.length && <Text>Nenhuma regra condicional. Use &quot;Nova regra&quot;.</Text>}
           </Stack>
         </PivotItem>
         <PivotItem headerText="Ajuda dinâmica">

@@ -3,11 +3,13 @@ import { DynamicTokenResolver } from '../dynamicTokens/services/DynamicTokenReso
 import type {
   IFormManagerConfig,
   IFormFieldConfig,
+  IFormCustomButtonConfig,
   TFormConditionNode,
   TFormRule,
   TFormManagerFormMode,
   TFormSubmitKind,
   IFormCompareRef,
+  TFormCustomButtonOperation,
 } from '../config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../config/types/formManager';
 
@@ -78,6 +80,14 @@ function coerceNumber(v: unknown): number {
   return NaN;
 }
 
+function normalizeForEqNe(v: unknown): unknown {
+  if (v !== null && typeof v === 'object' && 'Id' in (v as object)) {
+    const id = (v as Record<string, unknown>).Id;
+    if (typeof id === 'number' && isFinite(id)) return id;
+  }
+  return v;
+}
+
 function compareResolved(left: unknown, op: string, right: unknown): boolean {
   switch (op) {
     case 'isEmpty':
@@ -88,12 +98,18 @@ function compareResolved(left: unknown, op: string, right: unknown): boolean {
       return coerceBool(left) === true;
     case 'isFalse':
       return coerceBool(left) === false;
-    case 'eq':
-      if (typeof left === 'number' && typeof right === 'number') return left === right;
-      return String(left ?? '') === String(right ?? '');
-    case 'ne':
-      if (typeof left === 'number' && typeof right === 'number') return left !== right;
-      return String(left ?? '') !== String(right ?? '');
+    case 'eq': {
+      const L = normalizeForEqNe(left);
+      const R = normalizeForEqNe(right);
+      if (typeof L === 'number' && typeof R === 'number') return L === R;
+      return String(L ?? '') === String(R ?? '');
+    }
+    case 'ne': {
+      const L = normalizeForEqNe(left);
+      const R = normalizeForEqNe(right);
+      if (typeof L === 'number' && typeof R === 'number') return L !== R;
+      return String(L ?? '') !== String(R ?? '');
+    }
     case 'contains':
       return String(left ?? '').toLowerCase().indexOf(String(right ?? '').toLowerCase()) !== -1;
     case 'startsWith':
@@ -149,6 +165,24 @@ export function evaluateCondition(
   const left = values[node.field];
   const right = resolveCompare(node.compare, values, dynamicContext);
   return compareResolved(left, node.op, right);
+}
+
+export function shouldShowCustomButton(b: IFormCustomButtonConfig, ctx: IFormRuleRuntimeContext): boolean {
+  if (b.enabled === false) return false;
+  if (b.modes !== undefined && b.modes.length === 0) return false;
+  if (b.modes?.length && b.modes.indexOf(ctx.formMode) === -1) return false;
+  const op: TFormCustomButtonOperation = b.operation ?? 'legacy';
+  if (op === 'delete') {
+    if (ctx.formMode === 'create') return false;
+    const sv = b.deleteShowInView !== false;
+    const se = b.deleteShowInEdit !== false;
+    if (ctx.formMode === 'view' && !sv) return false;
+    if (ctx.formMode === 'edit' && !se) return false;
+  }
+  if (op === 'update' && ctx.formMode === 'create') return false;
+  if (!userInAnyGroup(ctx.userGroupTitles, b.groupTitles)) return false;
+  if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext)) return false;
+  return true;
 }
 
 function ruleAppliesMode(rule: TFormRule, mode: TFormManagerFormMode): boolean {
