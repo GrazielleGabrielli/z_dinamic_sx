@@ -5,6 +5,7 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
 } from '../../core/config/types/formManager';
+import { attachmentFileKindIconName } from './attachmentFileKindIcon';
 
 export interface IFormAttachmentUploaderProps {
   files: File[];
@@ -67,13 +68,8 @@ function isImageFile(f: File): boolean {
 
 function fileKindIconName(f: File): string {
   const t = (f.type || '').toLowerCase();
-  const n = f.name.toLowerCase();
   if (t.startsWith('image/')) return 'FileImage';
-  if (t === 'application/pdf' || n.endsWith('.pdf')) return 'PDF';
-  if (t.includes('wordprocessing') || n.endsWith('.doc') || n.endsWith('.docx')) return 'WordDocument';
-  if ((t.includes('spreadsheet') || /(\.xlsx|\.xls)$/.test(n)) && !n.endsWith('.csv')) return 'ExcelDocument';
-  if (t.includes('presentation') || /\.pptx?$/.test(n)) return 'PowerPointDocument';
-  return 'Page';
+  return attachmentFileKindIconName(f.name);
 }
 
 export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
@@ -89,7 +85,9 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   filePreview: filePreviewProp,
   allowedFileExtensions,
 }) => {
-  const preview = filePreviewProp ?? 'nameAndSize';
+  const preview: TFormAttachmentFilePreviewKind = filePreviewProp ?? 'nameAndSize';
+  const useCompactChips =
+    layout === 'compact' && (preview === 'nameOnly' || preview === 'nameAndSize');
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [pickRejectHint, setPickRejectHint] = useState('');
@@ -589,7 +587,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
             </Stack>
           </div>
         )}
-        {renderFileRows(true)}
+        {renderFileRows(useCompactChips)}
         {footerErr}
       </Stack>
     );

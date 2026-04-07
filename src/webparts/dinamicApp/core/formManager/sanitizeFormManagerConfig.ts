@@ -19,7 +19,9 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormHistoryPresentationKind,
+  TFormHistoryLayoutKind,
   TFormHistoryButtonKind,
+  TFormHistoryIntegratedClickBehavior,
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
@@ -68,6 +70,7 @@ const STEP_NAV_BUTTONS_SET = new Set<string>([
 ]);
 const BUTTON_OPERATION_SET = new Set<string>(['legacy', 'redirect', 'add', 'update', 'delete', 'history']);
 const HISTORY_PRESENTATION_SET = new Set<string>(['panel', 'modal', 'collapse']);
+const HISTORY_LAYOUT_SET = new Set<string>(['list', 'timeline', 'cards', 'compact']);
 const FORM_DATA_LOADING_SET = new Set<string>(['spinner', 'spinnerLarge', 'shimmer', 'progress', 'cardShimmer']);
 const FORM_SUBMIT_LOADING_SET = new Set<string>([
   'overlay',
@@ -682,6 +685,28 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     : [];
   const historyGroupTitles =
     historyGroupTitlesRaw.length > 0 ? (historyGroupTitlesRaw as string[]) : undefined;
+  const hlRaw = o.historyLayoutKind;
+  const historyLayoutKind: TFormHistoryLayoutKind | undefined =
+    typeof hlRaw === 'string' && HISTORY_LAYOUT_SET.has(hlRaw)
+      ? (hlRaw as TFormHistoryLayoutKind)
+      : undefined;
+  const hbcbRaw = o.historyButtonClickBehavior;
+  const historyButtonClickBehavior: TFormHistoryIntegratedClickBehavior | undefined =
+    hbcbRaw === 'openOnly' ||
+    hbcbRaw === 'actionsOnly' ||
+    hbcbRaw === 'draft' ||
+    hbcbRaw === 'submit' ||
+    hbcbRaw === 'close'
+      ? (hbcbRaw as TFormHistoryIntegratedClickBehavior)
+      : undefined;
+  const hbaRaw = o.historyButtonActions;
+  const historyButtonActions: TFormButtonAction[] = [];
+  if (Array.isArray(hbaRaw)) {
+    for (let hi = 0; hi < hbaRaw.length; hi++) {
+      const act = sanitizeButtonAction(hbaRaw[hi]);
+      if (act) historyButtonActions.push(act);
+    }
+  }
   const customButtonsAdjusted: IFormCustomButtonConfig[] = [];
   for (let i = 0; i < customButtons.length; i++) {
     const btn = customButtons[i];
@@ -722,5 +747,10 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(historyEnabled && historyButtonIcon && historyButtonIcon !== 'History' ? { historyButtonIcon } : {}),
     ...(historyEnabled && historyPanelSubtitle ? { historyPanelSubtitle } : {}),
     ...(historyEnabled && historyGroupTitles?.length ? { historyGroupTitles } : {}),
+    ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
+    ...(historyButtonClickBehavior && historyButtonClickBehavior !== 'actionsOnly'
+      ? { historyButtonClickBehavior }
+      : {}),
+    ...(historyButtonActions.length ? { historyButtonActions } : {}),
   };
 }

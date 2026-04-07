@@ -15,6 +15,8 @@ import {
   MessageBar,
   MessageBarType,
   Label,
+  Link,
+  Icon,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type {
@@ -23,10 +25,12 @@ import type {
   IFormCustomButtonConfig,
   TFormButtonAction,
   TFormCustomButtonOperation,
+  TFormCustomButtonBehavior,
   TFormManagerFormMode,
   TFormSubmitKind,
   TFormRule,
   TFormSubmitLoadingUiKind,
+  TFormAttachmentFilePreviewKind,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -59,6 +63,7 @@ import { ItemsService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
 import { FormItemHistoryUi } from './FormItemHistoryUi';
+import { attachmentFileKindIconName } from './attachmentFileKindIcon';
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -88,6 +93,42 @@ async function uploadListItemAttachments(listTitle: string, itemId: number, file
     const buf = await files[i].arrayBuffer();
     await item.attachmentFiles.add(files[i].name, buf);
   }
+}
+
+type IServerAttachmentRow = { fileName: string; fileUrl: string };
+
+function normalizeSharePointAttachmentFiles(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.value)) return o.value;
+    const d = o.d as Record<string, unknown> | undefined;
+    if (d && Array.isArray(d.results)) return d.results as unknown[];
+  }
+  return [];
+}
+
+function mapServerAttachments(rows: unknown[]): IServerAttachmentRow[] {
+  const out: IServerAttachmentRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const a = rows[i];
+    if (!a || typeof a !== 'object') continue;
+    const r = a as Record<string, unknown>;
+    const fn = r.FileName ?? r.fileName;
+    if (typeof fn !== 'string' || !fn.trim()) continue;
+    const sr = r.ServerRelativeUrl ?? r.serverRelativeUrl;
+    let fileUrl = '';
+    if (typeof sr === 'string' && sr.trim()) {
+      const path = sr.trim();
+      fileUrl = /^https?:\/\//i.test(path)
+        ? path
+        : `${typeof window !== 'undefined' ? window.location.origin : ''}${
+            path.startsWith('/') ? '' : '/'
+          }${path}`;
+    }
+    out.push({ fileName: fn.trim(), fileUrl });
+  }
+  return out;
 }
 
 function itemToFormValues(
@@ -279,6 +320,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     () => parseAttachmentUiRule(formManager.rules ?? []).allowedFileExtensions ?? [],
     [formManager.rules]
   );
+  const attachmentPreviewKind: TFormAttachmentFilePreviewKind =
+    formManager.attachmentFilePreview ?? 'nameAndSize';
 
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     itemToFormValues(initialItem ?? undefined, names)
@@ -290,6 +333,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [attachmentCount, setAttachmentCount] = useState(0);
+  const [serverAttachments, setServerAttachments] = useState<IServerAttachmentRow[]>([]);
   const prevByTriggerRef = useRef<Record<string, unknown>>({});
   const [buttonOverlay, setButtonOverlay] = useState<IFormButtonFieldOverlay>(() => ({
     show: new Set<string>(),
@@ -308,16 +352,22 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
     const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
     const sub = formManager.historyPanelSubtitle?.trim();
+    const clickBeh = formManager.historyButtonClickBehavior ?? 'actionsOnly';
     return {
       id: FORM_BUILTIN_HISTORY_BUTTON_ID,
       label,
       shortDescription: sub || undefined,
       appearance: 'default',
-      behavior: 'actionsOnly',
+      behavior: (clickBeh === 'openOnly' ? 'actionsOnly' : clickBeh) as TFormCustomButtonBehavior,
       operation: 'history',
-      actions: [],
+      actions: formManager.historyButtonActions ?? [],
     };
-  }, [formManager.historyButtonLabel, formManager.historyPanelSubtitle]);
+  }, [
+    formManager.historyButtonLabel,
+    formManager.historyPanelSubtitle,
+    formManager.historyButtonClickBehavior,
+    formManager.historyButtonActions,
+  ]);
 
   useEffect(() => {
     setValues(itemToFormValues(initialItem ?? undefined, names));
@@ -469,6 +519,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   useEffect(() => {
     if (formMode === 'create' || !itemId) {
       setAttachmentCount(0);
+      setServerAttachments([]);
       return;
     }
     let cancelled = false;
@@ -477,17 +528,25 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const sp = getSP();
         const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(listTitle);
         const list = isGuid ? sp.web.lists.getById(listTitle) : sp.web.lists.getByTitle(listTitle);
-        const item = list.items.getById(itemId) as unknown as { attachmentFiles(): Promise<unknown[]> };
-        const files = await item.attachmentFiles();
-        if (!cancelled) setAttachmentCount(Array.isArray(files) ? files.length : 0);
+        const item = list.items.getById(itemId) as unknown as { attachmentFiles(): Promise<unknown> };
+        const raw = await item.attachmentFiles();
+        const rows = normalizeSharePointAttachmentFiles(raw);
+        const mapped = mapServerAttachments(rows);
+        if (!cancelled) {
+          setAttachmentCount(mapped.length);
+          setServerAttachments(mapped);
+        }
       } catch {
-        if (!cancelled) setAttachmentCount(0);
+        if (!cancelled) {
+          setAttachmentCount(0);
+          setServerAttachments([]);
+        }
       }
     })();
     return (): void => {
       cancelled = true;
     };
-  }, [listTitle, itemId, formMode]);
+  }, [listTitle, itemId, formMode, initialItem]);
 
   const updateField = (name: string, v: unknown): void => {
     setValues((prev) => ({ ...prev, [name]: v }));
@@ -577,14 +636,102 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
     if (op === 'history') {
       if (formManager.historyEnabled !== true) {
-        setFormError('Ative o histórico na aba Componentes do gestor de formulário.');
+        setFormError('Ative o histórico na aba Lista de logs do gestor de formulário.');
         return;
       }
       if (itemId === undefined || itemId === null || formMode === 'create') {
         setFormError('O histórico só está disponível quando o item já existe na lista.');
         return;
       }
+      const clickBeh = formManager.historyButtonClickBehavior ?? 'actionsOnly';
       setFormError(undefined);
+      if (clickBeh === 'openOnly') {
+        setHistoryBtn(btn);
+        return;
+      }
+      const histActions = formManager.historyButtonActions ?? btn.actions ?? [];
+      const { mergedValues, mergedOverlay } = reduceCustomButtonActions(
+        histActions,
+        values,
+        dynamicContext,
+        buttonOverlay
+      );
+      flushSync(() => {
+        setValues(mergedValues);
+        setButtonOverlay(mergedOverlay);
+      });
+      if (
+        clickBeh === 'actionsOnly' &&
+        mergedOverlay.show.size > 0 &&
+        visibleStepsForUi &&
+        visibleStepsForUi.length > 1
+      ) {
+        const shownNames = Array.from(mergedOverlay.show);
+        for (let si = 0; si < shownNames.length; si++) {
+          const name = shownNames[si];
+          const stepId = mergedOverlay.showOnStepId?.[name];
+          if (!stepId) continue;
+          const idx = visibleStepsForUi.findIndex((s) => s.id === stepId);
+          if (idx >= 0) {
+            setStepIndex(idx);
+            break;
+          }
+        }
+      }
+      if (clickBeh === 'close') {
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+          return;
+        }
+        onDismiss();
+        return;
+      }
+      if (clickBeh === 'draft') {
+        const saved = await handleSave('draft', {
+          valuesOverride: mergedValues,
+          buttonOverlayOverride: mergedOverlay,
+          submitLoadingFromButton: btn,
+        });
+        if (!saved) return;
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+          return;
+        }
+        setHistoryBtn(btn);
+        return;
+      }
+      if (clickBeh === 'submit') {
+        const saved = await handleSave('submit', {
+          valuesOverride: mergedValues,
+          buttonOverlayOverride: mergedOverlay,
+          submitLoadingFromButton: btn,
+        });
+        if (!saved) return;
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+          return;
+        }
+        setHistoryBtn(btn);
+        return;
+      }
       try {
         await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
           sourceListTitle: listTitle,
@@ -938,6 +1085,73 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return ids;
   }, [fieldConfigs]);
 
+  const renderServerAttachmentList = (rows: IServerAttachmentRow[]): React.ReactNode => {
+    if (rows.length === 0) return null;
+    const showIcon =
+      attachmentPreviewKind === 'iconAndName' ||
+      attachmentPreviewKind === 'thumbnailAndName' ||
+      attachmentPreviewKind === 'thumbnailLarge';
+    const iconPx = attachmentPreviewKind === 'thumbnailLarge' ? 48 : 20;
+    const thumbBox =
+      attachmentPreviewKind === 'thumbnailAndName' || attachmentPreviewKind === 'thumbnailLarge';
+    const boxPx = attachmentPreviewKind === 'thumbnailLarge' ? 56 : 40;
+    return (
+      <Stack tokens={{ childrenGap: thumbBox ? 8 : 4 }}>
+        {rows.map((a, ai) => (
+          <Stack
+            key={`${a.fileName}-${ai}`}
+            horizontal
+            verticalAlign="center"
+            tokens={{ childrenGap: 10 }}
+            styles={{
+              root: thumbBox
+                ? {
+                    padding: '8px 12px',
+                    background: '#faf9f8',
+                    borderRadius: 6,
+                    border: '1px solid #edebe9',
+                  }
+                : undefined,
+            }}
+          >
+            {showIcon &&
+              (thumbBox ? (
+                <div
+                  style={{
+                    width: boxPx,
+                    height: boxPx,
+                    borderRadius: 6,
+                    background: '#edebe9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon
+                    iconName={attachmentFileKindIconName(a.fileName)}
+                    styles={{ root: { fontSize: iconPx, color: '#605e5c' } }}
+                  />
+                </div>
+              ) : (
+                <Icon
+                  iconName={attachmentFileKindIconName(a.fileName)}
+                  styles={{ root: { fontSize: iconPx, color: '#0078d4', flexShrink: 0 } }}
+                />
+              ))}
+            {a.fileUrl ? (
+              <Link href={a.fileUrl} target="_blank" rel="noopener noreferrer">
+                {a.fileName}
+              </Link>
+            ) : (
+              <Text variant="small">{a.fileName}</Text>
+            )}
+          </Stack>
+        ))}
+      </Stack>
+    );
+  };
+
   const renderFieldControl = (fc: IFormFieldConfig): React.ReactNode => {
     const name = fc.internalName;
     if (derived.fieldVisible[name] === false) return null;
@@ -955,6 +1169,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               {attachmentCount} anexo(s) no item. Não é possível adicionar novos em modo ver.
             </Text>
+            {serverAttachments.length > 0 ? (
+              renderServerAttachmentList(serverAttachments)
+            ) : (
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Nenhum ficheiro na pasta de anexos do item.
+              </Text>
+            )}
             {fc.helpText && (
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                 {fc.helpText}
@@ -964,22 +1185,31 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         );
       }
       return (
-        <FormAttachmentUploader
-          key={name}
-          files={pendingFiles}
-          onFilesChange={setPendingFiles}
-          disabled={readOnly}
-          label={fc.label ?? 'Anexos ao item'}
-          description={fc.helpText}
-          errorMessage={attErr}
-          required={attReq}
-          requiredEmptyHighlight={attReqEmpty}
-          layout={formManager.attachmentUploadLayout ?? 'default'}
-          filePreview={formManager.attachmentFilePreview ?? 'nameAndSize'}
-          allowedFileExtensions={
-            attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
-          }
-        />
+        <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+          {serverAttachments.length > 0 && (
+            <Stack tokens={{ childrenGap: 6 }}>
+              <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                Anexos já no item
+              </Text>
+              {renderServerAttachmentList(serverAttachments)}
+            </Stack>
+          )}
+          <FormAttachmentUploader
+            files={pendingFiles}
+            onFilesChange={setPendingFiles}
+            disabled={readOnly}
+            label={fc.label ?? 'Anexos ao item'}
+            description={fc.helpText}
+            errorMessage={attErr}
+            required={attReq}
+            requiredEmptyHighlight={attReqEmpty}
+            layout={formManager.attachmentUploadLayout ?? 'default'}
+            filePreview={attachmentPreviewKind}
+            allowedFileExtensions={
+              attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
+            }
+          />
+        </Stack>
       );
     }
     const m = metaByName.get(name);
@@ -1340,6 +1570,36 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
+          {(formManager.customButtons ?? [])
+            .filter((b) =>
+              formManager.historyEnabled === true ? (b.operation ?? 'legacy') !== 'history' : true
+            )
+            .filter((b) =>
+              shouldShowCustomButton(b, runtimeCtx(), {
+                allRequiredFilled: allRequiredFilled,
+                historyEnabledInConfig: formManager.historyEnabled === true,
+                historyItemId: itemId,
+              })
+            )
+            .map((b) =>
+              b.appearance === 'primary' ? (
+                <PrimaryButton
+                  key={b.id}
+                  text={b.label}
+                  title={b.shortDescription || undefined}
+                  onClick={() => void runCustomButton(b)}
+                  disabled={submitting}
+                />
+              ) : (
+                <DefaultButton
+                  key={b.id}
+                  text={b.label}
+                  title={b.shortDescription || undefined}
+                  onClick={() => void runCustomButton(b)}
+                  disabled={submitting}
+                />
+              )
+            )}
           {formManager.historyEnabled === true &&
             shouldShowBuiltinHistoryButton({
               historyEnabledInConfig: true,
@@ -1389,36 +1649,6 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 />
               );
             })()}
-          {(formManager.customButtons ?? [])
-            .filter((b) =>
-              formManager.historyEnabled === true ? (b.operation ?? 'legacy') !== 'history' : true
-            )
-            .filter((b) =>
-              shouldShowCustomButton(b, runtimeCtx(), {
-                allRequiredFilled: allRequiredFilled,
-                historyEnabledInConfig: formManager.historyEnabled === true,
-                historyItemId: itemId,
-              })
-            )
-            .map((b) =>
-              b.appearance === 'primary' ? (
-                <PrimaryButton
-                  key={b.id}
-                  text={b.label}
-                  title={b.shortDescription || undefined}
-                  onClick={() => void runCustomButton(b)}
-                  disabled={submitting}
-                />
-              ) : (
-                <DefaultButton
-                  key={b.id}
-                  text={b.label}
-                  title={b.shortDescription || undefined}
-                  onClick={() => void runCustomButton(b)}
-                  disabled={submitting}
-                />
-              )
-            )}
           {formManager.showDefaultFormButtons === true && formMode !== 'view' && (
             <>
               <PrimaryButton text="Enviar" onClick={() => handleSave('submit')} disabled={submitting} />
@@ -1434,9 +1664,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           itemId !== null &&
           formManager.historyEnabled === true && (
             <FormItemHistoryUi
-              listTitle={listTitle}
-              itemId={itemId}
+              actionLog={formManager.actionLog}
+              sourceItemId={itemId}
               presentationKind={formManager.historyPresentationKind ?? 'panel'}
+              layoutKind={formManager.historyLayoutKind ?? 'list'}
               isOpen={true}
               onDismiss={() => setHistoryBtn(null)}
               title={historyBtn.label}

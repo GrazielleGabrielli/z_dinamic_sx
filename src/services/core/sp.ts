@@ -6,6 +6,7 @@ import '@pnp/sp/lists';
 import '@pnp/sp/folders';
 import '@pnp/sp/files';
 import '@pnp/sp/items';
+import '@pnp/sp/attachments';
 import '@pnp/sp/fields';
 import '@pnp/sp/views';
 import '@pnp/sp/site-users/web';

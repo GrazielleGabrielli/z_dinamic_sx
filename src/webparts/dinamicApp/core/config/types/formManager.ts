@@ -316,8 +316,14 @@ export type TFormAttachmentFilePreviewKind =
 
 export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'close';
 
-/** Como o painel de histórico do item é apresentado (aba Componentes). */
+/** Clique no botão de histórico integrado: openOnly = só painel; resto = como botões personalizados + abrir histórico. */
+export type TFormHistoryIntegratedClickBehavior = 'openOnly' | TFormCustomButtonBehavior;
+
+/** Onde o painel de histórico de auditoria abre (aba Lista de logs). */
 export type TFormHistoryPresentationKind = 'panel' | 'modal' | 'collapse';
+
+/** Estilo da lista de registos dentro do painel de histórico (aba Componentes). */
+export type TFormHistoryLayoutKind = 'list' | 'timeline' | 'cards' | 'compact';
 
 /** Operação principal do botão personalizado (além das ações em cadeia). */
 export type TFormCustomButtonOperation =
@@ -455,10 +461,12 @@ export interface IFormManagerConfig {
   formDataLoadingKind?: TFormDataLoadingUiKind;
   /** Padrão de loading ao gravar quando o botão não define override. */
   defaultSubmitLoadingKind?: TFormSubmitLoadingUiKind;
-  /** Se true, mostra o botão de histórico de versões (configuração na aba Lista de logs). */
+  /** Se true, mostra o botão de histórico de auditoria (registos da lista de log filtrados pelo lookup ao item). */
   historyEnabled?: boolean;
-  /** Onde abrir o histórico de versões do item (padrão: painel lateral). */
+  /** Onde abrir o painel de histórico de auditoria (padrão: painel lateral). */
   historyPresentationKind?: TFormHistoryPresentationKind;
+  /** Aspeto dos registos no painel: lista, linha do tempo, cartões ou compacto (padrão: list). */
+  historyLayoutKind?: TFormHistoryLayoutKind;
   /** Apresentação do botão de histórico integrado. Omitido = só texto. */
   historyButtonKind?: TFormHistoryButtonKind;
   /** Texto do botão (ou tooltip se só ícone). Padrão: «Histórico». */
@@ -469,6 +477,13 @@ export interface IFormManagerConfig {
   historyPanelSubtitle?: string;
   /** Grupos SharePoint (títulos) que podem ver o botão de histórico integrado. Vazio = todos. */
   historyGroupTitles?: string[];
+  /**
+   * O que fazer ao clicar no histórico integrado. Omitido = actionsOnly (ações + log se ativo + abrir painel).
+   * openOnly = abrir só o painel, sem ações, sem gravar item, sem registo de log.
+   */
+  historyButtonClickBehavior?: TFormHistoryIntegratedClickBehavior;
+  /** Ações em cadeia antes de gravar/abrir (como nos botões personalizados). Ignoradas se historyButtonClickBehavior === openOnly. */
+  historyButtonActions?: TFormButtonAction[];
   /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
   showDefaultFormButtons?: boolean;
   /** Layout visual do campo de ficheiros anexos (aba Componentes). Omitido = default. */

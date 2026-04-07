@@ -10,9 +10,18 @@ import type { IFieldMetadata } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 import { DynamicListForm } from './DynamicListForm';
 import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
-import type { TFormManagerFormMode, TFormSubmitKind } from '../../core/config/types/formManager';
-import type { IFormManagerConfig } from '../../core/config/types/formManager';
+import {
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+  type IFormManagerConfig,
+  type TFormManagerFormMode,
+  type TFormSubmitKind,
+} from '../../core/config/types/formManager';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import {
+  isFormNewModeQuery,
+  parseFormItemIdFromQuery,
+  resolveFormModeFromQuery,
+} from '../../core/formManager/formQueryParams';
 
 export interface IFormManagerViewProps {
   config: IDynamicViewConfig;
@@ -33,10 +42,12 @@ async function uploadAttachments(listTitle: string, itemId: number, files: File[
 }
 
 function formFieldInternalNames(fm: IFormManagerConfig, fieldMeta: IFieldMetadata[]): string[] {
-  if (fm.fields.length > 0) return fm.fields.map((f) => f.internalName);
+  const skipVirtual = (internalName: string): boolean => internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL;
+  if (fm.fields.length > 0) return fm.fields.map((f) => f.internalName).filter(skipVirtual);
   return fieldMeta
     .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
-    .map((f) => f.InternalName);
+    .map((f) => f.InternalName)
+    .filter(skipVirtual);
 }
 
 function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetadata[]): { select: string[]; expand: string[] } {
@@ -45,6 +56,7 @@ function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetad
   const byName = new Map(fieldMeta.map((f) => [f.InternalName, f]));
   for (let i = 0; i < fieldNames.length; i++) {
     const name = fieldNames[i];
+    if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
     const m = byName.get(name);
     const needsExpand = m && ['lookup', 'lookupmulti', 'user', 'usermulti'].indexOf(m.MappedType) !== -1;
     if (needsExpand && m) {
@@ -129,7 +141,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
   }, [listTitle, fieldsService]);
 
   const loadItemById = useCallback(
-    async (itemId: number): Promise<void> => {
+    async (itemId: number, modeAfterLoad: TFormManagerFormMode): Promise<void> => {
       if (!listTitle.trim() || !fieldMeta.length) return;
       setItemLoading(true);
       setLoadError(undefined);
@@ -141,7 +153,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
           fieldMetadata: fieldMeta,
         });
         setActiveItem(row);
-        setFormMode('edit');
+        setFormMode(modeAfterLoad);
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : String(e));
         setActiveItem(null);
@@ -156,11 +168,15 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
   useEffect(() => {
     if (!fieldMeta.length || !dynamicContext?.query) return;
     const q = dynamicContext.query;
-    const raw = q.itemId ?? q.id ?? q.ID;
-    if (!raw || !String(raw).trim()) return;
-    const id = parseInt(String(raw).trim(), 10);
-    if (isNaN(id) || id < 1) return;
-    void loadItemById(id);
+    if (isFormNewModeQuery(q)) {
+      setActiveItem(null);
+      setFormMode('create');
+      setLoadError(undefined);
+      return;
+    }
+    const id = parseFormItemIdFromQuery(q);
+    if (id === undefined) return;
+    void loadItemById(id, resolveFormModeFromQuery(q, { itemLoaded: true }));
   }, [fieldMeta.length, dynamicContext?.query, loadItemById]);
 
   const resetToNew = useCallback((): void => {
@@ -175,6 +191,9 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     _submitKind: TFormSubmitKind,
     files: File[]
   ): Promise<void> => {
+    if (formMode === 'view') {
+      return;
+    }
     if (formMode === 'create') {
       const { id, filesForAttachments } = await itemsService.addItem(listTitle, payload, files);
       await uploadAttachments(listTitle, id, filesForAttachments);
@@ -185,7 +204,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
       const id = Number(activeItem.Id);
       await itemsService.updateItem(listTitle, id, payload);
       await uploadAttachments(listTitle, id, files);
-      await loadItemById(id);
+      await loadItemById(id, 'edit');
     }
   };
 
@@ -207,7 +226,11 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8, maxWidth: 720 } }}>
       {loadError && <MessageBar messageBarType={MessageBarType.error}>{loadError}</MessageBar>}
       <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-        {formMode === 'create' ? 'Novo registro' : `Editar #${activeItem?.Id ?? ''}`}
+        {formMode === 'create'
+          ? 'Novo registro'
+          : formMode === 'view'
+            ? `Visualizar #${activeItem?.Id ?? ''}`
+            : `Editar #${activeItem?.Id ?? ''}`}
       </Text>
       {itemLoading ? (
         <FormDataLoadingView kind={dataLoadKind} message="A carregar item…" />
@@ -226,7 +249,9 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
           onSubmit={handleSubmit}
           onDismiss={resetToNew}
           onAfterItemUpdated={async () => {
-            if (activeItem) await loadItemById(Number(activeItem.Id));
+            if (!activeItem) return;
+            const q = dynamicContext?.query ?? {};
+            await loadItemById(Number(activeItem.Id), resolveFormModeFromQuery(q, { itemLoaded: true }));
           }}
         />
       )}

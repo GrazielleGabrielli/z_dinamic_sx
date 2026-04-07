@@ -19,6 +19,7 @@ import type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
+  TFormHistoryLayoutKind,
 } from '../../core/config/types/formManager';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
@@ -116,6 +117,155 @@ export const FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS: {
   { key: 'thumbnailLarge', text: 'Pré-visualização grande (cartão por ficheiro)' },
 ];
 
+export const FORM_HISTORY_LAYOUT_DROPDOWN_OPTIONS: {
+  key: TFormHistoryLayoutKind;
+  text: string;
+}[] = [
+  { key: 'list', text: 'Lista (blocos empilhados)' },
+  { key: 'timeline', text: 'Linha do tempo (eixo vertical)' },
+  { key: 'cards', text: 'Cartões (sombra e destaque)' },
+  { key: 'compact', text: 'Compacto (denso, uma linha por meta)' },
+];
+
+function HistoryLayoutPreview({ kind }: { kind: TFormHistoryLayoutKind }): JSX.Element {
+  const samples = [
+    { title: 'Registo 1', meta: '01/04/2026 10:02 · Ana', hint: 'Texto do campo multilinhas…' },
+    { title: 'Registo 2', meta: '01/04/2026 09:10 · Bruno', hint: 'Outro registo…' },
+  ];
+  const wrap = (child: React.ReactNode): JSX.Element => (
+    <Stack
+      styles={{
+        root: {
+          border: '1px solid #edebe9',
+          borderRadius: 4,
+          padding: 12,
+          background: '#faf9f8',
+          marginTop: 8,
+        },
+      }}
+    >
+      <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c', marginBottom: 8 } }}>
+        Pré-visualização do estilo
+      </Text>
+      {child}
+    </Stack>
+  );
+  if (kind === 'timeline') {
+    return wrap(
+      <div style={{ position: 'relative', paddingLeft: 22 }}>
+        <div
+          style={{
+            position: 'absolute',
+            left: 5,
+            top: 6,
+            bottom: 6,
+            width: 2,
+            background: '#e1dfdd',
+          }}
+        />
+        <Stack tokens={{ childrenGap: 14 }}>
+          {samples.map((s, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  left: -19,
+                  top: 2,
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  background: '#0078d4',
+                  border: '2px solid #fff',
+                  boxShadow: '0 0 0 1px #c8c6c4',
+                }}
+              />
+              <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                {s.title}
+              </Text>
+              <Text variant="small" styles={{ root: { color: '#605e5c', fontSize: 11 } }}>
+                {s.meta}
+              </Text>
+              <Text variant="small" styles={{ root: { color: '#a19f9d', fontSize: 11 } }}>
+                {s.hint}
+              </Text>
+            </div>
+          ))}
+        </Stack>
+      </div>
+    );
+  }
+  if (kind === 'cards') {
+    return wrap(
+      <Stack tokens={{ childrenGap: 10 }}>
+        {samples.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              padding: 14,
+              borderRadius: 8,
+              background: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              border: '1px solid #edebe9',
+            }}
+          >
+            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+              {s.title}
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c', fontSize: 11, marginTop: 4 } }}>
+              {s.meta}
+            </Text>
+          </div>
+        ))}
+      </Stack>
+    );
+  }
+  if (kind === 'compact') {
+    return wrap(
+      <Stack tokens={{ childrenGap: 0 }}>
+        {samples.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              padding: '6px 0',
+              borderBottom: i < samples.length - 1 ? '1px solid #edebe9' : undefined,
+            }}
+          >
+            <Text variant="small" styles={{ root: { fontSize: 11, color: '#323130' } }}>
+              <span style={{ fontWeight: 600 }}>{s.title}</span>
+              <span style={{ color: '#605e5c' }}> · {s.meta}</span>
+            </Text>
+          </div>
+        ))}
+      </Stack>
+    );
+  }
+  return wrap(
+    <Stack tokens={{ childrenGap: 8 }}>
+      {samples.map((s, i) => (
+        <div
+          key={i}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 4,
+            border: '1px solid #edebe9',
+            background: '#ffffff',
+          }}
+        >
+          <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+            {s.title}
+          </Text>
+          <Text variant="small" styles={{ root: { color: '#605e5c', fontSize: 11, marginTop: 4 } }}>
+            {s.meta}
+          </Text>
+          <Text variant="small" styles={{ root: { color: '#a19f9d', fontSize: 11, marginTop: 4 } }}>
+            {s.hint}
+          </Text>
+        </div>
+      ))}
+    </Stack>
+  );
+}
+
 const loadingCardStyles = (): { root: Record<string, string | number> } => ({
   root: {
     padding: 16,
@@ -131,9 +281,11 @@ const SECTION_IDS = {
   steps: 'steps',
   attachUi: 'attachUi',
   attachExt: 'attachExt',
+  historyAudit: 'historyAudit',
 } as const;
 
-function ComponentsCollapseSection(props: {
+/** Mesmo collapse usado na aba Componentes e na aba Lista de logs. */
+export function FormManagerCollapseSection(props: {
   title: string;
   isOpen: boolean;
   onToggle: () => void;
@@ -253,6 +405,8 @@ export interface IFormManagerComponentsTabContentProps {
   onAttachmentUploadLayoutChange: (v: TFormAttachmentUploadLayoutKind) => void;
   attachmentFilePreview: TFormAttachmentFilePreviewKind;
   onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
+  historyLayoutKind: TFormHistoryLayoutKind;
+  onHistoryLayoutKindChange: (v: TFormHistoryLayoutKind) => void;
   attachmentAllowedExtensions: string[];
   onAttachmentExtensionToggle: (ext: string, selected: boolean) => void;
 }
@@ -276,7 +430,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         Expanda cada secção para configurar. Por defeito todas vêm fechadas.
       </Text>
 
-      <ComponentsCollapseSection
+      <FormManagerCollapseSection
         title="Carregar formulário / dados"
         isOpen={isOpen(SECTION_IDS.loadData)}
         onToggle={() => toggleSection(SECTION_IDS.loadData)}
@@ -309,9 +463,9 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             message="Pré-visualização — carregar campos / item"
           />
         </Stack>
-      </ComponentsCollapseSection>
+      </FormManagerCollapseSection>
 
-      <ComponentsCollapseSection
+      <FormManagerCollapseSection
         title="Gravar — loading ao gravar (padrão)"
         isOpen={isOpen(SECTION_IDS.submitLoading)}
         onToggle={() => toggleSection(SECTION_IDS.submitLoading)}
@@ -328,9 +482,9 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             o && props.onDefaultSubmitLoadingKindChange(String(o.key) as TFormSubmitLoadingUiKind)
           }
         />
-      </ComponentsCollapseSection>
+      </FormManagerCollapseSection>
 
-      <ComponentsCollapseSection
+      <FormManagerCollapseSection
         title="Etapas — layout e navegação"
         isOpen={isOpen(SECTION_IDS.steps)}
         onToggle={() => toggleSection(SECTION_IDS.steps)}
@@ -351,9 +505,9 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
           Estilo apenas dos botões de navegação no rodapé.
         </Text>
         <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
-      </ComponentsCollapseSection>
+      </FormManagerCollapseSection>
 
-      <ComponentsCollapseSection
+      <FormManagerCollapseSection
         title="Anexos — aspeto e pré-visualização"
         isOpen={isOpen(SECTION_IDS.attachUi)}
         onToggle={() => toggleSection(SECTION_IDS.attachUi)}
@@ -404,9 +558,29 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             }
           />
         </Stack>
-      </ComponentsCollapseSection>
+      </FormManagerCollapseSection>
 
-      <ComponentsCollapseSection
+      <FormManagerCollapseSection
+        title="Histórico de auditoria — apresentação"
+        isOpen={isOpen(SECTION_IDS.historyAudit)}
+        onToggle={() => toggleSection(SECTION_IDS.historyAudit)}
+      >
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Aplica-se ao painel do botão de histórico (registos da lista de log filtrados pelo lookup). A abertura em
+          painel lateral, modal ou secção continua na aba «Lista de logs».
+        </Text>
+        <Dropdown
+          label="Estilo da lista de registos"
+          options={FORM_HISTORY_LAYOUT_DROPDOWN_OPTIONS}
+          selectedKey={props.historyLayoutKind}
+          onChange={(_, o) =>
+            o && props.onHistoryLayoutKindChange(String(o.key) as TFormHistoryLayoutKind)
+          }
+        />
+        <HistoryLayoutPreview kind={props.historyLayoutKind} />
+      </FormManagerCollapseSection>
+
+      <FormManagerCollapseSection
         title="Anexos — extensões permitidas"
         isOpen={isOpen(SECTION_IDS.attachExt)}
         onToggle={() => toggleSection(SECTION_IDS.attachExt)}
@@ -457,7 +631,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             </Stack>
           ))}
         </Stack>
-      </ComponentsCollapseSection>
+      </FormManagerCollapseSection>
     </Stack>
   );
 }
