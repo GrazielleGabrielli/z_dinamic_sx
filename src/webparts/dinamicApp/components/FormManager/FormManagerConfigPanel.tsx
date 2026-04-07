@@ -637,8 +637,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       .catch(() => setLoading(false));
   }, [isOpen, listTitle, fieldsService]);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const loadSiteGroups = useCallback((): void => {
     setSiteGroupsErr(undefined);
     setSiteGroupsLoading(true);
     groupsService
@@ -652,7 +651,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         setSiteGroupsLoading(false);
         setSiteGroupsErr(e instanceof Error ? e.message : String(e));
       });
-  }, [isOpen, groupsService]);
+  }, [groupsService]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadSiteGroups();
+  }, [isOpen, loadSiteGroups]);
 
   const siteGroupsSorted = useMemo(() => {
     const g = siteGroups.slice();
@@ -1784,18 +1788,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   </Text>
                   {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
                   {siteGroupsErr && (
-                    <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
+                    <>
+                      <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
+                      <DefaultButton text="Tentar carregar grupos novamente" onClick={() => loadSiteGroups()} />
+                    </>
                   )}
-                  {siteGroupsErr ? (
-                    <TextField
-                      label="Grupos (títulos, vírgula) — entrada manual"
-                      value={fieldNamesToCsv(btn.groupTitles ?? [])}
-                      onChange={(_, v) => {
-                        const parsed = parseCsvFieldNames(v ?? '');
-                        patchCustomButton(bi, { groupTitles: parsed.length ? parsed : undefined });
-                      }}
-                    />
-                  ) : !siteGroupsLoading ? (
+                  {!siteGroupsLoading ? (
                     <Stack
                       tokens={{ childrenGap: 6 }}
                       styles={{

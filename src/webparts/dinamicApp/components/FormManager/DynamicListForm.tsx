@@ -502,6 +502,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
   };
 
+  const stepsAll = formManager.steps?.length ? formManager.steps : null;
+  const visibleStepsForUi = useMemo(() => {
+    if (!stepsAll) return null;
+    return stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
+  }, [stepsAll]);
+  const [stepIndex, setStepIndex] = useState(0);
+  useEffect(() => {
+    if (!visibleStepsForUi?.length) return;
+    setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
+  }, [visibleStepsForUi]);
+
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
     const actions = op === 'redirect' ? [] : btn.actions ?? [];
@@ -516,6 +527,25 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setValues(mergedValues);
         setButtonOverlay(mergedOverlay);
       });
+      const behaviorEarly = btn.behavior ?? 'actionsOnly';
+      if (
+        behaviorEarly === 'actionsOnly' &&
+        mergedOverlay.show.size > 0 &&
+        visibleStepsForUi &&
+        visibleStepsForUi.length > 1
+      ) {
+        const shownNames = Array.from(mergedOverlay.show);
+        for (let si = 0; si < shownNames.length; si++) {
+          const name = shownNames[si];
+          const stepId = mergedOverlay.showOnStepId?.[name];
+          if (!stepId) continue;
+          const idx = visibleStepsForUi.findIndex((s) => s.id === stepId);
+          if (idx >= 0) {
+            setStepIndex(idx);
+            break;
+          }
+        }
+      }
     }
 
     if (op === 'redirect') {
@@ -616,16 +646,6 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
   };
 
-  const stepsAll = formManager.steps?.length ? formManager.steps : null;
-  const visibleStepsForUi = useMemo(() => {
-    if (!stepsAll) return null;
-    return stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
-  }, [stepsAll]);
-  const [stepIndex, setStepIndex] = useState(0);
-  useEffect(() => {
-    if (!visibleStepsForUi?.length) return;
-    setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
-  }, [visibleStepsForUi]);
   const currentStepFieldSet = useMemo(() => {
     if (!visibleStepsForUi?.length) return null;
     const s = visibleStepsForUi[stepIndex];
@@ -1047,7 +1067,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           if (!target || !curId || target !== curId) continue;
         }
       }
-      const sid = derived.effectiveSectionByField[fc.internalName] ?? fc.sectionId ?? formManager.sections[0]?.id ?? 'main';
+      let sid =
+        derived.effectiveSectionByField[fc.internalName] ?? fc.sectionId ?? formManager.sections[0]?.id ?? 'main';
+      if (
+        scope === 'main' &&
+        fc.sectionId === FORM_OCULTOS_STEP_ID &&
+        buttonOverlay.show.has(fc.internalName) &&
+        visibleStepsForUi?.length
+      ) {
+        const mapSid = buttonOverlay.showOnStepId?.[fc.internalName];
+        const fallbackSingle = visibleStepsForUi.length === 1 ? visibleStepsForUi[0].id : undefined;
+        const stepTarget = mapSid || fallbackSingle;
+        if (stepTarget && formManager.sections.some((x) => x.id === stepTarget)) {
+          sid = stepTarget;
+        }
+      }
       const arr = bySection.get(sid) ?? [];
       arr.push(fc);
       bySection.set(sid, arr);
