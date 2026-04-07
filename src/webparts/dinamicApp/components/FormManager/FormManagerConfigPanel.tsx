@@ -19,11 +19,13 @@ import {
   Link,
   Icon,
   IconButton,
+  Toggle,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
 import type {
   IFormManagerConfig,
+  IFormStepNavigationConfig,
   IFormFieldConfig,
   IFormSectionConfig,
   IFormStepConfig,
@@ -495,6 +497,19 @@ function normalizeFieldsIntoSteps(
   return { fields: nextFields, steps: nextSteps };
 }
 
+function buildStepNavigationForSave(
+  requireFilled: boolean,
+  fullVal: boolean,
+  allowBack: boolean
+): IFormStepNavigationConfig | undefined {
+  const sn: IFormStepNavigationConfig = {};
+  if (requireFilled) sn.requireFilledRequiredToAdvance = true;
+  if (fullVal) sn.fullValidationOnAdvance = true;
+  if (!allowBack) sn.allowBackWithoutValidation = false;
+  if (Object.keys(sn).length === 0) return undefined;
+  return sn;
+}
+
 export interface IFormManagerConfigPanelProps {
   isOpen: boolean;
   listTitle: string;
@@ -532,6 +547,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [defaultSubmitLoadingKind, setDefaultSubmitLoadingKind] = useState<TFormSubmitLoadingUiKind>(
     () => value.defaultSubmitLoadingKind ?? 'overlay'
   );
+  const [stepRequireFilledToAdvance, setStepRequireFilledToAdvance] = useState(
+    () => value.stepNavigation?.requireFilledRequiredToAdvance === true
+  );
+  const [stepFullValOnAdvance, setStepFullValOnAdvance] = useState(
+    () => value.stepNavigation?.fullValidationOnAdvance === true
+  );
+  const [stepAllowBackWithoutVal, setStepAllowBackWithoutVal] = useState(
+    () => value.stepNavigation?.allowBackWithoutValidation !== false
+  );
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
   const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
   const [attachMin, setAttachMin] = useState('');
@@ -567,6 +591,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setStepNavButtons(value.stepNavButtons ?? 'fluent');
     setFormDataLoadingKind(value.formDataLoadingKind ?? 'spinner');
     setDefaultSubmitLoadingKind(value.defaultSubmitLoadingKind ?? 'overlay');
+    setStepRequireFilledToAdvance(value.stepNavigation?.requireFilledRequiredToAdvance === true);
+    setStepFullValOnAdvance(value.stepNavigation?.fullValidationOnAdvance === true);
+    setStepAllowBackWithoutVal(value.stepNavigation?.allowBackWithoutValidation !== false);
     const att = parseAttachmentUiRule(value.rules ?? []);
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
@@ -761,6 +788,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       message: attachMsg,
     });
     const sectionsOut = sectionsFromSteps(steps);
+    const stepNavigation = buildStepNavigationForSave(
+      stepRequireFilledToAdvance,
+      stepFullValOnAdvance,
+      stepAllowBackWithoutVal
+    );
     const raw: IFormManagerConfig = {
       sections: sectionsOut,
       fields,
@@ -776,6 +808,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         ? { defaultSubmitLoadingKind }
         : {}),
       ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
+      ...(stepNavigation ? { stepNavigation } : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -961,6 +994,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       dynamicHelp = undefined;
     }
     const sectionsOut = sectionsFromSteps(steps);
+    const stepNavigation = buildStepNavigationForSave(
+      stepRequireFilledToAdvance,
+      stepFullValOnAdvance,
+      stepAllowBackWithoutVal
+    );
     const raw: IFormManagerConfig = {
       sections: sectionsOut,
       fields,
@@ -976,6 +1014,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         ? { defaultSubmitLoadingKind }
         : {}),
       ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
+      ...(stepNavigation ? { stepNavigation } : {}),
     };
     return JSON.stringify(raw, null, 2);
   }, [
@@ -990,6 +1029,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     formDataLoadingKind,
     defaultSubmitLoadingKind,
     showDefaultFormButtons,
+    stepRequireFilledToAdvance,
+    stepFullValOnAdvance,
+    stepAllowBackWithoutVal,
     attachMin,
     attachMax,
     attachMsg,
@@ -1087,6 +1129,34 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa. Layout do passador e botões anterior/próximo: aba Componentes.
             </Text>
+            <Stack
+              tokens={{ childrenGap: 10 }}
+              styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
+            >
+              <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                Navegação entre etapas (formulário)
+              </Text>
+              <Toggle
+                label="Exigir obrigatórios preenchidos para avançar (Próximo / etapa à frente)"
+                checked={stepRequireFilledToAdvance}
+                onChange={(_, c) => setStepRequireFilledToAdvance(!!c)}
+              />
+              <Toggle
+                label="Ao avançar, aplicar todas as regras de validação nos campos da etapa (não só obrigatório)"
+                checked={stepFullValOnAdvance}
+                onChange={(_, c) => setStepFullValOnAdvance(!!c)}
+                disabled={!stepRequireFilledToAdvance}
+              />
+              <Toggle
+                label="Permitir voltar etapa sem validar a atual"
+                checked={stepAllowBackWithoutVal}
+                onChange={(_, c) => setStepAllowBackWithoutVal(!!c)}
+                disabled={!stepRequireFilledToAdvance}
+              />
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Ideias futuras: etapa de revisão antes de enviar; desativar salto direto no passador; barra de progresso por etapa.
+              </Text>
+            </Stack>
             <Stack horizontal tokens={{ childrenGap: 8 }}>
               <PrimaryButton text="Nova etapa" onClick={addStep} />
             </Stack>

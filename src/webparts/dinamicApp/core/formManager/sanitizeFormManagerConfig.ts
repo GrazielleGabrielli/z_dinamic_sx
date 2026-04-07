@@ -1,5 +1,6 @@
 import type {
   IFormManagerConfig,
+  IFormStepNavigationConfig,
   IFormFieldConfig,
   IFormSectionConfig,
   IFormStepConfig,
@@ -404,6 +405,25 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   };
 }
 
+function coerceBoolTrue(v: unknown): boolean {
+  return v === true || v === 'true' || v === 1 || v === '1';
+}
+
+function coerceBoolFalse(v: unknown): boolean {
+  return v === false || v === 'false' || v === 0 || v === '0';
+}
+
+function sanitizeStepNavigation(raw: unknown): IFormStepNavigationConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const out: IFormStepNavigationConfig = {};
+  if (coerceBoolTrue(o.requireFilledRequiredToAdvance)) out.requireFilledRequiredToAdvance = true;
+  if (coerceBoolTrue(o.fullValidationOnAdvance)) out.fullValidationOnAdvance = true;
+  if (coerceBoolFalse(o.allowBackWithoutValidation)) out.allowBackWithoutValidation = false;
+  if (Object.keys(out).length === 0) return undefined;
+  return out;
+}
+
 function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const s = raw as Record<string, unknown>;
@@ -485,6 +505,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? (dslRaw as TFormSubmitLoadingUiKind)
       : undefined;
   const showDefaultFormButtons = o.showDefaultFormButtons === true;
+  const stepNavigation = sanitizeStepNavigation(o.stepNavigation);
   return {
     sections,
     fields,
@@ -500,5 +521,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? { defaultSubmitLoadingKind }
       : {}),
     ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
+    ...(stepNavigation ? { stepNavigation } : {}),
   };
 }

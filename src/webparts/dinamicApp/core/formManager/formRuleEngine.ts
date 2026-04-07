@@ -684,6 +684,46 @@ export function collectFormValidationErrors(
   return errors;
 }
 
+export function filterValidationErrorsToStepFields(
+  errors: Record<string, string>,
+  stepFieldNames: Set<string>
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(errors)) {
+    if (k === '_attachments') {
+      if (stepFieldNames.has(FORM_ATTACHMENTS_FIELD_INTERNAL)) out[k] = v;
+      continue;
+    }
+    if (k === '_async') continue;
+    if (stepFieldNames.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+export function pickRequiredStyleStepErrors(filtered: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(filtered)) {
+    if (k === '_attachments') {
+      const al = v.toLowerCase();
+      if (
+        al.includes('obrigatório') ||
+        al.includes('obrigatorio') ||
+        al.includes('mínimo') ||
+        al.includes('minimo') ||
+        al.includes('mín.')
+      ) {
+        out[k] = v;
+      }
+      continue;
+    }
+    const t = v.trim().toLowerCase();
+    if (t === 'obrigatório.' || t === 'obrigatório' || t.startsWith('obrigatório')) {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export function getDefaultValuesFromRules(
   cfg: IFormManagerConfig,
   values: Record<string, unknown>,

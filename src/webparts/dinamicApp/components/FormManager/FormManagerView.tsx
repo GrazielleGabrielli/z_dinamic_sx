@@ -12,6 +12,7 @@ import { DynamicListForm } from './DynamicListForm';
 import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
 import type { TFormManagerFormMode, TFormSubmitKind } from '../../core/config/types/formManager';
 import type { IFormManagerConfig } from '../../core/config/types/formManager';
+import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 
 export interface IFormManagerViewProps {
   config: IDynamicViewConfig;
@@ -61,7 +62,10 @@ function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetad
 }
 
 export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => {
-  const fm = config.formManager ?? getDefaultFormManagerConfig();
+  const fm = useMemo(() => {
+    const raw = config.formManager ?? getDefaultFormManagerConfig();
+    return sanitizeFormManagerConfig(raw) ?? raw;
+  }, [config.formManager]);
   const listTitle = config.dataSource.title;
 
   const [fieldMeta, setFieldMeta] = useState<IFieldMetadata[]>([]);

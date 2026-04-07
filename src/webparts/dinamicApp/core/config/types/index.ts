@@ -378,6 +378,7 @@ export interface IListPageLayoutConfig {
 
 export type {
   IFormManagerConfig,
+  IFormStepNavigationConfig,
   IFormCustomButtonConfig,
   TFormButtonAction,
   TFormCustomButtonBehavior,

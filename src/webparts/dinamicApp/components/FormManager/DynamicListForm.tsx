@@ -32,6 +32,8 @@ import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
   collectFormValidationErrors,
+  filterValidationErrorsToStepFields,
+  pickRequiredStyleStepErrors,
   evaluateCondition,
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
@@ -166,6 +168,24 @@ function stylesTextFieldRequiredEmpty(active: boolean): { fieldGroup?: Record<st
       borderRadius: 2,
     },
   };
+}
+
+function listRequiredEmptyErrorsInStep(
+  stepFieldList: Set<string>,
+  values: Record<string, unknown>,
+  metaByName: Map<string, IFieldMetadata>,
+  fieldVisible: (n: string) => boolean
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  stepFieldList.forEach((name) => {
+    if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) return;
+    if (!fieldVisible(name)) return;
+    const m = metaByName.get(name);
+    if (!m?.Required) return;
+    if (!isValueEmptyForRequired(values[name], m.MappedType)) return;
+    out[name] = 'Obrigatório.';
+  });
+  return out;
 }
 
 function lookupIdFromValue(v: unknown): number | undefined {
@@ -570,6 +590,107 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return new Set(s.fieldNames);
   }, [visibleStepsForUi, stepIndex]);
 
+  const tryGoToStep = useCallback(
+    (targetIndex: number) => {
+      if (!visibleStepsForUi?.length) return;
+      const max = visibleStepsForUi.length - 1;
+      const t = Math.max(0, Math.min(max, targetIndex));
+      if (t === stepIndex) return;
+      if (formMode === 'view') {
+        setStepIndex(t);
+        return;
+      }
+      const sn = formManager.stepNavigation;
+      const requireBlock =
+        sn?.requireFilledRequiredToAdvance === true ||
+        (sn as { requireFilledRequiredToAdvance?: unknown } | undefined)?.requireFilledRequiredToAdvance ===
+          'true';
+      const fullVal = sn?.fullValidationOnAdvance === true;
+      const allowBackFree = sn?.allowBackWithoutValidation !== false;
+      const attCtx: IFormValidationAttachmentContext = {
+        attachmentCount,
+        pendingFiles: pendingFiles.map((f) => ({
+          size: f.size,
+          type: f.type || 'application/octet-stream',
+        })),
+      };
+      const ctx: IFormRuleRuntimeContext = {
+        formMode,
+        values,
+        submitKind: 'submit',
+        userGroupTitles,
+        currentUserId,
+        authorId,
+        dynamicContext,
+      };
+      const overlay = { show: buttonOverlay.show, hide: buttonOverlay.hide };
+      const syncErrorsForStep = (stepFieldList: Set<string>): Record<string, string> | null => {
+        const derivedStep = buildFormDerivedState(formManager, fieldConfigs, ctx, overlay);
+        const fv = (n: string): boolean => derivedStep.fieldVisible[n] !== false;
+        const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, attCtx, overlay);
+        let rel = filterValidationErrorsToStepFields(sync, stepFieldList);
+        if (!fullVal) rel = pickRequiredStyleStepErrors(rel);
+        const listReq = listRequiredEmptyErrorsInStep(stepFieldList, values, metaByName, fv);
+        const blocks = Object.keys(rel).length > 0 || Object.keys(listReq).length > 0;
+        if (!blocks) return null;
+        return { ...sync, ...listReq };
+      };
+      if (!requireBlock) {
+        setFormError(undefined);
+        setStepIndex(t);
+        return;
+      }
+      if (t < stepIndex) {
+        if (allowBackFree) {
+          setFormError(undefined);
+          setStepIndex(t);
+          return;
+        }
+        const cur = visibleStepsForUi[stepIndex];
+        const curSet = new Set(cur?.fieldNames ?? []);
+        const bad = syncErrorsForStep(curSet);
+        if (bad) {
+          setLocalErrors(bad);
+          setFormError('Complete esta etapa antes de mudar.');
+          return;
+        }
+        setFormError(undefined);
+        setStepIndex(t);
+        return;
+      }
+      for (let k = stepIndex; k < t; k++) {
+        const st = visibleStepsForUi[k];
+        const fieldSet = new Set(st?.fieldNames ?? []);
+        const bad = syncErrorsForStep(fieldSet);
+        if (bad) {
+          setStepIndex(k);
+          setLocalErrors(bad);
+          setFormError('Complete esta etapa antes de continuar.');
+          return;
+        }
+      }
+      setFormError(undefined);
+      setStepIndex(t);
+    },
+    [
+      visibleStepsForUi,
+      stepIndex,
+      formMode,
+      formManager,
+      fieldConfigs,
+      values,
+      userGroupTitles,
+      currentUserId,
+      authorId,
+      dynamicContext,
+      attachmentCount,
+      pendingFiles,
+      buttonOverlay.show,
+      buttonOverlay.hide,
+      metaByName,
+    ]
+  );
+
   const [modalOpen, setModalOpen] = useState(false);
   const modalGroupIds = useMemo(() => {
     const seen: Record<string, boolean> = {};
@@ -924,7 +1045,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           <FormStepNavigation
             steps={visibleStepsForUi}
             activeIndex={stepIndex}
-            onStepSelect={setStepIndex}
+            onStepSelect={(i) => tryGoToStep(i)}
             layout={formManager.stepLayout ?? 'segmented'}
           />
         )}
@@ -948,8 +1069,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               variant={formManager.stepNavButtons ?? 'fluent'}
               stepIndex={stepIndex}
               stepCount={visibleStepsForUi.length}
-              onPrev={() => setStepIndex((i) => Math.max(0, i - 1))}
-              onNext={() => setStepIndex((i) => Math.min(visibleStepsForUi.length - 1, i + 1))}
+              onPrev={() => tryGoToStep(stepIndex - 1)}
+              onNext={() => tryGoToStep(stepIndex + 1)}
               disabled={submitting}
             />
           </Stack>

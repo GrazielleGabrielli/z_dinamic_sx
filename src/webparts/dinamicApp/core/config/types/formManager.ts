@@ -335,11 +335,18 @@ export interface IFormCustomButtonConfig {
   actions: TFormButtonAction[];
 }
 
+export interface IFormStepNavigationConfig {
+  requireFilledRequiredToAdvance?: boolean;
+  fullValidationOnAdvance?: boolean;
+  allowBackWithoutValidation?: boolean;
+}
+
 export interface IFormManagerConfig {
   sections: IFormSectionConfig[];
   fields: IFormFieldConfig[];
   rules: TFormRule[];
   steps?: IFormStepConfig[];
+  stepNavigation?: IFormStepNavigationConfig;
   /** Colunas da grade gestor (usa mesma origem que listView se vazio) */
   managerColumnFields?: string[];
   /** Ajuda dinâmica por campo quando condição */
