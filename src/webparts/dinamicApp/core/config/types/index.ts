@@ -404,6 +404,22 @@ export type {
   TFormSubmitKind,
 } from './formManager';
 
+export interface IModeConfigSnapshot {
+  listView?: IListViewConfig;
+  projectManagement?: IProjectManagementConfig;
+  formManager?: import('./formManager').IFormManagerConfig;
+  dashboard?: IDashboardConfig;
+  pagination?: IPaginationConfig;
+  listPageLayout?: IListPageLayoutConfig;
+  pdfTemplate?: IPdfTemplateConfig;
+  tableConfig?: import('../../table').ITableConfig;
+}
+
+export interface IConfigMemory {
+  /** Chave: `${kind}::${title}` (title sem espaços nas extremidades). */
+  bySource: Record<string, Partial<Record<TViewMode, IModeConfigSnapshot>>>;
+}
+
 export interface IDynamicViewConfig {
   dataSource: IDataSourceConfig;
   mode: TViewMode;
@@ -421,6 +437,8 @@ export interface IDynamicViewConfig {
    * Se ausente, usa o layout legado (dashboard acima + título + tabela).
    */
   listPageLayout?: IListPageLayoutConfig;
+  /** Memória por lista/biblioteca e modo (alternância no assistente). */
+  configMemory?: IConfigMemory;
 }
 
 export interface IDynamicViewWebPartProps {

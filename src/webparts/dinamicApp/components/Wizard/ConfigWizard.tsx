@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Stack,
   Text,
@@ -9,9 +9,9 @@ import {
   Separator,
 } from '@fluentui/react';
 import { IDynamicViewConfig } from '../../core/config/types';
-import { buildConfig } from '../../core/config/builders';
-import { getDefaultFormManagerConfig } from '../../core/config/utils';
-import { IWizardFormState, WIZARD_INITIAL_STATE, configToWizardState } from './types';
+import { getDefaultConfig } from '../../core/config/utils';
+import { applyWizardPartial, cloneJson } from '../../core/config/configMemory';
+import { IWizardFormState, configToWizardState } from './types';
 import { Step1DataSource } from './steps/Step1DataSource';
 import { Step2Mode } from './steps/Step2Mode';
 import { Step3Dashboard } from './steps/Step3Dashboard';
@@ -58,8 +58,18 @@ function isStepValid(step: number, form: IWizardFormState): boolean {
   }
 }
 
+function initialDraft(iv?: IDynamicViewConfig): IDynamicViewConfig {
+  if (iv !== undefined) {
+    return cloneJson({
+      ...iv,
+      configMemory: iv.configMemory ?? { bySource: {} },
+    });
+  }
+  return { ...getDefaultConfig(), configMemory: { bySource: {} } };
+}
+
 export const ConfigWizard: React.FC<IConfigWizardProps> = ({
-  siteUrl,
+  siteUrl: _siteUrl,
   onComplete,
   initialValues,
   onCancel,
@@ -67,12 +77,12 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   const isEditMode = initialValues !== undefined;
 
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState<IWizardFormState>(() =>
-    isEditMode ? configToWizardState(initialValues) : WIZARD_INITIAL_STATE
-  );
+  const [draft, setDraft] = useState<IDynamicViewConfig>(() => initialDraft(initialValues));
+
+  const form = useMemo(() => configToWizardState(draft), [draft]);
 
   const updateForm = useCallback((partial: Partial<IWizardFormState>): void => {
-    setForm((prev) => ({ ...prev, ...partial }));
+    setDraft((prev) => applyWizardPartial(prev, partial));
   }, []);
 
   useEffect(() => {
@@ -89,41 +99,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     (form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager') &&
     (form.mode === 'formManager' || (form.viewModes?.length ?? 0) > 0);
 
-  const buildCurrentConfig = useCallback((): IDynamicViewConfig => {
-    const existingCards = initialValues?.dashboard.cards ?? [];
-    const existingChartSeries = initialValues?.dashboard.chartSeries ?? [];
-    const existingListView = initialValues?.listView;
-    return buildConfig({
-      dataSource: { kind: form.kind, title: form.title },
-      mode: form.mode,
-      dashboard: {
-        enabled: form.dashboardEnabled,
-        dashboardType: form.dashboardType,
-        cardsCount: form.cardsCount,
-        cards: existingCards,
-        chartType: form.chartType,
-        chartSeries: existingChartSeries,
-      },
-      pagination: {
-        enabled: form.paginationEnabled,
-        pageSize: form.pageSize,
-        pageSizeOptions: form.pageSizeOptions,
-      },
-      listView: {
-        ...existingListView,
-        viewModes: form.viewModes,
-        activeViewModeId: form.activeViewModeId,
-      },
-      projectManagement: initialValues?.projectManagement,
-      formManager:
-        form.mode === 'formManager'
-          ? {
-              ...(initialValues?.formManager ?? getDefaultFormManagerConfig()),
-              stepLayout: form.formStepLayout,
-            }
-          : initialValues?.formManager,
-    });
-  }, [form, initialValues]);
+  const buildCurrentConfig = useCallback((): IDynamicViewConfig => cloneJson(draft), [draft]);
 
   const handleNext = (): void => {
     if (!valid) return;

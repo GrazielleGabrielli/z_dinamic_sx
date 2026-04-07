@@ -583,7 +583,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         ? {
             columns: nextProjectColumns,
           }
-        : undefined;
+        : projectManagement;
     const nextRowRules: ITableRowStyleRule[] = [];
     const seenIds = new Set<string>();
     for (let i = 0; i < rowStyleRules.length; i++) {
