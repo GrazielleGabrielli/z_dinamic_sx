@@ -1,5 +1,6 @@
 import type {
   IFormManagerConfig,
+  IFormManagerActionLogConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
   IFormSectionConfig,
@@ -17,6 +18,7 @@ import type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
+  TFormHistoryPresentationKind,
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
@@ -45,7 +47,8 @@ const STEP_NAV_BUTTONS_SET = new Set<string>([
   'toolbar',
   'compact',
 ]);
-const BUTTON_OPERATION_SET = new Set<string>(['legacy', 'redirect', 'add', 'update', 'delete']);
+const BUTTON_OPERATION_SET = new Set<string>(['legacy', 'redirect', 'add', 'update', 'delete', 'history']);
+const HISTORY_PRESENTATION_SET = new Set<string>(['panel', 'modal', 'collapse']);
 const FORM_DATA_LOADING_SET = new Set<string>(['spinner', 'spinnerLarge', 'shimmer', 'progress', 'cardShimmer']);
 const FORM_SUBMIT_LOADING_SET = new Set<string>([
   'overlay',
@@ -440,6 +443,9 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   const groupTitles = Array.isArray(b.groupTitles)
     ? (b.groupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const showOnlyWhenAllRequiredFilled = b.showOnlyWhenAllRequiredFilled === true ? true : undefined;
+  const shortDescriptionRaw = typeof b.shortDescription === 'string' ? b.shortDescription.trim() : '';
+  const shortDescription = shortDescriptionRaw ? shortDescriptionRaw : undefined;
   const slKindRaw = b.submitLoadingKind;
   const submitLoadingKind: TFormSubmitLoadingUiKind | undefined =
     typeof slKindRaw === 'string' && FORM_SUBMIT_LOADING_SET.has(slKindRaw)
@@ -452,13 +458,15 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     if (act) actionsSan.push(act);
   }
   const opResolved = operation ?? 'legacy';
-  const actions: TFormButtonAction[] = opResolved === 'redirect' ? [] : actionsSan;
+  const actions: TFormButtonAction[] =
+    opResolved === 'redirect' || opResolved === 'history' ? [] : actionsSan;
   return {
     id,
     label,
     appearance,
     behavior,
     ...(operation && operation !== 'legacy' ? { operation } : {}),
+    ...(shortDescription && opResolved === 'history' ? { shortDescription } : {}),
     ...(redirectUrlTemplate !== undefined && redirectUrlTemplate.trim() ? { redirectUrlTemplate } : {}),
     ...(deleteShowInView === false ? { deleteShowInView: false } : {}),
     ...(deleteShowInEdit === false ? { deleteShowInEdit: false } : {}),
@@ -466,6 +474,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(enabled === false ? { enabled: false } : {}),
     ...(when ? { when } : {}),
     ...(groupTitles?.length ? { groupTitles } : {}),
+    ...(showOnlyWhenAllRequiredFilled ? { showOnlyWhenAllRequiredFilled: true } : {}),
     ...(submitLoadingKind ? { submitLoadingKind } : {}),
     actions,
   };
@@ -498,6 +507,45 @@ function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   const fieldNames = Array.isArray(s.fieldNames) ? (s.fieldNames as unknown[]).map((x) => String(x).trim()).filter(Boolean) : [];
   if (!id || !title) return undefined;
   return { id, title, fieldNames };
+}
+
+function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const listTitle = typeof o.listTitle === 'string' ? o.listTitle.trim() : '';
+  const actionFieldInternalName =
+    typeof o.actionFieldInternalName === 'string' ? o.actionFieldInternalName.trim() : '';
+  let captureEnabled = o.captureEnabled === true;
+  if (captureEnabled && (!listTitle || !actionFieldInternalName)) {
+    captureEnabled = false;
+  }
+  const descRaw = o.descriptionsHtmlByButtonId;
+  const descriptionsHtmlByButtonId: Record<string, string> = {};
+  if (descRaw && typeof descRaw === 'object' && !Array.isArray(descRaw)) {
+    const entries = Object.entries(descRaw as Record<string, unknown>);
+    for (let i = 0; i < entries.length; i++) {
+      const k = entries[i][0];
+      const v = entries[i][1];
+      const id = String(k).trim();
+      if (!id) continue;
+      const html = typeof v === 'string' ? v : '';
+      if (html.trim()) descriptionsHtmlByButtonId[id] = html;
+    }
+  }
+  if (
+    !captureEnabled &&
+    !listTitle &&
+    !actionFieldInternalName &&
+    Object.keys(descriptionsHtmlByButtonId).length === 0
+  ) {
+    return undefined;
+  }
+  return {
+    ...(captureEnabled ? { captureEnabled: true } : {}),
+    ...(listTitle ? { listTitle } : {}),
+    ...(actionFieldInternalName ? { actionFieldInternalName } : {}),
+    ...(Object.keys(descriptionsHtmlByButtonId).length ? { descriptionsHtmlByButtonId } : {}),
+  };
 }
 
 export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | undefined {
@@ -582,6 +630,23 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof attPreviewRaw === 'string' && ATTACHMENT_FILE_PREVIEW_SET.has(attPreviewRaw)
       ? (attPreviewRaw as TFormAttachmentFilePreviewKind)
       : undefined;
+  const actionLog = sanitizeActionLog(o.actionLog);
+  const historyEnabled = o.historyEnabled === true;
+  const hkRaw = o.historyPresentationKind;
+  const historyPresentationKind: TFormHistoryPresentationKind | undefined =
+    typeof hkRaw === 'string' && HISTORY_PRESENTATION_SET.has(hkRaw)
+      ? (hkRaw as TFormHistoryPresentationKind)
+      : undefined;
+  const customButtonsAdjusted: IFormCustomButtonConfig[] = [];
+  for (let i = 0; i < customButtons.length; i++) {
+    const btn = customButtons[i];
+    if (btn.operation === 'history' && !historyEnabled) {
+      const { operation: _op, shortDescription: _sd, ...rest } = btn;
+      customButtonsAdjusted.push({ ...rest, actions: rest.actions });
+    } else {
+      customButtonsAdjusted.push(btn);
+    }
+  }
   return {
     sections,
     fields,
@@ -589,7 +654,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(steps.length ? { steps } : {}),
     ...(managerColumnFields?.length ? { managerColumnFields } : {}),
     ...(dynamicHelp.length ? { dynamicHelp } : {}),
-    ...(customButtons.length ? { customButtons } : {}),
+    ...(customButtonsAdjusted.length ? { customButtons: customButtonsAdjusted } : {}),
     ...(stepLayout ? { stepLayout } : {}),
     ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
     ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
@@ -600,5 +665,10 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(stepNavigation ? { stepNavigation } : {}),
     ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
     ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
+    ...(actionLog ? { actionLog } : {}),
+    ...(historyEnabled ? { historyEnabled: true } : {}),
+    ...(historyPresentationKind && historyPresentationKind !== 'panel'
+      ? { historyPresentationKind }
+      : {}),
   };
 }

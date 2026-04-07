@@ -9,6 +9,7 @@ import {
   ShimmerElementType,
   ProgressIndicator,
   Checkbox,
+  Toggle,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
 import type {
@@ -18,6 +19,7 @@ import type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
+  TFormHistoryPresentationKind,
 } from '../../core/config/types/formManager';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
@@ -198,6 +200,10 @@ export interface IFormManagerComponentsTabContentProps {
   onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
   attachmentAllowedExtensions: string[];
   onAttachmentExtensionToggle: (ext: string, selected: boolean) => void;
+  historyEnabled: boolean;
+  onHistoryEnabledChange: (v: boolean) => void;
+  historyPresentationKind: TFormHistoryPresentationKind;
+  onHistoryPresentationKindChange: (v: TFormHistoryPresentationKind) => void;
 }
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
@@ -266,6 +272,29 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         Estilo apenas dos botões de navegação no rodapé (não altera o passador de etapas em cima).
       </Text>
       <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
+      <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>Histórico do item</Text>
+      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        Permite o tipo de botão «Histórico» na aba Botões. O utilizador vê as versões registadas na lista (controlo de
+        versões do SharePoint).
+      </Text>
+      <Toggle
+        label="Ativar histórico de versões (botões)"
+        checked={props.historyEnabled}
+        onChange={(_, c) => props.onHistoryEnabledChange(!!c)}
+      />
+      <Dropdown
+        label="Abrir histórico como"
+        disabled={!props.historyEnabled}
+        options={[
+          { key: 'panel', text: 'Painel lateral (slider)' },
+          { key: 'modal', text: 'Modal' },
+          { key: 'collapse', text: 'Secção no formulário (abaixo dos botões)' },
+        ]}
+        selectedKey={props.historyPresentationKind}
+        onChange={(_, o) =>
+          o && props.onHistoryPresentationKindChange(String(o.key) as TFormHistoryPresentationKind)
+        }
+      />
       <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Campo Anexos (ficheiros)</Text>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
         Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa os estilos escolhidos abaixo.

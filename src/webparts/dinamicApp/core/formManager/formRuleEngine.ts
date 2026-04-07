@@ -13,6 +13,7 @@ import type {
   TFormCustomButtonOperation,
 } from '../config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../config/types/formManager';
+import type { IFieldMetadata } from '../../../../services';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -178,11 +179,83 @@ export function evaluateCondition(
   return false;
 }
 
-export function shouldShowCustomButton(b: IFormCustomButtonConfig, ctx: IFormRuleRuntimeContext): boolean {
+function isValueEmptyForRequiredField(v: unknown, mappedType: string): boolean {
+  if (mappedType === 'boolean') {
+    return v === undefined || v === null;
+  }
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string' && v.trim() === '') return true;
+  if (Array.isArray(v) && v.length === 0) return true;
+  if (typeof v === 'object' && v !== null && 'Id' in (v as object)) {
+    const id = (v as Record<string, unknown>).Id;
+    if (id === null || id === undefined || id === '') return true;
+  }
+  return false;
+}
+
+export function areAllRequiredFieldsFilled(
+  cfg: IFormManagerConfig,
+  fieldConfigs: IFormFieldConfig[],
+  ctx: IFormRuleRuntimeContext,
+  metaByName: Map<string, IFieldMetadata>,
+  buttonOverlay?: IFormButtonVisibilityOverlay,
+  attachmentCtx?: IFormValidationAttachmentContext
+): boolean {
+  const ctxSubmit: IFormRuleRuntimeContext = { ...ctx, submitKind: 'submit' };
+  const derived = buildFormDerivedState(cfg, fieldConfigs, ctxSubmit, buttonOverlay);
+  const fv = (n: string): boolean => derived.fieldVisible[n] !== false;
+  const { values, formMode } = ctx;
+
+  for (let i = 0; i < fieldConfigs.length; i++) {
+    const fc = fieldConfigs[i];
+    const name = fc.internalName;
+    if (!fv(name)) continue;
+
+    if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) {
+      const attReq = derived.fieldRequired[name] === true;
+      if (!attReq) continue;
+      const readOnly = formMode === 'view' || derived.fieldDisabled[name] === true;
+      const pending = attachmentCtx?.pendingFiles?.length ?? 0;
+      const existing = attachmentCtx?.attachmentCount ?? 0;
+      const attSatisfied = pending > 0 || (formMode !== 'create' && existing > 0);
+      const attReqEmpty = attReq && !readOnly && !attSatisfied;
+      if (attReqEmpty) return false;
+      continue;
+    }
+
+    const m = metaByName.get(name);
+    const mappedType = m?.MappedType ?? 'text';
+    const isRequired = derived.fieldRequired[name] === true || m?.Required === true;
+    if (!isRequired) continue;
+    const readOnly =
+      formMode === 'view' || derived.fieldReadOnly[name] === true || derived.fieldDisabled[name] === true;
+    if (readOnly) continue;
+    if (isValueEmptyForRequiredField(values[name], mappedType)) return false;
+  }
+  return true;
+}
+
+export interface IFormCustomButtonVisibilityOpts {
+  allRequiredFilled?: boolean;
+  historyEnabledInConfig?: boolean;
+  /** Item gravado na lista; ausente em modo novo sem id. */
+  historyItemId?: number;
+}
+
+export function shouldShowCustomButton(
+  b: IFormCustomButtonConfig,
+  ctx: IFormRuleRuntimeContext,
+  visibilityOpts?: IFormCustomButtonVisibilityOpts
+): boolean {
   if (b.enabled === false) return false;
   if (b.modes !== undefined && b.modes.length === 0) return false;
   if (b.modes?.length && b.modes.indexOf(ctx.formMode) === -1) return false;
   const op: TFormCustomButtonOperation = b.operation ?? 'legacy';
+  if (op === 'history') {
+    if (visibilityOpts?.historyEnabledInConfig !== true) return false;
+    const hid = visibilityOpts?.historyItemId;
+    if (hid === undefined || hid === null || typeof hid !== 'number' || !isFinite(hid)) return false;
+  }
   if (op === 'delete') {
     if (ctx.formMode === 'create') return false;
     const sv = b.deleteShowInView !== false;
@@ -193,6 +266,7 @@ export function shouldShowCustomButton(b: IFormCustomButtonConfig, ctx: IFormRul
   if (op === 'update' && ctx.formMode === 'create') return false;
   if (!userInAnyGroup(ctx.userGroupTitles, b.groupTitles)) return false;
   if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext)) return false;
+  if (b.showOnlyWhenAllRequiredFilled === true && visibilityOpts?.allRequiredFilled !== true) return false;
   return true;
 }
 

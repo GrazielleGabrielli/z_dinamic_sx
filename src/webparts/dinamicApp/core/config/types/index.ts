@@ -378,6 +378,7 @@ export interface IListPageLayoutConfig {
 
 export type {
   IFormManagerConfig,
+  IFormManagerActionLogConfig,
   IFormStepNavigationConfig,
   IFormCustomButtonConfig,
   TFormButtonAction,
@@ -391,6 +392,7 @@ export type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
+  TFormHistoryPresentationKind,
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_OCULTOS_STEP_ID,
 } from './formManager';

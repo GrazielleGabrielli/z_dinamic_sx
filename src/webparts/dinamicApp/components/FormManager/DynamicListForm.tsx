@@ -38,6 +38,7 @@ import {
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
   shouldShowCustomButton,
+  areAllRequiredFieldsFilled,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
 } from '../../core/formManager/formRuleEngine';
@@ -50,6 +51,7 @@ import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualM
 import { ItemsService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
+import { FormItemHistoryUi } from './FormItemHistoryUi';
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -342,6 +344,40 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     ]
   );
 
+  const allRequiredFilled = useMemo(
+    () =>
+      areAllRequiredFieldsFilled(
+        formManager,
+        fieldConfigs,
+        runtimeCtx(),
+        metaByName,
+        { show: buttonOverlay.show, hide: buttonOverlay.hide },
+        {
+          attachmentCount,
+          pendingFiles: pendingFiles.map((f) => ({
+            size: f.size,
+            type: f.type || 'application/octet-stream',
+            name: f.name,
+          })),
+        }
+      ),
+    [
+      formManager,
+      fieldConfigs,
+      runtimeCtx,
+      values,
+      formMode,
+      userGroupTitles,
+      currentUserId,
+      authorId,
+      dynamicContext,
+      buttonOverlay,
+      attachmentCount,
+      pendingFiles,
+      metaByName,
+    ]
+  );
+
   const clearRules = useMemo(
     () => formManager.rules.filter((r): r is Extract<TFormRule, { action: 'clearFields' }> => r.action === 'clearFields'),
     [formManager.rules]
@@ -508,6 +544,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
   }, [stepsAll]);
   const [stepIndex, setStepIndex] = useState(0);
+  const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
   useEffect(() => {
     if (!visibleStepsForUi?.length) return;
     setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
@@ -515,6 +552,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
+    if (op === 'history') {
+      if (formManager.historyEnabled !== true) {
+        setFormError('Ative o histórico na aba Componentes do gestor de formulário.');
+        return;
+      }
+      if (itemId === undefined || itemId === null || formMode === 'create') {
+        setFormError('O histórico só está disponível quando o item já existe na lista.');
+        return;
+      }
+      setFormError(undefined);
+      setHistoryBtn(btn);
+      return;
+    }
     const actions = op === 'redirect' ? [] : btn.actions ?? [];
     const { mergedValues, mergedOverlay } = reduceCustomButtonActions(
       actions,
@@ -1173,12 +1223,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
           {(formManager.customButtons ?? [])
-            .filter((b) => shouldShowCustomButton(b, runtimeCtx()))
+            .filter((b) =>
+              shouldShowCustomButton(b, runtimeCtx(), {
+                allRequiredFilled: allRequiredFilled,
+                historyEnabledInConfig: formManager.historyEnabled === true,
+                historyItemId: itemId,
+              })
+            )
             .map((b) =>
               b.appearance === 'primary' ? (
                 <PrimaryButton
                   key={b.id}
                   text={b.label}
+                  title={b.shortDescription || undefined}
                   onClick={() => void runCustomButton(b)}
                   disabled={submitting}
                 />
@@ -1186,6 +1243,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 <DefaultButton
                   key={b.id}
                   text={b.label}
+                  title={b.shortDescription || undefined}
                   onClick={() => void runCustomButton(b)}
                   disabled={submitting}
                 />
@@ -1201,6 +1259,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <DefaultButton text="Fechar" onClick={onDismiss} disabled={submitting} />
           )}
         </Stack>
+        {historyBtn &&
+          itemId !== undefined &&
+          itemId !== null &&
+          formManager.historyEnabled === true && (
+            <FormItemHistoryUi
+              listTitle={listTitle}
+              itemId={itemId}
+              presentationKind={formManager.historyPresentationKind ?? 'panel'}
+              isOpen={true}
+              onDismiss={() => setHistoryBtn(null)}
+              title={historyBtn.label}
+              subtitle={historyBtn.shortDescription}
+            />
+          )}
         <FormSubmitLoadingChrome kind="belowButtons" active={submitUi === 'belowButtons'} message={submitMsg} />
         <FormSubmitLoadingChrome kind="overlay" active={submitUi === 'overlay'} message={submitMsg} />
         <FormSubmitLoadingChrome kind="formShimmer" active={submitUi === 'formShimmer'} message={submitMsg} />

@@ -310,8 +310,17 @@ export type TFormAttachmentFilePreviewKind =
 
 export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'close';
 
+/** Como o painel de histórico do item é apresentado (aba Componentes). */
+export type TFormHistoryPresentationKind = 'panel' | 'modal' | 'collapse';
+
 /** Operação principal do botão personalizado (além das ações em cadeia). */
-export type TFormCustomButtonOperation = 'legacy' | 'redirect' | 'add' | 'update' | 'delete';
+export type TFormCustomButtonOperation =
+  | 'legacy'
+  | 'redirect'
+  | 'add'
+  | 'update'
+  | 'delete'
+  | 'history';
 
 export interface IFormButtonActionShowFields {
   kind: 'showFields';
@@ -363,6 +372,8 @@ export type TFormButtonAction =
 export interface IFormCustomButtonConfig {
   id: string;
   label: string;
+  /** Só usado em operation === 'history': texto curto (subtítulo / ajuda). */
+  shortDescription?: string;
   appearance?: 'primary' | 'default';
   behavior?: TFormCustomButtonBehavior;
   /** Omitido ou legacy: usa apenas `behavior` + ações. */
@@ -380,6 +391,11 @@ export interface IFormCustomButtonConfig {
   when?: TFormConditionNode;
   /** Títulos de grupos SharePoint; vazio/omitido = qualquer usuário. */
   groupTitles?: string[];
+  /**
+   * Se true, o botão só aparece quando todos os campos obrigatórios visíveis estão preenchidos
+   * (regras + obrigatório na lista; anexos se obrigatórios). Cumulativo com grupos e condição «when».
+   */
+  showOnlyWhenAllRequiredFilled?: boolean;
   /** Loading ao gravar; omitido usa `defaultSubmitLoadingKind` do gestor. */
   submitLoadingKind?: TFormSubmitLoadingUiKind;
   actions: TFormButtonAction[];
@@ -389,6 +405,21 @@ export interface IFormStepNavigationConfig {
   requireFilledRequiredToAdvance?: boolean;
   fullValidationOnAdvance?: boolean;
   allowBackWithoutValidation?: boolean;
+}
+
+/** Registo de auditoria: lista de destino e texto por botão (HTML). */
+export interface IFormManagerActionLogConfig {
+  /** Quando true, o runtime pode gravar entradas na lista configurada. */
+  captureEnabled?: boolean;
+  /** Título da lista SharePoint (não biblioteca) onde gravar logs. */
+  listTitle?: string;
+  /**
+   * Nome interno do campo **várias linhas** na lista de log onde se grava o texto da ação (metadata).
+   * Obrigatório para `captureEnabled`; só colunas multilinha são oferecidas na UI.
+   */
+  actionFieldInternalName?: string;
+  /** HTML (editor rich) por id de `customButtons`. */
+  descriptionsHtmlByButtonId?: Record<string, string>;
 }
 
 export interface IFormManagerConfig {
@@ -403,6 +434,8 @@ export interface IFormManagerConfig {
   dynamicHelp?: { field: string; when: TFormConditionNode; helpText: string }[];
   /** Botões com ações ao clicar (mostrar/ocultar campos, valores, juntar campos) */
   customButtons?: IFormCustomButtonConfig[];
+  /** Lista e textos para registo de auditoria por botão. */
+  actionLog?: IFormManagerActionLogConfig;
   /** Apresentação das etapas quando há mais de uma */
   stepLayout?: TFormStepLayoutKind;
   /** Estilo dos botões anterior/próximo etapa no rodapé */
@@ -411,6 +444,10 @@ export interface IFormManagerConfig {
   formDataLoadingKind?: TFormDataLoadingUiKind;
   /** Padrão de loading ao gravar quando o botão não define override. */
   defaultSubmitLoadingKind?: TFormSubmitLoadingUiKind;
+  /** Se true, permite botões do tipo «Histórico» e a opção na aba Componentes. */
+  historyEnabled?: boolean;
+  /** Onde abrir o histórico de versões do item ao clicar no botão (padrão: painel lateral). */
+  historyPresentationKind?: TFormHistoryPresentationKind;
   /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
   showDefaultFormButtons?: boolean;
   /** Layout visual do campo de ficheiros anexos (aba Componentes). Omitido = default. */

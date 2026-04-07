@@ -25,6 +25,7 @@ import { FieldsService, GroupsService } from '../../../../services';
 import type { IFieldMetadata, IGroupDetails } from '../../../../services';
 import type {
   IFormManagerConfig,
+  IFormManagerActionLogConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
   IFormSectionConfig,
@@ -43,6 +44,7 @@ import type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
+  TFormHistoryPresentationKind,
 } from '../../core/config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
@@ -78,6 +80,7 @@ import {
   FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
   FORM_SUBMIT_LOADING_INHERIT_KEY,
 } from './FormLoadingUi';
+import { FormManagerActionLogTabContent } from './FormManagerActionLogTab';
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -342,7 +345,7 @@ function replaceFirstEmptyRedirectBrace(url: string, key: string): string {
   return url.replace(/\{\{\s*\}\}/, redirectTokenForKey(key));
 }
 
-const BUTTON_OPERATION_OPTIONS: IDropdownOption[] = [
+const BUTTON_OPERATION_OPTIONS_BASE: IDropdownOption[] = [
   { key: 'legacy', text: 'Ações em cadeia (rascunho, enviar, fechar…)' },
   { key: 'redirect', text: 'Redirecionar (URL com {{campo}})' },
   { key: 'add', text: 'Adicionar — criar novo item na lista' },
@@ -586,6 +589,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
   const [siteGroupsErr, setSiteGroupsErr] = useState<string | undefined>(undefined);
+  const [actionLogCaptureEnabled, setActionLogCaptureEnabled] = useState(false);
+  const [actionLogListTitle, setActionLogListTitle] = useState('');
+  const [actionLogFieldInternalName, setActionLogFieldInternalName] = useState('');
+  const [actionLogDescById, setActionLogDescById] = useState<Record<string, string>>({});
+  const [historyEnabled, setHistoryEnabled] = useState(() => value.historyEnabled === true);
+  const [historyPresentationKind, setHistoryPresentationKind] = useState<TFormHistoryPresentationKind>(
+    () => value.historyPresentationKind ?? 'panel'
+  );
 
   const fieldsService = useMemo(() => new FieldsService(), []);
   const groupsService = useMemo(() => new GroupsService(), []);
@@ -623,7 +634,40 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setFieldPanelName(null);
     setStepSectionOpen({});
     setButtonSectionOpen({});
+    setActionLogCaptureEnabled(value.actionLog?.captureEnabled === true);
+    setActionLogListTitle(value.actionLog?.listTitle ?? '');
+    setActionLogFieldInternalName(value.actionLog?.actionFieldInternalName ?? '');
+    setActionLogDescById(
+      value.actionLog?.descriptionsHtmlByButtonId
+        ? { ...value.actionLog.descriptionsHtmlByButtonId }
+        : {}
+    );
+    setHistoryEnabled(value.historyEnabled === true);
+    setHistoryPresentationKind(value.historyPresentationKind ?? 'panel');
   }, [isOpen, value]);
+
+  useEffect(() => {
+    setActionLogDescById((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < customButtons.length; i++) {
+        const id = customButtons[i].id;
+        if (!(id in next)) next[id] = '';
+      }
+      const keys = Object.keys(next);
+      for (let k = 0; k < keys.length; k++) {
+        const key = keys[k];
+        let found = false;
+        for (let j = 0; j < customButtons.length; j++) {
+          if (customButtons[j].id === key) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) delete next[key];
+      }
+      return next;
+    });
+  }, [customButtons]);
 
   useEffect(() => {
     if (!isOpen || !listTitle.trim()) return;
@@ -663,6 +707,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     g.sort((a, b) => (a.Title < b.Title ? -1 : a.Title > b.Title ? 1 : 0));
     return g;
   }, [siteGroups]);
+
+  const buttonOperationDropdownOptions = useMemo((): IDropdownOption[] => {
+    const opts = BUTTON_OPERATION_OPTIONS_BASE.slice();
+    if (historyEnabled || customButtons.some((b) => b.operation === 'history')) {
+      opts.push({ key: 'history', text: 'Histórico — versões do item' });
+    }
+    return opts;
+  }, [historyEnabled, customButtons]);
 
   const fieldOptions: IDropdownOption[] = useMemo(
     () =>
@@ -830,6 +882,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         return;
       }
     }
+    if (actionLogCaptureEnabled) {
+      if (!actionLogListTitle.trim() || !actionLogFieldInternalName.trim()) {
+        setErr('Para captação de logs ativa, indique a lista de log e o campo multilinhas da ação.');
+        return;
+      }
+    }
     const withRules = mergeAttachmentUiRule(rules, {
       minCount: numOpt(attachMin),
       maxCount: numOpt(attachMax),
@@ -841,6 +899,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       stepRequireFilledToAdvance,
       stepFullValOnAdvance,
       stepAllowBackWithoutVal
+    );
+    const actionLogPayload: IFormManagerActionLogConfig = {};
+    if (actionLogCaptureEnabled) actionLogPayload.captureEnabled = true;
+    if (actionLogListTitle.trim()) actionLogPayload.listTitle = actionLogListTitle.trim();
+    if (actionLogFieldInternalName.trim()) {
+      actionLogPayload.actionFieldInternalName = actionLogFieldInternalName.trim();
+    }
+    const descEntries = Object.entries(actionLogDescById).filter(([, v]) => (v || '').trim());
+    if (descEntries.length) {
+      actionLogPayload.descriptionsHtmlByButtonId = Object.fromEntries(descEntries);
+    }
+    const hasActionLog = !!(
+      actionLogCaptureEnabled ||
+      actionLogPayload.listTitle ||
+      actionLogPayload.actionFieldInternalName ||
+      actionLogPayload.descriptionsHtmlByButtonId
     );
     const raw: IFormManagerConfig = {
       sections: sectionsOut,
@@ -860,6 +934,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(stepNavigation ? { stepNavigation } : {}),
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
+      ...(hasActionLog ? { actionLog: actionLogPayload } : {}),
+      ...(historyEnabled ? { historyEnabled: true } : {}),
+      ...(historyPresentationKind && historyPresentationKind !== 'panel' ? { historyPresentationKind } : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -1037,6 +1114,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       stepFullValOnAdvance,
       stepAllowBackWithoutVal
     );
+    const actionLogPreview: IFormManagerActionLogConfig = {};
+    if (actionLogCaptureEnabled) actionLogPreview.captureEnabled = true;
+    if (actionLogListTitle.trim()) actionLogPreview.listTitle = actionLogListTitle.trim();
+    if (actionLogFieldInternalName.trim()) {
+      actionLogPreview.actionFieldInternalName = actionLogFieldInternalName.trim();
+    }
+    const descPrev = Object.entries(actionLogDescById).filter(([, v]) => (v || '').trim());
+    if (descPrev.length) {
+      actionLogPreview.descriptionsHtmlByButtonId = Object.fromEntries(descPrev);
+    }
+    const hasActionLogPreview = !!(
+      actionLogCaptureEnabled ||
+      actionLogPreview.listTitle ||
+      actionLogPreview.actionFieldInternalName ||
+      actionLogPreview.descriptionsHtmlByButtonId
+    );
     const raw: IFormManagerConfig = {
       sections: sectionsOut,
       fields,
@@ -1055,6 +1148,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(stepNavigation ? { stepNavigation } : {}),
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
+      ...(hasActionLogPreview ? { actionLog: actionLogPreview } : {}),
+      ...(historyEnabled ? { historyEnabled: true } : {}),
+      ...(historyPresentationKind && historyPresentationKind !== 'panel' ? { historyPresentationKind } : {}),
     };
     return JSON.stringify(raw, null, 2);
   }, [
@@ -1078,6 +1174,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     attachMax,
     attachMsg,
     attachAllowedExt,
+    actionLogCaptureEnabled,
+    actionLogListTitle,
+    actionLogFieldInternalName,
+    actionLogDescById,
+    historyEnabled,
+    historyPresentationKind,
   ]);
 
   const addConditionalCard = (): void => {
@@ -1516,6 +1618,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   return prev.filter((x) => x !== e);
                 });
               }}
+              historyEnabled={historyEnabled}
+              onHistoryEnabledChange={setHistoryEnabled}
+              historyPresentationKind={historyPresentationKind}
+              onHistoryPresentationKindChange={setHistoryPresentationKind}
             />
           </Stack>
         </PivotItem>
@@ -1589,9 +1695,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     value={btn.label}
                     onChange={(_, v) => patchCustomButton(bi, { label: v ?? '' })}
                   />
+                  {(btn.operation ?? 'legacy') === 'history' && (
+                    <TextField
+                      label="Descrição curta"
+                      description="Texto de ajuda (tooltip no botão no formulário)."
+                      multiline
+                      rows={2}
+                      value={btn.shortDescription ?? ''}
+                      onChange={(_, v) => {
+                        const t = (v ?? '').trim();
+                        patchCustomButton(bi, { shortDescription: t ? t : undefined });
+                      }}
+                    />
+                  )}
                   <Dropdown
                     label="Tipo de operação"
-                    options={BUTTON_OPERATION_OPTIONS}
+                    options={buttonOperationDropdownOptions}
                     selectedKey={(btn.operation ?? 'legacy') as string}
                     onChange={(_, o) => {
                       if (!o) return;
@@ -1601,9 +1720,23 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         ...(k === 'redirect'
                           ? { redirectUrlTemplate: btn.redirectUrlTemplate ?? '', actions: [] }
                           : {}),
+                        ...(k === 'history'
+                          ? {
+                              actions: [],
+                              behavior: 'actionsOnly',
+                              submitLoadingKind: undefined,
+                            }
+                          : {}),
+                        ...(k !== 'history' ? { shortDescription: undefined } : {}),
                       });
                     }}
                   />
+                  {(btn.operation ?? 'legacy') === 'history' && (
+                    <MessageBar messageBarType={MessageBarType.info}>
+                      A forma de abrir (painel, modal ou secção) está na aba Componentes, com «Histórico» ativo.
+                    </MessageBar>
+                  )}
+                  {(btn.operation ?? 'legacy') !== 'history' && (
                   <Dropdown
                     label="Loading ao gravar"
                     options={[
@@ -1626,6 +1759,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       );
                     }}
                   />
+                  )}
                   {(btn.operation ?? 'legacy') === 'redirect' && (
                     <Stack tokens={{ childrenGap: 10 }}>
                       <TextField
@@ -1779,6 +1913,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     checked={btn.enabled !== false}
                     onChange={(_, c) => patchCustomButton(bi, { enabled: c ? undefined : false })}
                   />
+                  <Checkbox
+                    label="Só mostrar se todos os campos obrigatórios estiverem preenchidos"
+                    checked={btn.showOnlyWhenAllRequiredFilled === true}
+                    onChange={(_, c) =>
+                      patchCustomButton(bi, {
+                        showOnlyWhenAllRequiredFilled: c ? true : undefined,
+                      })
+                    }
+                  />
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Grupos do SharePoint
                   </Text>
@@ -1914,7 +2057,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       </Stack>
                     </Stack>
                   )}
-                  {(btn.operation ?? 'legacy') !== 'redirect' && (
+                  {(btn.operation ?? 'legacy') !== 'redirect' && (btn.operation ?? 'legacy') !== 'history' && (
                     <>
                       <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ações (por ordem)</Text>
                       {btn.actions.map((act, ai) => (
@@ -2279,6 +2422,21 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             })}
             {!customButtons.length && <Text>Nenhum botão personalizado.</Text>}
           </Stack>
+        </PivotItem>
+        <PivotItem headerText="Lista de logs">
+          <FormManagerActionLogTabContent
+            captureEnabled={actionLogCaptureEnabled}
+            onCaptureEnabledChange={setActionLogCaptureEnabled}
+            listTitle={actionLogListTitle}
+            onListTitleChange={setActionLogListTitle}
+            actionFieldInternalName={actionLogFieldInternalName}
+            onActionFieldInternalNameChange={setActionLogFieldInternalName}
+            descriptionsHtmlByButtonId={actionLogDescById}
+            onDescriptionChange={(buttonId, html) =>
+              setActionLogDescById((prev) => ({ ...prev, [buttonId]: html }))
+            }
+            customButtons={customButtons}
+          />
         </PivotItem>
         <PivotItem headerText="Regras rápidas">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>

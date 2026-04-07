@@ -317,4 +317,35 @@ export class ItemsService {
       throw new Error(`ItemsService.countItems("${listTitleOrId}"): ${e}`);
     }
   }
+
+  async getItemVersions(
+    listTitleOrId: string,
+    itemId: number
+  ): Promise<
+    { versionLabel: string; versionId: number; created?: string; isCurrentVersion?: boolean }[]
+  > {
+    try {
+      const raw = await listRef(this.sp, listTitleOrId)
+        .items.getById(itemId)
+        .versions.select('VersionLabel', 'VersionId', 'Created', 'IsCurrentVersion')();
+      const rows = Array.isArray(raw) ? raw : [];
+      const out: { versionLabel: string; versionId: number; created?: string; isCurrentVersion?: boolean }[] = [];
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i] as Record<string, unknown>;
+        const versionId = coerceListItemId(r.VersionId ?? r.versionId);
+        const vl = r.VersionLabel ?? r.versionLabel;
+        const versionLabel = typeof vl === 'string' && vl.trim() ? vl.trim() : String(versionId ?? i + 1);
+        if (versionId === undefined) continue;
+        const cr = r.Created ?? r.created;
+        const created = typeof cr === 'string' ? cr : cr instanceof Date ? cr.toISOString() : undefined;
+        const icv = r.IsCurrentVersion ?? r.isCurrentVersion;
+        const isCurrentVersion = icv === true || icv === 1;
+        out.push({ versionLabel, versionId, created, isCurrentVersion });
+      }
+      out.sort((a, b) => b.versionId - a.versionId);
+      return out;
+    } catch (e) {
+      throw new Error(`ItemsService.getItemVersions("${listTitleOrId}", ${itemId}): ${e}`);
+    }
+  }
 }
