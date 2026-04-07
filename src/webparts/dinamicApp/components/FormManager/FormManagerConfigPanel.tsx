@@ -371,7 +371,7 @@ function defaultActionForKind(kind: TFormButtonAction['kind']): TFormButtonActio
     case 'setFieldValue':
       return { kind: 'setFieldValue', field: '', valueTemplate: '' };
     case 'joinFields':
-      return { kind: 'joinFields', targetField: '', sourceFields: [], separator: ' ' };
+      return { kind: 'joinFields', targetField: '', valueTemplate: '', sourceFields: [], separator: ' ' };
     default:
       return { kind: 'showFields', fields: [] };
   }
@@ -2076,7 +2076,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             );
                           })()}
                           {act.kind === 'joinFields' && (
-                            <Stack tokens={{ childrenGap: 8 }}>
+                            <Stack tokens={{ childrenGap: 10 }}>
                               <Dropdown
                                 label="Campo destino"
                                 options={[{ key: '', text: '—' }, ...fieldOptions]}
@@ -2089,22 +2089,106 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                                 }
                               />
                               <TextField
-                                label="Separador"
+                                label="Modelo de texto"
+                                multiline
+                                rows={5}
+                                value={act.valueTemplate ?? ''}
+                                onChange={(_, v) =>
+                                  patchButtonAction(bi, ai, { ...act, valueTemplate: v ?? '' })
+                                }
+                                description="Placeholders: {{NomeInterno}}. Ex.: Número: {{Numero}} — Obra: {{Title}}. Vazio = junção simples com separador e ordem da lista abaixo."
+                              />
+                              <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                                Campos na ordem (modo simples ou botão + para acrescentar placeholders ao modelo)
+                              </Text>
+                              <Dropdown
+                                key={`join-add-${bi}-${ai}-${act.sourceFields.join('|')}`}
+                                label="Adicionar campo à ordem"
+                                options={[
+                                  { key: '', text: '—' },
+                                  ...metaSortedForPool
+                                    .filter((m) => act.sourceFields.indexOf(m.InternalName) === -1)
+                                    .map((m) => ({
+                                      key: m.InternalName,
+                                      text: `${m.Title} (${m.InternalName})`,
+                                    })),
+                                ]}
+                                selectedKey=""
+                                onChange={(_, o) => {
+                                  if (!o || o.key === '') return;
+                                  const k = String(o.key);
+                                  if (act.sourceFields.indexOf(k) !== -1) return;
+                                  patchButtonAction(bi, ai, {
+                                    ...act,
+                                    sourceFields: act.sourceFields.concat([k]),
+                                  });
+                                }}
+                              />
+                              <Stack tokens={{ childrenGap: 6 }}>
+                                {act.sourceFields.map((fn, idx) => {
+                                  const m = metaSortedForPool.find((x) => x.InternalName === fn);
+                                  const label = m ? `${m.Title} (${fn})` : `${fn} (referência guardada)`;
+                                  return (
+                                    <Stack
+                                      horizontal
+                                      verticalAlign="center"
+                                      key={`join-row-${bi}-${ai}-${idx}-${fn}`}
+                                      tokens={{ childrenGap: 6 }}
+                                      wrap
+                                    >
+                                      <Text styles={{ root: { flex: '1 1 200px', minWidth: 0 } }}>{label}</Text>
+                                      <IconButton
+                                        iconProps={{ iconName: 'ChevronUp' }}
+                                        disabled={idx === 0}
+                                        title="Subir"
+                                        onClick={() =>
+                                          patchButtonAction(bi, ai, {
+                                            ...act,
+                                            sourceFields: reorderByIndex(act.sourceFields, idx, idx - 1),
+                                          })
+                                        }
+                                      />
+                                      <IconButton
+                                        iconProps={{ iconName: 'ChevronDown' }}
+                                        disabled={idx === act.sourceFields.length - 1}
+                                        title="Descer"
+                                        onClick={() =>
+                                          patchButtonAction(bi, ai, {
+                                            ...act,
+                                            sourceFields: reorderByIndex(act.sourceFields, idx, idx + 1),
+                                          })
+                                        }
+                                      />
+                                      <IconButton
+                                        iconProps={{ iconName: 'Add' }}
+                                        title={`Acrescentar {{${fn}}} ao modelo`}
+                                        onClick={() => {
+                                          const cur = act.valueTemplate ?? '';
+                                          patchButtonAction(bi, ai, {
+                                            ...act,
+                                            valueTemplate: cur + `{{${fn}}}`,
+                                          });
+                                        }}
+                                      />
+                                      <IconButton
+                                        iconProps={{ iconName: 'Delete' }}
+                                        title="Remover da ordem"
+                                        onClick={() =>
+                                          patchButtonAction(bi, ai, {
+                                            ...act,
+                                            sourceFields: act.sourceFields.filter((_, i) => i !== idx),
+                                          })
+                                        }
+                                      />
+                                    </Stack>
+                                  );
+                                })}
+                              </Stack>
+                              <TextField
+                                label="Separador (só com modelo vazio)"
                                 value={act.separator}
                                 onChange={(_, v) =>
                                   patchButtonAction(bi, ai, { ...act, separator: v ?? ' ' })
-                                }
-                              />
-                              <TextField
-                                label="Campos origem (vírgula)"
-                                multiline
-                                rows={2}
-                                value={fieldNamesToCsv(act.sourceFields)}
-                                onChange={(_, v) =>
-                                  patchButtonAction(bi, ai, {
-                                    ...act,
-                                    sourceFields: parseCsvFieldNames(v ?? ''),
-                                  })
                                 }
                               />
                             </Stack>

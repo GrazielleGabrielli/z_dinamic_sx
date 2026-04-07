@@ -342,7 +342,14 @@ export interface IFormButtonActionSetFieldValue {
 export interface IFormButtonActionJoinFields {
   kind: 'joinFields';
   targetField: string;
+  /**
+   * Texto livre com `{{NomeInterno}}` substituído pelos valores atuais.
+   * Se, após trim, não for vazio, tem prioridade sobre `sourceFields` + `separator`.
+   */
+  valueTemplate?: string;
+  /** Ordem dos valores quando o modelo está vazio (modo legado). Mantida na UI para ordenar e inserir placeholders. */
   sourceFields: string[];
+  /** Usado só quando `valueTemplate` está vazio (modo legado). */
   separator: string;
   when?: TFormConditionNode;
 }

@@ -133,8 +133,18 @@ function reduceCustomButtonActions(
         tpl.trim().indexOf('str:') === 0 ? evaluateFormValueExpression(tpl, next) : tpl;
       next = { ...next, [a.field]: raw };
     } else if (a.kind === 'joinFields') {
-      const parts = a.sourceFields.map((f) => formatJoinedFieldValue(next[f]));
-      next = { ...next, [a.targetField]: parts.join(a.separator) };
+      const tpl = (a.valueTemplate ?? '').trim();
+      if (tpl.length > 0) {
+        const rawTpl = a.valueTemplate ?? '';
+        const interpolated = rawTpl.replace(/\{\{([^}]+)\}\}/g, (_, raw: string) => {
+          const name = String(raw).trim();
+          return formatJoinedFieldValue(next[name]);
+        });
+        next = { ...next, [a.targetField]: interpolated };
+      } else {
+        const parts = a.sourceFields.map((f) => formatJoinedFieldValue(next[f]));
+        next = { ...next, [a.targetField]: parts.join(a.separator) };
+      }
     } else if (a.kind === 'showFields') {
       const sid = typeof a.displayOnStepId === 'string' ? a.displayOnStepId.trim() : '';
       for (let j = 0; j < a.fields.length; j++) {

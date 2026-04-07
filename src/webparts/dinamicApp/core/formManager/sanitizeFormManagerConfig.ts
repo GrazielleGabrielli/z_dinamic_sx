@@ -383,7 +383,20 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
       ? (a.sourceFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
       : [];
     const separator = typeof a.separator === 'string' ? a.separator : ' ';
-    if (!targetField || !sourceFields.length) return undefined;
+    const valueTemplateRaw = typeof a.valueTemplate === 'string' ? a.valueTemplate : '';
+    const hasTemplate = valueTemplateRaw.trim().length > 0;
+    if (!targetField) return undefined;
+    if (hasTemplate) {
+      return {
+        kind: 'joinFields',
+        targetField,
+        valueTemplate: valueTemplateRaw,
+        sourceFields,
+        separator,
+        ...(whenAct ? { when: whenAct } : {}),
+      };
+    }
+    if (!sourceFields.length) return undefined;
     return {
       kind: 'joinFields',
       targetField,
