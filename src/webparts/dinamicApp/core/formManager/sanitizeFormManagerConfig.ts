@@ -23,6 +23,22 @@ import type {
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
 
+function pinOcultosFirstSections(sections: IFormSectionConfig[]): void {
+  const oi = sections.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+  if (oi > 0) {
+    const [oc] = sections.splice(oi, 1);
+    sections.unshift(oc);
+  }
+}
+
+function pinOcultosFirstSteps(steps: IFormStepConfig[]): void {
+  const oi = steps.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+  if (oi > 0) {
+    const [oc] = steps.splice(oi, 1);
+    steps.unshift(oc);
+  }
+}
+
 const STEP_LAYOUT_SET = new Set<string>([
   'rail',
   'segmented',
@@ -562,8 +578,9 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   }
   if (sections.length === 0) sections.push({ id: 'main', title: 'Geral', visible: true });
   if (!sections.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
-    sections.push({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true });
+    sections.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true });
   }
+  pinOcultosFirstSections(sections);
   const fields: IFormFieldConfig[] = [];
   for (let i = 0; i < fieldsRaw.length; i++) {
     const fc = sanitizeField(fieldsRaw[i]);
@@ -580,7 +597,10 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     if (st) steps.push(st);
   }
   if (steps.length > 0 && !steps.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
-    steps.push({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+    steps.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+  }
+  if (steps.length > 0) {
+    pinOcultosFirstSteps(steps);
   }
   const managerColumnFields = Array.isArray(o.managerColumnFields)
     ? (o.managerColumnFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)

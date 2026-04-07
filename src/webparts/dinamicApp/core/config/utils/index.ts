@@ -10,14 +10,14 @@ import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
 export function getDefaultFormManagerConfig(): IFormManagerConfig {
   return {
     sections: [
-      { id: 'main', title: 'Geral', visible: true },
       { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true },
+      { id: 'main', title: 'Geral', visible: true },
     ],
     fields: [],
     rules: [],
     steps: [
-      { id: 'main', title: 'Geral', fieldNames: [] },
       { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] },
+      { id: 'main', title: 'Geral', fieldNames: [] },
     ],
     stepLayout: 'segmented',
     showDefaultFormButtons: false,

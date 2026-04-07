@@ -432,19 +432,30 @@ function inferStepsFromLegacy(sections: IFormSectionConfig[], flds: IFormFieldCo
   return ensureCoreSteps(out);
 }
 
-function ensureCoreSteps(st: IFormStepConfig[]): IFormStepConfig[] {
+function pinOcultosStepFirst(st: IFormStepConfig[]): IFormStepConfig[] {
+  const oi = st.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+  if (oi <= 0) return st.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }));
   const out = st.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }));
-  if (out.length === 0) {
+  const [oc] = out.splice(oi, 1);
+  out.unshift(oc);
+  return out;
+}
+
+function ensureCoreSteps(st: IFormStepConfig[]): IFormStepConfig[] {
+  if (st.length === 0) {
     return [
-      { id: 'main', title: 'Geral', fieldNames: [] },
       { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] },
+      { id: 'main', title: 'Geral', fieldNames: [] },
     ];
   }
+  let out = st.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }));
   if (!out.some((s) => s.id === 'main')) {
-    out.unshift({ id: 'main', title: 'Geral', fieldNames: [] });
+    out.push({ id: 'main', title: 'Geral', fieldNames: [] });
   }
   if (!out.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
-    out.push({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+    out.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+  } else {
+    out = pinOcultosStepFirst(out);
   }
   return out;
 }
@@ -957,7 +968,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const reorderStep = (from: number, to: number): void => {
     setSteps((prev) => {
-      const n = reorderByIndex(prev, from, to);
+      const n = pinOcultosStepFirst(reorderByIndex(prev, from, to));
       setFields((flds) => fieldsAlignedToSteps(flds, n));
       return n;
     });
@@ -1351,7 +1362,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               <PrimaryButton text="Nova etapa" onClick={addStep} />
             </Stack>
             {steps.map((st, si) => {
-              const panelOpen = stepSectionOpen[st.id] === true;
+              const panelOpen =
+                st.id === FORM_OCULTOS_STEP_ID
+                  ? stepSectionOpen[st.id] !== false
+                  : stepSectionOpen[st.id] === true;
               return (
               <Stack
                 key={st.id}
@@ -1388,13 +1402,23 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     }}
                   />
                   <span
-                    draggable
-                    title="Arrastar etapa"
+                    draggable={st.id !== FORM_OCULTOS_STEP_ID}
+                    title={
+                      st.id === FORM_OCULTOS_STEP_ID
+                        ? 'Ocultos permanece sempre na primeira posição'
+                        : 'Arrastar etapa'
+                    }
                     onDragStart={(e) => {
+                      if (st.id === FORM_OCULTOS_STEP_ID) return;
                       e.dataTransfer.setData('text/plain', dragPayload(DND_STEP, si));
                       e.dataTransfer.effectAllowed = 'move';
                     }}
-                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                    style={{
+                      cursor: st.id === FORM_OCULTOS_STEP_ID ? 'default' : 'grab',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: '#605e5c',
+                    }}
                   >
                     <Icon iconName="GripperBarVertical" />
                   </span>
@@ -1497,98 +1521,118 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       Soltar aqui para colocar no fim desta etapa
                     </Text>
                   </Stack>
+                  {st.id === FORM_OCULTOS_STEP_ID && (
+                    <>
+                      <Text variant="medium" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
+                        Campos fora do formulário
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Ainda não estão em nenhuma etapa visível: por defeito ficam em Ocultos. Arraste para outra
+                        etapa ou marque para incluir em Ocultos.
+                      </Text>
+                      {(() => {
+                        let attInPool = false;
+                        for (let i = 0; i < fields.length; i++) {
+                          if (fields[i].internalName === FORM_ATTACHMENTS_FIELD_INTERNAL) {
+                            attInPool = true;
+                            break;
+                          }
+                        }
+                        if (attInPool) return null;
+                        return (
+                          <Stack
+                            key={FORM_ATTACHMENTS_FIELD_INTERNAL}
+                            horizontal
+                            verticalAlign="center"
+                            tokens={{ childrenGap: 8 }}
+                            wrap
+                          >
+                            <span
+                              draggable
+                              title="Arrastar para uma etapa"
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData(
+                                  'text/plain',
+                                  dragPayloadPool(FORM_ATTACHMENTS_FIELD_INTERNAL)
+                                );
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              style={{
+                                cursor: 'grab',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#605e5c',
+                              }}
+                            >
+                              <Icon iconName="GripperBarVertical" />
+                            </span>
+                            <Checkbox
+                              label="Anexos ao item (ficheiros)"
+                              checked={false}
+                              onChange={(_, c) => (c ? addField(FORM_ATTACHMENTS_FIELD_INTERNAL) : undefined)}
+                            />
+                            <Text variant="small" styles={{ root: { minWidth: 80 } }}>
+                              anexos
+                            </Text>
+                          </Stack>
+                        );
+                      })()}
+                      {metaSortedForPool.map((m) => {
+                        let inForm = false;
+                        for (let i = 0; i < fields.length; i++) {
+                          if (fields[i].internalName === m.InternalName) {
+                            inForm = true;
+                            break;
+                          }
+                        }
+                        if (inForm) return null;
+                        const poolReqStyles = requiredFieldRowStyles(m, steps, fields);
+                        return (
+                          <Stack
+                            key={m.InternalName}
+                            horizontal
+                            verticalAlign="center"
+                            tokens={{ childrenGap: 8 }}
+                            wrap
+                            styles={{
+                              root: poolReqStyles
+                                ? { padding: '8px 10px', borderRadius: 4, ...poolReqStyles }
+                                : undefined,
+                            }}
+                          >
+                            <span
+                              draggable
+                              title="Arrastar para uma etapa"
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', dragPayloadPool(m.InternalName));
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              style={{
+                                cursor: 'grab',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#605e5c',
+                              }}
+                            >
+                              <Icon iconName="GripperBarVertical" />
+                            </span>
+                            <Checkbox
+                              label={`${m.Title} (${m.InternalName})${m.Required ? ' *' : ''}`}
+                              checked={false}
+                              onChange={(_, c) => (c ? addField(m.InternalName) : undefined)}
+                            />
+                            <Text variant="small" styles={{ root: { minWidth: 80 } }}>
+                              {m.MappedType}
+                              {m.Required ? ' · obrig. lista' : ''}
+                            </Text>
+                          </Stack>
+                        );
+                      })}
+                    </>
+                  )}
                 </Stack>
                 )}
               </Stack>
-              );
-            })}
-            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>Campos fora do formulário</Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Arraste um campo para uma etapa acima ou marque para incluir na primeira etapa.
-            </Text>
-            {(() => {
-              let attInPool = false;
-              for (let i = 0; i < fields.length; i++) {
-                if (fields[i].internalName === FORM_ATTACHMENTS_FIELD_INTERNAL) {
-                  attInPool = true;
-                  break;
-                }
-              }
-              if (attInPool) return null;
-              return (
-                <Stack
-                  key={FORM_ATTACHMENTS_FIELD_INTERNAL}
-                  horizontal
-                  verticalAlign="center"
-                  tokens={{ childrenGap: 8 }}
-                  wrap
-                >
-                  <span
-                    draggable
-                    title="Arrastar para uma etapa"
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', dragPayloadPool(FORM_ATTACHMENTS_FIELD_INTERNAL));
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
-                  >
-                    <Icon iconName="GripperBarVertical" />
-                  </span>
-                  <Checkbox
-                    label="Anexos ao item (ficheiros)"
-                    checked={false}
-                    onChange={(_, c) => (c ? addField(FORM_ATTACHMENTS_FIELD_INTERNAL) : undefined)}
-                  />
-                  <Text variant="small" styles={{ root: { minWidth: 80 } }}>
-                    anexos
-                  </Text>
-                </Stack>
-              );
-            })()}
-            {metaSortedForPool.map((m) => {
-              let inForm = false;
-              for (let i = 0; i < fields.length; i++) {
-                if (fields[i].internalName === m.InternalName) {
-                  inForm = true;
-                  break;
-                }
-              }
-              if (inForm) return null;
-              const poolReqStyles = requiredFieldRowStyles(m, steps, fields);
-              return (
-                <Stack
-                  key={m.InternalName}
-                  horizontal
-                  verticalAlign="center"
-                  tokens={{ childrenGap: 8 }}
-                  wrap
-                  styles={{
-                    root: poolReqStyles
-                      ? { padding: '8px 10px', borderRadius: 4, ...poolReqStyles }
-                      : undefined,
-                  }}
-                >
-                  <span
-                    draggable
-                    title="Arrastar para uma etapa"
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', dragPayloadPool(m.InternalName));
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
-                  >
-                    <Icon iconName="GripperBarVertical" />
-                  </span>
-                  <Checkbox
-                    label={`${m.Title} (${m.InternalName})${m.Required ? ' *' : ''}`}
-                    checked={false}
-                    onChange={(_, c) => (c ? addField(m.InternalName) : undefined)}
-                  />
-                  <Text variant="small" styles={{ root: { minWidth: 80 } }}>
-                    {m.MappedType}
-                    {m.Required ? ' · obrig. lista' : ''}
-                  </Text>
-                </Stack>
               );
             })}
           </Stack>
