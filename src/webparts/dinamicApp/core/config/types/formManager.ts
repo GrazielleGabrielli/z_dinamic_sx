@@ -270,6 +270,22 @@ export type TFormSubmitLoadingUiKind =
   | 'belowButtons'
   | 'infoBar';
 
+/** Vista do controlo de anexos quando o campo «Anexos ao item» está no formulário. */
+export type TFormAttachmentUploadLayoutKind =
+  | 'default'
+  | 'dropzone'
+  | 'card'
+  | 'ribbon'
+  | 'compact';
+
+/** Como cada ficheiro escolhido aparece na lista (pré-visualização). Omitido = nameAndSize. */
+export type TFormAttachmentFilePreviewKind =
+  | 'nameOnly'
+  | 'nameAndSize'
+  | 'iconAndName'
+  | 'thumbnailAndName'
+  | 'thumbnailLarge';
+
 export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'close';
 
 /** Operação principal do botão personalizado (além das ações em cadeia). */
@@ -363,4 +379,8 @@ export interface IFormManagerConfig {
   defaultSubmitLoadingKind?: TFormSubmitLoadingUiKind;
   /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
   showDefaultFormButtons?: boolean;
+  /** Layout visual do campo de ficheiros anexos (aba Componentes). Omitido = default. */
+  attachmentUploadLayout?: TFormAttachmentUploadLayoutKind;
+  /** Lista de ficheiros selecionados: nome, miniatura, ícone, etc. Omitido = nameAndSize. */
+  attachmentFilePreview?: TFormAttachmentFilePreviewKind;
 }

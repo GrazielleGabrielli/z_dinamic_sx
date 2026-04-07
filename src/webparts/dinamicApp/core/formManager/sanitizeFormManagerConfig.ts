@@ -15,6 +15,8 @@ import type {
   TFormStepNavButtonsKind,
   TFormDataLoadingUiKind,
   TFormSubmitLoadingUiKind,
+  TFormAttachmentUploadLayoutKind,
+  TFormAttachmentFilePreviewKind,
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
@@ -29,6 +31,20 @@ const FORM_SUBMIT_LOADING_SET = new Set<string>([
   'formShimmer',
   'belowButtons',
   'infoBar',
+]);
+const ATTACHMENT_UPLOAD_LAYOUT_SET = new Set<string>([
+  'default',
+  'dropzone',
+  'card',
+  'ribbon',
+  'compact',
+]);
+const ATTACHMENT_FILE_PREVIEW_SET = new Set<string>([
+  'nameOnly',
+  'nameAndSize',
+  'iconAndName',
+  'thumbnailAndName',
+  'thumbnailLarge',
 ]);
 
 function sanitizeCompareRef(raw: unknown): IFormCompareRef | undefined {
@@ -506,6 +522,16 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       : undefined;
   const showDefaultFormButtons = o.showDefaultFormButtons === true;
   const stepNavigation = sanitizeStepNavigation(o.stepNavigation);
+  const attLayoutRaw = o.attachmentUploadLayout;
+  const attachmentUploadLayout: TFormAttachmentUploadLayoutKind | undefined =
+    typeof attLayoutRaw === 'string' && ATTACHMENT_UPLOAD_LAYOUT_SET.has(attLayoutRaw)
+      ? (attLayoutRaw as TFormAttachmentUploadLayoutKind)
+      : undefined;
+  const attPreviewRaw = o.attachmentFilePreview;
+  const attachmentFilePreview: TFormAttachmentFilePreviewKind | undefined =
+    typeof attPreviewRaw === 'string' && ATTACHMENT_FILE_PREVIEW_SET.has(attPreviewRaw)
+      ? (attPreviewRaw as TFormAttachmentFilePreviewKind)
+      : undefined;
   return {
     sections,
     fields,
@@ -522,5 +548,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       : {}),
     ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
     ...(stepNavigation ? { stepNavigation } : {}),
+    ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
+    ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
   };
 }

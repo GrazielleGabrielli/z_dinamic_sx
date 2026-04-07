@@ -389,6 +389,8 @@ export type {
   TFormStepNavButtonsKind,
   TFormDataLoadingUiKind,
   TFormSubmitLoadingUiKind,
+  TFormAttachmentUploadLayoutKind,
+  TFormAttachmentFilePreviewKind,
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_OCULTOS_STEP_ID,
 } from './formManager';

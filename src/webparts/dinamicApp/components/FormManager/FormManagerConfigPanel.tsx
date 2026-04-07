@@ -41,6 +41,8 @@ import type {
   TFormStepNavButtonsKind,
   TFormDataLoadingUiKind,
   TFormSubmitLoadingUiKind,
+  TFormAttachmentUploadLayoutKind,
+  TFormAttachmentFilePreviewKind,
 } from '../../core/config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
@@ -547,6 +549,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [defaultSubmitLoadingKind, setDefaultSubmitLoadingKind] = useState<TFormSubmitLoadingUiKind>(
     () => value.defaultSubmitLoadingKind ?? 'overlay'
   );
+  const [attachmentUploadLayout, setAttachmentUploadLayout] = useState<TFormAttachmentUploadLayoutKind>(
+    () => value.attachmentUploadLayout ?? 'default'
+  );
+  const [attachmentFilePreview, setAttachmentFilePreview] = useState<TFormAttachmentFilePreviewKind>(
+    () => value.attachmentFilePreview ?? 'nameAndSize'
+  );
   const [stepRequireFilledToAdvance, setStepRequireFilledToAdvance] = useState(
     () => value.stepNavigation?.requireFilledRequiredToAdvance === true
   );
@@ -591,6 +599,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setStepNavButtons(value.stepNavButtons ?? 'fluent');
     setFormDataLoadingKind(value.formDataLoadingKind ?? 'spinner');
     setDefaultSubmitLoadingKind(value.defaultSubmitLoadingKind ?? 'overlay');
+    setAttachmentUploadLayout(value.attachmentUploadLayout ?? 'default');
+    setAttachmentFilePreview(value.attachmentFilePreview ?? 'nameAndSize');
     setStepRequireFilledToAdvance(value.stepNavigation?.requireFilledRequiredToAdvance === true);
     setStepFullValOnAdvance(value.stepNavigation?.fullValidationOnAdvance === true);
     setStepAllowBackWithoutVal(value.stepNavigation?.allowBackWithoutValidation !== false);
@@ -809,6 +819,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}),
       ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
       ...(stepNavigation ? { stepNavigation } : {}),
+      ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
+      ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -1015,6 +1027,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}),
       ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
       ...(stepNavigation ? { stepNavigation } : {}),
+      ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
+      ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
     };
     return JSON.stringify(raw, null, 2);
   }, [
@@ -1029,6 +1043,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     formDataLoadingKind,
     defaultSubmitLoadingKind,
     showDefaultFormButtons,
+    attachmentUploadLayout,
+    attachmentFilePreview,
     stepRequireFilledToAdvance,
     stepFullValOnAdvance,
     stepAllowBackWithoutVal,
@@ -1415,6 +1431,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               onFormDataLoadingKindChange={setFormDataLoadingKind}
               defaultSubmitLoadingKind={defaultSubmitLoadingKind}
               onDefaultSubmitLoadingKindChange={setDefaultSubmitLoadingKind}
+              attachmentUploadLayout={attachmentUploadLayout}
+              onAttachmentUploadLayoutChange={setAttachmentUploadLayout}
+              attachmentFilePreview={attachmentFilePreview}
+              onAttachmentFilePreviewChange={setAttachmentFilePreview}
             />
           </Stack>
         </PivotItem>

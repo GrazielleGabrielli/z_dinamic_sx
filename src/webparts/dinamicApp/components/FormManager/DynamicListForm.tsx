@@ -741,6 +741,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           errorMessage={attErr}
           required={attReq}
           requiredEmptyHighlight={attReqEmpty}
+          layout={formManager.attachmentUploadLayout ?? 'default'}
+          filePreview={formManager.attachmentFilePreview ?? 'nameAndSize'}
         />
       );
     }

@@ -15,13 +15,38 @@ import type {
   TFormStepNavButtonsKind,
   TFormDataLoadingUiKind,
   TFormSubmitLoadingUiKind,
+  TFormAttachmentUploadLayoutKind,
+  TFormAttachmentFilePreviewKind,
 } from '../../core/config/types/formManager';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
+import { FormAttachmentUploader } from './FormAttachmentUploader';
 import {
   FormDataLoadingView,
   FORM_DATA_LOADING_DROPDOWN_OPTIONS,
   FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
 } from './FormLoadingUi';
+
+export const FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS: {
+  key: TFormAttachmentUploadLayoutKind;
+  text: string;
+}[] = [
+  { key: 'default', text: 'Clássico (input nativo)' },
+  { key: 'dropzone', text: 'Zona destacada (largar / clicar)' },
+  { key: 'card', text: 'Cartão com ícone e sombra' },
+  { key: 'ribbon', text: 'Faixa azul + área de largar' },
+  { key: 'compact', text: 'Compacto (botão + chips)' },
+];
+
+export const FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS: {
+  key: TFormAttachmentFilePreviewKind;
+  text: string;
+}[] = [
+  { key: 'nameOnly', text: 'Só nome do ficheiro' },
+  { key: 'nameAndSize', text: 'Nome e tamanho (padrão)' },
+  { key: 'iconAndName', text: 'Ícone por tipo + nome (+ tamanho)' },
+  { key: 'thumbnailAndName', text: 'Miniatura (imagem) ou ícone + nome' },
+  { key: 'thumbnailLarge', text: 'Pré-visualização grande (cartão por ficheiro)' },
+];
 
 const loadingCardStyles = (): { root: Record<string, string | number> } => ({
   root: {
@@ -100,9 +125,14 @@ export interface IFormManagerComponentsTabContentProps {
   onFormDataLoadingKindChange: (v: TFormDataLoadingUiKind) => void;
   defaultSubmitLoadingKind: TFormSubmitLoadingUiKind;
   onDefaultSubmitLoadingKindChange: (v: TFormSubmitLoadingUiKind) => void;
+  attachmentUploadLayout: TFormAttachmentUploadLayoutKind;
+  onAttachmentUploadLayoutChange: (v: TFormAttachmentUploadLayoutKind) => void;
+  attachmentFilePreview: TFormAttachmentFilePreviewKind;
+  onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
 }
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
+  const [attachDemoFiles, setAttachDemoFiles] = useState<File[]>([]);
   if (props.loading) {
     return <FormManagerComponentsLoadingLayouts />;
   }
@@ -167,6 +197,50 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         Estilo apenas dos botões de navegação no rodapé (não altera o passador de etapas em cima).
       </Text>
       <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
+      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Campo Anexos (ficheiros)</Text>
+      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa o estilo escolhido abaixo.
+      </Text>
+      <Dropdown
+        label="Layout do input de anexos"
+        options={FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS}
+        selectedKey={props.attachmentUploadLayout}
+        onChange={(_, o) =>
+          o && props.onAttachmentUploadLayoutChange(String(o.key) as TFormAttachmentUploadLayoutKind)
+        }
+      />
+      <Dropdown
+        label="Pré-visualização dos ficheiros selecionados"
+        options={FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS}
+        selectedKey={props.attachmentFilePreview}
+        onChange={(_, o) =>
+          o && props.onAttachmentFilePreviewChange(String(o.key) as TFormAttachmentFilePreviewKind)
+        }
+      />
+      <Stack
+        styles={{
+          root: {
+            border: '1px solid #edebe9',
+            borderRadius: 4,
+            padding: 12,
+            background: '#ffffff',
+          },
+        }}
+        tokens={{ childrenGap: 8 }}
+      >
+        <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
+          Pré-visualização (pode adicionar ficheiros de teste)
+        </Text>
+        <FormAttachmentUploader
+          files={attachDemoFiles}
+          onFilesChange={setAttachDemoFiles}
+          disabled={false}
+          label="Anexos ao item"
+          description="Texto de ajuda opcional, como no formulário."
+          layout={props.attachmentUploadLayout}
+          filePreview={props.attachmentFilePreview}
+        />
+      </Stack>
     </Stack>
   );
 }
