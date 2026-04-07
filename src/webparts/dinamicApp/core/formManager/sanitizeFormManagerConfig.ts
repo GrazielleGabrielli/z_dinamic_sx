@@ -239,12 +239,18 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
     }
     case 'attachmentRules': {
       const whenAtt = sanitizeConditionNode(r.requiredWhen);
+      const allowedFileExtensions = Array.isArray((r as { allowedFileExtensions?: unknown }).allowedFileExtensions)
+        ? (r as { allowedFileExtensions: unknown[] }).allowedFileExtensions
+            .map((x) => String(x).trim().replace(/^\./, '').toLowerCase())
+            .filter(Boolean)
+        : [];
       return {
         ...base,
         action: 'attachmentRules',
         ...(typeof r.minCount === 'number' ? { minCount: r.minCount } : {}),
         ...(typeof r.maxCount === 'number' ? { maxCount: r.maxCount } : {}),
         ...(typeof r.maxBytesPerFile === 'number' ? { maxBytesPerFile: r.maxBytesPerFile } : {}),
+        ...(allowedFileExtensions.length ? { allowedFileExtensions } : {}),
         ...(Array.isArray(r.allowedMimeTypes) ? { allowedMimeTypes: (r.allowedMimeTypes as unknown[]).map((x) => String(x)) } : {}),
         ...(whenAtt ? { requiredWhen: whenAtt } : {}),
         ...(typeof r.message === 'string' ? { message: r.message } : {}),

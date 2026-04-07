@@ -21,8 +21,8 @@ import {
   IconButton,
   Toggle,
 } from '@fluentui/react';
-import { FieldsService } from '../../../../services';
-import type { IFieldMetadata } from '../../../../services';
+import { FieldsService, GroupsService } from '../../../../services';
+import type { IFieldMetadata, IGroupDetails } from '../../../../services';
 import type {
   IFormManagerConfig,
   IFormStepNavigationConfig,
@@ -159,7 +159,6 @@ function isFormConfigSelectableField(m: IFieldMetadata): boolean {
 
 const DND_FIELD = 'fm/field:';
 const DND_STEP = 'fm/step:';
-const DND_MCOL = 'fm/mcol:';
 const DND_POOL = 'fm/pool:';
 const DND_FS = 'fm/fs:';
 const DND_BTN = 'fm/btn:';
@@ -291,6 +290,10 @@ function parseCsvFieldNames(s: string): string[] {
 
 function fieldNamesToCsv(names: string[]): string {
   return names.join(', ');
+}
+
+function normSpGroupTitle(s: string): string {
+  return s.trim().toLowerCase();
 }
 
 function buttonSetFieldValueChoiceDropdown(
@@ -569,6 +572,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [attachMin, setAttachMin] = useState('');
   const [attachMax, setAttachMax] = useState('');
   const [attachMsg, setAttachMsg] = useState('');
+  const [attachAllowedExt, setAttachAllowedExt] = useState<string[]>(() =>
+    parseAttachmentUiRule(value.rules ?? []).allowedFileExtensions ?? []
+  );
   const [meta, setMeta] = useState<IFieldMetadata[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | undefined>(undefined);
@@ -577,8 +583,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
   const [redirectInsertNonceByBtn, setRedirectInsertNonceByBtn] = useState<Record<string, number>>({});
   const [redirectReplaceNonceByBtn, setRedirectReplaceNonceByBtn] = useState<Record<string, number>>({});
+  const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
+  const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
+  const [siteGroupsErr, setSiteGroupsErr] = useState<string | undefined>(undefined);
 
   const fieldsService = useMemo(() => new FieldsService(), []);
+  const groupsService = useMemo(() => new GroupsService(), []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -608,6 +618,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
     setAttachMsg(att.message);
+    setAttachAllowedExt(att.allowedFileExtensions ?? []);
     setErr(undefined);
     setFieldPanelName(null);
     setStepSectionOpen({});
@@ -625,6 +636,29 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       })
       .catch(() => setLoading(false));
   }, [isOpen, listTitle, fieldsService]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSiteGroupsErr(undefined);
+    setSiteGroupsLoading(true);
+    groupsService
+      .getSiteGroups()
+      .then((g) => {
+        setSiteGroups(g);
+        setSiteGroupsLoading(false);
+      })
+      .catch((e) => {
+        setSiteGroups([]);
+        setSiteGroupsLoading(false);
+        setSiteGroupsErr(e instanceof Error ? e.message : String(e));
+      });
+  }, [isOpen, groupsService]);
+
+  const siteGroupsSorted = useMemo(() => {
+    const g = siteGroups.slice();
+    g.sort((a, b) => (a.Title < b.Title ? -1 : a.Title > b.Title ? 1 : 0));
+    return g;
+  }, [siteGroups]);
 
   const fieldOptions: IDropdownOption[] = useMemo(
     () =>
@@ -796,6 +830,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       minCount: numOpt(attachMin),
       maxCount: numOpt(attachMax),
       message: attachMsg,
+      allowedFileExtensions: attachAllowedExt.length ? attachAllowedExt : undefined,
     });
     const sectionsOut = sectionsFromSteps(steps);
     const stepNavigation = buildStepNavigationForSave(
@@ -874,20 +909,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       );
       return ensureCoreSteps(next);
     });
-  };
-
-  const toggleManagerCol = (internalName: string, checked: boolean): void => {
-    setManagerColumnFields((prev) => {
-      if (checked) {
-        if (prev.indexOf(internalName) !== -1) return prev;
-        return prev.concat([internalName]);
-      }
-      return prev.filter((x) => x !== internalName);
-    });
-  };
-
-  const reorderManagerCol = (from: number, to: number): void => {
-    setManagerColumnFields((prev) => reorderByIndex(prev, from, to));
   };
 
   const addCustomButton = (): void => {
@@ -997,6 +1018,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       minCount: numOpt(attachMin),
       maxCount: numOpt(attachMax),
       message: attachMsg,
+      allowedFileExtensions: attachAllowedExt.length ? attachAllowedExt : undefined,
     });
     let dynamicHelp: IFormManagerConfig['dynamicHelp'];
     try {
@@ -1051,6 +1073,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     attachMin,
     attachMax,
     attachMsg,
+    attachAllowedExt,
   ]);
 
   const addConditionalCard = (): void => {
@@ -1435,6 +1458,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               onAttachmentUploadLayoutChange={setAttachmentUploadLayout}
               attachmentFilePreview={attachmentFilePreview}
               onAttachmentFilePreviewChange={setAttachmentFilePreview}
+              attachmentAllowedExtensions={attachAllowedExt}
+              onAttachmentExtensionToggle={(ext, selected) => {
+                const e = ext.trim().replace(/^\./, '').toLowerCase();
+                if (!e) return;
+                setAttachAllowedExt((prev) => {
+                  if (selected) return prev.indexOf(e) === -1 ? prev.concat([e]) : prev;
+                  return prev.filter((x) => x !== e);
+                });
+              }}
             />
           </Stack>
         </PivotItem>
@@ -1698,15 +1730,89 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     checked={btn.enabled !== false}
                     onChange={(_, c) => patchCustomButton(bi, { enabled: c ? undefined : false })}
                   />
-                  <TextField
-                    label="Grupos do SharePoint (títulos, vírgula)"
-                    description="Vazio = qualquer utilizador. Igual às regras: compara o título do grupo, sem diferenciar maiúsculas."
-                    value={fieldNamesToCsv(btn.groupTitles ?? [])}
-                    onChange={(_, v) => {
-                      const parsed = parseCsvFieldNames(v ?? '');
-                      patchCustomButton(bi, { groupTitles: parsed.length ? parsed : undefined });
-                    }}
-                  />
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Grupos do SharePoint
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão. Vazio = todos. Os
+                    títulos coincidem com os grupos devolvidos ao formulário em tempo de execução.
+                  </Text>
+                  {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
+                  {siteGroupsErr && (
+                    <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
+                  )}
+                  {siteGroupsErr ? (
+                    <TextField
+                      label="Grupos (títulos, vírgula) — entrada manual"
+                      value={fieldNamesToCsv(btn.groupTitles ?? [])}
+                      onChange={(_, v) => {
+                        const parsed = parseCsvFieldNames(v ?? '');
+                        patchCustomButton(bi, { groupTitles: parsed.length ? parsed : undefined });
+                      }}
+                    />
+                  ) : !siteGroupsLoading ? (
+                    <Stack
+                      tokens={{ childrenGap: 6 }}
+                      styles={{
+                        root: {
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                          border: '1px solid #edebe9',
+                          borderRadius: 4,
+                          padding: 8,
+                        },
+                      }}
+                    >
+                      {(btn.groupTitles ?? [])
+                        .filter(
+                          (t) =>
+                            !siteGroups.some(
+                              (g) => normSpGroupTitle(g.Title) === normSpGroupTitle(t)
+                            )
+                        )
+                        .map((t, oi) => (
+                          <Checkbox
+                            key={`orphan-grp-${bi}-${oi}-${t}`}
+                            label={`${t} (guardado; não na lista do site)`}
+                            checked
+                            onChange={(_, c) => {
+                              if (c) return;
+                              const cur = btn.groupTitles ?? [];
+                              const n = normSpGroupTitle(t);
+                              const next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                              patchCustomButton(bi, { groupTitles: next.length ? next : undefined });
+                            }}
+                          />
+                        ))}
+                      {siteGroupsSorted.map((g) => {
+                        const cur = btn.groupTitles ?? [];
+                        const n = normSpGroupTitle(g.Title);
+                        const checked = cur.some((x) => normSpGroupTitle(x) === n);
+                        return (
+                          <Checkbox
+                            key={g.Id}
+                            label={g.Title}
+                            title={g.Description || undefined}
+                            checked={checked}
+                            onChange={(_, c) => {
+                              let next: string[];
+                              if (c) {
+                                next = checked ? cur : cur.concat([g.Title]);
+                              } else {
+                                next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                              }
+                              patchCustomButton(bi, { groupTitles: next.length ? next : undefined });
+                            }}
+                          />
+                        );
+                      })}
+                      {!siteGroupsSorted.length && !(btn.groupTitles ?? []).length && (
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          Nenhum grupo no site.
+                        </Text>
+                      )}
+                    </Stack>
+                  ) : null}
                   <Checkbox
                     label="Mostrar só quando a condição abaixo for verdadeira"
                     checked={!!btn.when}
@@ -2057,7 +2163,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   )}
                   {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
                     <Text variant="small" styles={{ root: { color: '#605e5c', maxWidth: 280 } }}>
-                      Obrigatoriedade e limites de ficheiros: aba Gestor (anexos).
+                      Extensões permitidas: aba Componentes. Mín./máx. e mensagens: regra de anexos (JSON avançado).
                     </Text>
                   ) : (
                     <DefaultButton
@@ -2200,76 +2306,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               </Stack>
             ))}
             {!conditionalCards.length && <Text>Nenhuma regra condicional. Use &quot;Nova regra&quot;.</Text>}
-          </Stack>
-        </PivotItem>
-        <PivotItem headerText="Ajuda dinâmica">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Etapas e campos: aba Estrutura. Layout das etapas e botões de navegação: aba Componentes. Aqui: ajuda condicional (JSON avançado).
-            </Text>
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ajuda dinâmica (JSON)</Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Array de {'{'} field, when, helpText {'}'} — formato avançado.
-            </Text>
-            <TextField multiline rows={10} value={helpJson} onChange={(_, v) => setHelpJson(v ?? '')} />
-          </Stack>
-        </PivotItem>
-        <PivotItem headerText="Gestor">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Colunas da grade gestor. Ordem abaixo.
-            </Text>
-            {meta.map((m) => (
-              <Checkbox
-                key={m.InternalName}
-                label={`${m.Title} (${m.InternalName})`}
-                checked={managerColumnFields.indexOf(m.InternalName) !== -1}
-                onChange={(_, c) => toggleManagerCol(m.InternalName, !!c)}
-              />
-            ))}
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ordem das colunas selecionadas (arraste pela alça)</Text>
-            {managerColumnFields.map((name, mi) => (
-              <Stack
-                key={name}
-                horizontal
-                verticalAlign="center"
-                tokens={{ childrenGap: 8 }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_MCOL);
-                  if (from === undefined || from === mi) return;
-                  reorderManagerCol(from, mi);
-                }}
-              >
-                <span
-                  draggable
-                  title="Arrastar para reordenar"
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', dragPayload(DND_MCOL, mi));
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
-                >
-                  <Icon iconName="GripperBarVertical" />
-                </span>
-                <Text styles={{ root: { minWidth: 160 } }}>{name}</Text>
-              </Stack>
-            ))}
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Anexos (formulário)</Text>
-            <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-              <TextField label="Mín. arquivos" value={attachMin} onChange={(_, v) => setAttachMin(v ?? '')} />
-              <TextField label="Máx. arquivos" value={attachMax} onChange={(_, v) => setAttachMax(v ?? '')} />
-              <TextField
-                label="Mensagem"
-                value={attachMsg}
-                onChange={(_, v) => setAttachMsg(v ?? '')}
-                styles={{ root: { minWidth: 280 } }}
-              />
-            </Stack>
           </Stack>
         </PivotItem>
       </Pivot>

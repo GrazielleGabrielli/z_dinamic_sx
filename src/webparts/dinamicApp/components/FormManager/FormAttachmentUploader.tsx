@@ -17,17 +17,44 @@ export interface IFormAttachmentUploaderProps {
   requiredEmptyHighlight?: boolean;
   layout?: TFormAttachmentUploadLayoutKind;
   filePreview?: TFormAttachmentFilePreviewKind;
+  /** Extensões sem ponto; vazio/omitido = aceitar qualquer ficheiro. */
+  allowedFileExtensions?: string[];
 }
 
 const accent = '#0078d4';
 const borderErr = '#a4262c';
 const bgErr = '#fef6f6';
 
-function mergeFiles(prev: File[], added: FileList | null): File[] {
-  if (!added || added.length === 0) return prev.slice();
+function fileExtensionLower(name: string): string {
+  const n = name.trim();
+  const d = n.lastIndexOf('.');
+  if (d < 0 || d >= n.length - 1) return '';
+  return n.slice(d + 1).toLowerCase();
+}
+
+function mergeFilesFiltered(
+  prev: File[],
+  added: FileList | null,
+  allowed: string[] | undefined
+): { next: File[]; rejected: number } {
+  if (!added || added.length === 0) return { next: prev.slice(), rejected: 0 };
+  if (!allowed || allowed.length === 0) {
+    const next = prev.slice();
+    for (let i = 0; i < added.length; i++) next.push(added[i]);
+    return { next, rejected: 0 };
+  }
+  const allow = new Set(
+    allowed.map((x) => String(x).trim().replace(/^\./, '').toLowerCase()).filter(Boolean)
+  );
   const next = prev.slice();
-  for (let i = 0; i < added.length; i++) next.push(added[i]);
-  return next;
+  let rejected = 0;
+  for (let i = 0; i < added.length; i++) {
+    const f = added[i];
+    const ext = fileExtensionLower(f.name);
+    if (ext && allow.has(ext)) next.push(f);
+    else rejected++;
+  }
+  return { next, rejected };
 }
 
 function formatKb(n: number): string {
@@ -60,10 +87,23 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   requiredEmptyHighlight,
   layout = 'default',
   filePreview: filePreviewProp,
+  allowedFileExtensions,
 }) => {
   const preview = filePreviewProp ?? 'nameAndSize';
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [pickRejectHint, setPickRejectHint] = useState('');
+
+  const inputAccept = useMemo(() => {
+    if (!allowedFileExtensions || allowedFileExtensions.length === 0) return undefined;
+    return allowedFileExtensions
+      .map((x) => {
+        const e = String(x).trim().replace(/^\./, '').toLowerCase();
+        return e ? `.${e}` : '';
+      })
+      .filter(Boolean)
+      .join(',');
+  }, [allowedFileExtensions]);
 
   const imageUrls = useMemo(() => {
     return files.map((f) => (isImageFile(f) ? URL.createObjectURL(f) : undefined));
@@ -85,18 +125,38 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   const onInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>): void => {
       const fl = e.target.files;
-      onFilesChange(mergeFiles(files, fl));
+      const { next, rejected } = mergeFilesFiltered(files, fl, allowedFileExtensions);
+      if (rejected > 0) {
+        setPickRejectHint(
+          rejected === 1
+            ? 'Um ficheiro foi ignorado (extensão não permitida).'
+            : `${rejected} ficheiros ignorados (extensão não permitida).`
+        );
+      } else {
+        setPickRejectHint('');
+      }
+      onFilesChange(next);
       e.target.value = '';
     },
-    [files, onFilesChange]
+    [files, onFilesChange, allowedFileExtensions]
   );
 
   const addFromDataTransfer = useCallback(
     (dt: DataTransfer | null): void => {
       if (!dt?.files?.length) return;
-      onFilesChange(mergeFiles(files, dt.files));
+      const { next, rejected } = mergeFilesFiltered(files, dt.files, allowedFileExtensions);
+      if (rejected > 0) {
+        setPickRejectHint(
+          rejected === 1
+            ? 'Um ficheiro foi ignorado (extensão não permitida).'
+            : `${rejected} ficheiros ignorados (extensão não permitida).`
+        );
+      } else {
+        setPickRejectHint('');
+      }
+      onFilesChange(next);
     },
-    [files, onFilesChange]
+    [files, onFilesChange, allowedFileExtensions]
   );
 
   const removeAt = useCallback(
@@ -116,6 +176,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
       ref={inputRef}
       type="file"
       multiple
+      accept={inputAccept}
       onChange={onInputChange}
       style={{ display: 'none' }}
       aria-hidden
@@ -417,12 +478,20 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
     </>
   );
 
-  const footerErr =
-    errorMessage && (
-      <Text variant="small" styles={{ root: { color: borderErr } }}>
-        {errorMessage}
-      </Text>
-    );
+  const footerErr = (
+    <>
+      {errorMessage && (
+        <Text variant="small" styles={{ root: { color: borderErr } }}>
+          {errorMessage}
+        </Text>
+      )}
+      {pickRejectHint && (
+        <Text variant="small" styles={{ root: { color: borderErr } }}>
+          {pickRejectHint}
+        </Text>
+      )}
+    </>
+  );
 
   if (layout === 'default') {
     return (
@@ -430,7 +499,13 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
         {header}
         {!disabled && (
           <div style={reqWrapStyle}>
-            <input type="file" multiple onChange={onInputChange} style={{ maxWidth: '100%' }} />
+            <input
+              type="file"
+              multiple
+              accept={inputAccept}
+              onChange={onInputChange}
+              style={{ maxWidth: '100%' }}
+            />
           </div>
         )}
         {renderFileRows(false)}

@@ -4,6 +4,7 @@ import type {
   TFormManagerFormMode,
   TFormRule,
   IFormCompareRef,
+  IFormRuleAttachment,
 } from '../config/types/formManager';
 
 export const CONDITION_OP_OPTIONS: { key: TFormConditionOp; text: string }[] = [
@@ -554,19 +555,42 @@ export function stripAttachmentUiRule(rules: TFormRule[]): TFormRule[] {
   return rules.filter((r) => r.id !== UI_ATTACHMENT_ID);
 }
 
+function normAttachmentExtensions(arr: string[] | undefined): string[] {
+  if (!arr || !arr.length) return [];
+  const out: string[] = [];
+  const seen: Record<string, boolean> = {};
+  for (let i = 0; i < arr.length; i++) {
+    const e = String(arr[i]).trim().replace(/^\./, '').toLowerCase();
+    if (!e || seen[e]) continue;
+    seen[e] = true;
+    out.push(e);
+  }
+  return out;
+}
+
 export function buildAttachmentUiRule(opts: {
   minCount?: number;
   maxCount?: number;
   message?: string;
+  allowedFileExtensions?: string[];
 }): TFormRule | undefined {
-  const { minCount, maxCount, message } = opts;
-  if (minCount === undefined && maxCount === undefined) return undefined;
+  const { minCount, maxCount, message, allowedFileExtensions } = opts;
+  const ext = normAttachmentExtensions(allowedFileExtensions);
+  if (
+    minCount === undefined &&
+    maxCount === undefined &&
+    ext.length === 0 &&
+    !(message && message.trim())
+  ) {
+    return undefined;
+  }
   return {
     id: UI_ATTACHMENT_ID,
     action: 'attachmentRules',
     ...(minCount !== undefined ? { minCount } : {}),
     ...(maxCount !== undefined ? { maxCount } : {}),
     ...(message?.trim() ? { message: message.trim() } : {}),
+    ...(ext.length ? { allowedFileExtensions: ext } : {}),
   };
 }
 
@@ -574,6 +598,7 @@ export function parseAttachmentUiRule(rules: TFormRule[]): {
   minCount: string;
   maxCount: string;
   message: string;
+  allowedFileExtensions: string[];
 } {
   let r: TFormRule | undefined;
   for (let i = 0; i < rules.length; i++) {
@@ -584,15 +609,25 @@ export function parseAttachmentUiRule(rules: TFormRule[]): {
     }
   }
   if (!r || r.action !== 'attachmentRules')
-    return { minCount: '', maxCount: '', message: '' };
+    return { minCount: '', maxCount: '', message: '', allowedFileExtensions: [] };
+  const att = r as IFormRuleAttachment;
   return {
     minCount: r.minCount !== undefined ? String(r.minCount) : '',
     maxCount: r.maxCount !== undefined ? String(r.maxCount) : '',
     message: r.message ?? '',
+    allowedFileExtensions: normAttachmentExtensions(att.allowedFileExtensions),
   };
 }
 
-export function mergeAttachmentUiRule(rules: TFormRule[], opts: { minCount?: number; maxCount?: number; message?: string }): TFormRule[] {
+export function mergeAttachmentUiRule(
+  rules: TFormRule[],
+  opts: {
+    minCount?: number;
+    maxCount?: number;
+    message?: string;
+    allowedFileExtensions?: string[];
+  }
+): TFormRule[] {
   const next = stripAttachmentUiRule(rules);
   const a = buildAttachmentUiRule(opts);
   return a ? next.concat([a]) : next;

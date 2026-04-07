@@ -165,6 +165,8 @@ export interface IFormRuleAttachment extends IFormRuleBase {
   minCount?: number;
   maxCount?: number;
   maxBytesPerFile?: number;
+  /** Extensões permitidas, sem ponto, minúsculas (ex.: pdf, docx). Vazio / omitido = qualquer extensão. */
+  allowedFileExtensions?: string[];
   allowedMimeTypes?: string[];
   requiredWhen?: TFormConditionNode;
   message?: string;

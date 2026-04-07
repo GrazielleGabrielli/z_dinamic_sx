@@ -8,6 +8,7 @@ import {
   Shimmer,
   ShimmerElementType,
   ProgressIndicator,
+  Checkbox,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
 import type {
@@ -35,6 +36,72 @@ export const FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS: {
   { key: 'card', text: 'Cartão com ícone e sombra' },
   { key: 'ribbon', text: 'Faixa azul + área de largar' },
   { key: 'compact', text: 'Compacto (botão + chips)' },
+];
+
+export interface IFormAttachmentExtensionPreset {
+  ext: string;
+  label: string;
+}
+
+export interface IFormAttachmentExtensionGroup {
+  title: string;
+  hint?: string;
+  items: IFormAttachmentExtensionPreset[];
+}
+
+export const FORM_ATTACHMENT_EXTENSION_GROUPS: IFormAttachmentExtensionGroup[] = [
+  {
+    title: 'PDF e documentos Word',
+    items: [
+      { ext: 'pdf', label: 'PDF' },
+      { ext: 'doc', label: 'Word .doc' },
+      { ext: 'docx', label: 'Word .docx' },
+    ],
+  },
+  {
+    title: 'Excel',
+    items: [
+      { ext: 'xls', label: '.xls' },
+      { ext: 'xlsx', label: '.xlsx' },
+    ],
+  },
+  {
+    title: 'PowerPoint',
+    items: [
+      { ext: 'ppt', label: '.ppt' },
+      { ext: 'pptx', label: '.pptx' },
+    ],
+  },
+  {
+    title: 'Imagens',
+    hint: 'Raster e vetorial',
+    items: [
+      { ext: 'png', label: 'PNG' },
+      { ext: 'jpg', label: 'JPEG .jpg' },
+      { ext: 'jpeg', label: 'JPEG .jpeg' },
+      { ext: 'gif', label: 'GIF' },
+      { ext: 'webp', label: 'WebP' },
+      { ext: 'svg', label: 'SVG' },
+    ],
+  },
+  {
+    title: 'Texto e tabelas',
+    items: [
+      { ext: 'txt', label: 'Texto .txt' },
+      { ext: 'csv', label: 'CSV' },
+    ],
+  },
+  {
+    title: 'Arquivos e correio',
+    items: [
+      { ext: 'zip', label: 'ZIP' },
+      { ext: 'msg', label: 'Outlook .msg' },
+    ],
+  },
+  {
+    title: 'Vídeo',
+    items: [{ ext: 'mp4', label: 'MP4' }],
+  },
 ];
 
 export const FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS: {
@@ -129,6 +196,8 @@ export interface IFormManagerComponentsTabContentProps {
   onAttachmentUploadLayoutChange: (v: TFormAttachmentUploadLayoutKind) => void;
   attachmentFilePreview: TFormAttachmentFilePreviewKind;
   onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
+  attachmentAllowedExtensions: string[];
+  onAttachmentExtensionToggle: (ext: string, selected: boolean) => void;
 }
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
@@ -217,6 +286,53 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
           o && props.onAttachmentFilePreviewChange(String(o.key) as TFormAttachmentFilePreviewKind)
         }
       />
+      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Extensões permitidas</Text>
+      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        Nenhuma selecionada = qualquer tipo de ficheiro. Com uma ou mais marcadas, só essas extensões são aceites no
+        formulário e na validação ao gravar.
+      </Text>
+      <Stack tokens={{ childrenGap: 10 }}>
+        {FORM_ATTACHMENT_EXTENSION_GROUPS.map((group) => (
+          <Stack
+            key={group.title}
+            tokens={{ childrenGap: 8 }}
+            styles={{
+              root: {
+                padding: '10px 12px',
+                borderRadius: 6,
+                border: '1px solid #edebe9',
+                background: '#faf9f8',
+              },
+            }}
+          >
+            <Stack tokens={{ childrenGap: 2 }}>
+              <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                {group.title}
+              </Text>
+              {group.hint && (
+                <Text variant="tiny" styles={{ root: { color: '#8a8886' } }}>
+                  {group.hint}
+                </Text>
+              )}
+            </Stack>
+            <Stack horizontal wrap tokens={{ childrenGap: 10 }} verticalAlign="center">
+              {group.items.map((p) => {
+                const e = p.ext.toLowerCase();
+                const checked = props.attachmentAllowedExtensions.some((x) => x.toLowerCase() === e);
+                return (
+                  <Checkbox
+                    key={p.ext}
+                    label={p.label}
+                    checked={checked}
+                    onChange={(_, c) => props.onAttachmentExtensionToggle(p.ext, !!c)}
+                    styles={{ root: { minWidth: 0 } }}
+                  />
+                );
+              })}
+            </Stack>
+          </Stack>
+        ))}
+      </Stack>
       <Stack
         styles={{
           root: {
@@ -239,6 +355,9 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
           description="Texto de ajuda opcional, como no formulário."
           layout={props.attachmentUploadLayout}
           filePreview={props.attachmentFilePreview}
+          allowedFileExtensions={
+            props.attachmentAllowedExtensions.length > 0 ? props.attachmentAllowedExtensions : undefined
+          }
         />
       </Stack>
     </Stack>

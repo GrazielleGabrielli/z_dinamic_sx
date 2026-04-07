@@ -46,6 +46,7 @@ import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidation';
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
+import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
 import { ItemsService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
@@ -232,6 +233,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   );
   const metaByName = useMemo(() => new Map(fieldMetadata.map((f) => [f.InternalName, f])), [fieldMetadata]);
 
+  const attachmentAllowedExtensions = useMemo(
+    () => parseAttachmentUiRule(formManager.rules ?? []).allowedFileExtensions ?? [],
+    [formManager.rules]
+  );
+
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     itemToFormValues(initialItem ?? undefined, names)
   );
@@ -408,7 +414,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const ov = opts?.buttonOverlay ?? buttonOverlay;
     const att: IFormValidationAttachmentContext = {
       attachmentCount,
-      pendingFiles: pendingFiles.map((f) => ({ size: f.size, type: f.type || 'application/octet-stream' })),
+      pendingFiles: pendingFiles.map((f) => ({
+        size: f.size,
+        type: f.type || 'application/octet-stream',
+        name: f.name,
+      })),
     };
     const ctx: IFormRuleRuntimeContext = {
       formMode,
@@ -612,6 +622,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         pendingFiles: pendingFiles.map((f) => ({
           size: f.size,
           type: f.type || 'application/octet-stream',
+          name: f.name,
         })),
       };
       const ctx: IFormRuleRuntimeContext = {
@@ -743,6 +754,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           requiredEmptyHighlight={attReqEmpty}
           layout={formManager.attachmentUploadLayout ?? 'default'}
           filePreview={formManager.attachmentFilePreview ?? 'nameAndSize'}
+          allowedFileExtensions={
+            attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
+          }
         />
       );
     }

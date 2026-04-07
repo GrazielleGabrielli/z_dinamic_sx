@@ -553,7 +553,7 @@ export function buildFormDerivedState(
 
 export interface IFormValidationAttachmentContext {
   attachmentCount?: number;
-  pendingFiles?: { size: number; type: string }[];
+  pendingFiles?: { size: number; type: string; name: string }[];
 }
 
 export function collectFormValidationErrors(
@@ -674,6 +674,19 @@ export function collectFormValidationErrors(
             }
           }
         }
+        const extList = rule.allowedFileExtensions;
+        if (extList && extList.length > 0 && files.length > 0) {
+          const allowExt = new Set(extList.map((x) => String(x).trim().replace(/^\./, '').toLowerCase()).filter(Boolean));
+          for (let fi = 0; fi < files.length; fi++) {
+            const nm = files[fi].name ?? '';
+            const dot = nm.lastIndexOf('.');
+            const ext = dot >= 0 && dot < nm.length - 1 ? nm.slice(dot + 1).toLowerCase() : '';
+            if (!ext || !allowExt.has(ext)) {
+              errors._attachments = rule.message ?? 'Extensão de ficheiro não permitida.';
+              break;
+            }
+          }
+        }
         break;
       }
       default:
@@ -710,7 +723,9 @@ export function pickRequiredStyleStepErrors(filtered: Record<string, string>): R
         al.includes('obrigatorio') ||
         al.includes('mínimo') ||
         al.includes('minimo') ||
-        al.includes('mín.')
+        al.includes('mín.') ||
+        al.includes('extensão') ||
+        al.includes('extensao')
       ) {
         out[k] = v;
       }
