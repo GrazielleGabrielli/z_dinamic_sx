@@ -21,8 +21,30 @@ import type {
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
 
-const STEP_LAYOUT_SET = new Set<string>(['rail', 'segmented', 'timeline', 'cards']);
-const STEP_NAV_BUTTONS_SET = new Set<string>(['fluent', 'pills', 'dots', 'icons', 'links']);
+const STEP_LAYOUT_SET = new Set<string>([
+  'rail',
+  'segmented',
+  'timeline',
+  'cards',
+  'breadcrumb',
+  'underline',
+  'outline',
+  'compact',
+  'steps',
+  'minimal',
+]);
+const STEP_NAV_BUTTONS_SET = new Set<string>([
+  'fluent',
+  'pills',
+  'dots',
+  'icons',
+  'links',
+  'split',
+  'stacked',
+  'ghost',
+  'toolbar',
+  'compact',
+]);
 const BUTTON_OPERATION_SET = new Set<string>(['legacy', 'redirect', 'add', 'update', 'delete']);
 const FORM_DATA_LOADING_SET = new Set<string>(['spinner', 'spinnerLarge', 'shimmer', 'progress', 'cardShimmer']);
 const FORM_SUBMIT_LOADING_SET = new Set<string>([
@@ -336,8 +358,17 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
       ? (a.fields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
       : [];
     if (!fields.length) return undefined;
+    const displayOnStepId =
+      kind === 'showFields' && typeof a.displayOnStepId === 'string' && a.displayOnStepId.trim()
+        ? a.displayOnStepId.trim()
+        : undefined;
     return kind === 'showFields'
-      ? { kind: 'showFields', fields, ...(whenAct ? { when: whenAct } : {}) }
+      ? {
+          kind: 'showFields',
+          fields,
+          ...(displayOnStepId ? { displayOnStepId } : {}),
+          ...(whenAct ? { when: whenAct } : {}),
+        }
       : { kind: 'hideFields', fields, ...(whenAct ? { when: whenAct } : {}) };
   }
   if (kind === 'setFieldValue') {

@@ -1150,6 +1150,51 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       type={PanelType.large}
       headerText="Configurar formulário e regras"
       onDismiss={onDismiss}
+      isFooterAtBottom
+      onRenderFooterContent={() => (
+        <Stack
+          horizontal
+          horizontalAlign="start"
+          verticalAlign="center"
+          tokens={{ childrenGap: 8 }}
+          wrap
+          styles={{ root: { width: '100%' } }}
+        >
+          <PrimaryButton text="Salvar" onClick={handleSave} disabled={loading} />
+          <DefaultButton
+            text="Restaurar padrão (estrutura)"
+            onClick={() => {
+              const d = getDefaultFormManagerConfig();
+              const st = d.steps && d.steps.length ? d.steps : [{ id: 'main', title: 'Geral', fieldNames: [] }];
+              setSteps(st.map((x) => ({ ...x, fieldNames: x.fieldNames.slice() })));
+              setFields(d.fields.slice());
+            }}
+          />
+          <DefaultButton text="Cancelar" onClick={onDismiss} />
+        </Stack>
+      )}
+      styles={{
+        main: {
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '100%',
+          overflow: 'hidden',
+        },
+        content: {
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        },
+        footer: {
+          flexShrink: 0,
+          borderTop: '1px solid #edebe9',
+          paddingTop: 16,
+          paddingBottom: 16,
+          background: '#faf9f8',
+        },
+      }}
     >
       {loading && <Spinner label="Campos da lista..." />}
       {err && <MessageBar messageBarType={MessageBarType.error}>{err}</MessageBar>}
@@ -1897,19 +1942,94 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             <DefaultButton text="Remover ação" onClick={() => removeButtonAction(bi, ai)} />
                           </Stack>
                           {(act.kind === 'showFields' || act.kind === 'hideFields') && (
-                            <TextField
-                              label="Campos (internal name, vírgula)"
-                              multiline
-                              rows={2}
-                              value={fieldNamesToCsv(act.fields)}
-                              onChange={(_, v) =>
-                                patchButtonAction(bi, ai, {
-                                  ...act,
-                                  fields: parseCsvFieldNames(v ?? ''),
-                                })
-                              }
-                            />
+                            <Stack tokens={{ childrenGap: 6 }}>
+                              <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Campos</Text>
+                              <Stack
+                                tokens={{ childrenGap: 6 }}
+                                styles={{
+                                  root: {
+                                    maxHeight: 280,
+                                    overflowY: 'auto',
+                                    border: '1px solid #edebe9',
+                                    borderRadius: 4,
+                                    padding: 8,
+                                  },
+                                }}
+                              >
+                                {act.fields
+                                  .filter((fn) => !metaSortedForPool.some((m) => m.InternalName === fn))
+                                  .map((fn) => (
+                                    <Checkbox
+                                      key={`btn-act-orphan-${bi}-${ai}-${fn}`}
+                                      label={`${fn} (referência guardada)`}
+                                      checked
+                                      onChange={(_, c) => {
+                                        if (c) return;
+                                        patchButtonAction(bi, ai, {
+                                          ...act,
+                                          fields: act.fields.filter((x) => x !== fn),
+                                        });
+                                      }}
+                                    />
+                                  ))}
+                                {metaSortedForPool.map((m) => {
+                                  const fn = m.InternalName;
+                                  const checked = act.fields.indexOf(fn) !== -1;
+                                  return (
+                                    <Checkbox
+                                      key={fn}
+                                      label={`${m.Title} (${fn})`}
+                                      checked={checked}
+                                      onChange={(_, c) => {
+                                        let next: string[];
+                                        if (c) {
+                                          next = checked ? act.fields : act.fields.concat([fn]);
+                                        } else {
+                                          next = act.fields.filter((x) => x !== fn);
+                                        }
+                                        patchButtonAction(bi, ai, { ...act, fields: next });
+                                      }}
+                                    />
+                                  );
+                                })}
+                                {!metaSortedForPool.length && (
+                                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                                    {loading
+                                      ? 'A carregar campos da lista…'
+                                      : 'Nenhum campo disponível para selecionar.'}
+                                  </Text>
+                                )}
+                              </Stack>
+                            </Stack>
                           )}
+                          {act.kind === 'showFields' &&
+                            steps.filter((s) => s.id !== FORM_OCULTOS_STEP_ID).length > 1 && (
+                              <Stack tokens={{ childrenGap: 6 }}>
+                                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                                  Campos só na aba Ocultos: escolha em que etapa devem surgir ao executar esta ação.
+                                </Text>
+                                <Dropdown
+                                  label="Etapa onde mostrar"
+                                  options={[
+                                    { key: '', text: '— escolher —' },
+                                    ...steps
+                                      .filter((s) => s.id !== FORM_OCULTOS_STEP_ID)
+                                      .map((s) => ({ key: s.id, text: s.title })),
+                                  ]}
+                                  selectedKey={act.displayOnStepId ?? ''}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const key = String(o.key);
+                                    patchButtonAction(bi, ai, {
+                                      kind: 'showFields',
+                                      fields: act.fields,
+                                      ...(key ? { displayOnStepId: key } : {}),
+                                      ...(act.when ? { when: act.when } : {}),
+                                    });
+                                  }}
+                                />
+                              </Stack>
+                            )}
                           {act.kind === 'setFieldValue' && (() => {
                             const choiceVal = buttonSetFieldValueChoiceDropdown(
                               act.field,
@@ -2321,19 +2441,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           ))}
         </Stack>
       )}
-      <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 24 } }}>
-        <PrimaryButton text="Salvar" onClick={handleSave} disabled={loading} />
-        <DefaultButton
-          text="Restaurar padrão (estrutura)"
-          onClick={() => {
-            const d = getDefaultFormManagerConfig();
-            const st = d.steps && d.steps.length ? d.steps : [{ id: 'main', title: 'Geral', fieldNames: [] }];
-            setSteps(st.map((x) => ({ ...x, fieldNames: x.fieldNames.slice() })));
-            setFields(d.fields.slice());
-          }}
-        />
-        <DefaultButton text="Cancelar" onClick={onDismiss} />
-      </Stack>
       <Panel
         isOpen={jsonOpen}
         type={PanelType.medium}

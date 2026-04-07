@@ -102,16 +102,25 @@ function formatJoinedFieldValue(v: unknown): string {
   return String(v);
 }
 
+type IFormButtonFieldOverlay = {
+  show: Set<string>;
+  hide: Set<string>;
+  showOnStepId?: Record<string, string>;
+};
+
 function reduceCustomButtonActions(
   actions: TFormButtonAction[],
   startValues: Record<string, unknown>,
   dynamicContext: IDynamicContext,
-  baseOverlay: { show: Set<string>; hide: Set<string> }
-): { mergedValues: Record<string, unknown>; mergedOverlay: { show: Set<string>; hide: Set<string> } } {
+  baseOverlay: IFormButtonFieldOverlay
+): { mergedValues: Record<string, unknown>; mergedOverlay: IFormButtonFieldOverlay } {
   let next = { ...startValues };
-  const mergedOverlay = {
+  const mergedOverlay: IFormButtonFieldOverlay = {
     show: cloneStringSet(baseOverlay.show),
     hide: cloneStringSet(baseOverlay.hide),
+    ...(baseOverlay.showOnStepId && Object.keys(baseOverlay.showOnStepId).length > 0
+      ? { showOnStepId: { ...baseOverlay.showOnStepId } }
+      : {}),
   };
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
@@ -127,9 +136,23 @@ function reduceCustomButtonActions(
       const parts = a.sourceFields.map((f) => formatJoinedFieldValue(next[f]));
       next = { ...next, [a.targetField]: parts.join(a.separator) };
     } else if (a.kind === 'showFields') {
-      for (let j = 0; j < a.fields.length; j++) mergedOverlay.show.add(a.fields[j]);
+      const sid = typeof a.displayOnStepId === 'string' ? a.displayOnStepId.trim() : '';
+      for (let j = 0; j < a.fields.length; j++) {
+        const fn = a.fields[j];
+        mergedOverlay.show.add(fn);
+        if (sid) {
+          if (!mergedOverlay.showOnStepId) mergedOverlay.showOnStepId = {};
+          mergedOverlay.showOnStepId[fn] = sid;
+        }
+      }
     } else if (a.kind === 'hideFields') {
-      for (let j = 0; j < a.fields.length; j++) mergedOverlay.hide.add(a.fields[j]);
+      for (let j = 0; j < a.fields.length; j++) {
+        const fn = a.fields[j];
+        mergedOverlay.hide.add(fn);
+        if (mergedOverlay.showOnStepId && mergedOverlay.showOnStepId[fn]) {
+          delete mergedOverlay.showOnStepId[fn];
+        }
+      }
     }
   }
   return { mergedValues: next, mergedOverlay };
@@ -249,7 +272,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [attachmentCount, setAttachmentCount] = useState(0);
   const prevByTriggerRef = useRef<Record<string, unknown>>({});
-  const [buttonOverlay, setButtonOverlay] = useState<{ show: Set<string>; hide: Set<string> }>(() => ({
+  const [buttonOverlay, setButtonOverlay] = useState<IFormButtonFieldOverlay>(() => ({
     show: new Set<string>(),
     hide: new Set<string>(),
   }));
@@ -407,7 +430,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     submitKind: TFormSubmitKind,
     opts?: {
       values?: Record<string, unknown>;
-      buttonOverlay?: { show: Set<string>; hide: Set<string> };
+      buttonOverlay?: IFormButtonFieldOverlay;
     }
   ): Promise<boolean> => {
     const vals = opts?.values ?? values;
@@ -447,7 +470,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     submitKind: TFormSubmitKind,
     opts?: {
       valuesOverride?: Record<string, unknown>;
-      buttonOverlayOverride?: { show: Set<string>; hide: Set<string> };
+      buttonOverlayOverride?: IFormButtonFieldOverlay;
       submitLoadingFromButton?: IFormCustomButtonConfig;
     }
   ): Promise<void> => {
@@ -698,6 +721,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       pendingFiles,
       buttonOverlay.show,
       buttonOverlay.hide,
+      buttonOverlay.showOnStepId,
       metaByName,
     ]
   );
@@ -1000,7 +1024,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const inModal = !!fc.modalGroupId;
       if (scope === 'modal' && !inModal) continue;
       if (scope === 'main' && inModal) continue;
-      if (scope === 'main' && currentStepFieldSet && !currentStepFieldSet.has(fc.internalName)) continue;
+      if (scope === 'main' && currentStepFieldSet) {
+        const name = fc.internalName;
+        if (!currentStepFieldSet.has(name)) {
+          if (!buttonOverlay.show.has(name)) continue;
+          const vis = visibleStepsForUi;
+          if (!vis?.length) continue;
+          const sid = buttonOverlay.showOnStepId?.[name];
+          const fallbackSingle = vis.length === 1 ? vis[0].id : undefined;
+          const target = sid || fallbackSingle;
+          const curId = vis[stepIndex]?.id;
+          if (!target || !curId || target !== curId) continue;
+        }
+      }
       const sid = derived.effectiveSectionByField[fc.internalName] ?? fc.sectionId ?? formManager.sections[0]?.id ?? 'main';
       const arr = bySection.get(sid) ?? [];
       arr.push(fc);

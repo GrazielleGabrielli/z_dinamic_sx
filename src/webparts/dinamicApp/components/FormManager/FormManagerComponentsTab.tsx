@@ -268,25 +268,54 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
       <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
       <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Campo Anexos (ficheiros)</Text>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa o estilo escolhido abaixo.
+        Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa os estilos escolhidos abaixo.
       </Text>
-      <Dropdown
-        label="Layout do input de anexos"
-        options={FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS}
-        selectedKey={props.attachmentUploadLayout}
-        onChange={(_, o) =>
-          o && props.onAttachmentUploadLayoutChange(String(o.key) as TFormAttachmentUploadLayoutKind)
-        }
-      />
-      <Dropdown
-        label="Pré-visualização dos ficheiros selecionados"
-        options={FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS}
-        selectedKey={props.attachmentFilePreview}
-        onChange={(_, o) =>
-          o && props.onAttachmentFilePreviewChange(String(o.key) as TFormAttachmentFilePreviewKind)
-        }
-      />
-      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Extensões permitidas</Text>
+      <Stack tokens={{ childrenGap: 10 }}>
+        <Dropdown
+          label="Tipo de layout do input de anexos"
+          options={FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS}
+          selectedKey={props.attachmentUploadLayout}
+          onChange={(_, o) =>
+            o && props.onAttachmentUploadLayoutChange(String(o.key) as TFormAttachmentUploadLayoutKind)
+          }
+        />
+        <Dropdown
+          label="Pré-visualização dos ficheiros selecionados"
+          options={FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS}
+          selectedKey={props.attachmentFilePreview}
+          onChange={(_, o) =>
+            o && props.onAttachmentFilePreviewChange(String(o.key) as TFormAttachmentFilePreviewKind)
+          }
+        />
+        <Stack
+          styles={{
+            root: {
+              border: '1px solid #edebe9',
+              borderRadius: 4,
+              padding: 12,
+              background: '#ffffff',
+            },
+          }}
+          tokens={{ childrenGap: 8 }}
+        >
+          <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
+            Pré-visualização (pode adicionar ficheiros de teste)
+          </Text>
+          <FormAttachmentUploader
+            files={attachDemoFiles}
+            onFilesChange={setAttachDemoFiles}
+            disabled={false}
+            label="Anexos ao item"
+            description="Texto de ajuda opcional, como no formulário."
+            layout={props.attachmentUploadLayout}
+            filePreview={props.attachmentFilePreview}
+            allowedFileExtensions={
+              props.attachmentAllowedExtensions.length > 0 ? props.attachmentAllowedExtensions : undefined
+            }
+          />
+        </Stack>
+      </Stack>
+      <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 4 } }}>Extensões permitidas</Text>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
         Nenhuma selecionada = qualquer tipo de ficheiro. Com uma ou mais marcadas, só essas extensões são aceites no
         formulário e na validação ao gravar.
@@ -332,33 +361,6 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             </Stack>
           </Stack>
         ))}
-      </Stack>
-      <Stack
-        styles={{
-          root: {
-            border: '1px solid #edebe9',
-            borderRadius: 4,
-            padding: 12,
-            background: '#ffffff',
-          },
-        }}
-        tokens={{ childrenGap: 8 }}
-      >
-        <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
-          Pré-visualização (pode adicionar ficheiros de teste)
-        </Text>
-        <FormAttachmentUploader
-          files={attachDemoFiles}
-          onFilesChange={setAttachDemoFiles}
-          disabled={false}
-          label="Anexos ao item"
-          description="Texto de ajuda opcional, como no formulário."
-          layout={props.attachmentUploadLayout}
-          filePreview={props.attachmentFilePreview}
-          allowedFileExtensions={
-            props.attachmentAllowedExtensions.length > 0 ? props.attachmentAllowedExtensions : undefined
-          }
-        />
       </Stack>
     </Stack>
   );

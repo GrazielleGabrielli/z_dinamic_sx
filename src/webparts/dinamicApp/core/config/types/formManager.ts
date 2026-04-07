@@ -251,10 +251,30 @@ export interface IFormStepConfig {
 }
 
 /** Navegação visual entre etapas no formulário (várias etapas). */
-export type TFormStepLayoutKind = 'rail' | 'segmented' | 'timeline' | 'cards';
+export type TFormStepLayoutKind =
+  | 'rail'
+  | 'segmented'
+  | 'timeline'
+  | 'cards'
+  | 'breadcrumb'
+  | 'underline'
+  | 'outline'
+  | 'compact'
+  | 'steps'
+  | 'minimal';
 
 /** Estilo dos botões «Etapa anterior» / «Próxima etapa» no rodapé (independe do layout do passador de etapas). */
-export type TFormStepNavButtonsKind = 'fluent' | 'pills' | 'dots' | 'icons' | 'links';
+export type TFormStepNavButtonsKind =
+  | 'fluent'
+  | 'pills'
+  | 'dots'
+  | 'icons'
+  | 'links'
+  | 'split'
+  | 'stacked'
+  | 'ghost'
+  | 'toolbar'
+  | 'compact';
 
 /** Indicador ao carregar campos da lista ou item na vista formulário. */
 export type TFormDataLoadingUiKind =
@@ -296,6 +316,11 @@ export type TFormCustomButtonOperation = 'legacy' | 'redirect' | 'add' | 'update
 export interface IFormButtonActionShowFields {
   kind: 'showFields';
   fields: string[];
+  /**
+   * Etapa (id de `steps`, não «Ocultos») onde os campos devem aparecer quando só estão em Ocultos.
+   * Com várias etapas visíveis, deve ser definido para esses campos serem renderizados.
+   */
+  displayOnStepId?: string;
   /** Se definido, a ação só corre quando a condição for verdadeira (valores já mesclados das ações anteriores). */
   when?: TFormConditionNode;
 }
