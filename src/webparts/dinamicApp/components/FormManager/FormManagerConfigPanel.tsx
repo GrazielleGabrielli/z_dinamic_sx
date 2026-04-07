@@ -45,8 +45,13 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormHistoryPresentationKind,
+  TFormHistoryButtonKind,
 } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
+import {
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_OCULTOS_STEP_ID,
+  FORM_BUILTIN_HISTORY_BUTTON_ID,
+} from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 import {
@@ -603,11 +608,20 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [actionLogCaptureEnabled, setActionLogCaptureEnabled] = useState(false);
   const [actionLogListTitle, setActionLogListTitle] = useState('');
   const [actionLogFieldInternalName, setActionLogFieldInternalName] = useState('');
+  const [actionLogSourceListLookupFieldInternalName, setActionLogSourceListLookupFieldInternalName] =
+    useState('');
   const [actionLogDescById, setActionLogDescById] = useState<Record<string, string>>({});
   const [historyEnabled, setHistoryEnabled] = useState(() => value.historyEnabled === true);
   const [historyPresentationKind, setHistoryPresentationKind] = useState<TFormHistoryPresentationKind>(
     () => value.historyPresentationKind ?? 'panel'
   );
+  const [historyButtonKind, setHistoryButtonKind] = useState<TFormHistoryButtonKind>(
+    () => value.historyButtonKind ?? 'text'
+  );
+  const [historyButtonLabel, setHistoryButtonLabel] = useState(() => value.historyButtonLabel ?? 'Histórico');
+  const [historyButtonIcon, setHistoryButtonIcon] = useState(() => value.historyButtonIcon ?? 'History');
+  const [historyPanelSubtitle, setHistoryPanelSubtitle] = useState(() => value.historyPanelSubtitle ?? '');
+  const [historyGroupTitles, setHistoryGroupTitles] = useState<string[]>(() => value.historyGroupTitles ?? []);
 
   const fieldsService = useMemo(() => new FieldsService(), []);
   const groupsService = useMemo(() => new GroupsService(), []);
@@ -648,6 +662,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setActionLogCaptureEnabled(value.actionLog?.captureEnabled === true);
     setActionLogListTitle(value.actionLog?.listTitle ?? '');
     setActionLogFieldInternalName(value.actionLog?.actionFieldInternalName ?? '');
+    setActionLogSourceListLookupFieldInternalName(value.actionLog?.sourceListLookupFieldInternalName ?? '');
     setActionLogDescById(
       value.actionLog?.descriptionsHtmlByButtonId
         ? { ...value.actionLog.descriptionsHtmlByButtonId }
@@ -655,11 +670,23 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     );
     setHistoryEnabled(value.historyEnabled === true);
     setHistoryPresentationKind(value.historyPresentationKind ?? 'panel');
+    setHistoryButtonKind(value.historyButtonKind ?? 'text');
+    setHistoryButtonLabel(value.historyButtonLabel ?? 'Histórico');
+    setHistoryButtonIcon(value.historyButtonIcon ?? 'History');
+    setHistoryPanelSubtitle(value.historyPanelSubtitle ?? '');
+    setHistoryGroupTitles(value.historyGroupTitles ?? []);
   }, [isOpen, value]);
 
   useEffect(() => {
     setActionLogDescById((prev) => {
       const next = { ...prev };
+      if (historyEnabled) {
+        if (!(FORM_BUILTIN_HISTORY_BUTTON_ID in next)) {
+          next[FORM_BUILTIN_HISTORY_BUTTON_ID] = prev[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? '';
+        }
+      } else {
+        delete next[FORM_BUILTIN_HISTORY_BUTTON_ID];
+      }
       for (let i = 0; i < customButtons.length; i++) {
         const id = customButtons[i].id;
         if (!(id in next)) next[id] = '';
@@ -667,6 +694,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       const keys = Object.keys(next);
       for (let k = 0; k < keys.length; k++) {
         const key = keys[k];
+        if (key === FORM_BUILTIN_HISTORY_BUTTON_ID) continue;
         let found = false;
         for (let j = 0; j < customButtons.length; j++) {
           if (customButtons[j].id === key) {
@@ -678,7 +706,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       }
       return next;
     });
-  }, [customButtons]);
+  }, [customButtons, historyEnabled]);
 
   useEffect(() => {
     if (!isOpen || !listTitle.trim()) return;
@@ -721,11 +749,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const buttonOperationDropdownOptions = useMemo((): IDropdownOption[] => {
     const opts = BUTTON_OPERATION_OPTIONS_BASE.slice();
-    if (historyEnabled || customButtons.some((b) => b.operation === 'history')) {
-      opts.push({ key: 'history', text: 'Histórico — versões do item' });
+    if (customButtons.some((b) => b.operation === 'history')) {
+      opts.push({ key: 'history', text: 'Histórico (legado — use a aba Lista de logs)' });
     }
     return opts;
-  }, [historyEnabled, customButtons]);
+  }, [customButtons]);
 
   const fieldOptions: IDropdownOption[] = useMemo(
     () =>
@@ -894,8 +922,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       }
     }
     if (actionLogCaptureEnabled) {
-      if (!actionLogListTitle.trim() || !actionLogFieldInternalName.trim()) {
-        setErr('Para captação de logs ativa, indique a lista de log e o campo multilinhas da ação.');
+      if (
+        !actionLogListTitle.trim() ||
+        !actionLogFieldInternalName.trim() ||
+        !actionLogSourceListLookupFieldInternalName.trim()
+      ) {
+        setErr(
+          'Para captação de logs ativa, indique a lista de log, o campo multilinhas da ação e o Lookup de vínculo à lista principal.'
+        );
         return;
       }
     }
@@ -917,6 +951,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     if (actionLogFieldInternalName.trim()) {
       actionLogPayload.actionFieldInternalName = actionLogFieldInternalName.trim();
     }
+    if (actionLogSourceListLookupFieldInternalName.trim()) {
+      actionLogPayload.sourceListLookupFieldInternalName = actionLogSourceListLookupFieldInternalName.trim();
+    }
     const descEntries = Object.entries(actionLogDescById).filter(([, v]) => (v || '').trim());
     if (descEntries.length) {
       actionLogPayload.descriptionsHtmlByButtonId = Object.fromEntries(descEntries);
@@ -925,6 +962,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogCaptureEnabled ||
       actionLogPayload.listTitle ||
       actionLogPayload.actionFieldInternalName ||
+      actionLogPayload.sourceListLookupFieldInternalName ||
       actionLogPayload.descriptionsHtmlByButtonId
     );
     const raw: IFormManagerConfig = {
@@ -946,8 +984,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
       ...(hasActionLog ? { actionLog: actionLogPayload } : {}),
-      ...(historyEnabled ? { historyEnabled: true } : {}),
-      ...(historyPresentationKind && historyPresentationKind !== 'panel' ? { historyPresentationKind } : {}),
+      ...(historyEnabled
+        ? {
+            historyEnabled: true,
+            ...(historyPresentationKind !== 'panel' ? { historyPresentationKind } : {}),
+            ...(historyButtonKind !== 'text' ? { historyButtonKind } : {}),
+            historyButtonLabel: (historyButtonLabel.trim() || 'Histórico').slice(0, 120),
+            historyButtonIcon: (historyButtonIcon.trim() || 'History').slice(0, 80),
+            ...(historyPanelSubtitle.trim() ? { historyPanelSubtitle: historyPanelSubtitle.trim() } : {}),
+            ...(historyGroupTitles.length ? { historyGroupTitles: historyGroupTitles.slice() } : {}),
+          }
+        : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -1131,6 +1178,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     if (actionLogFieldInternalName.trim()) {
       actionLogPreview.actionFieldInternalName = actionLogFieldInternalName.trim();
     }
+    if (actionLogSourceListLookupFieldInternalName.trim()) {
+      actionLogPreview.sourceListLookupFieldInternalName = actionLogSourceListLookupFieldInternalName.trim();
+    }
     const descPrev = Object.entries(actionLogDescById).filter(([, v]) => (v || '').trim());
     if (descPrev.length) {
       actionLogPreview.descriptionsHtmlByButtonId = Object.fromEntries(descPrev);
@@ -1139,6 +1189,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogCaptureEnabled ||
       actionLogPreview.listTitle ||
       actionLogPreview.actionFieldInternalName ||
+      actionLogPreview.sourceListLookupFieldInternalName ||
       actionLogPreview.descriptionsHtmlByButtonId
     );
     const raw: IFormManagerConfig = {
@@ -1160,8 +1211,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
       ...(hasActionLogPreview ? { actionLog: actionLogPreview } : {}),
-      ...(historyEnabled ? { historyEnabled: true } : {}),
-      ...(historyPresentationKind && historyPresentationKind !== 'panel' ? { historyPresentationKind } : {}),
+      ...(historyEnabled
+        ? {
+            historyEnabled: true,
+            ...(historyPresentationKind !== 'panel' ? { historyPresentationKind } : {}),
+            ...(historyButtonKind !== 'text' ? { historyButtonKind } : {}),
+            historyButtonLabel: (historyButtonLabel.trim() || 'Histórico').slice(0, 120),
+            historyButtonIcon: (historyButtonIcon.trim() || 'History').slice(0, 80),
+            ...(historyPanelSubtitle.trim() ? { historyPanelSubtitle: historyPanelSubtitle.trim() } : {}),
+            ...(historyGroupTitles.length ? { historyGroupTitles: historyGroupTitles.slice() } : {}),
+          }
+        : {}),
     };
     return JSON.stringify(raw, null, 2);
   }, [
@@ -1188,9 +1248,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     actionLogCaptureEnabled,
     actionLogListTitle,
     actionLogFieldInternalName,
+    actionLogSourceListLookupFieldInternalName,
     actionLogDescById,
     historyEnabled,
     historyPresentationKind,
+    historyButtonKind,
+    historyButtonLabel,
+    historyButtonIcon,
+    historyPanelSubtitle,
+    historyGroupTitles,
   ]);
 
   const addConditionalCard = (): void => {
@@ -1662,10 +1728,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   return prev.filter((x) => x !== e);
                 });
               }}
-              historyEnabled={historyEnabled}
-              onHistoryEnabledChange={setHistoryEnabled}
-              historyPresentationKind={historyPresentationKind}
-              onHistoryPresentationKindChange={setHistoryPresentationKind}
             />
           </Stack>
         </PivotItem>
@@ -1777,7 +1839,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   />
                   {(btn.operation ?? 'legacy') === 'history' && (
                     <MessageBar messageBarType={MessageBarType.info}>
-                      A forma de abrir (painel, modal ou secção) está na aba Componentes, com «Histórico» ativo.
+                      Preferível o botão integrado na aba «Lista de logs». Pode remover este botão e ativar o histórico
+                      aí.
                     </MessageBar>
                   )}
                   {(btn.operation ?? 'legacy') !== 'history' && (
@@ -2469,12 +2532,45 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         </PivotItem>
         <PivotItem headerText="Lista de logs">
           <FormManagerActionLogTabContent
+            historyEnabled={historyEnabled}
+            onHistoryEnabledChange={setHistoryEnabled}
+            historyPresentationKind={historyPresentationKind}
+            onHistoryPresentationKindChange={setHistoryPresentationKind}
+            historyButtonKind={historyButtonKind}
+            onHistoryButtonKindChange={setHistoryButtonKind}
+            historyButtonLabel={historyButtonLabel}
+            onHistoryButtonLabelChange={setHistoryButtonLabel}
+            historyButtonIcon={historyButtonIcon}
+            onHistoryButtonIconChange={setHistoryButtonIcon}
+            historyPanelSubtitle={historyPanelSubtitle}
+            onHistoryPanelSubtitleChange={setHistoryPanelSubtitle}
+            historyGroupTitles={historyGroupTitles}
+            onHistoryGroupTitlesChange={setHistoryGroupTitles}
+            siteGroups={siteGroups}
+            siteGroupsSorted={siteGroupsSorted}
+            siteGroupsLoading={siteGroupsLoading}
+            siteGroupsErr={siteGroupsErr}
+            onRetryLoadSiteGroups={loadSiteGroups}
             captureEnabled={actionLogCaptureEnabled}
             onCaptureEnabledChange={setActionLogCaptureEnabled}
             listTitle={actionLogListTitle}
-            onListTitleChange={setActionLogListTitle}
+            onListTitleChange={(t) => {
+              setActionLogListTitle(t);
+              setActionLogFieldInternalName('');
+              setActionLogSourceListLookupFieldInternalName('');
+              setActionLogCaptureEnabled(false);
+            }}
             actionFieldInternalName={actionLogFieldInternalName}
-            onActionFieldInternalNameChange={setActionLogFieldInternalName}
+            onActionFieldInternalNameChange={(name) => {
+              setActionLogFieldInternalName(name);
+              if (!name.trim() && actionLogCaptureEnabled) setActionLogCaptureEnabled(false);
+            }}
+            primaryListTitle={listTitle.trim()}
+            sourceListLookupFieldInternalName={actionLogSourceListLookupFieldInternalName}
+            onSourceListLookupFieldInternalNameChange={(name) => {
+              setActionLogSourceListLookupFieldInternalName(name);
+              if (!name.trim() && actionLogCaptureEnabled) setActionLogCaptureEnabled(false);
+            }}
             descriptionsHtmlByButtonId={actionLogDescById}
             onDescriptionChange={(buttonId, html) =>
               setActionLogDescById((prev) => ({ ...prev, [buttonId]: html }))

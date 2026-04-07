@@ -11,6 +11,7 @@ import {
   DatePicker,
   PrimaryButton,
   DefaultButton,
+  IconButton,
   MessageBar,
   MessageBarType,
   Label,
@@ -27,7 +28,11 @@ import type {
   TFormRule,
   TFormSubmitLoadingUiKind,
 } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
+import {
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_OCULTOS_STEP_ID,
+  FORM_BUILTIN_HISTORY_BUTTON_ID,
+} from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
@@ -38,6 +43,7 @@ import {
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
   shouldShowCustomButton,
+  shouldShowBuiltinHistoryButton,
   areAllRequiredFieldsFilled,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
@@ -298,6 +304,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [initialItem]);
 
   const itemsService = useMemo(() => new ItemsService(), []);
+
+  const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
+    const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
+    const sub = formManager.historyPanelSubtitle?.trim();
+    return {
+      id: FORM_BUILTIN_HISTORY_BUTTON_ID,
+      label,
+      shortDescription: sub || undefined,
+      appearance: 'default',
+      behavior: 'actionsOnly',
+      operation: 'history',
+      actions: [],
+    };
+  }, [formManager.historyButtonLabel, formManager.historyPanelSubtitle]);
 
   useEffect(() => {
     setValues(itemToFormValues(initialItem ?? undefined, names));
@@ -1320,7 +1340,59 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
+          {formManager.historyEnabled === true &&
+            shouldShowBuiltinHistoryButton({
+              historyEnabledInConfig: true,
+              historyItemId: itemId,
+              historyGroupTitles: formManager.historyGroupTitles,
+              userGroupTitles,
+            }) &&
+            (() => {
+              const hk = formManager.historyButtonKind ?? 'text';
+              const hLabel = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
+              const hIcon = (formManager.historyButtonIcon ?? 'History').trim() || 'History';
+              const hSub = formManager.historyPanelSubtitle?.trim();
+              const onH = (): void => {
+                void runCustomButton(builtinHistoryButtonConfig);
+              };
+              if (hk === 'icon') {
+                return (
+                  <IconButton
+                    key="__builtin_history"
+                    iconProps={{ iconName: hIcon }}
+                    title={hSub || hLabel}
+                    ariaLabel={hLabel}
+                    onClick={onH}
+                    disabled={submitting}
+                  />
+                );
+              }
+              if (hk === 'iconAndText') {
+                return (
+                  <DefaultButton
+                    key="__builtin_history"
+                    text={hLabel}
+                    iconProps={{ iconName: hIcon }}
+                    title={hSub}
+                    onClick={onH}
+                    disabled={submitting}
+                  />
+                );
+              }
+              return (
+                <DefaultButton
+                  key="__builtin_history"
+                  text={hLabel}
+                  title={hSub}
+                  onClick={onH}
+                  disabled={submitting}
+                />
+              );
+            })()}
           {(formManager.customButtons ?? [])
+            .filter((b) =>
+              formManager.historyEnabled === true ? (b.operation ?? 'legacy') !== 'history' : true
+            )
             .filter((b) =>
               shouldShowCustomButton(b, runtimeCtx(), {
                 allRequiredFilled: allRequiredFilled,

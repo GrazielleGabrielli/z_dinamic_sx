@@ -9,7 +9,7 @@ import {
   ShimmerElementType,
   ProgressIndicator,
   Checkbox,
-  Toggle,
+  IconButton,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
 import type {
@@ -19,7 +19,6 @@ import type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
-  TFormHistoryPresentationKind,
 } from '../../core/config/types/formManager';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
@@ -126,6 +125,62 @@ const loadingCardStyles = (): { root: Record<string, string | number> } => ({
   },
 });
 
+const SECTION_IDS = {
+  loadData: 'loadData',
+  submitLoading: 'submitLoading',
+  steps: 'steps',
+  attachUi: 'attachUi',
+  attachExt: 'attachExt',
+} as const;
+
+function ComponentsCollapseSection(props: {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <Stack
+      styles={{
+        root: {
+          border: '1px solid #edebe9',
+          borderRadius: 4,
+          background: '#ffffff',
+        },
+      }}
+    >
+      <Stack
+        horizontal
+        verticalAlign="center"
+        tokens={{ childrenGap: 4 }}
+        styles={{ root: { padding: '8px 10px', userSelect: 'none' } }}
+      >
+        <IconButton
+          iconProps={{ iconName: props.isOpen ? 'ChevronDown' : 'ChevronRight' }}
+          title={props.isOpen ? 'Recolher' : 'Expandir'}
+          aria-expanded={props.isOpen}
+          onClick={(e) => {
+            e.preventDefault();
+            props.onToggle();
+          }}
+        />
+        <Text
+          variant="smallPlus"
+          styles={{ root: { fontWeight: 600, cursor: 'pointer', flex: 1 } }}
+          onClick={props.onToggle}
+        >
+          {props.title}
+        </Text>
+      </Stack>
+      {props.isOpen && (
+        <Stack tokens={{ childrenGap: 12 }} styles={{ root: { padding: '4px 12px 14px 44px' } }}>
+          {props.children}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
 export function FormManagerComponentsLoadingLayouts(): JSX.Element {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -200,106 +255,112 @@ export interface IFormManagerComponentsTabContentProps {
   onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
   attachmentAllowedExtensions: string[];
   onAttachmentExtensionToggle: (ext: string, selected: boolean) => void;
-  historyEnabled: boolean;
-  onHistoryEnabledChange: (v: boolean) => void;
-  historyPresentationKind: TFormHistoryPresentationKind;
-  onHistoryPresentationKindChange: (v: TFormHistoryPresentationKind) => void;
 }
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
   const [attachDemoFiles, setAttachDemoFiles] = useState<File[]>([]);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = (id: string): void => {
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const isOpen = (id: string): boolean => openSections[id] === true;
+
   if (props.loading) {
     return <FormManagerComponentsLoadingLayouts />;
   }
   return (
-    <Stack tokens={{ childrenGap: 12 }}>
-      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Carregar formulário / dados</Text>
+    <Stack tokens={{ childrenGap: 10 }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Vista formulário: ao carregar campos da lista ou ao abrir um item para editar. Pré-visualização abaixo.
+        Expanda cada secção para configurar. Por defeito todas vêm fechadas.
       </Text>
-      <Dropdown
-        label="Estilo de loading (dados)"
-        options={FORM_DATA_LOADING_DROPDOWN_OPTIONS}
-        selectedKey={props.formDataLoadingKind}
-        onChange={(_, o) =>
-          o && props.onFormDataLoadingKindChange(String(o.key) as TFormDataLoadingUiKind)
-        }
-      />
-      <Stack
-        horizontalAlign="center"
-        styles={{
-          root: {
-            border: '1px solid #edebe9',
-            borderRadius: 4,
-            padding: 8,
-            background: '#ffffff',
-            minHeight: 140,
-          },
-        }}
+
+      <ComponentsCollapseSection
+        title="Carregar formulário / dados"
+        isOpen={isOpen(SECTION_IDS.loadData)}
+        onToggle={() => toggleSection(SECTION_IDS.loadData)}
       >
-        <FormDataLoadingView
-          kind={props.formDataLoadingKind}
-          message="Pré-visualização — carregar campos / item"
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Ao carregar campos da lista ou ao abrir um item para editar.
+        </Text>
+        <Dropdown
+          label="Estilo de loading (dados)"
+          options={FORM_DATA_LOADING_DROPDOWN_OPTIONS}
+          selectedKey={props.formDataLoadingKind}
+          onChange={(_, o) =>
+            o && props.onFormDataLoadingKindChange(String(o.key) as TFormDataLoadingUiKind)
+          }
         />
-      </Stack>
-      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Gravar (padrão)</Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Usado em Enviar, Rascunho e em botões personalizados que não definem override. Cada botão pode escolher outro estilo na aba Botões.
-      </Text>
-      <Dropdown
-        label="Estilo de loading ao gravar (padrão)"
-        options={FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS}
-        selectedKey={props.defaultSubmitLoadingKind}
-        onChange={(_, o) =>
-          o && props.onDefaultSubmitLoadingKindChange(String(o.key) as TFormSubmitLoadingUiKind)
-        }
-      />
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Com mais do que uma etapa (aba Estrutura), o utilizador vê o passador de etapas neste estilo. Os botões de
-        navegação no rodapé são configurados abaixo (são independentes do layout visual em cima).
-      </Text>
-      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-        Layout das etapas no formulário
-      </Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Quando existir mais de uma etapa, o utilizador vê a navegação neste estilo.
-      </Text>
-      <FormStepLayoutPicker value={props.stepLayout} onChange={props.onStepLayoutChange} />
-      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-        Botões «Etapa anterior» / «Próxima etapa»
-      </Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Estilo apenas dos botões de navegação no rodapé (não altera o passador de etapas em cima).
-      </Text>
-      <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
-      <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>Histórico do item</Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Permite o tipo de botão «Histórico» na aba Botões. O utilizador vê as versões registadas na lista (controlo de
-        versões do SharePoint).
-      </Text>
-      <Toggle
-        label="Ativar histórico de versões (botões)"
-        checked={props.historyEnabled}
-        onChange={(_, c) => props.onHistoryEnabledChange(!!c)}
-      />
-      <Dropdown
-        label="Abrir histórico como"
-        disabled={!props.historyEnabled}
-        options={[
-          { key: 'panel', text: 'Painel lateral (slider)' },
-          { key: 'modal', text: 'Modal' },
-          { key: 'collapse', text: 'Secção no formulário (abaixo dos botões)' },
-        ]}
-        selectedKey={props.historyPresentationKind}
-        onChange={(_, o) =>
-          o && props.onHistoryPresentationKindChange(String(o.key) as TFormHistoryPresentationKind)
-        }
-      />
-      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Campo Anexos (ficheiros)</Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa os estilos escolhidos abaixo.
-      </Text>
-      <Stack tokens={{ childrenGap: 10 }}>
+        <Stack
+          horizontalAlign="center"
+          styles={{
+            root: {
+              border: '1px solid #edebe9',
+              borderRadius: 4,
+              padding: 8,
+              background: '#faf9f8',
+              minHeight: 140,
+            },
+          }}
+        >
+          <FormDataLoadingView
+            kind={props.formDataLoadingKind}
+            message="Pré-visualização — carregar campos / item"
+          />
+        </Stack>
+      </ComponentsCollapseSection>
+
+      <ComponentsCollapseSection
+        title="Gravar — loading ao gravar (padrão)"
+        isOpen={isOpen(SECTION_IDS.submitLoading)}
+        onToggle={() => toggleSection(SECTION_IDS.submitLoading)}
+      >
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Usado em Enviar, Rascunho e em botões personalizados sem override. Cada botão pode definir outro estilo na aba
+          Botões.
+        </Text>
+        <Dropdown
+          label="Estilo de loading ao gravar (padrão)"
+          options={FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS}
+          selectedKey={props.defaultSubmitLoadingKind}
+          onChange={(_, o) =>
+            o && props.onDefaultSubmitLoadingKindChange(String(o.key) as TFormSubmitLoadingUiKind)
+          }
+        />
+      </ComponentsCollapseSection>
+
+      <ComponentsCollapseSection
+        title="Etapas — layout e navegação"
+        isOpen={isOpen(SECTION_IDS.steps)}
+        onToggle={() => toggleSection(SECTION_IDS.steps)}
+      >
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Com mais do que uma etapa (aba Estrutura), o passador usa o layout escolhido. Os botões «anterior» /
+          «próxima» no rodapé são independentes do passador.
+        </Text>
+        <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Layout das etapas no formulário</Text>
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Navegação visual entre etapas (quando existir mais de uma).
+        </Text>
+        <FormStepLayoutPicker value={props.stepLayout} onChange={props.onStepLayoutChange} />
+        <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+          Botões «Etapa anterior» / «Próxima etapa»
+        </Text>
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Estilo apenas dos botões de navegação no rodapé.
+        </Text>
+        <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
+      </ComponentsCollapseSection>
+
+      <ComponentsCollapseSection
+        title="Anexos — aspeto e pré-visualização"
+        isOpen={isOpen(SECTION_IDS.attachUi)}
+        onToggle={() => toggleSection(SECTION_IDS.attachUi)}
+      >
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa estes estilos.
+        </Text>
         <Dropdown
           label="Tipo de layout do input de anexos"
           options={FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS}
@@ -322,7 +383,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
               border: '1px solid #edebe9',
               borderRadius: 4,
               padding: 12,
-              background: '#ffffff',
+              background: '#faf9f8',
             },
           }}
           tokens={{ childrenGap: 8 }}
@@ -343,54 +404,60 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             }
           />
         </Stack>
-      </Stack>
-      <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 4 } }}>Extensões permitidas</Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Nenhuma selecionada = qualquer tipo de ficheiro. Com uma ou mais marcadas, só essas extensões são aceites no
-        formulário e na validação ao gravar.
-      </Text>
-      <Stack tokens={{ childrenGap: 10 }}>
-        {FORM_ATTACHMENT_EXTENSION_GROUPS.map((group) => (
-          <Stack
-            key={group.title}
-            tokens={{ childrenGap: 8 }}
-            styles={{
-              root: {
-                padding: '10px 12px',
-                borderRadius: 6,
-                border: '1px solid #edebe9',
-                background: '#faf9f8',
-              },
-            }}
-          >
-            <Stack tokens={{ childrenGap: 2 }}>
-              <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                {group.title}
-              </Text>
-              {group.hint && (
-                <Text variant="tiny" styles={{ root: { color: '#8a8886' } }}>
-                  {group.hint}
+      </ComponentsCollapseSection>
+
+      <ComponentsCollapseSection
+        title="Anexos — extensões permitidas"
+        isOpen={isOpen(SECTION_IDS.attachExt)}
+        onToggle={() => toggleSection(SECTION_IDS.attachExt)}
+      >
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Nenhuma selecionada = qualquer tipo de ficheiro. Com uma ou mais marcadas, só essas extensões são aceites no
+          formulário e na validação ao gravar.
+        </Text>
+        <Stack tokens={{ childrenGap: 10 }}>
+          {FORM_ATTACHMENT_EXTENSION_GROUPS.map((group) => (
+            <Stack
+              key={group.title}
+              tokens={{ childrenGap: 8 }}
+              styles={{
+                root: {
+                  padding: '10px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #edebe9',
+                  background: '#faf9f8',
+                },
+              }}
+            >
+              <Stack tokens={{ childrenGap: 2 }}>
+                <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                  {group.title}
                 </Text>
-              )}
+                {group.hint && (
+                  <Text variant="tiny" styles={{ root: { color: '#8a8886' } }}>
+                    {group.hint}
+                  </Text>
+                )}
+              </Stack>
+              <Stack horizontal wrap tokens={{ childrenGap: 10 }} verticalAlign="center">
+                {group.items.map((p) => {
+                  const e = p.ext.toLowerCase();
+                  const checked = props.attachmentAllowedExtensions.some((x) => x.toLowerCase() === e);
+                  return (
+                    <Checkbox
+                      key={p.ext}
+                      label={p.label}
+                      checked={checked}
+                      onChange={(_, c) => props.onAttachmentExtensionToggle(p.ext, !!c)}
+                      styles={{ root: { minWidth: 0 } }}
+                    />
+                  );
+                })}
+              </Stack>
             </Stack>
-            <Stack horizontal wrap tokens={{ childrenGap: 10 }} verticalAlign="center">
-              {group.items.map((p) => {
-                const e = p.ext.toLowerCase();
-                const checked = props.attachmentAllowedExtensions.some((x) => x.toLowerCase() === e);
-                return (
-                  <Checkbox
-                    key={p.ext}
-                    label={p.label}
-                    checked={checked}
-                    onChange={(_, c) => props.onAttachmentExtensionToggle(p.ext, !!c)}
-                    styles={{ root: { minWidth: 0 } }}
-                  />
-                );
-              })}
-            </Stack>
-          </Stack>
-        ))}
-      </Stack>
+          ))}
+        </Stack>
+      </ComponentsCollapseSection>
     </Stack>
   );
 }

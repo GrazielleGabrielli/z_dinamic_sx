@@ -235,11 +235,24 @@ export function areAllRequiredFieldsFilled(
   return true;
 }
 
+/** Botão de histórico integrado (aba Lista de logs): só com item gravado. */
+export function shouldShowBuiltinHistoryButton(visibilityOpts?: IFormCustomButtonVisibilityOpts): boolean {
+  if (visibilityOpts?.historyEnabledInConfig !== true) return false;
+  const hid = visibilityOpts?.historyItemId;
+  if (hid === undefined || hid === null || typeof hid !== 'number' || !isFinite(hid)) return false;
+  if (!userInAnyGroup(visibilityOpts.userGroupTitles ?? [], visibilityOpts.historyGroupTitles)) return false;
+  return true;
+}
+
 export interface IFormCustomButtonVisibilityOpts {
   allRequiredFilled?: boolean;
   historyEnabledInConfig?: boolean;
   /** Item gravado na lista; ausente em modo novo sem id. */
   historyItemId?: number;
+  /** Grupos SharePoint que podem ver o botão de histórico integrado. Vazio = todos. */
+  historyGroupTitles?: string[];
+  /** Títulos dos grupos do utilizador atual (runtime). */
+  userGroupTitles?: string[];
 }
 
 export function shouldShowCustomButton(

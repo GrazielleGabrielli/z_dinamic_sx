@@ -220,6 +220,12 @@ export const FORM_ATTACHMENTS_FIELD_INTERNAL = '__formAttachments';
 /** Id fixo da etapa «Ocultos»: campos só no payload / metadados, sem UI no formulário. */
 export const FORM_OCULTOS_STEP_ID = 'ocultos';
 
+/** Id sintético do botão de histórico integrado (config na aba Lista de logs). */
+export const FORM_BUILTIN_HISTORY_BUTTON_ID = '__builtin_history';
+
+/** Como apresentar o botão de histórico de versões no formulário. */
+export type TFormHistoryButtonKind = 'text' | 'icon' | 'iconAndText';
+
 export interface IFormFieldConfig {
   internalName: string;
   label?: string;
@@ -418,6 +424,11 @@ export interface IFormManagerActionLogConfig {
    * Obrigatório para `captureEnabled`; só colunas multilinha são oferecidas na UI.
    */
   actionFieldInternalName?: string;
+  /**
+   * Nome interno do campo **Lookup** (simples) na lista de log que aponta para a **lista principal** do formulário.
+   * Na gravação define-se `{Campo}Id` com o id do item na lista principal.
+   */
+  sourceListLookupFieldInternalName?: string;
   /** HTML (editor rich) por id de `customButtons`. */
   descriptionsHtmlByButtonId?: Record<string, string>;
 }
@@ -444,10 +455,20 @@ export interface IFormManagerConfig {
   formDataLoadingKind?: TFormDataLoadingUiKind;
   /** Padrão de loading ao gravar quando o botão não define override. */
   defaultSubmitLoadingKind?: TFormSubmitLoadingUiKind;
-  /** Se true, permite botões do tipo «Histórico» e a opção na aba Componentes. */
+  /** Se true, mostra o botão de histórico de versões (configuração na aba Lista de logs). */
   historyEnabled?: boolean;
-  /** Onde abrir o histórico de versões do item ao clicar no botão (padrão: painel lateral). */
+  /** Onde abrir o histórico de versões do item (padrão: painel lateral). */
   historyPresentationKind?: TFormHistoryPresentationKind;
+  /** Apresentação do botão de histórico integrado. Omitido = só texto. */
+  historyButtonKind?: TFormHistoryButtonKind;
+  /** Texto do botão (ou tooltip se só ícone). Padrão: «Histórico». */
+  historyButtonLabel?: string;
+  /** Nome do ícone Fluent (ex.: History). Usado em `icon` e `iconAndText`. */
+  historyButtonIcon?: string;
+  /** Subtítulo no painel de histórico e tooltip no botão. */
+  historyPanelSubtitle?: string;
+  /** Grupos SharePoint (títulos) que podem ver o botão de histórico integrado. Vazio = todos. */
+  historyGroupTitles?: string[];
   /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
   showDefaultFormButtons?: boolean;
   /** Layout visual do campo de ficheiros anexos (aba Componentes). Omitido = default. */

@@ -19,9 +19,12 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormHistoryPresentationKind,
+  TFormHistoryButtonKind,
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
+
+const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText']);
 
 function pinOcultosFirstSections(sections: IFormSectionConfig[]): void {
   const oi = sections.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
@@ -531,8 +534,12 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
   const listTitle = typeof o.listTitle === 'string' ? o.listTitle.trim() : '';
   const actionFieldInternalName =
     typeof o.actionFieldInternalName === 'string' ? o.actionFieldInternalName.trim() : '';
+  const sourceListLookupFieldInternalName =
+    typeof o.sourceListLookupFieldInternalName === 'string'
+      ? o.sourceListLookupFieldInternalName.trim()
+      : '';
   let captureEnabled = o.captureEnabled === true;
-  if (captureEnabled && (!listTitle || !actionFieldInternalName)) {
+  if (captureEnabled && (!listTitle || !actionFieldInternalName || !sourceListLookupFieldInternalName)) {
     captureEnabled = false;
   }
   const descRaw = o.descriptionsHtmlByButtonId;
@@ -552,6 +559,7 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
     !captureEnabled &&
     !listTitle &&
     !actionFieldInternalName &&
+    !sourceListLookupFieldInternalName &&
     Object.keys(descriptionsHtmlByButtonId).length === 0
   ) {
     return undefined;
@@ -560,6 +568,7 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
     ...(captureEnabled ? { captureEnabled: true } : {}),
     ...(listTitle ? { listTitle } : {}),
     ...(actionFieldInternalName ? { actionFieldInternalName } : {}),
+    ...(sourceListLookupFieldInternalName ? { sourceListLookupFieldInternalName } : {}),
     ...(Object.keys(descriptionsHtmlByButtonId).length ? { descriptionsHtmlByButtonId } : {}),
   };
 }
@@ -657,6 +666,22 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof hkRaw === 'string' && HISTORY_PRESENTATION_SET.has(hkRaw)
       ? (hkRaw as TFormHistoryPresentationKind)
       : undefined;
+  const hbkRaw = o.historyButtonKind;
+  const historyButtonKind: TFormHistoryButtonKind | undefined =
+    typeof hbkRaw === 'string' && HISTORY_BUTTON_KIND_SET.has(hbkRaw)
+      ? (hbkRaw as TFormHistoryButtonKind)
+      : undefined;
+  const historyButtonLabel =
+    typeof o.historyButtonLabel === 'string' ? o.historyButtonLabel.trim().slice(0, 120) : undefined;
+  const historyButtonIcon =
+    typeof o.historyButtonIcon === 'string' ? o.historyButtonIcon.trim().slice(0, 80) : undefined;
+  const historyPanelSubtitle =
+    typeof o.historyPanelSubtitle === 'string' ? o.historyPanelSubtitle.trim() : undefined;
+  const historyGroupTitlesRaw = Array.isArray(o.historyGroupTitles)
+    ? (o.historyGroupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+    : [];
+  const historyGroupTitles =
+    historyGroupTitlesRaw.length > 0 ? (historyGroupTitlesRaw as string[]) : undefined;
   const customButtonsAdjusted: IFormCustomButtonConfig[] = [];
   for (let i = 0; i < customButtons.length; i++) {
     const btn = customButtons[i];
@@ -690,5 +715,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(historyPresentationKind && historyPresentationKind !== 'panel'
       ? { historyPresentationKind }
       : {}),
+    ...(historyEnabled && historyButtonKind && historyButtonKind !== 'text' ? { historyButtonKind } : {}),
+    ...(historyEnabled && historyButtonLabel && historyButtonLabel !== 'Histórico'
+      ? { historyButtonLabel }
+      : {}),
+    ...(historyEnabled && historyButtonIcon && historyButtonIcon !== 'History' ? { historyButtonIcon } : {}),
+    ...(historyEnabled && historyPanelSubtitle ? { historyPanelSubtitle } : {}),
+    ...(historyEnabled && historyGroupTitles?.length ? { historyGroupTitles } : {}),
   };
 }
