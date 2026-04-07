@@ -47,6 +47,7 @@ import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidation';
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
+import { appendFormActionLogEntry } from '../../core/formManager/formActionLog';
 import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
 import { ItemsService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
@@ -519,20 +520,22 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       buttonOverlayOverride?: IFormButtonFieldOverlay;
       submitLoadingFromButton?: IFormCustomButtonConfig;
     }
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const vals = opts?.valuesOverride ?? values;
     const ov = opts?.buttonOverlayOverride ?? buttonOverlay;
     setFormError(undefined);
     const ok = await validate(submitKind, { values: vals, buttonOverlay: ov });
-    if (!ok) return;
+    if (!ok) return false;
     setSubmitUi(resolveSubmitLoadingKind(formManager, opts?.submitLoadingFromButton));
     try {
       const payload = formValuesToSharePointPayload(fieldMetadata, vals, names, {
         nullWhenEmptyFieldNames: ocultosNullFieldNames,
       });
       await onSubmit(payload, submitKind, pendingFiles);
+      return true;
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setSubmitUi(null);
     }
@@ -562,6 +565,16 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         return;
       }
       setFormError(undefined);
+      try {
+        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+          sourceListTitle: listTitle,
+          sourceItemId: itemId,
+          formMode,
+        });
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+        return;
+      }
       setHistoryBtn(btn);
       return;
     }
@@ -605,6 +618,16 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         return;
       }
       const url = interpolateFormButtonRedirectUrl(tpl, mergedValues, { itemId, formMode });
+      try {
+        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+          sourceListTitle: listTitle,
+          sourceItemId: itemId,
+          formMode,
+        });
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+        return;
+      }
       window.location.assign(url);
       return;
     }
@@ -624,6 +647,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           pendingFiles
         );
         await uploadListItemAttachments(listTitle, newId, filesForAttachments);
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: newId,
+            formMode,
+          });
+        } catch (le) {
+          setFormError(
+            `Item criado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
+          );
+        }
         onDismiss();
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
@@ -649,6 +683,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         await itemsService.updateItem(listTitle, itemId, payload);
         await uploadListItemAttachments(listTitle, itemId, pendingFiles);
         await onAfterItemUpdated?.();
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (le) {
+          setFormError(
+            `Gravado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
+          );
+        }
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -667,6 +712,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
         await itemsService.deleteItem(listTitle, itemId);
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (le) {
+          setFormError(
+            `Eliminado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
+          );
+        }
         onDismiss();
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
@@ -678,21 +734,63 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 
     const behavior = btn.behavior ?? 'actionsOnly';
     if (behavior === 'close') {
+      try {
+        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+          sourceListTitle: listTitle,
+          sourceItemId: itemId,
+          formMode,
+        });
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+        return;
+      }
       onDismiss();
       return;
     }
     if (behavior === 'draft') {
-      await handleSave('draft', {
+      const saved = await handleSave('draft', {
         valuesOverride: mergedValues,
         buttonOverlayOverride: mergedOverlay,
         submitLoadingFromButton: btn,
       });
+      if (saved) {
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+        }
+      }
     } else if (behavior === 'submit') {
-      await handleSave('submit', {
+      const saved = await handleSave('submit', {
         valuesOverride: mergedValues,
         buttonOverlayOverride: mergedOverlay,
         submitLoadingFromButton: btn,
       });
+      if (saved) {
+        try {
+          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+            sourceListTitle: listTitle,
+            sourceItemId: itemId,
+            formMode,
+          });
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+        }
+      }
+    } else if (behavior === 'actionsOnly') {
+      try {
+        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
+          sourceListTitle: listTitle,
+          sourceItemId: itemId,
+          formMode,
+        });
+      } catch (e) {
+        setFormError(e instanceof Error ? e.message : String(e));
+      }
     }
   };
 
