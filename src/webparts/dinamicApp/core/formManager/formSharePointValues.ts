@@ -9,19 +9,67 @@ function lookupId(v: unknown): number | undefined {
   return undefined;
 }
 
+function isEmptyForSpPayload(v: unknown): boolean {
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string' && v.trim() === '') return true;
+  if (Array.isArray(v) && v.length === 0) return true;
+  if (typeof v === 'object' && v !== null && 'Id' in v) {
+    const id = (v as Record<string, unknown>).Id;
+    if (id === null || id === undefined || id === '') return true;
+  }
+  return false;
+}
+
+function writeNullForMappedType(
+  out: Record<string, unknown>,
+  name: string,
+  mappedType: IFieldMetadata['MappedType']
+): void {
+  switch (mappedType) {
+    case 'lookup':
+    case 'user':
+      out[`${name}Id`] = null;
+      break;
+    case 'lookupmulti':
+    case 'usermulti':
+      out[`${name}Id`] = { results: [] };
+      break;
+    case 'multichoice':
+      out[name] = { results: [] };
+      break;
+    default:
+      out[name] = null;
+  }
+}
+
+export interface IFormValuesToSharePointPayloadOptions {
+  nullWhenEmptyFieldNames?: string[];
+}
+
 export function formValuesToSharePointPayload(
   metadata: IFieldMetadata[],
   values: Record<string, unknown>,
-  includeFields: string[]
+  includeFields: string[],
+  opts?: IFormValuesToSharePointPayloadOptions
 ): Record<string, unknown> {
   const byName = new Map(metadata.map((f) => [f.InternalName, f]));
   const out: Record<string, unknown> = {};
+  const nullSet =
+    opts?.nullWhenEmptyFieldNames && opts.nullWhenEmptyFieldNames.length > 0
+      ? new Set(opts.nullWhenEmptyFieldNames)
+      : null;
   for (let i = 0; i < includeFields.length; i++) {
     const name = includeFields[i];
     const m = byName.get(name);
     if (!m || m.ReadOnlyField) continue;
     if (m.Hidden) continue;
     const v = values[name];
+    if (nullSet?.has(name)) {
+      if (isEmptyForSpPayload(v)) {
+        writeNullForMappedType(out, name, m.MappedType);
+        continue;
+      }
+    }
     if (v === undefined) continue;
     switch (m.MappedType) {
       case 'text':
@@ -45,7 +93,12 @@ export function formValuesToSharePointPayload(
         out[name] = v === null ? null : String(v);
         break;
       case 'multichoice': {
-        const arr = Array.isArray(v) ? (v as unknown[]).map((x) => String(x)) : String(v).split(';').map((s) => s.trim()).filter(Boolean);
+        const arr = Array.isArray(v)
+          ? (v as unknown[]).map((x) => String(x))
+          : String(v)
+              .split(';')
+              .map((s) => s.trim())
+              .filter(Boolean);
         out[name] = { results: arr };
         break;
       }

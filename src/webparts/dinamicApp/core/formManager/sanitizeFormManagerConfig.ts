@@ -12,12 +12,23 @@ import type {
   TFormConditionOp,
   TFormStepLayoutKind,
   TFormStepNavButtonsKind,
+  TFormDataLoadingUiKind,
+  TFormSubmitLoadingUiKind,
   IFormCompareRef,
 } from '../config/types/formManager';
+import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
 
 const STEP_LAYOUT_SET = new Set<string>(['rail', 'segmented', 'timeline', 'cards']);
 const STEP_NAV_BUTTONS_SET = new Set<string>(['fluent', 'pills', 'dots', 'icons', 'links']);
 const BUTTON_OPERATION_SET = new Set<string>(['legacy', 'redirect', 'add', 'update', 'delete']);
+const FORM_DATA_LOADING_SET = new Set<string>(['spinner', 'spinnerLarge', 'shimmer', 'progress', 'cardShimmer']);
+const FORM_SUBMIT_LOADING_SET = new Set<string>([
+  'overlay',
+  'topProgress',
+  'formShimmer',
+  'belowButtons',
+  'infoBar',
+]);
 
 function sanitizeCompareRef(raw: unknown): IFormCompareRef | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -40,7 +51,14 @@ function sanitizeConditionNode(raw: unknown): TFormConditionNode | undefined {
     if (children.length === 0) return undefined;
     return { kind: n.kind, children };
   }
-  if (n.kind === 'leaf') {
+  const leafLike =
+    n.kind === 'leaf' ||
+    (typeof n.field === 'string' &&
+      n.field.trim() &&
+      typeof n.op === 'string' &&
+      n.kind !== 'all' &&
+      n.kind !== 'any');
+  if (leafLike) {
     const field = typeof n.field === 'string' ? n.field.trim() : '';
     const opRaw = typeof n.op === 'string' ? n.op : 'eq';
     const ops = new Set<string>([
@@ -289,18 +307,21 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const a = raw as Record<string, unknown>;
   const kind = a.kind;
+  const whenAct = sanitizeConditionNode(a.when);
   if (kind === 'showFields' || kind === 'hideFields') {
     const fields = Array.isArray(a.fields)
       ? (a.fields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
       : [];
     if (!fields.length) return undefined;
-    return kind === 'showFields' ? { kind: 'showFields', fields } : { kind: 'hideFields', fields };
+    return kind === 'showFields'
+      ? { kind: 'showFields', fields, ...(whenAct ? { when: whenAct } : {}) }
+      : { kind: 'hideFields', fields, ...(whenAct ? { when: whenAct } : {}) };
   }
   if (kind === 'setFieldValue') {
     const field = typeof a.field === 'string' ? a.field.trim() : '';
     const valueTemplate = typeof a.valueTemplate === 'string' ? a.valueTemplate : '';
     if (!field) return undefined;
-    return { kind: 'setFieldValue', field, valueTemplate };
+    return { kind: 'setFieldValue', field, valueTemplate, ...(whenAct ? { when: whenAct } : {}) };
   }
   if (kind === 'joinFields') {
     const targetField = typeof a.targetField === 'string' ? a.targetField.trim() : '';
@@ -309,7 +330,13 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
       : [];
     const separator = typeof a.separator === 'string' ? a.separator : ' ';
     if (!targetField || !sourceFields.length) return undefined;
-    return { kind: 'joinFields', targetField, sourceFields, separator };
+    return {
+      kind: 'joinFields',
+      targetField,
+      sourceFields,
+      separator,
+      ...(whenAct ? { when: whenAct } : {}),
+    };
   }
   return undefined;
 }
@@ -346,6 +373,11 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   const groupTitles = Array.isArray(b.groupTitles)
     ? (b.groupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const slKindRaw = b.submitLoadingKind;
+  const submitLoadingKind: TFormSubmitLoadingUiKind | undefined =
+    typeof slKindRaw === 'string' && FORM_SUBMIT_LOADING_SET.has(slKindRaw)
+      ? (slKindRaw as TFormSubmitLoadingUiKind)
+      : undefined;
   const actionsRaw = Array.isArray(b.actions) ? b.actions : [];
   const actionsSan: TFormButtonAction[] = [];
   for (let i = 0; i < actionsRaw.length; i++) {
@@ -367,6 +399,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(enabled === false ? { enabled: false } : {}),
     ...(when ? { when } : {}),
     ...(groupTitles?.length ? { groupTitles } : {}),
+    ...(submitLoadingKind ? { submitLoadingKind } : {}),
     actions,
   };
 }
@@ -394,6 +427,9 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     if (sec) sections.push(sec);
   }
   if (sections.length === 0) sections.push({ id: 'main', title: 'Geral', visible: true });
+  if (!sections.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
+    sections.push({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true });
+  }
   const fields: IFormFieldConfig[] = [];
   for (let i = 0; i < fieldsRaw.length; i++) {
     const fc = sanitizeField(fieldsRaw[i]);
@@ -408,6 +444,9 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   for (let i = 0; i < stepsRaw.length; i++) {
     const st = sanitizeStep(stepsRaw[i]);
     if (st) steps.push(st);
+  }
+  if (steps.length > 0 && !steps.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
+    steps.push({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
   }
   const managerColumnFields = Array.isArray(o.managerColumnFields)
     ? (o.managerColumnFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
@@ -435,6 +474,16 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   const snRaw = o.stepNavButtons;
   const stepNavButtons: TFormStepNavButtonsKind | undefined =
     typeof snRaw === 'string' && STEP_NAV_BUTTONS_SET.has(snRaw) ? (snRaw as TFormStepNavButtonsKind) : undefined;
+  const fdlRaw = o.formDataLoadingKind;
+  const formDataLoadingKind: TFormDataLoadingUiKind | undefined =
+    typeof fdlRaw === 'string' && FORM_DATA_LOADING_SET.has(fdlRaw)
+      ? (fdlRaw as TFormDataLoadingUiKind)
+      : undefined;
+  const dslRaw = o.defaultSubmitLoadingKind;
+  const defaultSubmitLoadingKind: TFormSubmitLoadingUiKind | undefined =
+    typeof dslRaw === 'string' && FORM_SUBMIT_LOADING_SET.has(dslRaw)
+      ? (dslRaw as TFormSubmitLoadingUiKind)
+      : undefined;
   const showDefaultFormButtons = o.showDefaultFormButtons === true;
   return {
     sections,
@@ -446,6 +495,10 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(customButtons.length ? { customButtons } : {}),
     ...(stepLayout ? { stepLayout } : {}),
     ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
+    ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
+    ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
+      ? { defaultSubmitLoadingKind }
+      : {}),
     ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
   };
 }

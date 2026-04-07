@@ -9,6 +9,7 @@ import type {
   TFormManagerFormMode,
   TFormSubmitKind,
   IFormCompareRef,
+  TFormConditionOp,
   TFormCustomButtonOperation,
 } from '../config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../config/types/formManager';
@@ -85,6 +86,7 @@ function normalizeForEqNe(v: unknown): unknown {
     const id = (v as Record<string, unknown>).Id;
     if (typeof id === 'number' && isFinite(id)) return id;
   }
+  if (typeof v === 'string') return v.trim();
   return v;
 }
 
@@ -162,9 +164,18 @@ export function evaluateCondition(
     }
     return false;
   }
-  const left = values[node.field];
-  const right = resolveCompare(node.compare, values, dynamicContext);
-  return compareResolved(left, node.op, right);
+  if (node.kind === 'leaf') {
+    const left = values[node.field];
+    const right = resolveCompare(node.compare, values, dynamicContext);
+    return compareResolved(left, node.op, right);
+  }
+  const legacy = node as { field?: string; op?: TFormConditionOp; compare?: IFormCompareRef };
+  if (typeof legacy.field === 'string' && legacy.field.trim() && legacy.op) {
+    const left = values[legacy.field];
+    const right = resolveCompare(legacy.compare, values, dynamicContext);
+    return compareResolved(left, legacy.op, right);
+  }
+  return false;
 }
 
 export function shouldShowCustomButton(b: IFormCustomButtonConfig, ctx: IFormRuleRuntimeContext): boolean {

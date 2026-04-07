@@ -386,7 +386,10 @@ export type {
   TFormManagerFormMode,
   TFormStepLayoutKind,
   TFormStepNavButtonsKind,
+  TFormDataLoadingUiKind,
+  TFormSubmitLoadingUiKind,
   FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_OCULTOS_STEP_ID,
 } from './formManager';
 export type {
   IFormFieldConfig,

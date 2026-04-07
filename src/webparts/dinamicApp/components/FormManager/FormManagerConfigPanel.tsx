@@ -34,10 +34,13 @@ import type {
   TFormCustomButtonOperation,
   TFormManagerFormMode,
   TFormRule,
+  TFormConditionNode,
   TFormStepLayoutKind,
   TFormStepNavButtonsKind,
+  TFormDataLoadingUiKind,
+  TFormSubmitLoadingUiKind,
 } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../../core/config/types/formManager';
+import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 import {
@@ -66,7 +69,11 @@ import {
   whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
-import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
+import { FormManagerComponentsTabContent } from './FormManagerComponentsTab';
+import {
+  FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
+  FORM_SUBMIT_LOADING_INHERIT_KEY,
+} from './FormLoadingUi';
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -133,6 +140,17 @@ function requiredListFieldsMissingFromSteps(meta: IFieldMetadata[], steps: IForm
     if (!inSteps.has(f.InternalName)) missing.push(f);
   }
   return missing;
+}
+
+/** Campos de sistema que não entram no pool / dropdowns de campos do gestor. */
+const FORM_CONFIG_UI_EXCLUDED_FIELD_INTERNALS = new Set([
+  'Attachments',
+  'ContentType',
+  'ContentTypeId',
+]);
+
+function isFormConfigSelectableField(m: IFieldMetadata): boolean {
+  return !FORM_CONFIG_UI_EXCLUDED_FIELD_INTERNALS.has(m.InternalName);
 }
 
 const DND_FIELD = 'fm/field:';
@@ -399,14 +417,26 @@ function inferStepsFromLegacy(sections: IFormSectionConfig[], flds: IFormFieldCo
     for (let k = 0; k < flds.length; k++) {
       fn.push(flds[k].internalName);
     }
-    return [{ id: 'main', title: 'Geral', fieldNames: fn }];
+    return ensureCoreSteps([{ id: 'main', title: 'Geral', fieldNames: fn }]);
   }
-  return out;
+  return ensureCoreSteps(out);
 }
 
-function ensureAtLeastOneStep(st: IFormStepConfig[]): IFormStepConfig[] {
-  if (st.length > 0) return st;
-  return [{ id: 'main', title: 'Geral', fieldNames: [] }];
+function ensureCoreSteps(st: IFormStepConfig[]): IFormStepConfig[] {
+  const out = st.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }));
+  if (out.length === 0) {
+    return [
+      { id: 'main', title: 'Geral', fieldNames: [] },
+      { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] },
+    ];
+  }
+  if (!out.some((s) => s.id === 'main')) {
+    out.unshift({ id: 'main', title: 'Geral', fieldNames: [] });
+  }
+  if (!out.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
+    out.push({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+  }
+  return out;
 }
 
 function buildInitialFieldsAndSteps(v: IFormManagerConfig): {
@@ -419,7 +449,7 @@ function buildInitialFieldsAndSteps(v: IFormManagerConfig): {
       : inferStepsFromLegacy(v.sections, v.fields);
   return normalizeFieldsIntoSteps(
     v.fields.map((f) => ({ ...f })),
-    ensureAtLeastOneStep(stepsSrc)
+    ensureCoreSteps(stepsSrc)
   );
 }
 
@@ -427,7 +457,7 @@ function normalizeFieldsIntoSteps(
   flds: IFormFieldConfig[],
   stepsIn: IFormStepConfig[]
 ): { fields: IFormFieldConfig[]; steps: IFormStepConfig[] } {
-  const base = ensureAtLeastOneStep(
+  const base = ensureCoreSteps(
     stepsIn.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }))
   );
   const nextSteps = base.map((s) => ({ ...s, fieldNames: [] as string[] }));
@@ -444,13 +474,19 @@ function normalizeFieldsIntoSteps(
       }
     }
     if (!assigned) {
-      const sid = nextFields[i].sectionId ?? base[0].id;
-      stepIdx = 0;
-      for (let k = 0; k < base.length; k++) {
-        if (base[k].id === sid) {
-          stepIdx = k;
-          break;
+      const sid = nextFields[i].sectionId;
+      stepIdx = -1;
+      if (sid) {
+        for (let k = 0; k < base.length; k++) {
+          if (base[k].id === sid) {
+            stepIdx = k;
+            break;
+          }
         }
+      }
+      if (stepIdx < 0) {
+        const oi = base.findIndex((x) => x.id === FORM_OCULTOS_STEP_ID);
+        stepIdx = oi >= 0 ? oi : 0;
       }
     }
     nextSteps[stepIdx].fieldNames.push(name);
@@ -490,6 +526,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [stepNavButtons, setStepNavButtons] = useState<TFormStepNavButtonsKind>(
     () => value.stepNavButtons ?? 'fluent'
   );
+  const [formDataLoadingKind, setFormDataLoadingKind] = useState<TFormDataLoadingUiKind>(
+    () => value.formDataLoadingKind ?? 'spinner'
+  );
+  const [defaultSubmitLoadingKind, setDefaultSubmitLoadingKind] = useState<TFormSubmitLoadingUiKind>(
+    () => value.defaultSubmitLoadingKind ?? 'overlay'
+  );
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
   const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
   const [attachMin, setAttachMin] = useState('');
@@ -523,6 +565,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setShowDefaultFormButtons(value.showDefaultFormButtons === true);
     setStepLayout(value.stepLayout ?? 'segmented');
     setStepNavButtons(value.stepNavButtons ?? 'fluent');
+    setFormDataLoadingKind(value.formDataLoadingKind ?? 'spinner');
+    setDefaultSubmitLoadingKind(value.defaultSubmitLoadingKind ?? 'overlay');
     const att = parseAttachmentUiRule(value.rules ?? []);
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
@@ -546,7 +590,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   }, [isOpen, listTitle, fieldsService]);
 
   const fieldOptions: IDropdownOption[] = useMemo(
-    () => meta.map((f) => ({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` })),
+    () =>
+      meta
+        .filter(isFormConfigSelectableField)
+        .map((f) => ({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` })),
     [meta]
   );
 
@@ -563,6 +610,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const metaSortedForPool = useMemo(() => {
     return meta
+      .filter(isFormConfigSelectableField)
       .slice()
       .sort((a, b) => {
         if (a.Required !== b.Required) return a.Required ? -1 : 1;
@@ -576,7 +624,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       { key: REDIRECT_KEY_FORMID, text: '{{FormID}} — id do item na lista' },
     ];
     return base.concat(
-      meta.map((m) => ({
+      meta.filter(isFormConfigSelectableField).map((m) => ({
         key: m.InternalName,
         text: `${m.Title}  →  {{${m.InternalName}}}`,
       }))
@@ -590,7 +638,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const addField = (internalName: string): void => {
     if (!internalName) return;
     setSteps((prevSteps) => {
-      const st = ensureAtLeastOneStep(prevSteps);
+      const st = ensureCoreSteps(prevSteps);
       let already = false;
       for (let s = 0; s < st.length; s++) {
         if (st[s].fieldNames.indexOf(internalName) !== -1) {
@@ -598,10 +646,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           break;
         }
       }
-      if (already) return prevSteps;
-      const sid = st[0].id;
+      if (already) return st;
+      const oi = st.findIndex((x) => x.id === FORM_OCULTOS_STEP_ID);
+      const idx = oi >= 0 ? oi : 0;
+      const sid = st[idx].id;
       const nextSteps = st.map((s, i) =>
-        i === 0 ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
+        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
       );
       setFields((prev) => {
         const withF = prev.some((f) => f.internalName === internalName)
@@ -721,6 +771,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(customButtons.length ? { customButtons } : {}),
       stepLayout,
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
+      ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
+      ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
+        ? { defaultSubmitLoadingKind }
+        : {}),
       ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
@@ -753,6 +807,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       if (prev.length <= 1) return prev;
       const removed = prev[i];
       if (!removed) return prev;
+      if (removed.id === FORM_OCULTOS_STEP_ID) return prev;
       const next = prev.filter((_, j) => j !== i);
       const t0 = next[0];
       if (!t0) return prev;
@@ -772,7 +827,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           next
         )
       );
-      return next;
+      return ensureCoreSteps(next);
     });
   };
 
@@ -817,6 +872,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         const base: IWhenUi = baseLeaf ?? defaultWhenUi(meta);
         const merged: IWhenUi = { ...base, ...partial };
         return { ...b, when: whenUiToNode(merged) };
+      })
+    );
+  };
+
+  const patchButtonActionWhenUi = (bi: number, ai: number, partial: Partial<IWhenUi>): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) => {
+        if (j !== bi) return b;
+        const acts = b.actions.map((a, k) => {
+          if (k !== ai) return a;
+          const baseLeaf = a.when ? whenNodeToUi(a.when) : undefined;
+          const base: IWhenUi = baseLeaf ?? defaultWhenUi(meta);
+          const merged: IWhenUi = { ...base, ...partial };
+          return { ...a, when: whenUiToNode(merged) } as TFormButtonAction;
+        });
+        return { ...b, actions: acts };
       })
     );
   };
@@ -900,6 +971,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(customButtons.length ? { customButtons } : {}),
       stepLayout,
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
+      ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
+      ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
+        ? { defaultSubmitLoadingKind }
+        : {}),
       ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
     };
     return JSON.stringify(raw, null, 2);
@@ -912,6 +987,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     customButtons,
     stepLayout,
     stepNavButtons,
+    formDataLoadingKind,
+    defaultSubmitLoadingKind,
     showDefaultFormButtons,
     attachMin,
     attachMax,
@@ -1008,24 +1085,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               </MessageBar>
             )}
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa.
+              Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa. Layout do passador e botões anterior/próximo: aba Componentes.
             </Text>
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Layout das etapas no formulário</Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Quando existir mais de uma etapa, o utilizador vê a navegação neste estilo.
-            </Text>
-            <FormStepLayoutPicker value={stepLayout} onChange={setStepLayout} />
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Botões «Etapa anterior» / «Próxima etapa»</Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Estilo apenas dos botões de navegação no rodapé (não altera o passador de etapas em cima).
-            </Text>
-            <FormStepNavButtonsPicker value={stepNavButtons} onChange={setStepNavButtons} />
             <Stack horizontal tokens={{ childrenGap: 8 }}>
               <PrimaryButton text="Nova etapa" onClick={addStep} />
             </Stack>
             {steps.map((st, si) => {
-              const panelOpen =
-                stepSectionOpen[st.id] !== undefined ? stepSectionOpen[st.id] : si === 0;
+              const panelOpen = stepSectionOpen[st.id] === true;
               return (
               <Stack
                 key={st.id}
@@ -1267,6 +1333,21 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             })}
           </Stack>
         </PivotItem>
+        <PivotItem headerText="Componentes">
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+            <FormManagerComponentsTabContent
+              loading={loading}
+              stepLayout={stepLayout}
+              onStepLayoutChange={setStepLayout}
+              stepNavButtons={stepNavButtons}
+              onStepNavButtonsChange={setStepNavButtons}
+              formDataLoadingKind={formDataLoadingKind}
+              onFormDataLoadingKindChange={setFormDataLoadingKind}
+              defaultSubmitLoadingKind={defaultSubmitLoadingKind}
+              onDefaultSubmitLoadingKindChange={setDefaultSubmitLoadingKind}
+            />
+          </Stack>
+        </PivotItem>
         <PivotItem headerText="Botões">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -1285,8 +1366,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             {customButtons.map((btn, bi) => {
               const chk = checkboxesFromModes(btn.modes);
               const leafWhen = btn.when ? whenNodeToUi(btn.when) : undefined;
-              const panelOpen =
-                buttonSectionOpen[btn.id] !== undefined ? buttonSectionOpen[btn.id] : bi === 0;
+              const panelOpen = buttonSectionOpen[btn.id] === true;
               return (
                 <Stack
                   key={btn.id}
@@ -1351,6 +1431,28 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                           ? { redirectUrlTemplate: btn.redirectUrlTemplate ?? '', actions: [] }
                           : {}),
                       });
+                    }}
+                  />
+                  <Dropdown
+                    label="Loading ao gravar"
+                    options={[
+                      { key: FORM_SUBMIT_LOADING_INHERIT_KEY, text: 'Padrão (aba Componentes)' },
+                      ...FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
+                    ]}
+                    selectedKey={btn.submitLoadingKind ?? FORM_SUBMIT_LOADING_INHERIT_KEY}
+                    onChange={(_, o) => {
+                      if (!o) return;
+                      const k = String(o.key);
+                      setCustomButtons((prev) =>
+                        prev.map((b, j) => {
+                          if (j !== bi) return b;
+                          if (k === FORM_SUBMIT_LOADING_INHERIT_KEY) {
+                            const { submitLoadingKind: _rm, ...rest } = b;
+                            return rest;
+                          }
+                          return { ...b, submitLoadingKind: k as TFormSubmitLoadingUiKind };
+                        })
+                      );
                     }}
                   />
                   {(btn.operation ?? 'legacy') === 'redirect' && (
@@ -1691,6 +1793,82 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               />
                             </Stack>
                           )}
+                          <Checkbox
+                            label="Só executar esta ação se (avalia valores já alterados pelas ações acima)"
+                            checked={!!act.when}
+                            onChange={(_, c) => {
+                              if (c) {
+                                patchButtonAction(bi, ai, {
+                                  ...act,
+                                  when: whenUiToNode(defaultWhenUi(meta)),
+                                });
+                              } else {
+                                const { when: _rm, ...rest } = act as TFormButtonAction & {
+                                  when?: TFormConditionNode;
+                                };
+                                patchButtonAction(bi, ai, rest as TFormButtonAction);
+                              }
+                            }}
+                          />
+                          {act.when &&
+                            (() => {
+                              const leafActWhen = whenNodeToUi(act.when);
+                              return !leafActWhen ? (
+                                <MessageBar messageBarType={MessageBarType.warning}>
+                                  Condição composta nesta ação: use o JSON do gestor ou uma única condição
+                                  simples.
+                                </MessageBar>
+                              ) : (
+                                <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 4 } }}>
+                                  <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                                    <Dropdown
+                                      label="Campo"
+                                      options={fieldOptions}
+                                      selectedKey={leafActWhen.field}
+                                      onChange={(_, o) =>
+                                        o && patchButtonActionWhenUi(bi, ai, { field: String(o.key) })
+                                      }
+                                    />
+                                    <Dropdown
+                                      label="Operador"
+                                      options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                                      selectedKey={leafActWhen.op}
+                                      onChange={(_, o) =>
+                                        o && patchButtonActionWhenUi(bi, ai, { op: o.key as TFormConditionOp })
+                                      }
+                                    />
+                                    <Dropdown
+                                      label="Comparar com"
+                                      options={[
+                                        { key: 'literal', text: 'Texto fixo' },
+                                        { key: 'field', text: 'Outro campo' },
+                                        { key: 'token', text: 'Token' },
+                                      ]}
+                                      selectedKey={leafActWhen.compareKind}
+                                      onChange={(_, o) =>
+                                        o &&
+                                        patchButtonActionWhenUi(bi, ai, {
+                                          compareKind: o.key as IWhenUi['compareKind'],
+                                        })
+                                      }
+                                    />
+                                    <TextField
+                                      label="Valor"
+                                      value={leafActWhen.compareValue}
+                                      onChange={(_, v) =>
+                                        patchButtonActionWhenUi(bi, ai, { compareValue: v ?? '' })
+                                      }
+                                      disabled={
+                                        leafActWhen.op === 'isEmpty' ||
+                                        leafActWhen.op === 'isFilled' ||
+                                        leafActWhen.op === 'isTrue' ||
+                                        leafActWhen.op === 'isFalse'
+                                      }
+                                    />
+                                  </Stack>
+                                </Stack>
+                              );
+                            })()}
                         </Stack>
                       ))}
                       <DefaultButton text="Adicionar ação" onClick={() => addButtonAction(bi)} />
@@ -1937,7 +2115,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         <PivotItem headerText="Ajuda dinâmica">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Etapas do formulário são configuradas na aba Estrutura. Aqui: ajuda condicional (JSON avançado).
+              Etapas e campos: aba Estrutura. Layout das etapas e botões de navegação: aba Componentes. Aqui: ajuda condicional (JSON avançado).
             </Text>
             <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Ajuda dinâmica (JSON)</Text>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>

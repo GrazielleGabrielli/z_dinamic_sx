@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Stack, Spinner, MessageBar, MessageBarType, Text } from '@fluentui/react';
+import { Stack, MessageBar, MessageBarType, Text } from '@fluentui/react';
 import type { IDynamicViewConfig } from '../../core/config/types';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
@@ -9,6 +9,7 @@ import { FieldsService, ItemsService, UsersService } from '../../../../services'
 import type { IFieldMetadata } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 import { DynamicListForm } from './DynamicListForm';
+import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
 import type { TFormManagerFormMode, TFormSubmitKind } from '../../core/config/types/formManager';
 import type { IFormManagerConfig } from '../../core/config/types/formManager';
 
@@ -171,8 +172,8 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     files: File[]
   ): Promise<void> => {
     if (formMode === 'create') {
-      const id = await itemsService.addItem(listTitle, payload);
-      await uploadAttachments(listTitle, id, files);
+      const { id, filesForAttachments } = await itemsService.addItem(listTitle, payload, files);
+      await uploadAttachments(listTitle, id, filesForAttachments);
       resetToNew();
       return;
     }
@@ -184,19 +185,17 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     }
   };
 
+  const dataLoadKind = resolveFormDataLoadingKind(fm);
+
   if (!dynamicContext) {
     return (
-      <Stack horizontalAlign="center" styles={{ root: { padding: 32 } }}>
-        <Spinner label="Carregando..." />
-      </Stack>
+      <FormDataLoadingView kind={dataLoadKind} message="A carregar contexto…" />
     );
   }
 
   if (metaLoading || !fieldMeta.length) {
     return (
-      <Stack horizontalAlign="center" styles={{ root: { padding: 32 } }}>
-        <Spinner label="Carregando campos da lista..." />
-      </Stack>
+      <FormDataLoadingView kind={dataLoadKind} message="A carregar campos da lista…" />
     );
   }
 
@@ -207,7 +206,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         {formMode === 'create' ? 'Novo registro' : `Editar #${activeItem?.Id ?? ''}`}
       </Text>
       {itemLoading ? (
-        <Spinner label="Carregando item..." />
+        <FormDataLoadingView kind={dataLoadKind} message="A carregar item…" />
       ) : (
         <DynamicListForm
           key={formKey}

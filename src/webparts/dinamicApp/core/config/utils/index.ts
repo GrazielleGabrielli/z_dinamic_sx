@@ -1,12 +1,24 @@
-import { IDynamicViewConfig, IDashboardCardConfig, TAggregateType, IFormManagerConfig } from '../types';
+import {
+  IDynamicViewConfig,
+  IDashboardCardConfig,
+  TAggregateType,
+  IFormManagerConfig,
+} from '../types';
+import { FORM_OCULTOS_STEP_ID } from '../types/formManager';
 import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
 
 export function getDefaultFormManagerConfig(): IFormManagerConfig {
   return {
-    sections: [{ id: 'main', title: 'Geral', visible: true }],
+    sections: [
+      { id: 'main', title: 'Geral', visible: true },
+      { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true },
+    ],
     fields: [],
     rules: [],
-    steps: [{ id: 'main', title: 'Geral', fieldNames: [] }],
+    steps: [
+      { id: 'main', title: 'Geral', fieldNames: [] },
+      { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] },
+    ],
     stepLayout: 'segmented',
     showDefaultFormButtons: false,
   };

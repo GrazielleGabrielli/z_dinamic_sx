@@ -215,6 +215,9 @@ export type TFormRule =
 /** Nome interno reservado para anexos ao item (não é coluna SharePoint). */
 export const FORM_ATTACHMENTS_FIELD_INTERNAL = '__formAttachments';
 
+/** Id fixo da etapa «Ocultos»: campos só no payload / metadados, sem UI no formulário. */
+export const FORM_OCULTOS_STEP_ID = 'ocultos';
+
 export interface IFormFieldConfig {
   internalName: string;
   label?: string;
@@ -251,6 +254,22 @@ export type TFormStepLayoutKind = 'rail' | 'segmented' | 'timeline' | 'cards';
 /** Estilo dos botões «Etapa anterior» / «Próxima etapa» no rodapé (independe do layout do passador de etapas). */
 export type TFormStepNavButtonsKind = 'fluent' | 'pills' | 'dots' | 'icons' | 'links';
 
+/** Indicador ao carregar campos da lista ou item na vista formulário. */
+export type TFormDataLoadingUiKind =
+  | 'spinner'
+  | 'spinnerLarge'
+  | 'shimmer'
+  | 'progress'
+  | 'cardShimmer';
+
+/** Indicador ao gravar (Enviar, Rascunho, botões personalizados). */
+export type TFormSubmitLoadingUiKind =
+  | 'overlay'
+  | 'topProgress'
+  | 'formShimmer'
+  | 'belowButtons'
+  | 'infoBar';
+
 export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'close';
 
 /** Operação principal do botão personalizado (além das ações em cadeia). */
@@ -259,11 +278,14 @@ export type TFormCustomButtonOperation = 'legacy' | 'redirect' | 'add' | 'update
 export interface IFormButtonActionShowFields {
   kind: 'showFields';
   fields: string[];
+  /** Se definido, a ação só corre quando a condição for verdadeira (valores já mesclados das ações anteriores). */
+  when?: TFormConditionNode;
 }
 
 export interface IFormButtonActionHideFields {
   kind: 'hideFields';
   fields: string[];
+  when?: TFormConditionNode;
 }
 
 export interface IFormButtonActionSetFieldValue {
@@ -271,6 +293,7 @@ export interface IFormButtonActionSetFieldValue {
   field: string;
   /** Texto fixo ou expressão `str:{{Campo}}` (mesma sintaxe de setComputed texto) */
   valueTemplate: string;
+  when?: TFormConditionNode;
 }
 
 export interface IFormButtonActionJoinFields {
@@ -278,6 +301,7 @@ export interface IFormButtonActionJoinFields {
   targetField: string;
   sourceFields: string[];
   separator: string;
+  when?: TFormConditionNode;
 }
 
 export type TFormButtonAction =
@@ -306,6 +330,8 @@ export interface IFormCustomButtonConfig {
   when?: TFormConditionNode;
   /** Títulos de grupos SharePoint; vazio/omitido = qualquer usuário. */
   groupTitles?: string[];
+  /** Loading ao gravar; omitido usa `defaultSubmitLoadingKind` do gestor. */
+  submitLoadingKind?: TFormSubmitLoadingUiKind;
   actions: TFormButtonAction[];
 }
 
@@ -324,6 +350,10 @@ export interface IFormManagerConfig {
   stepLayout?: TFormStepLayoutKind;
   /** Estilo dos botões anterior/próximo etapa no rodapé */
   stepNavButtons?: TFormStepNavButtonsKind;
+  /** Indicador ao carregar dados do formulário (lista / item). */
+  formDataLoadingKind?: TFormDataLoadingUiKind;
+  /** Padrão de loading ao gravar quando o botão não define override. */
+  defaultSubmitLoadingKind?: TFormSubmitLoadingUiKind;
   /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
   showDefaultFormButtons?: boolean;
 }

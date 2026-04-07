@@ -25,12 +25,14 @@ import type {
   TFormManagerFormMode,
   TFormSubmitKind,
   TFormRule,
+  TFormSubmitLoadingUiKind,
 } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../../core/config/types/formManager';
+import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
   collectFormValidationErrors,
+  evaluateCondition,
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
   shouldShowCustomButton,
@@ -44,6 +46,7 @@ import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidat
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
 import { ItemsService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
+import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -96,13 +99,22 @@ function formatJoinedFieldValue(v: unknown): string {
   return String(v);
 }
 
-function applyButtonActionsToValues(
+function reduceCustomButtonActions(
   actions: TFormButtonAction[],
-  prev: Record<string, unknown>
-): Record<string, unknown> {
-  let next = { ...prev };
+  startValues: Record<string, unknown>,
+  dynamicContext: IDynamicContext,
+  baseOverlay: { show: Set<string>; hide: Set<string> }
+): { mergedValues: Record<string, unknown>; mergedOverlay: { show: Set<string>; hide: Set<string> } } {
+  let next = { ...startValues };
+  const mergedOverlay = {
+    show: cloneStringSet(baseOverlay.show),
+    hide: cloneStringSet(baseOverlay.hide),
+  };
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
+    if (a.when && !evaluateCondition(a.when, next, dynamicContext)) {
+      continue;
+    }
     if (a.kind === 'setFieldValue') {
       const tpl = a.valueTemplate;
       const raw =
@@ -111,20 +123,13 @@ function applyButtonActionsToValues(
     } else if (a.kind === 'joinFields') {
       const parts = a.sourceFields.map((f) => formatJoinedFieldValue(next[f]));
       next = { ...next, [a.targetField]: parts.join(a.separator) };
+    } else if (a.kind === 'showFields') {
+      for (let j = 0; j < a.fields.length; j++) mergedOverlay.show.add(a.fields[j]);
+    } else if (a.kind === 'hideFields') {
+      for (let j = 0; j < a.fields.length; j++) mergedOverlay.hide.add(a.fields[j]);
     }
   }
-  return next;
-}
-
-function collectButtonOverlayDeltas(actions: TFormButtonAction[]): { show: string[]; hide: string[] } {
-  const show: string[] = [];
-  const hide: string[] = [];
-  for (let i = 0; i < actions.length; i++) {
-    const a = actions[i];
-    if (a.kind === 'showFields') show.push(...a.fields);
-    else if (a.kind === 'hideFields') hide.push(...a.fields);
-  }
-  return { show, hide };
+  return { mergedValues: next, mergedOverlay };
 }
 
 function cloneStringSet(s: Set<string>): Set<string> {
@@ -191,9 +196,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       ? formManager.fields
       : fieldMetadata
           .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
-          .map((f) => ({ internalName: f.InternalName, sectionId: formManager.sections[0]?.id ?? 'main' }));
+          .map((f) => ({ internalName: f.InternalName, sectionId: FORM_OCULTOS_STEP_ID }));
   const names = useMemo(
     () => fieldConfigs.map((f) => f.internalName).filter((n) => n !== FORM_ATTACHMENTS_FIELD_INTERNAL),
+    [fieldConfigs]
+  );
+  const ocultosNullFieldNames = useMemo(
+    () =>
+      fieldConfigs
+        .filter(
+          (f) => f.sectionId === FORM_OCULTOS_STEP_ID && f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL
+        )
+        .map((f) => f.internalName),
     [fieldConfigs]
   );
   const metaByName = useMemo(() => new Map(fieldMetadata.map((f) => [f.InternalName, f])), [fieldMetadata]);
@@ -201,7 +215,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     itemToFormValues(initialItem ?? undefined, names)
   );
-  const [submitting, setSubmitting] = useState(false);
+  const [submitUi, setSubmitUi] = useState<TFormSubmitLoadingUiKind | null>(null);
+  const submitting = submitUi !== null;
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
@@ -403,6 +418,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     opts?: {
       valuesOverride?: Record<string, unknown>;
       buttonOverlayOverride?: { show: Set<string>; hide: Set<string> };
+      submitLoadingFromButton?: IFormCustomButtonConfig;
     }
   ): Promise<void> => {
     const vals = opts?.valuesOverride ?? values;
@@ -410,28 +426,28 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     setFormError(undefined);
     const ok = await validate(submitKind, { values: vals, buttonOverlay: ov });
     if (!ok) return;
-    setSubmitting(true);
+    setSubmitUi(resolveSubmitLoadingKind(formManager, opts?.submitLoadingFromButton));
     try {
-      const payload = formValuesToSharePointPayload(fieldMetadata, vals, names);
+      const payload = formValuesToSharePointPayload(fieldMetadata, vals, names, {
+        nullWhenEmptyFieldNames: ocultosNullFieldNames,
+      });
       await onSubmit(payload, submitKind, pendingFiles);
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
     } finally {
-      setSubmitting(false);
+      setSubmitUi(null);
     }
   };
 
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
     const actions = op === 'redirect' ? [] : btn.actions ?? [];
-    const deltas = collectButtonOverlayDeltas(actions);
-    const mergedValues = applyButtonActionsToValues(actions, values);
-    const mergedOverlay = {
-      show: cloneStringSet(buttonOverlay.show),
-      hide: cloneStringSet(buttonOverlay.hide),
-    };
-    for (let i = 0; i < deltas.show.length; i++) mergedOverlay.show.add(deltas.show[i]);
-    for (let i = 0; i < deltas.hide.length; i++) mergedOverlay.hide.add(deltas.hide[i]);
+    const { mergedValues, mergedOverlay } = reduceCustomButtonActions(
+      actions,
+      values,
+      dynamicContext,
+      buttonOverlay
+    );
     if (op !== 'redirect') {
       flushSync(() => {
         setValues(mergedValues);
@@ -454,16 +470,22 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       setFormError(undefined);
       const ok = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
       if (!ok) return;
-      setSubmitting(true);
+      setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
-        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names);
-        const newId = await itemsService.addItem(listTitle, payload);
-        await uploadListItemAttachments(listTitle, newId, pendingFiles);
+        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
+          nullWhenEmptyFieldNames: ocultosNullFieldNames,
+        });
+        const { id: newId, filesForAttachments } = await itemsService.addItem(
+          listTitle,
+          payload,
+          pendingFiles
+        );
+        await uploadListItemAttachments(listTitle, newId, filesForAttachments);
         onDismiss();
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
-        setSubmitting(false);
+        setSubmitUi(null);
       }
       return;
     }
@@ -476,16 +498,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       setFormError(undefined);
       const ok = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
       if (!ok) return;
-      setSubmitting(true);
+      setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
-        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names);
+        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
+          nullWhenEmptyFieldNames: ocultosNullFieldNames,
+        });
         await itemsService.updateItem(listTitle, itemId, payload);
         await uploadListItemAttachments(listTitle, itemId, pendingFiles);
         await onAfterItemUpdated?.();
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
-        setSubmitting(false);
+        setSubmitUi(null);
       }
       return;
     }
@@ -497,14 +521,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
       if (!window.confirm('Eliminar este item permanentemente?')) return;
       setFormError(undefined);
-      setSubmitting(true);
+      setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
         await itemsService.deleteItem(listTitle, itemId);
         onDismiss();
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
-        setSubmitting(false);
+        setSubmitUi(null);
       }
       return;
     }
@@ -515,19 +539,36 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       return;
     }
     if (behavior === 'draft') {
-      await handleSave('draft', { valuesOverride: mergedValues, buttonOverlayOverride: mergedOverlay });
+      await handleSave('draft', {
+        valuesOverride: mergedValues,
+        buttonOverlayOverride: mergedOverlay,
+        submitLoadingFromButton: btn,
+      });
     } else if (behavior === 'submit') {
-      await handleSave('submit', { valuesOverride: mergedValues, buttonOverlayOverride: mergedOverlay });
+      await handleSave('submit', {
+        valuesOverride: mergedValues,
+        buttonOverlayOverride: mergedOverlay,
+        submitLoadingFromButton: btn,
+      });
     }
   };
 
-  const steps = formManager.steps?.length ? formManager.steps : null;
+  const stepsAll = formManager.steps?.length ? formManager.steps : null;
+  const visibleStepsForUi = useMemo(() => {
+    if (!stepsAll) return null;
+    return stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
+  }, [stepsAll]);
   const [stepIndex, setStepIndex] = useState(0);
+  useEffect(() => {
+    if (!visibleStepsForUi?.length) return;
+    setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
+  }, [visibleStepsForUi]);
   const currentStepFieldSet = useMemo(() => {
-    if (!steps) return null;
-    const s = steps[stepIndex];
+    if (!visibleStepsForUi?.length) return null;
+    const s = visibleStepsForUi[stepIndex];
+    if (!s) return null;
     return new Set(s.fieldNames);
-  }, [steps, stepIndex]);
+  }, [visibleStepsForUi, stepIndex]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const modalGroupIds = useMemo(() => {
@@ -831,6 +872,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const out: React.ReactNode[] = [];
     for (let s = 0; s < formManager.sections.length; s++) {
       const sec = formManager.sections[s];
+      if (sec.id === FORM_OCULTOS_STEP_ID) continue;
       if (derived.sectionVisible[sec.id] === false) continue;
       const fields = bySection.get(sec.id);
       if (!fields?.length) continue;
@@ -844,84 +886,115 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return <>{out}</>;
   };
 
+  const submitMsg = 'A gravar…';
+
   return (
     <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8 } }}>
-      {formError && <MessageBar messageBarType={MessageBarType.error}>{formError}</MessageBar>}
-      {localErrors._attachments && (
-        <MessageBar messageBarType={MessageBarType.error}>{localErrors._attachments}</MessageBar>
-      )}
-      {localErrors._async && <MessageBar messageBarType={MessageBarType.error}>{localErrors._async}</MessageBar>}
-      {derived.messages.map((m) => (
-        <MessageBar
-          key={m.ruleId}
-          messageBarType={m.variant === 'error' ? MessageBarType.error : m.variant === 'warning' ? MessageBarType.warning : MessageBarType.info}
-        >
-          {m.text}
-        </MessageBar>
-      ))}
-      {steps && steps.length > 1 && (
-        <FormStepNavigation
-          steps={steps}
-          activeIndex={stepIndex}
-          onStepSelect={setStepIndex}
-          layout={formManager.stepLayout ?? 'segmented'}
-        />
-      )}
-      {modalGroupIds.length > 0 && formMode !== 'view' && (
-        <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-          {modalGroupIds.map((gid: string) => (
-            <DefaultButton key={gid} text={`Editar ${gid}`} onClick={() => setModalOpen(true)} />
-          ))}
-        </Stack>
-      )}
-      {renderFields('main')}
-      <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-        {(formManager.customButtons ?? [])
-          .filter((b) => shouldShowCustomButton(b, runtimeCtx()))
-          .map((b) =>
-            b.appearance === 'primary' ? (
-              <PrimaryButton
-                key={b.id}
-                text={b.label}
-                onClick={() => void runCustomButton(b)}
-                disabled={submitting}
-              />
-            ) : (
-              <DefaultButton
-                key={b.id}
-                text={b.label}
-                onClick={() => void runCustomButton(b)}
-                disabled={submitting}
-              />
-            )
-          )}
-        {formManager.showDefaultFormButtons === true && formMode !== 'view' && (
-          <>
-            <PrimaryButton text="Enviar" onClick={() => handleSave('submit')} disabled={submitting} />
-            <DefaultButton text="Rascunho" onClick={() => handleSave('draft')} disabled={submitting} />
-          </>
+      <FormSubmitLoadingChrome kind="infoBar" active={submitUi === 'infoBar'} message={submitMsg} />
+      <FormSubmitLoadingChrome kind="topProgress" active={submitUi === 'topProgress'} message={submitMsg} />
+      <Stack
+        styles={{
+          root: {
+            position: 'relative',
+            minHeight: submitUi === 'overlay' || submitUi === 'formShimmer' ? 160 : undefined,
+          },
+        }}
+        tokens={{ childrenGap: 16 }}
+      >
+        {formError && <MessageBar messageBarType={MessageBarType.error}>{formError}</MessageBar>}
+        {localErrors._attachments && (
+          <MessageBar messageBarType={MessageBarType.error}>{localErrors._attachments}</MessageBar>
         )}
-        {formManager.showDefaultFormButtons === true && (
-          <DefaultButton text="Fechar" onClick={onDismiss} disabled={submitting} />
-        )}
-        {steps && (
-          <FormStepPrevNextNav
-            variant={formManager.stepNavButtons ?? 'fluent'}
-            stepIndex={stepIndex}
-            stepCount={steps.length}
-            onPrev={() => setStepIndex((i) => Math.max(0, i - 1))}
-            onNext={() => setStepIndex((i) => Math.min(steps.length - 1, i + 1))}
-            disabled={submitting}
+        {localErrors._async && <MessageBar messageBarType={MessageBarType.error}>{localErrors._async}</MessageBar>}
+        {derived.messages.map((m) => (
+          <MessageBar
+            key={m.ruleId}
+            messageBarType={
+              m.variant === 'error'
+                ? MessageBarType.error
+                : m.variant === 'warning'
+                  ? MessageBarType.warning
+                  : MessageBarType.info
+            }
+          >
+            {m.text}
+          </MessageBar>
+        ))}
+        {visibleStepsForUi && visibleStepsForUi.length > 1 && (
+          <FormStepNavigation
+            steps={visibleStepsForUi}
+            activeIndex={stepIndex}
+            onStepSelect={setStepIndex}
+            layout={formManager.stepLayout ?? 'segmented'}
           />
         )}
-      </Stack>
-      {modalOpen && (
-        <Stack styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 16 } }} tokens={{ childrenGap: 12 }}>
-          <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>Campos adicionais</Text>
-          {renderFields('modal')}
-          <DefaultButton text="Fechar modal" onClick={() => setModalOpen(false)} />
+        {modalGroupIds.length > 0 && formMode !== 'view' && (
+          <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
+            {modalGroupIds.map((gid: string) => (
+              <DefaultButton key={gid} text={`Editar ${gid}`} onClick={() => setModalOpen(true)} />
+            ))}
+          </Stack>
+        )}
+        {renderFields('main')}
+        {visibleStepsForUi && visibleStepsForUi.length > 1 && (
+          <Stack
+            horizontal
+            verticalAlign="center"
+            tokens={{ childrenGap: 8 }}
+            styles={{ root: { width: '100%' } }}
+            wrap
+          >
+            <FormStepPrevNextNav
+              variant={formManager.stepNavButtons ?? 'fluent'}
+              stepIndex={stepIndex}
+              stepCount={visibleStepsForUi.length}
+              onPrev={() => setStepIndex((i) => Math.max(0, i - 1))}
+              onNext={() => setStepIndex((i) => Math.min(visibleStepsForUi.length - 1, i + 1))}
+              disabled={submitting}
+            />
+          </Stack>
+        )}
+        <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
+          {(formManager.customButtons ?? [])
+            .filter((b) => shouldShowCustomButton(b, runtimeCtx()))
+            .map((b) =>
+              b.appearance === 'primary' ? (
+                <PrimaryButton
+                  key={b.id}
+                  text={b.label}
+                  onClick={() => void runCustomButton(b)}
+                  disabled={submitting}
+                />
+              ) : (
+                <DefaultButton
+                  key={b.id}
+                  text={b.label}
+                  onClick={() => void runCustomButton(b)}
+                  disabled={submitting}
+                />
+              )
+            )}
+          {formManager.showDefaultFormButtons === true && formMode !== 'view' && (
+            <>
+              <PrimaryButton text="Enviar" onClick={() => handleSave('submit')} disabled={submitting} />
+              <DefaultButton text="Rascunho" onClick={() => handleSave('draft')} disabled={submitting} />
+            </>
+          )}
+          {formManager.showDefaultFormButtons === true && (
+            <DefaultButton text="Fechar" onClick={onDismiss} disabled={submitting} />
+          )}
         </Stack>
-      )}
+        <FormSubmitLoadingChrome kind="belowButtons" active={submitUi === 'belowButtons'} message={submitMsg} />
+        <FormSubmitLoadingChrome kind="overlay" active={submitUi === 'overlay'} message={submitMsg} />
+        <FormSubmitLoadingChrome kind="formShimmer" active={submitUi === 'formShimmer'} message={submitMsg} />
+        {modalOpen && (
+          <Stack styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 16 } }} tokens={{ childrenGap: 12 }}>
+            <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>Campos adicionais</Text>
+            {renderFields('modal')}
+            <DefaultButton text="Fechar modal" onClick={() => setModalOpen(false)} />
+          </Stack>
+        )}
+      </Stack>
     </Stack>
   );
 };

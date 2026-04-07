@@ -1,3 +1,5 @@
+import { fileFromServerRelativePath } from '@pnp/sp/files';
+
 import { getSP } from '../core/sp';
 import type { IFieldMetadata } from '../shared/types';
 import {
@@ -16,6 +18,76 @@ const listRef = (sp: ReturnType<typeof getSP>, titleOrId: string) => {
     ? sp.web.lists.getById(titleOrId)
     : sp.web.lists.getByTitle(titleOrId);
 };
+
+function coerceListItemId(v: unknown): number | undefined {
+  if (typeof v === 'number' && isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = parseInt(v, 10);
+    return isNaN(n) ? undefined : n;
+  }
+  return undefined;
+}
+
+/** Resposta de `items.add` no PnP v4: corpo OData com `Id` na raiz; formatos antigos usam `d` ou `data`. */
+function extractCreatedItemId(result: unknown): number | undefined {
+  if (result === null || typeof result !== 'object') return undefined;
+  const r = result as Record<string, unknown>;
+  const top = coerceListItemId(r.Id ?? r.id);
+  if (top !== undefined) return top;
+  const data = r.data;
+  if (data && typeof data === 'object') {
+    const id = coerceListItemId((data as Record<string, unknown>).Id ?? (data as Record<string, unknown>).id);
+    if (id !== undefined) return id;
+  }
+  const d = r.d;
+  if (d && typeof d === 'object') {
+    const id = coerceListItemId((d as Record<string, unknown>).Id ?? (d as Record<string, unknown>).id);
+    if (id !== undefined) return id;
+  }
+  return undefined;
+}
+
+const FILE_LIBRARY_BASE_TEMPLATES = new Set([101, 109]);
+
+const READ_ONLY_ITEM_KEYS_FOR_FILE_UPLOAD = new Set([
+  'Id',
+  'ID',
+  'GUID',
+  'UniqueId',
+  'FileLeafRef',
+  'FileRef',
+  'FileDirRef',
+  'File_x0020_Type',
+  'CheckoutUser',
+  'CheckedOutUserId',
+  'SyncClientId',
+  'ServerRedirectedEmbedUrl',
+  'ServerRedirectedEmbedUri',
+  'ParentUniqueId',
+  'ScopeId',
+]);
+
+const COMPUTED_LINK_FIELDS = new Set([
+  'LinkFilename',
+  'LinkFilenameNoMenu',
+  'LinkTitle',
+  'LinkTitleNoMenu',
+]);
+
+function sanitizePayloadForFileLibraryItem(values: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  Object.keys(values).forEach((k) => {
+    if (READ_ONLY_ITEM_KEYS_FOR_FILE_UPLOAD.has(k)) return;
+    if (COMPUTED_LINK_FIELDS.has(k)) return;
+    if (k.indexOf('OData__') === 0) return;
+    out[k] = values[k];
+  });
+  return out;
+}
+
+function defaultPlaceholderFileName(): string {
+  return `registro-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.txt`;
+}
 
 function normalizeSelectExpand(
   select: string[] | undefined,
@@ -178,14 +250,52 @@ export class ItemsService {
     }
   }
 
-  async addItem(listTitleOrId: string, values: Record<string, unknown>): Promise<number> {
+  async addItem(
+    listTitleOrId: string,
+    values: Record<string, unknown>,
+    primaryFiles?: File[]
+  ): Promise<{ id: number; filesForAttachments: File[] }> {
     try {
-      const result = await listRef(this.sp, listTitleOrId).items.add(values);
-      const id = (result as { data?: { Id?: number } })?.data?.Id;
-      if (typeof id !== 'number') {
+      const list = listRef(this.sp, listTitleOrId);
+      const listInfo = await list.select('BaseTemplate')();
+      const baseTemplate = (listInfo as { BaseTemplate?: number }).BaseTemplate;
+      const uploaded = primaryFiles ?? [];
+
+      if (baseTemplate !== undefined && FILE_LIBRARY_BASE_TEMPLATES.has(baseTemplate)) {
+        const first = uploaded.length ? uploaded[0] : undefined;
+        const fileName = first?.name?.trim() ? first.name.trim() : defaultPlaceholderFileName();
+        const body: Blob | string = first ?? '\uFEFF';
+
+        const fileInfo = await list.rootFolder.files.addUsingPath(fileName, body, {
+          EnsureUniqueFileName: true,
+        });
+        const rel = (fileInfo as { ServerRelativeUrl?: string }).ServerRelativeUrl;
+        if (!rel) {
+          throw new Error('Upload sem ServerRelativeUrl');
+        }
+
+        const file = fileFromServerRelativePath(this.sp.web, rel);
+        const item = await file.getItem<{ Id?: number }>('Id');
+        const id = coerceListItemId(item.Id);
+        if (id === undefined) {
+          throw new Error('Resposta sem Id');
+        }
+
+        const meta = sanitizePayloadForFileLibraryItem(values);
+        if (Object.keys(meta).length) {
+          await list.items.getById(id).update(meta);
+        }
+
+        const filesForAttachments = first ? uploaded.slice(1) : uploaded;
+        return { id, filesForAttachments };
+      }
+
+      const result = await list.items.add(values);
+      const newId = extractCreatedItemId(result);
+      if (newId === undefined) {
         throw new Error('Resposta sem Id');
       }
-      return id;
+      return { id: newId, filesForAttachments: uploaded };
     } catch (e) {
       throw new Error(`ItemsService.addItem("${listTitleOrId}"): ${e}`);
     }
