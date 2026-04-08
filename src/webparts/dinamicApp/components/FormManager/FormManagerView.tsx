@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Stack, MessageBar, MessageBarType, Text } from '@fluentui/react';
+import { Stack, MessageBar, MessageBarType, Text, type IStyle } from '@fluentui/react';
 import type { IDynamicViewConfig } from '../../core/config/types';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
@@ -17,6 +17,7 @@ import {
   type TFormSubmitKind,
 } from '../../core/config/types/formManager';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import { resolveFormRootLayoutStyles } from '../../core/formManager/formRootLayout';
 import {
   isFormNewModeQuery,
   parseFormItemIdFromQuery,
@@ -209,6 +210,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
   };
 
   const dataLoadKind = resolveFormDataLoadingKind(fm);
+  const formRootLayoutStyles = useMemo(() => resolveFormRootLayoutStyles(fm), [fm]);
 
   if (!dynamicContext) {
     return (
@@ -223,38 +225,48 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
   }
 
   return (
-    <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8, maxWidth: 720 } }}>
-      {loadError && <MessageBar messageBarType={MessageBarType.error}>{loadError}</MessageBar>}
-      <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-        {formMode === 'create'
-          ? 'Novo registro'
-          : formMode === 'view'
-            ? `Visualizar #${activeItem?.Id ?? ''}`
-            : `Editar #${activeItem?.Id ?? ''}`}
-      </Text>
-      {itemLoading ? (
-        <FormDataLoadingView kind={dataLoadKind} message="A carregar item…" />
-      ) : (
-        <DynamicListForm
-          key={formKey}
-          listTitle={listTitle}
-          formManager={fm}
-          fieldMetadata={fieldMeta}
-          formMode={formMode}
-          initialItem={activeItem ?? undefined}
-          itemId={activeItem ? Number(activeItem.Id) : undefined}
-          dynamicContext={dynamicContext}
-          userGroupTitles={userGroupTitles}
-          currentUserId={currentUserId}
-          onSubmit={handleSubmit}
-          onDismiss={resetToNew}
-          onAfterItemUpdated={async () => {
-            if (!activeItem) return;
-            const q = dynamicContext?.query ?? {};
-            await loadItemById(Number(activeItem.Id), resolveFormModeFromQuery(q, { itemLoaded: true }));
-          }}
-        />
-      )}
-    </Stack>
+    <div style={formRootLayoutStyles.outer}>
+      <Stack
+        tokens={{ childrenGap: 12 }}
+        styles={{
+          root: {
+            marginTop: 8,
+            ...formRootLayoutStyles.inner,
+          } as IStyle,
+        }}
+      >
+        {loadError && <MessageBar messageBarType={MessageBarType.error}>{loadError}</MessageBar>}
+        <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+          {formMode === 'create'
+            ? 'Novo registro'
+            : formMode === 'view'
+              ? `Visualizar #${activeItem?.Id ?? ''}`
+              : `Editar #${activeItem?.Id ?? ''}`}
+        </Text>
+        {itemLoading ? (
+          <FormDataLoadingView kind={dataLoadKind} message="A carregar item…" />
+        ) : (
+          <DynamicListForm
+            key={formKey}
+            listTitle={listTitle}
+            formManager={fm}
+            fieldMetadata={fieldMeta}
+            formMode={formMode}
+            initialItem={activeItem ?? undefined}
+            itemId={activeItem ? Number(activeItem.Id) : undefined}
+            dynamicContext={dynamicContext}
+            userGroupTitles={userGroupTitles}
+            currentUserId={currentUserId}
+            onSubmit={handleSubmit}
+            onDismiss={resetToNew}
+            onAfterItemUpdated={async () => {
+              if (!activeItem) return;
+              const q = dynamicContext?.query ?? {};
+              await loadItemById(Number(activeItem.Id), resolveFormModeFromQuery(q, { itemLoaded: true }));
+            }}
+          />
+        )}
+      </Stack>
+    </div>
   );
 };

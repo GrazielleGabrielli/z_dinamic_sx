@@ -47,6 +47,8 @@ import type {
   TFormHistoryLayoutKind,
   TFormHistoryButtonKind,
   TFormHistoryIntegratedClickBehavior,
+  TFormRootWidthMode,
+  TFormRootHorizontalAlign,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -81,7 +83,7 @@ import {
   whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
-import { FormManagerComponentsTabContent } from './FormManagerComponentsTab';
+import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
 import {
   FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
   FORM_SUBMIT_LOADING_INHERIT_KEY,
@@ -341,6 +343,28 @@ const HISTORY_INTEGRATED_CLICK_OPTIONS: IDropdownOption[] = [
   { key: 'submit', text: 'Ações, enviar, log se ok, abrir histórico' },
 ];
 
+const ESTRUTURA_COLLAPSE_IDS = {
+  formLayout: 'estruturaFormLayout',
+  stepNav: 'estruturaStepNav',
+} as const;
+
+const FORM_ROOT_WIDTH_OPTIONS: IDropdownOption[] = [
+  { key: 'percent', text: 'Percentagem da área disponível' },
+  { key: 'full', text: 'Largura total (100%)' },
+];
+
+const FORM_ROOT_ALIGN_OPTIONS: IDropdownOption[] = [
+  { key: 'start', text: 'Início (esquerda)' },
+  { key: 'center', text: 'Centro' },
+  { key: 'end', text: 'Fim (direita)' },
+];
+
+function clampFormRootPercentInput(s: string): number {
+  const n = Number(String(s).replace(',', '.').trim());
+  if (!isFinite(n)) return 100;
+  return Math.min(100, Math.max(1, Math.round(n)));
+}
+
 function modesFromCheckboxes(c: boolean, e: boolean, v: boolean): TFormManagerFormMode[] | undefined {
   if (c && e && v) return undefined;
   const out: TFormManagerFormMode[] = [];
@@ -542,6 +566,20 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [stepAllowBackWithoutVal, setStepAllowBackWithoutVal] = useState(
     () => value.stepNavigation?.allowBackWithoutValidation !== false
   );
+  const [formRootWidthMode, setFormRootWidthMode] = useState<TFormRootWidthMode>(
+    () => value.formRootWidthMode ?? 'percent'
+  );
+  const [formRootWidthPercent, setFormRootWidthPercent] = useState(() =>
+    String(value.formRootWidthPercent ?? 100)
+  );
+  const [formRootHorizontalAlign, setFormRootHorizontalAlign] = useState<TFormRootHorizontalAlign>(
+    () => value.formRootHorizontalAlign ?? 'start'
+  );
+  const [estruturaOpen, setEstruturaOpen] = useState<Record<string, boolean>>({});
+  const toggleEstruturaSection = (id: string): void => {
+    setEstruturaOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+  const isEstruturaOpen = (id: string): boolean => estruturaOpen[id] === true;
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
   const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
   const [attachMin, setAttachMin] = useState('');
@@ -614,6 +652,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setStepRequireFilledToAdvance(value.stepNavigation?.requireFilledRequiredToAdvance === true);
     setStepFullValOnAdvance(value.stepNavigation?.fullValidationOnAdvance === true);
     setStepAllowBackWithoutVal(value.stepNavigation?.allowBackWithoutValidation !== false);
+    setFormRootWidthMode(value.formRootWidthMode ?? 'percent');
+    setFormRootWidthPercent(String(value.formRootWidthPercent ?? 100));
+    setFormRootHorizontalAlign(value.formRootHorizontalAlign ?? 'start');
     const att = parseAttachmentUiRule(value.rules ?? []);
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
@@ -937,6 +978,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       fields,
       rules: withRules,
       steps,
+      formRootWidthMode,
+      formRootWidthPercent: clampFormRootPercentInput(formRootWidthPercent),
+      formRootHorizontalAlign,
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
       ...(customButtons.length ? { customButtons } : {}),
@@ -1192,6 +1236,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       fields,
       rules: withRules,
       steps,
+      formRootWidthMode,
+      formRootWidthPercent: clampFormRootPercentInput(formRootWidthPercent),
+      formRootHorizontalAlign,
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
       ...(customButtons.length ? { customButtons } : {}),
@@ -1243,6 +1290,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     stepRequireFilledToAdvance,
     stepFullValOnAdvance,
     stepAllowBackWithoutVal,
+    formRootWidthMode,
+    formRootWidthPercent,
+    formRootHorizontalAlign,
     attachMin,
     attachMax,
     attachMsg,
@@ -1401,12 +1451,45 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa. Layout do passador e botões anterior/próximo: aba Componentes.
             </Text>
-            <Stack
-              tokens={{ childrenGap: 10 }}
-              styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
+            <FormManagerCollapseSection
+              title="Layout do formulário (vista)"
+              isOpen={isEstruturaOpen(ESTRUTURA_COLLAPSE_IDS.formLayout)}
+              onToggle={() => toggleEstruturaSection(ESTRUTURA_COLLAPSE_IDS.formLayout)}
             >
-              <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-                Navegação entre etapas (formulário)
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Largura e alinhamento do bloco do formulário na página (título «Novo registro», campos e botões),
+                relativamente à área da web part.
+              </Text>
+              <Dropdown
+                label="Largura"
+                options={FORM_ROOT_WIDTH_OPTIONS}
+                selectedKey={formRootWidthMode}
+                onChange={(_, o) => o && setFormRootWidthMode(String(o.key) as TFormRootWidthMode)}
+              />
+              {formRootWidthMode === 'percent' && (
+                <TextField
+                  label="Percentagem da largura (1–100)"
+                  value={formRootWidthPercent}
+                  onChange={(_, v) => setFormRootWidthPercent(v ?? '')}
+                  description="Ex.: 80 para ocupar 80% da largura disponível."
+                />
+              )}
+              <Dropdown
+                label="Alinhamento horizontal"
+                options={FORM_ROOT_ALIGN_OPTIONS}
+                selectedKey={formRootHorizontalAlign}
+                onChange={(_, o) =>
+                  o && setFormRootHorizontalAlign(String(o.key) as TFormRootHorizontalAlign)
+                }
+              />
+            </FormManagerCollapseSection>
+            <FormManagerCollapseSection
+              title="Navegação entre etapas (formulário)"
+              isOpen={isEstruturaOpen(ESTRUTURA_COLLAPSE_IDS.stepNav)}
+              onToggle={() => toggleEstruturaSection(ESTRUTURA_COLLAPSE_IDS.stepNav)}
+            >
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Regras ao avançar ou recuar entre etapas.
               </Text>
               <Toggle
                 label="Exigir obrigatórios preenchidos para avançar (Próximo / etapa à frente)"
@@ -1428,7 +1511,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                 Ideias futuras: etapa de revisão antes de enviar; desativar salto direto no passador; barra de progresso por etapa.
               </Text>
-            </Stack>
+            </FormManagerCollapseSection>
             <Stack horizontal tokens={{ childrenGap: 8 }}>
               <PrimaryButton text="Nova etapa" onClick={addStep} />
             </Stack>

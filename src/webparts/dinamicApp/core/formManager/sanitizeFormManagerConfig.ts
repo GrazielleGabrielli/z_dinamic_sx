@@ -22,6 +22,8 @@ import type {
   TFormHistoryLayoutKind,
   TFormHistoryButtonKind,
   TFormHistoryIntegratedClickBehavior,
+  TFormRootWidthMode,
+  TFormRootHorizontalAlign,
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
@@ -651,6 +653,17 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? (dslRaw as TFormSubmitLoadingUiKind)
       : undefined;
   const showDefaultFormButtons = o.showDefaultFormButtons === true;
+  const frwmRaw = o.formRootWidthMode;
+  const formRootWidthMode: TFormRootWidthMode | undefined =
+    frwmRaw === 'full' || frwmRaw === 'percent' ? frwmRaw : undefined;
+  const frpRaw = o.formRootWidthPercent;
+  const formRootWidthPercent: number | undefined =
+    typeof frpRaw === 'number' && isFinite(frpRaw)
+      ? Math.min(100, Math.max(1, Math.round(frpRaw)))
+      : undefined;
+  const frhaRaw = o.formRootHorizontalAlign;
+  const formRootHorizontalAlign: TFormRootHorizontalAlign | undefined =
+    frhaRaw === 'start' || frhaRaw === 'center' || frhaRaw === 'end' ? frhaRaw : undefined;
   const stepNavigation = sanitizeStepNavigation(o.stepNavigation);
   const attLayoutRaw = o.attachmentUploadLayout;
   const attachmentUploadLayout: TFormAttachmentUploadLayoutKind | undefined =
@@ -732,6 +745,11 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? { defaultSubmitLoadingKind }
       : {}),
     ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
+    ...(formRootWidthMode ? { formRootWidthMode } : {}),
+    ...(formRootWidthPercent !== undefined && formRootWidthPercent !== 100
+      ? { formRootWidthPercent }
+      : {}),
+    ...(formRootHorizontalAlign ? { formRootHorizontalAlign } : {}),
     ...(stepNavigation ? { stepNavigation } : {}),
     ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
     ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),

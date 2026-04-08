@@ -319,6 +319,12 @@ export type TFormCustomButtonBehavior = 'actionsOnly' | 'draft' | 'submit' | 'cl
 /** Clique no botão de histórico integrado: openOnly = só painel; resto = como botões personalizados + abrir histórico. */
 export type TFormHistoryIntegratedClickBehavior = 'openOnly' | TFormCustomButtonBehavior;
 
+/** Largura do bloco do formulário na vista (aba Estrutura). */
+export type TFormRootWidthMode = 'full' | 'percent';
+
+/** Posição horizontal do bloco do formulário na área disponível. */
+export type TFormRootHorizontalAlign = 'start' | 'center' | 'end';
+
 /** Onde o painel de histórico de auditoria abre (aba Lista de logs). */
 export type TFormHistoryPresentationKind = 'panel' | 'modal' | 'collapse';
 
@@ -444,6 +450,15 @@ export interface IFormManagerConfig {
   fields: IFormFieldConfig[];
   rules: TFormRule[];
   steps?: IFormStepConfig[];
+  /**
+   * Largura do formulário na vista. Omitido = legacy (≈720px, alinhado ao início).
+   * `full` = 100% da área; `percent` = largura em % com `formRootWidthPercent`.
+   */
+  formRootWidthMode?: TFormRootWidthMode;
+  /** 1–100. Usado com `formRootWidthMode === 'percent'`. Omitido = 100. */
+  formRootWidthPercent?: number;
+  /** Alinhamento do bloco do formulário. Omitido = start (legacy). */
+  formRootHorizontalAlign?: TFormRootHorizontalAlign;
   stepNavigation?: IFormStepNavigationConfig;
   /** Colunas da grade gestor (usa mesma origem que listView se vazio) */
   managerColumnFields?: string[];
