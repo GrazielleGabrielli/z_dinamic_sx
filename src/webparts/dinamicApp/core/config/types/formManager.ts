@@ -303,6 +303,16 @@ export type TFormSubmitLoadingUiKind =
 /** Onde gravar ficheiros escolhidos no controlo «Anexos ao item». */
 export type TFormAttachmentStorageKind = 'itemAttachments' | 'documentLibrary';
 
+/** Nó da árvore de pastas (níveis 2+) abaixo da pasta com o ID do item na biblioteca. */
+export interface IAttachmentLibraryFolderTreeNode {
+  id: string;
+  /** Texto fixo ou modelo com placeholders `{{Title}}`, `{{NomeInterno}}`, etc. */
+  nameTemplate: string;
+  children?: IAttachmentLibraryFolderTreeNode[];
+  /** Pasta onde os ficheiros são gravados (um único nó na árvore). */
+  uploadTarget?: boolean;
+}
+
 /** Destino em biblioteca: upload de ficheiros com lookup à lista principal do formulário. */
 export interface IFormManagerAttachmentLibraryConfig {
   /** Título da biblioteca de documentos no site. */
@@ -312,6 +322,16 @@ export interface IFormManagerAttachmentLibraryConfig {
    * Na gravação define-se `{Campo}Id` com o id do item na lista principal.
    */
   sourceListLookupFieldInternalName?: string;
+  /**
+   * Subpastas **abaixo** da pasta de nível 1 (nome = ID do item na lista principal).
+   * Permite vários ramos (irmãos e filhos). Um nó com `uploadTarget` define onde o upload grava.
+   */
+  folderTree?: IAttachmentLibraryFolderTreeNode[];
+  /**
+   * Lista linear legada (um único ramo vertical). Migrada para `folderTree` ao gravar/ler.
+   * @deprecated Usar `folderTree`.
+   */
+  folderPathSegments?: string[];
 }
 
 /** Vista do controlo de anexos quando o campo «Anexos ao item» está no formulário. */

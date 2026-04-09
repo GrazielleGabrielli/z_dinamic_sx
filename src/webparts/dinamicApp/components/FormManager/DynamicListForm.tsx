@@ -90,7 +90,8 @@ async function uploadListItemAttachments(
   listTitle: string,
   itemId: number,
   files: File[],
-  formManager: IFormManagerConfig
+  formManager: IFormManagerConfig,
+  itemFieldValues: Record<string, unknown>
 ): Promise<void> {
   if (!files.length) return;
   if (isFormAttachmentLibraryRuntime(formManager)) {
@@ -99,7 +100,12 @@ async function uploadListItemAttachments(
       lib.libraryTitle!,
       lib.sourceListLookupFieldInternalName!,
       itemId,
-      files
+      files,
+      {
+        folderTree: lib.folderTree,
+        folderPathSegments: lib.folderPathSegments,
+        itemFieldValues: { ...itemFieldValues, Id: itemId },
+      }
     );
     return;
   }
@@ -773,7 +779,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           payload,
           pendingFiles
         );
-        await uploadListItemAttachments(listTitle, newId, filesForAttachments, formManager);
+        await uploadListItemAttachments(listTitle, newId, filesForAttachments, formManager, {
+          ...mergedValues,
+          Id: newId,
+        });
         try {
           await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
             sourceListTitle: listTitle,
@@ -808,7 +817,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
         await itemsService.updateItem(listTitle, itemId, payload);
-        await uploadListItemAttachments(listTitle, itemId, pendingFiles, formManager);
+        await uploadListItemAttachments(listTitle, itemId, pendingFiles, formManager, {
+          ...mergedValues,
+          Id: itemId,
+        });
         await onAfterItemUpdated?.();
         try {
           await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {

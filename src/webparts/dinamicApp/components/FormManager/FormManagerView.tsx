@@ -36,7 +36,8 @@ async function uploadAttachments(
   fm: IFormManagerConfig,
   listTitle: string,
   itemId: number,
-  files: File[]
+  files: File[],
+  itemFieldValues: Record<string, unknown>
 ): Promise<void> {
   if (!files.length) return;
   if (isFormAttachmentLibraryRuntime(fm)) {
@@ -45,7 +46,12 @@ async function uploadAttachments(
       lib.libraryTitle!,
       lib.sourceListLookupFieldInternalName!,
       itemId,
-      files
+      files,
+      {
+        folderTree: lib.folderTree,
+        folderPathSegments: lib.folderPathSegments,
+        itemFieldValues: { ...itemFieldValues, Id: itemId },
+      }
     );
     return;
   }
@@ -216,14 +222,14 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     }
     if (formMode === 'create') {
       const { id, filesForAttachments } = await itemsService.addItem(listTitle, payload, files);
-      await uploadAttachments(fm, listTitle, id, filesForAttachments);
+      await uploadAttachments(fm, listTitle, id, filesForAttachments, { ...payload, Id: id });
       resetToNew();
       return;
     }
     if (formMode === 'edit' && activeItem) {
       const id = Number(activeItem.Id);
       await itemsService.updateItem(listTitle, id, payload);
-      await uploadAttachments(fm, listTitle, id, files);
+      await uploadAttachments(fm, listTitle, id, files, { ...payload, Id: id });
       await loadItemById(id, 'edit');
     }
   };

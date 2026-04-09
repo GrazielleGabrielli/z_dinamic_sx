@@ -28,6 +28,7 @@ import type {
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
+import { migrateFolderPathSegmentsToTree, sanitizeFolderTreeInput } from './attachmentFolderTree';
 
 const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText']);
 
@@ -556,6 +557,17 @@ function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   return { id, title, fieldNames, ...(showInFormModes?.length ? { showInFormModes } : {}) };
 }
 
+const MAX_ATTACHMENT_FOLDER_SEGMENTS = 10;
+const MAX_ATTACHMENT_FOLDER_TEMPLATE_CHARS = 200;
+
+function stripLeadingRedundantItemIdTemplate(segments: string[]): string[] {
+  const out = segments.slice();
+  while (out.length > 0 && /^\{\{\s*ItemId\s*\}\}$/i.test(out[0].trim())) {
+    out.shift();
+  }
+  return out;
+}
+
 function sanitizeAttachmentLibrary(raw: unknown): IFormManagerAttachmentLibraryConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
@@ -564,10 +576,26 @@ function sanitizeAttachmentLibrary(raw: unknown): IFormManagerAttachmentLibraryC
     typeof o.sourceListLookupFieldInternalName === 'string'
       ? o.sourceListLookupFieldInternalName.trim()
       : '';
-  if (!libraryTitle && !sourceListLookupFieldInternalName) return undefined;
+  let folderPathSegments: string[] | undefined;
+  if (Array.isArray(o.folderPathSegments)) {
+    const seg: string[] = [];
+    for (let i = 0; i < o.folderPathSegments.length && i < MAX_ATTACHMENT_FOLDER_SEGMENTS; i++) {
+      const t = typeof o.folderPathSegments[i] === 'string' ? String(o.folderPathSegments[i]).trim() : '';
+      if (!t) continue;
+      seg.push(t.slice(0, MAX_ATTACHMENT_FOLDER_TEMPLATE_CHARS));
+    }
+    const stripped = stripLeadingRedundantItemIdTemplate(seg);
+    if (stripped.length) folderPathSegments = stripped;
+  }
+  let folderTree = sanitizeFolderTreeInput(o.folderTree);
+  if (!folderTree.length && folderPathSegments?.length) {
+    folderTree = sanitizeFolderTreeInput(migrateFolderPathSegmentsToTree(folderPathSegments));
+  }
+  if (!libraryTitle && !sourceListLookupFieldInternalName && !folderTree.length) return undefined;
   return {
     ...(libraryTitle ? { libraryTitle } : {}),
     ...(sourceListLookupFieldInternalName ? { sourceListLookupFieldInternalName } : {}),
+    ...(folderTree.length ? { folderTree } : {}),
   };
 }
 
@@ -725,7 +753,11 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       attachmentStorageKind = undefined;
       attachmentLibrary = undefined;
     } else {
-      attachmentLibrary = { libraryTitle: lt, sourceListLookupFieldInternalName: lk };
+      attachmentLibrary = {
+        libraryTitle: lt,
+        sourceListLookupFieldInternalName: lk,
+        ...(attachmentLibraryRaw?.folderTree?.length ? { folderTree: attachmentLibraryRaw.folderTree } : {}),
+      };
     }
   } else {
     attachmentStorageKind = undefined;

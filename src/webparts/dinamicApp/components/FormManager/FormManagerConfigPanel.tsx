@@ -49,6 +49,7 @@ import type {
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
   TFormAttachmentStorageKind,
+  IAttachmentLibraryFolderTreeNode,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -57,6 +58,7 @@ import {
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import { loadFolderTreeFromAttachmentLibrary } from '../../core/formManager/attachmentFolderTree';
 import { ALL_FORM_MANAGER_MODES, toggleStepShowInFormMode } from '../../core/formManager/stepFormMode';
 import {
   buildFieldUiRules,
@@ -560,6 +562,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [attachmentLibLookupField, setAttachmentLibLookupField] = useState(
     () => value.attachmentLibrary?.sourceListLookupFieldInternalName ?? ''
   );
+  const [attachmentLibFolderTree, setAttachmentLibFolderTree] = useState<IAttachmentLibraryFolderTreeNode[]>(() =>
+    loadFolderTreeFromAttachmentLibrary(value.attachmentLibrary)
+  );
   const [stepRequireFilledToAdvance, setStepRequireFilledToAdvance] = useState(
     () => value.stepNavigation?.requireFilledRequiredToAdvance === true
   );
@@ -649,6 +654,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setAttachmentStorageKind(value.attachmentStorageKind ?? 'itemAttachments');
     setAttachmentLibLibraryTitle(value.attachmentLibrary?.libraryTitle ?? '');
     setAttachmentLibLookupField(value.attachmentLibrary?.sourceListLookupFieldInternalName ?? '');
+    setAttachmentLibFolderTree(loadFolderTreeFromAttachmentLibrary(value.attachmentLibrary));
     setStepRequireFilledToAdvance(value.stepNavigation?.requireFilledRequiredToAdvance === true);
     setStepFullValOnAdvance(value.stepNavigation?.fullValidationOnAdvance === true);
     setStepAllowBackWithoutVal(value.stepNavigation?.allowBackWithoutValidation !== false);
@@ -984,6 +990,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         ? {
             libraryTitle: attachmentLibLibraryTitle.trim(),
             sourceListLookupFieldInternalName: attachmentLibLookupField.trim(),
+            ...(attachmentLibFolderTree.length ? { folderTree: attachmentLibFolderTree } : {}),
           }
         : undefined;
     const raw: IFormManagerConfig = {
@@ -1224,6 +1231,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         ? {
             libraryTitle: attachmentLibLibraryTitle.trim(),
             sourceListLookupFieldInternalName: attachmentLibLookupField.trim(),
+            ...(attachmentLibFolderTree.length ? { folderTree: attachmentLibFolderTree } : {}),
           }
         : undefined;
     const raw: IFormManagerConfig = {
@@ -1281,6 +1289,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     attachmentStorageKind,
     attachmentLibLibraryTitle,
     attachmentLibLookupField,
+    attachmentLibFolderTree,
     stepRequireFilledToAdvance,
     stepFullValOnAdvance,
     stepAllowBackWithoutVal,
@@ -1442,6 +1451,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             )}
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa. Layout do passador e botões anterior/próximo: aba Componentes.
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              <span style={{ fontWeight: 600 }}>Anexos (ficheiros):</span> ao incluir o campo virtual «Anexos ao item» numa etapa, escolhe-se{' '}
+              <em>só em que passo do formulário</em> o utilizador vê e envia ficheiros. Se a gravação vai para os anexos nativos do item na lista principal ou para uma biblioteca (e qual) é definido na aba «Anexos», uma vez para o formulário inteiro — não varia por etapa.
             </Text>
             <FormManagerCollapseSection
               title="Layout do formulário (vista)"
@@ -1661,7 +1674,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                           {mm ? mm.Title : fname === FORM_ATTACHMENTS_FIELD_INTERNAL ? 'Anexos ao item' : fname}
                         </Text>
                         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                          {fname} · {fname === FORM_ATTACHMENTS_FIELD_INTERNAL ? 'anexos' : mm ? mm.MappedType : '—'}
+                          {fname} ·{' '}
+                          {fname === FORM_ATTACHMENTS_FIELD_INTERNAL
+                            ? 'campo virtual · etapa definida aqui; destino da gravação na aba Anexos'
+                            : mm
+                              ? mm.MappedType
+                              : '—'}
                           {mm?.Required ? ' · obrigatório na lista' : ''}
                         </Text>
                         {fname !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
@@ -1747,12 +1765,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               <Icon iconName="GripperBarVertical" />
                             </span>
                             <Checkbox
-                              label="Anexos ao item (ficheiros)"
+                              label="Anexos ao item (controlo de ficheiros)"
                               checked={false}
                               onChange={(_, c) => (c ? addField(FORM_ATTACHMENTS_FIELD_INTERNAL) : undefined)}
                             />
                             <Text variant="small" styles={{ root: { minWidth: 80 } }}>
                               anexos
+                            </Text>
+                            <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '1 1 240px' } }}>
+                              Arraste para a etapa desejada. Onde gravar (lista ou biblioteca): aba Anexos.
                             </Text>
                           </Stack>
                         );
@@ -1845,6 +1866,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               onAttachmentLibraryTitleChange={setAttachmentLibLibraryTitle}
               attachmentLibraryLookupField={attachmentLibLookupField}
               onAttachmentLibraryLookupFieldChange={setAttachmentLibLookupField}
+              attachmentLibFolderTree={attachmentLibFolderTree}
+              onAttachmentLibFolderTreeChange={setAttachmentLibFolderTree}
               attachmentUploadLayout={attachmentUploadLayout}
               onAttachmentUploadLayoutChange={setAttachmentUploadLayout}
               attachmentFilePreview={attachmentFilePreview}

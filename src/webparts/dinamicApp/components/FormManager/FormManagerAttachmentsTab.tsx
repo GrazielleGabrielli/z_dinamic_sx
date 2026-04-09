@@ -18,7 +18,9 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormAttachmentStorageKind,
+  IAttachmentLibraryFolderTreeNode,
 } from '../../core/config/types/formManager';
+import { FormManagerFolderTreeEditor } from './FormManagerFolderTreeEditor';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import {
   FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS,
@@ -39,6 +41,7 @@ function normListGuid(g: string | undefined): string {
 
 const SECTION_IDS = {
   storage: 'attStorage',
+  folders: 'attFolders',
   ui: 'attUi',
   ext: 'attExt',
 } as const;
@@ -52,6 +55,8 @@ export interface IFormManagerAttachmentsTabProps {
   onAttachmentLibraryTitleChange: (v: string) => void;
   attachmentLibraryLookupField: string;
   onAttachmentLibraryLookupFieldChange: (v: string) => void;
+  attachmentLibFolderTree: IAttachmentLibraryFolderTreeNode[];
+  onAttachmentLibFolderTreeChange: (tree: IAttachmentLibraryFolderTreeNode[]) => void;
   attachmentUploadLayout: TFormAttachmentUploadLayoutKind;
   onAttachmentUploadLayoutChange: (v: TFormAttachmentUploadLayoutKind) => void;
   attachmentFilePreview: TFormAttachmentFilePreviewKind;
@@ -70,6 +75,8 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
     onAttachmentLibraryTitleChange,
     attachmentLibraryLookupField,
     onAttachmentLibraryLookupFieldChange,
+    attachmentLibFolderTree,
+    onAttachmentLibFolderTreeChange,
     attachmentUploadLayout,
     onAttachmentUploadLayoutChange,
     attachmentFilePreview,
@@ -198,7 +205,10 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
   return (
     <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12 } }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Define como os ficheiros do controlo «Anexos ao item» são gravados e o aspeto do controlo.
+        Aqui define-se <span style={{ fontWeight: 600 }}>onde</span> os ficheiros são gravados (anexos do item na lista
+        principal ou biblioteca com lookup) e o aspeto do controlo. <span style={{ fontWeight: 600 }}>Em que etapa</span>{' '}
+        o upload aparece no formulário define-se na aba «Estrutura», ao colocar o campo virtual «Anexos ao item» na etapa
+        certa.
       </Text>
 
       <FormManagerCollapseSection
@@ -266,6 +276,49 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                       lookup para essa lista.
                     </MessageBar>
                   )}
+                {attachmentLibraryLookupField.trim() && (
+                  <FormManagerCollapseSection
+                    title="Árvore de pastas na biblioteca"
+                    isOpen={isOpen(SECTION_IDS.folders)}
+                    onToggle={() => toggleSection(SECTION_IDS.folders)}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      O nível 1 é sempre a pasta com o ID do item na lista principal. Abaixo dela pode definir uma
+                      árvore de subpastas (vários ramos ao mesmo nível e pastas dentro de pastas). Use texto fixo ou
+                      placeholders <code style={{ fontSize: 12 }}>{'{{Title}}'}</code>,{' '}
+                      <code style={{ fontSize: 12 }}>{'{{NomeInterno}}'}</code>, etc. Árvore vazia = ficheiros na pasta
+                      do ID.
+                    </Text>
+                    <Stack
+                      horizontal
+                      verticalAlign="center"
+                      tokens={{ childrenGap: 8 }}
+                      styles={{
+                        root: {
+                          padding: '8px 10px',
+                          borderRadius: 4,
+                          border: '1px solid #edebe9',
+                          background: '#faf9f8',
+                          maxWidth: 520,
+                        },
+                      }}
+                    >
+                      <Text variant="small" styles={{ root: { minWidth: 22, color: '#605e5c', fontWeight: 600 } }}>
+                        1.
+                      </Text>
+                      <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                        ID do item (lista principal)
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        (automático — nome da pasta = id do item)
+                      </Text>
+                    </Stack>
+                    <FormManagerFolderTreeEditor
+                      nodes={attachmentLibFolderTree}
+                      onChange={onAttachmentLibFolderTreeChange}
+                    />
+                  </FormManagerCollapseSection>
+                )}
               </>
             ) : null}
           </Stack>
