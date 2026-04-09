@@ -8,8 +8,12 @@ import {
   ProgressIndicator,
   Separator,
 } from '@fluentui/react';
-import { IDynamicViewConfig } from '../../core/config/types';
-import { getDefaultConfig } from '../../core/config/utils';
+import { IDynamicViewConfig, TViewMode } from '../../core/config/types';
+import {
+  getDefaultConfig,
+  getDefaultConfigForMode,
+  getDefaultFormManagerConfig,
+} from '../../core/config/utils';
 import { applyWizardPartial, cloneJson } from '../../core/config/configMemory';
 import { IWizardFormState, configToWizardState } from './types';
 import { Step1DataSource } from './steps/Step1DataSource';
@@ -24,48 +28,105 @@ interface IConfigWizardProps {
   onComplete: (config: IDynamicViewConfig) => void;
   initialValues?: IDynamicViewConfig;
   onCancel?: () => void;
+  forcedMode?: TViewMode;
 }
 
 const LIST_STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modos de visualização'];
 const FORM_MANAGER_STEP_LABELS = ['Fonte de dados', 'Modo', 'Layout das etapas'];
+const LIST_STEP_LABELS_LOCKED = ['Fonte de dados', 'Dashboard', 'Paginação', 'Modos de visualização'];
+const FORM_MANAGER_STEP_LABELS_LOCKED = ['Fonte de dados', 'Layout das etapas'];
 
-function isFormManagerWizard(form: IWizardFormState): boolean {
+function applyForcedMode(base: IDynamicViewConfig, forcedMode: TViewMode): IDynamicViewConfig {
+  const merged: IDynamicViewConfig = {
+    ...base,
+    mode: forcedMode,
+  };
+  if (forcedMode === 'formManager' && merged.formManager === undefined) {
+    merged.formManager = getDefaultFormManagerConfig();
+  }
+  return merged;
+}
+
+function initialDraft(iv?: IDynamicViewConfig, forcedMode?: TViewMode): IDynamicViewConfig {
+  const withMemory =
+    iv !== undefined
+      ? cloneJson({
+          ...iv,
+          configMemory: iv.configMemory ?? { bySource: {} },
+        })
+      : {
+          ...(forcedMode !== undefined ? getDefaultConfigForMode(forcedMode) : getDefaultConfig()),
+          configMemory: { bySource: {} },
+        };
+  if (forcedMode !== undefined) {
+    return applyForcedMode(withMemory, forcedMode);
+  }
+  return withMemory;
+}
+
+function isFormManagerWizard(form: IWizardFormState, forcedMode?: TViewMode): boolean {
+  if (forcedMode === 'formManager') return true;
+  if (forcedMode === 'list' || forcedMode === 'projectManagement') return false;
   return form.mode === 'formManager';
 }
 
-function totalStepsForForm(form: IWizardFormState): number {
-  return isFormManagerWizard(form) ? 3 : 5;
+function totalStepsForForm(form: IWizardFormState, forcedMode?: TViewMode): number {
+  if (forcedMode === 'formManager') return 2;
+  if (forcedMode === 'list' || forcedMode === 'projectManagement') return 4;
+  return isFormManagerWizard(form, forcedMode) ? 3 : 5;
 }
 
-function stepLabelsForForm(form: IWizardFormState): string[] {
-  return isFormManagerWizard(form) ? FORM_MANAGER_STEP_LABELS : LIST_STEP_LABELS;
+function stepLabelsForForm(form: IWizardFormState, forcedMode?: TViewMode): string[] {
+  if (forcedMode === 'formManager') return FORM_MANAGER_STEP_LABELS_LOCKED;
+  if (forcedMode === 'list' || forcedMode === 'projectManagement') return LIST_STEP_LABELS_LOCKED;
+  return isFormManagerWizard(form, forcedMode) ? FORM_MANAGER_STEP_LABELS : LIST_STEP_LABELS;
 }
 
-function stepIndicesForForm(form: IWizardFormState): number[] {
-  return isFormManagerWizard(form) ? [1, 2, 3] : [1, 2, 3, 4, 5];
+function stepIndicesForForm(form: IWizardFormState, forcedMode?: TViewMode): number[] {
+  const n = totalStepsForForm(form, forcedMode);
+  return Array.from({ length: n }, (_, i) => i + 1);
 }
 
-function isStepValid(step: number, form: IWizardFormState): boolean {
+function isStepValid(step: number, form: IWizardFormState, forcedMode?: TViewMode): boolean {
+  if (forcedMode === 'formManager') {
+    switch (step) {
+      case 1:
+        return form.title.trim().length > 0;
+      case 2:
+        return true;
+      default:
+        return false;
+    }
+  }
+  if (forcedMode === 'list' || forcedMode === 'projectManagement') {
+    switch (step) {
+      case 1:
+        return form.title.trim().length > 0;
+      case 2:
+        return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
+      case 3:
+        return form.paginationEnabled ? form.pageSize > 0 : true;
+      case 4:
+        return (form.viewModes?.length ?? 0) > 0;
+      default:
+        return false;
+    }
+  }
   switch (step) {
-    case 1: return form.title.trim().length > 0;
-    case 2: return form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager';
+    case 1:
+      return form.title.trim().length > 0;
+    case 2:
+      return form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager';
     case 3:
-      if (isFormManagerWizard(form)) return true;
+      if (isFormManagerWizard(form, forcedMode)) return true;
       return !form.dashboardEnabled || (form.dashboardType === 'cards' ? form.cardsCount >= 1 : true);
-    case 4: return form.paginationEnabled ? form.pageSize > 0 : true;
-    case 5: return (form.viewModes?.length ?? 0) > 0;
-    default: return false;
+    case 4:
+      return form.paginationEnabled ? form.pageSize > 0 : true;
+    case 5:
+      return (form.viewModes?.length ?? 0) > 0;
+    default:
+      return false;
   }
-}
-
-function initialDraft(iv?: IDynamicViewConfig): IDynamicViewConfig {
-  if (iv !== undefined) {
-    return cloneJson({
-      ...iv,
-      configMemory: iv.configMemory ?? { bySource: {} },
-    });
-  }
-  return { ...getDefaultConfig(), configMemory: { bySource: {} } };
 }
 
 export const ConfigWizard: React.FC<IConfigWizardProps> = ({
@@ -73,11 +134,12 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   onComplete,
   initialValues,
   onCancel,
+  forcedMode,
 }) => {
   const isEditMode = initialValues !== undefined;
 
   const [step, setStep] = useState(1);
-  const [draft, setDraft] = useState<IDynamicViewConfig>(() => initialDraft(initialValues));
+  const [draft, setDraft] = useState<IDynamicViewConfig>(() => initialDraft(initialValues, forcedMode));
 
   const form = useMemo(() => configToWizardState(draft), [draft]);
 
@@ -86,24 +148,33 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   }, []);
 
   useEffect(() => {
-    if (form.mode === 'formManager' && step > 3) {
-      setStep(3);
+    if (forcedMode !== undefined) {
+      setDraft((d) => applyForcedMode(d, forcedMode));
     }
-  }, [form.mode, step]);
+  }, [forcedMode]);
 
-  const totalSteps = totalStepsForForm(form);
-  const stepLabels = stepLabelsForForm(form);
-  const valid = isStepValid(step, form);
+  useEffect(() => {
+    if (forcedMode === 'formManager' && step > 2) setStep(2);
+    else if ((forcedMode === 'list' || forcedMode === 'projectManagement') && step > 4) setStep(4);
+    else if (forcedMode === undefined && form.mode === 'formManager' && step > 3) setStep(3);
+  }, [forcedMode, form.mode, step]);
+
+  const totalSteps = totalStepsForForm(form, forcedMode);
+  const stepLabels = stepLabelsForForm(form, forcedMode);
+  const valid = isStepValid(step, form, forcedMode);
   const canSaveEdit =
     form.title.trim().length > 0 &&
     (form.mode === 'list' || form.mode === 'projectManagement' || form.mode === 'formManager') &&
     (form.mode === 'formManager' || (form.viewModes?.length ?? 0) > 0);
 
-  const buildCurrentConfig = useCallback((): IDynamicViewConfig => cloneJson(draft), [draft]);
+  const buildCurrentConfig = useCallback((): IDynamicViewConfig => {
+    const base = cloneJson(draft);
+    return forcedMode !== undefined ? applyForcedMode(base, forcedMode) : base;
+  }, [draft, forcedMode]);
 
   const handleNext = (): void => {
     if (!valid) return;
-    const max = totalStepsForForm(form);
+    const max = totalStepsForForm(form, forcedMode);
     if (step < max) {
       setStep((s) => s + 1);
     } else {
@@ -121,7 +192,31 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   };
 
   const renderStep = (): React.ReactElement => {
-    if (isFormManagerWizard(form)) {
+    if (forcedMode === 'formManager') {
+      switch (step) {
+        case 1:
+          return <Step1DataSource form={form} onChange={updateForm} />;
+        case 2:
+          return <Step3FormStepLayout form={form} onChange={updateForm} />;
+        default:
+          return <></>;
+      }
+    }
+    if (forcedMode === 'list' || forcedMode === 'projectManagement') {
+      switch (step) {
+        case 1:
+          return <Step1DataSource form={form} onChange={updateForm} />;
+        case 2:
+          return <Step3Dashboard form={form} onChange={updateForm} />;
+        case 3:
+          return <Step4Pagination form={form} onChange={updateForm} />;
+        case 4:
+          return <Step5ViewModes form={form} listTitle={form.title} onChange={updateForm} />;
+        default:
+          return <></>;
+      }
+    }
+    if (isFormManagerWizard(form, forcedMode)) {
       switch (step) {
         case 1:
           return <Step1DataSource form={form} onChange={updateForm} />;
@@ -149,6 +244,8 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     }
   };
 
+  const isFormFlow = isFormManagerWizard(form, forcedMode);
+
   return (
     <div
       style={{
@@ -163,7 +260,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
       <div
         style={{
           width: '100%',
-          maxWidth: isFormManagerWizard(form) ? 960 : 580,
+          maxWidth: isFormFlow ? 960 : 580,
           background: '#fff',
           borderRadius: 12,
           border: '1px solid #edebe9',
@@ -197,7 +294,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
             />
           </div>
           <Stack horizontal tokens={{ childrenGap: 0 }} styles={{ root: { marginTop: 12, marginBottom: 4 } }}>
-            {stepIndicesForForm(form).map((s) => (
+            {stepIndicesForForm(form, forcedMode).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -214,7 +311,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
                   color: step === s ? '#0078d4' : '#605e5c',
                 }}
               >
-                {s}. {stepLabelsForForm(form)[s - 1] ?? ''}
+                {s}. {stepLabelsForForm(form, forcedMode)[s - 1] ?? ''}
               </button>
             ))}
           </Stack>

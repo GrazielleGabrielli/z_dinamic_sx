@@ -9,6 +9,18 @@
           "manifest": "./src/webparts/dinamicApp/DinamicAppWebPart.manifest.json"
         },
         {
+          "entrypoint": "./lib/webparts/dinamicApp/DinamicListWebPart.js",
+          "manifest": "./src/webparts/dinamicApp/DinamicListWebPart.manifest.json"
+        },
+        {
+          "entrypoint": "./lib/webparts/dinamicApp/DinamicKanbanWebPart.js",
+          "manifest": "./src/webparts/dinamicApp/DinamicKanbanWebPart.manifest.json"
+        },
+        {
+          "entrypoint": "./lib/webparts/dinamicApp/DinamicFormWebPart.js",
+          "manifest": "./src/webparts/dinamicApp/DinamicFormWebPart.manifest.json"
+        },
+        {
           "entrypoint": "./lib/webparts/pbiTextoConsulta/PbiTextoConsultaWebPart.js",
           "manifest": "./src/webparts/pbiTextoConsulta/PbiTextoConsultaWebPart.manifest.json"
         }

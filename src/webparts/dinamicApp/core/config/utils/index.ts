@@ -3,6 +3,7 @@ import {
   IDashboardCardConfig,
   TAggregateType,
   IFormManagerConfig,
+  TViewMode,
 } from '../types';
 import { FORM_OCULTOS_STEP_ID } from '../types/formManager';
 import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
@@ -21,6 +22,15 @@ export function getDefaultFormManagerConfig(): IFormManagerConfig {
     ],
     stepLayout: 'segmented',
     showDefaultFormButtons: false,
+  };
+}
+
+export function getDefaultConfigForMode(mode: TViewMode): IDynamicViewConfig {
+  const base = getDefaultConfig();
+  return {
+    ...base,
+    mode,
+    ...(mode === 'formManager' ? { formManager: getDefaultFormManagerConfig() } : {}),
   };
 }
 

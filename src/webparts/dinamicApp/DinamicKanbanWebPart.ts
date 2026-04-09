@@ -1,8 +1,8 @@
 import { DinamicWebPartBase } from './DinamicWebPartBase';
 import { TViewMode } from './core/config/types';
 
-export default class DinamicAppWebPart extends DinamicWebPartBase {
+export default class DinamicKanbanWebPart extends DinamicWebPartBase {
   protected getForcedMode(): TViewMode | undefined {
-    return undefined;
+    return 'projectManagement';
   }
 }

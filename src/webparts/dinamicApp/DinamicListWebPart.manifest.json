@@ -1,0 +1,24 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "7f2aa8c1-1d44-4e3b-9f2a-8c1e4d2b0a7f",
+  "alias": "DinamicListWebPart",
+  "componentType": "WebPart",
+
+  "version": "*",
+  "manifestVersion": 2,
+
+  "requiresCustomScript": false,
+  "supportedHosts": ["SharePointWebPart", "TeamsPersonalApp", "TeamsTab", "SharePointFullPage"],
+  "supportsThemeVariants": true,
+
+  "preconfiguredEntries": [{
+    "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+    "group": { "default": "Advanced" },
+    "title": { "default": "FlexView — Lista" },
+    "description": { "default": "Lista com dashboard e paginação." },
+    "officeFabricIconFontName": "List",
+    "properties": {
+      "description": "FlexView Lista"
+    }
+  }]
+}

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Text, Stack, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { parseConfig } from '../core/config/validators';
@@ -43,7 +43,13 @@ import { ListPageBlockConfigPanel } from './ListPage/ListPageBlockConfigPanel';
 import { FormManagerView } from './FormManager/FormManagerView';
 import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
 
-const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceScopeId, onSaveConfig }) => {
+const DinamicApp: React.FC<IDinamicAppProps> = ({
+  configJson,
+  siteUrl,
+  instanceScopeId,
+  onSaveConfig,
+  forcedMode,
+}) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
   const [isEditingSeries, setIsEditingSeries] = useState(false);
@@ -56,7 +62,21 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
 
-  const config = parseConfig(configJson ?? undefined);
+  const rawConfig = parseConfig(configJson ?? undefined);
+  const config = useMemo((): IDynamicViewConfig | undefined => {
+    if (forcedMode === undefined) return rawConfig;
+    if (rawConfig === undefined) return undefined;
+    return { ...rawConfig, mode: forcedMode };
+  }, [rawConfig, forcedMode]);
+
+  const saveConfig = useCallback(
+    (cfg: IDynamicViewConfig) => {
+      const next: IDynamicViewConfig =
+        forcedMode !== undefined ? { ...cfg, mode: forcedMode } : cfg;
+      onSaveConfig(next);
+    },
+    [forcedMode, onSaveConfig]
+  );
 
   useEffect(() => {
     setDashboardListSelection(null);
@@ -92,7 +112,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
   }, []);
 
   const handleWizardComplete = (newConfig: IDynamicViewConfig): void => {
-    onSaveConfig(newConfig);
+    saveConfig(newConfig);
     setIsEditingWebPart(false);
   };
 
@@ -109,8 +129,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
       chartSeries,
       chartType: dash.chartType ?? 'bar',
     };
-    onSaveConfig(saveDashboardForListBlock(config, blockId, next));
-  }, [config, onSaveConfig]);
+    saveConfig(saveDashboardForListBlock(config, blockId, next));
+  }, [config, saveConfig]);
 
   const handleSaveCards = (
     cards: IDashboardCardConfig[],
@@ -136,7 +156,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
           }
         : baseDash;
     if (nextType === 'charts') setDashboardListSelection(null);
-    onSaveConfig(saveDashboardForListBlock(config, bid, dashboard));
+    saveConfig(saveDashboardForListBlock(config, bid, dashboard));
     setIsEditingCards(false);
     setEditingDashboardBlockId(null);
   };
@@ -163,7 +183,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
             cardsCount: chartSeries.length,
           }
         : baseDash;
-    onSaveConfig(saveDashboardForListBlock(config, bid, dashboard));
+    saveConfig(saveDashboardForListBlock(config, bid, dashboard));
     setIsEditingSeries(false);
     setEditingDashboardBlockId(null);
   };
@@ -175,7 +195,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
     projectManagement?: import('../core/config/types').IProjectManagementConfig
   ): void => {
     if (!config) return;
-    onSaveConfig({
+    saveConfig({
       ...config,
       listView,
       pagination,
@@ -187,7 +207,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
 
   const handleSaveListPageLayout = (layout: IListPageLayoutConfig): void => {
     if (!config) return;
-    onSaveConfig({
+    saveConfig({
       ...config,
       listPageLayout: layout,
     });
@@ -196,13 +216,13 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
 
   const handleSaveFormManagerConfig = (formManager: IFormManagerConfig): void => {
     if (!config) return;
-    onSaveConfig({ ...config, formManager });
+    saveConfig({ ...config, formManager });
     setIsEditingFormManager(false);
   };
 
   const handleApplyListContentBlock = (next: IListPageBlock): void => {
     if (!config?.listPageLayout) return;
-    onSaveConfig({
+    saveConfig({
       ...config,
       listPageLayout: replaceBlockInListPageLayout(config.listPageLayout, next.id, next),
     });
@@ -227,6 +247,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({ configJson, siteUrl, instanceS
         onComplete={handleWizardComplete}
         initialValues={config}
         onCancel={config !== undefined ? () => setIsEditingWebPart(false) : undefined}
+        forcedMode={forcedMode}
       />
     );
   }
