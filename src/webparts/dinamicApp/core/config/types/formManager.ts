@@ -311,6 +311,18 @@ export interface IAttachmentLibraryFolderTreeNode {
   children?: IAttachmentLibraryFolderTreeNode[];
   /** Pasta onde os ficheiros são gravados (um único nó na árvore). */
   uploadTarget?: boolean;
+  /**
+   * Etapa em que o input de ficheiros desta pasta aparece (guardado como array com um único id; mesmo layout global).
+   * Configurações antigas com vários ids são reduzidas ao primeiro.
+   * Se nenhum nó tiver isto preenchido, mantém-se um único uploader com `uploadTarget`.
+   */
+  showUploaderInStepIds?: string[];
+  /** Modos de formulário em que o input desta pasta pode aparecer. Omitido ou vazio = todos. */
+  showUploaderModes?: TFormManagerFormMode[];
+  /** Só utilizadores nestes grupos (título) veem o input; omitido ou vazio = qualquer utilizador. */
+  showUploaderGroupTitles?: string[];
+  /** Condição sobre valores dos campos (mesma árvore que nas regras do formulário). Omitida = sem filtro por dados. */
+  showUploaderWhen?: TFormConditionNode;
 }
 
 /** Destino em biblioteca: upload de ficheiros com lookup à lista principal do formulário. */

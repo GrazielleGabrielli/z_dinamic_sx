@@ -1,6 +1,7 @@
 import type { IDynamicContext } from '../dynamicTokens/types';
 import { DynamicTokenResolver } from '../dynamicTokens/services/DynamicTokenResolver';
 import type {
+  IAttachmentLibraryFolderTreeNode,
   IFormManagerConfig,
   IFormFieldConfig,
   IFormCustomButtonConfig,
@@ -46,13 +47,25 @@ function normGroupTitle(s: string): string {
   return s.trim().toLowerCase();
 }
 
-function userInAnyGroup(userTitles: string[], ruleGroups: string[] | undefined): boolean {
+export function userInAnyGroup(userTitles: string[], ruleGroups: string[] | undefined): boolean {
   if (!ruleGroups || ruleGroups.length === 0) return true;
   const set = new Set(userTitles.map(normGroupTitle));
   for (let i = 0; i < ruleGroups.length; i++) {
     if (set.has(normGroupTitle(ruleGroups[i]))) return true;
   }
   return false;
+}
+
+export function isAttachmentFolderUploaderVisible(
+  node: IAttachmentLibraryFolderTreeNode,
+  ctx: IFormRuleRuntimeContext
+): boolean {
+  const modes = node.showUploaderModes;
+  if (modes !== undefined) {
+    if (!modes.length || modes.indexOf(ctx.formMode) === -1) return false;
+  }
+  if (!userInAnyGroup(ctx.userGroupTitles, node.showUploaderGroupTitles)) return false;
+  return evaluateCondition(node.showUploaderWhen, ctx.values, ctx.dynamicContext);
 }
 
 function isEmptyish(v: unknown): boolean {

@@ -20,7 +20,7 @@ import type {
   TFormAttachmentStorageKind,
   IAttachmentLibraryFolderTreeNode,
 } from '../../core/config/types/formManager';
-import { FormManagerFolderTreeEditor } from './FormManagerFolderTreeEditor';
+import { FormManagerFolderTreeEditor, type IFolderVisibilityEditorProps } from './FormManagerFolderTreeEditor';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import {
   FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS,
@@ -63,6 +63,8 @@ export interface IFormManagerAttachmentsTabProps {
   onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
   attachmentAllowedExtensions: string[];
   onAttachmentExtensionToggle: (ext: string, selected: boolean) => void;
+  attachmentFolderStepOptions: { id: string; title: string }[];
+  attachmentFolderVisibilityEditor?: IFolderVisibilityEditorProps;
 }
 
 export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsTabProps): JSX.Element {
@@ -83,6 +85,8 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
     onAttachmentFilePreviewChange,
     attachmentAllowedExtensions,
     onAttachmentExtensionToggle,
+    attachmentFolderStepOptions,
+    attachmentFolderVisibilityEditor,
   } = props;
 
   const [libs, setLibs] = useState<IListSummary[]>([]);
@@ -316,6 +320,9 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                     <FormManagerFolderTreeEditor
                       nodes={attachmentLibFolderTree}
                       onChange={onAttachmentLibFolderTreeChange}
+                      folderStepOptions={attachmentFolderStepOptions}
+                      showFolderStepPicker={attachmentStorageKind === 'documentLibrary'}
+                      folderVisibilityEditor={attachmentFolderVisibilityEditor}
                     />
                   </FormManagerCollapseSection>
                 )}

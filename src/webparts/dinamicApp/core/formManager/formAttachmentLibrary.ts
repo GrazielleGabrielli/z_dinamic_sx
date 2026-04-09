@@ -3,7 +3,7 @@ import type { IFolder } from '@pnp/sp/folders/types';
 
 import { getSP } from '../../../../services/core/sp';
 import type { IAttachmentLibraryFolderTreeNode, IFormManagerConfig } from '../config/types/formManager';
-import { findUploadTargetId } from './attachmentFolderTree';
+import { findUploadTargetId, setUploadTargetById, treeHasPerStepFolderUploaders } from './attachmentFolderTree';
 
 const PLACEHOLDER = /\{\{\s*([^}]+?)\s*\}\}/g;
 
@@ -16,7 +16,76 @@ export function isFormAttachmentLibraryRuntime(formManager: IFormManagerConfig):
   );
 }
 
-type IAttachmentRow = { fileName: string; fileUrl: string };
+export interface IAttachmentLibraryFileRow {
+  fileName: string;
+  fileUrl: string;
+  /** Caminho server-relative do ficheiro (para filtrar por pasta na biblioteca). */
+  fileRef: string;
+}
+
+/** Segmentos de pasta sob a pasta com nome = ID do item (sem o nome do ficheiro). */
+export function parseFolderSegmentsUnderItemFolder(fileRef: string, itemId: number): string[] {
+  const idFolder = sanitizeSharePointFolderLeafName(String(itemId));
+  const normalized = fileRef.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  const idx = parts.findIndex((p) => p === idFolder);
+  if (idx < 0) return [];
+  const after = parts.slice(idx + 1);
+  if (after.length <= 1) return [];
+  return after.slice(0, -1);
+}
+
+export function getResolvedFolderSegmentsForNode(
+  nodes: IAttachmentLibraryFolderTreeNode[],
+  targetNodeId: string,
+  itemId: number,
+  itemFieldValues: Record<string, unknown>
+): string[] | undefined {
+  function walk(
+    ns: IAttachmentLibraryFolderTreeNode[],
+    acc: string[]
+  ): string[] | undefined {
+    for (let i = 0; i < ns.length; i++) {
+      const n = ns[i];
+      const resolved = resolveAttachmentFolderSegmentTemplate(n.nameTemplate, itemId, itemFieldValues);
+      const seg = sanitizeSharePointFolderLeafName(resolved);
+      if (!seg) {
+        if (n.id === targetNodeId) return undefined;
+        if (n.children?.length) {
+          const d = walk(n.children, acc);
+          if (d) return d;
+        }
+        continue;
+      }
+      const nextAcc = acc.concat([seg]);
+      if (n.id === targetNodeId) return nextAcc;
+      if (n.children?.length) {
+        const d = walk(n.children, nextAcc);
+        if (d) return d;
+      }
+    }
+    return undefined;
+  }
+  return walk(nodes, []);
+}
+
+export function libraryFileRowBelongsToFolderNode(
+  fileRef: string,
+  folderNodeId: string,
+  folderTree: IAttachmentLibraryFolderTreeNode[] | undefined,
+  itemId: number,
+  itemFieldValues: Record<string, unknown>
+): boolean {
+  if (!folderTree?.length) return true;
+  const expected = getResolvedFolderSegmentsForNode(folderTree, folderNodeId, itemId, itemFieldValues);
+  if (expected === undefined) return false;
+  const actual = parseFolderSegmentsUnderItemFolder(fileRef, itemId);
+  if (expected.length !== actual.length) return false;
+  for (let j = 0; j < expected.length; j++) {
+    if (expected[j] !== actual[j]) return false;
+  }
+  return true;
+}
 
 function serverRelativeToAbsoluteUrl(serverRelative: string): string {
   const path = serverRelative.trim();
@@ -106,6 +175,42 @@ export interface IUploadToAttachmentLibraryOptions {
   itemFieldValues?: Record<string, unknown>;
 }
 
+export async function uploadFilesToAttachmentLibraryByFolderNodes(
+  libraryTitle: string,
+  lookupFieldInternalName: string,
+  mainItemId: number,
+  filesByFolderNodeId: Record<string, File[]>,
+  folderTree: IAttachmentLibraryFolderTreeNode[] | undefined,
+  options?: Omit<IUploadToAttachmentLibraryOptions, 'folderTree' | 'folderPathSegments'>
+): Promise<void> {
+  const entries = Object.entries(filesByFolderNodeId).filter(([, fs]) => fs.length > 0);
+  if (!entries.length) return;
+  if (!folderTree?.length) {
+    const all = entries.flatMap(([, fs]) => fs);
+    await uploadFilesToAttachmentLibrary(libraryTitle, lookupFieldInternalName, mainItemId, all, options);
+    return;
+  }
+  if (!treeHasPerStepFolderUploaders(folderTree)) {
+    const all = entries.flatMap(([, fs]) => fs);
+    await uploadFilesToAttachmentLibrary(libraryTitle, lookupFieldInternalName, mainItemId, all, {
+      ...options,
+      folderTree,
+      folderPathSegments: undefined,
+    });
+    return;
+  }
+  for (let i = 0; i < entries.length; i++) {
+    const nodeId = entries[i][0];
+    const files = entries[i][1];
+    const treeForTarget = setUploadTargetById(folderTree, nodeId);
+    await uploadFilesToAttachmentLibrary(libraryTitle, lookupFieldInternalName, mainItemId, files, {
+      ...options,
+      folderTree: treeForTarget,
+      folderPathSegments: undefined,
+    });
+  }
+}
+
 export async function uploadFilesToAttachmentLibrary(
   libraryTitle: string,
   lookupFieldInternalName: string,
@@ -172,25 +277,26 @@ export async function loadLibraryAttachmentRowsForMainItem(
   libraryTitle: string,
   lookupFieldInternalName: string,
   mainItemId: number
-): Promise<IAttachmentRow[]> {
+): Promise<IAttachmentLibraryFileRow[]> {
   const sp = getSP();
   const list = sp.web.lists.getByTitle(libraryTitle.trim());
   const fld = `${lookupFieldInternalName.trim()}Id`;
   const filter = `${fld} eq ${mainItemId}`;
   const raw = await list.items.filter(filter).select('FileLeafRef', 'FileRef').top(5000)();
   const rows = Array.isArray(raw) ? raw : [];
-  const out: IAttachmentRow[] = [];
+  const out: IAttachmentLibraryFileRow[] = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i] as Record<string, unknown>;
     const fn = r.FileLeafRef;
     const name = typeof fn === 'string' && fn.trim() ? fn.trim() : '';
     if (!name) continue;
     const sr = r.FileRef ?? r.ServerRelativeUrl;
+    const fileRef = typeof sr === 'string' && sr.trim() ? sr.trim() : '';
     let fileUrl = '';
-    if (typeof sr === 'string' && sr.trim()) {
-      fileUrl = serverRelativeToAbsoluteUrl(sr.trim());
+    if (fileRef) {
+      fileUrl = serverRelativeToAbsoluteUrl(fileRef);
     }
-    out.push({ fileName: name, fileUrl });
+    out.push({ fileName: name, fileUrl, fileRef });
   }
   return out;
 }

@@ -1,5 +1,10 @@
-import type { IAttachmentLibraryFolderTreeNode, IFormManagerAttachmentLibraryConfig } from '../config/types/formManager';
+import type {
+  IAttachmentLibraryFolderTreeNode,
+  IFormManagerAttachmentLibraryConfig,
+  TFormManagerFormMode,
+} from '../config/types/formManager';
 import { sanitizeFolderNameTemplatePreservingPlaceholders } from './attachmentFolderNameTemplate';
+import { sanitizeConditionNode } from './formConditionSanitize';
 
 export const MAX_ATTACHMENT_FOLDER_TREE_NODES = 40;
 export const MAX_ATTACHMENT_FOLDER_TREE_DEPTH = 12;
@@ -152,10 +157,38 @@ function sanitizeNode(
     }
     if (ch.length) children = ch;
   }
+  let showUploaderInStepIds: string[] | undefined;
+  if (Array.isArray(o.showUploaderInStepIds)) {
+    const ids = o.showUploaderInStepIds
+      .map((x) => String(x).trim())
+      .filter(Boolean)
+      .slice(0, 40);
+    if (ids.length) showUploaderInStepIds = [ids[0]];
+  }
+  const showUploaderWhen = sanitizeConditionNode(o.showUploaderWhen);
+  let showUploaderGroupTitles: string[] | undefined;
+  if (Array.isArray(o.showUploaderGroupTitles)) {
+    const g = o.showUploaderGroupTitles
+      .map((x) => String(x).trim())
+      .filter(Boolean)
+      .slice(0, 80);
+    if (g.length) showUploaderGroupTitles = g;
+  }
+  let showUploaderModes: TFormManagerFormMode[] | undefined;
+  if (Array.isArray(o.showUploaderModes)) {
+    const m = o.showUploaderModes.filter(
+      (x): x is TFormManagerFormMode => x === 'create' || x === 'edit' || x === 'view'
+    );
+    if (m.length) showUploaderModes = m.slice(0, 3);
+  }
   return {
     id,
     nameTemplate,
     ...(o.uploadTarget === true ? { uploadTarget: true } : {}),
+    ...(showUploaderInStepIds ? { showUploaderInStepIds } : {}),
+    ...(showUploaderWhen ? { showUploaderWhen } : {}),
+    ...(showUploaderGroupTitles ? { showUploaderGroupTitles } : {}),
+    ...(showUploaderModes ? { showUploaderModes } : {}),
     ...(children ? { children } : {}),
   };
 }
@@ -190,6 +223,58 @@ export function loadFolderTreeFromAttachmentLibrary(
   if (lib.folderTree?.length) return sanitizeFolderTreeInput(lib.folderTree);
   if (lib.folderPathSegments?.length) return sanitizeFolderTreeInput(migrateFolderPathSegmentsToTree(lib.folderPathSegments));
   return [];
+}
+
+export function flattenFolderTreeNodes(nodes: IAttachmentLibraryFolderTreeNode[]): IAttachmentLibraryFolderTreeNode[] {
+  const out: IAttachmentLibraryFolderTreeNode[] = [];
+  function walk(ns: IAttachmentLibraryFolderTreeNode[]): void {
+    for (let i = 0; i < ns.length; i++) {
+      out.push(ns[i]);
+      if (ns[i].children?.length) walk(ns[i].children as IAttachmentLibraryFolderTreeNode[]);
+    }
+  }
+  walk(nodes);
+  return out;
+}
+
+export function treeHasPerStepFolderUploaders(nodes: IAttachmentLibraryFolderTreeNode[]): boolean {
+  const flat = flattenFolderTreeNodes(nodes);
+  for (let i = 0; i < flat.length; i++) {
+    if (flat[i].showUploaderInStepIds?.length) return true;
+  }
+  return false;
+}
+
+export function patchNodeShowUploaderStepIds(
+  nodes: IAttachmentLibraryFolderTreeNode[],
+  id: string,
+  stepIds: string[]
+): IAttachmentLibraryFolderTreeNode[] {
+  return nodes.map((n) => {
+    if (n.id === id) {
+      if (stepIds.length) return { ...n, showUploaderInStepIds: [stepIds[0]] };
+      const { showUploaderInStepIds: _drop, ...rest } = n;
+      return rest;
+    }
+    return {
+      ...n,
+      children: n.children?.length ? patchNodeShowUploaderStepIds(n.children, id, stepIds) : undefined,
+    };
+  });
+}
+
+export function updateAttachmentFolderNode(
+  nodes: IAttachmentLibraryFolderTreeNode[],
+  id: string,
+  updater: (n: IAttachmentLibraryFolderTreeNode) => IAttachmentLibraryFolderTreeNode
+): IAttachmentLibraryFolderTreeNode[] {
+  return nodes.map((n) => {
+    if (n.id === id) return updater(n);
+    if (n.children?.length) {
+      return { ...n, children: updateAttachmentFolderNode(n.children, id, updater) };
+    }
+    return n;
+  });
 }
 
 export function findUploadTargetId(nodes: IAttachmentLibraryFolderTreeNode[]): string | undefined {

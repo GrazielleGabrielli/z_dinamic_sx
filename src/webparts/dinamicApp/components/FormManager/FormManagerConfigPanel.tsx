@@ -88,6 +88,7 @@ import {
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { FormManagerAttachmentsTabContent } from './FormManagerAttachmentsTab';
+import type { IFolderVisibilityEditorProps } from './FormManagerFolderTreeEditor';
 import {
   FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
   FORM_SUBMIT_LOADING_INHERIT_KEY,
@@ -630,6 +631,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const fieldsService = useMemo(() => new FieldsService(), []);
   const groupsService = useMemo(() => new GroupsService(), []);
+  const attachmentFolderStepOptions = useMemo(
+    () =>
+      steps
+        .filter((s) => s.id !== FORM_OCULTOS_STEP_ID)
+        .map((s) => ({ id: s.id, title: s.title })),
+    [steps]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -774,6 +782,18 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         .map((f) => ({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` })),
     [meta]
   );
+
+  const attachmentFolderVisibilityEditor = useMemo((): IFolderVisibilityEditorProps => {
+    return {
+      fieldOptions,
+      defaultConditionFieldName: meta[0]?.InternalName ?? 'Title',
+      siteGroupsSorted,
+      siteGroups,
+      siteGroupsLoading,
+      siteGroupsErr,
+      onReloadSiteGroups: loadSiteGroups,
+    };
+  }, [fieldOptions, meta, siteGroupsSorted, siteGroups, siteGroupsLoading, siteGroupsErr, loadSiteGroups]);
 
   const conditionalCards = useMemo(() => parseConditionalCardsFromRules(rules).cards, [rules]);
 
@@ -1881,6 +1901,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   return prev.filter((x) => x !== e);
                 });
               }}
+              attachmentFolderStepOptions={attachmentFolderStepOptions}
+              attachmentFolderVisibilityEditor={attachmentFolderVisibilityEditor}
             />
           </Stack>
         </PivotItem>

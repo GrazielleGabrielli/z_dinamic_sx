@@ -48,6 +48,7 @@ import {
   shouldShowCustomButton,
   shouldShowBuiltinHistoryButton,
   areAllRequiredFieldsFilled,
+  isAttachmentFolderUploaderVisible,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
 } from '../../core/formManager/formRuleEngine';
@@ -63,8 +64,14 @@ import { getSP } from '../../../../services/core/sp';
 import {
   isFormAttachmentLibraryRuntime,
   uploadFilesToAttachmentLibrary,
+  uploadFilesToAttachmentLibraryByFolderNodes,
   loadLibraryAttachmentRowsForMainItem,
+  libraryFileRowBelongsToFolderNode,
 } from '../../core/formManager/formAttachmentLibrary';
+import {
+  flattenFolderTreeNodes,
+  treeHasPerStepFolderUploaders,
+} from '../../core/formManager/attachmentFolderTree';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
 import { FormItemHistoryUi } from './FormItemHistoryUi';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
@@ -80,7 +87,12 @@ export interface IDynamicListFormProps {
   dynamicContext: IDynamicContext;
   userGroupTitles: string[];
   currentUserId: number;
-  onSubmit: (payload: Record<string, unknown>, submitKind: TFormSubmitKind, pendingFiles: File[]) => Promise<void>;
+  onSubmit: (
+    payload: Record<string, unknown>,
+    submitKind: TFormSubmitKind,
+    pendingFiles: File[],
+    pendingFilesByFolderNodeId?: Record<string, File[]>
+  ) => Promise<void>;
   onDismiss: () => void;
   /** Chamado após botão «Atualizar» personalizado gravar com sucesso (ex.: recarregar item). */
   onAfterItemUpdated?: () => void | Promise<void>;
@@ -91,11 +103,26 @@ async function uploadListItemAttachments(
   itemId: number,
   files: File[],
   formManager: IFormManagerConfig,
-  itemFieldValues: Record<string, unknown>
+  itemFieldValues: Record<string, unknown>,
+  filesByFolderNodeId?: Record<string, File[]>
 ): Promise<void> {
-  if (!files.length) return;
+  const hasFolderBuckets =
+    !!filesByFolderNodeId && Object.keys(filesByFolderNodeId).some((k) => filesByFolderNodeId[k].length > 0);
+  if (!files.length && !hasFolderBuckets) return;
   if (isFormAttachmentLibraryRuntime(formManager)) {
     const lib = formManager.attachmentLibrary!;
+    const iv = { ...itemFieldValues, Id: itemId };
+    if (hasFolderBuckets) {
+      await uploadFilesToAttachmentLibraryByFolderNodes(
+        lib.libraryTitle!,
+        lib.sourceListLookupFieldInternalName!,
+        itemId,
+        filesByFolderNodeId!,
+        lib.folderTree,
+        { itemFieldValues: iv }
+      );
+      return;
+    }
     await uploadFilesToAttachmentLibrary(
       lib.libraryTitle!,
       lib.sourceListLookupFieldInternalName!,
@@ -104,7 +131,7 @@ async function uploadListItemAttachments(
       {
         folderTree: lib.folderTree,
         folderPathSegments: lib.folderPathSegments,
-        itemFieldValues: { ...itemFieldValues, Id: itemId },
+        itemFieldValues: iv,
       }
     );
     return;
@@ -121,7 +148,7 @@ async function uploadListItemAttachments(
   }
 }
 
-type IServerAttachmentRow = { fileName: string; fileUrl: string };
+type IServerAttachmentRow = { fileName: string; fileUrl: string; fileRef?: string };
 
 function normalizeSharePointAttachmentFiles(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw;
@@ -349,6 +376,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const attachmentPreviewKind: TFormAttachmentFilePreviewKind =
     formManager.attachmentFilePreview ?? 'nameAndSize';
 
+  const multiFolderAttachmentMode = useMemo(() => {
+    if (formManager.attachmentStorageKind !== 'documentLibrary') return false;
+    const t = formManager.attachmentLibrary?.folderTree;
+    if (!t?.length) return false;
+    return treeHasPerStepFolderUploaders(t);
+  }, [formManager.attachmentStorageKind, formManager.attachmentLibrary?.folderTree]);
+
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     itemToFormValues(initialItem ?? undefined, names)
   );
@@ -358,6 +392,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFilesByFolder, setPendingFilesByFolder] = useState<Record<string, File[]>>({});
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [serverAttachments, setServerAttachments] = useState<IServerAttachmentRow[]>([]);
   const prevByTriggerRef = useRef<Record<string, unknown>>({});
@@ -435,6 +470,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     ]
   );
 
+  const flatPendingFiles = useMemo(() => {
+    if (multiFolderAttachmentMode) return Object.values(pendingFilesByFolder).flat();
+    return pendingFiles;
+  }, [multiFolderAttachmentMode, pendingFilesByFolder, pendingFiles]);
+
   const allRequiredFilled = useMemo(
     () =>
       areAllRequiredFieldsFilled(
@@ -445,7 +485,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         { show: buttonOverlay.show, hide: buttonOverlay.hide },
         {
           attachmentCount,
-          pendingFiles: pendingFiles.map((f) => ({
+          pendingFiles: flatPendingFiles.map((f) => ({
             size: f.size,
             type: f.type || 'application/octet-stream',
             name: f.name,
@@ -464,7 +504,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       dynamicContext,
       buttonOverlay,
       attachmentCount,
-      pendingFiles,
+      flatPendingFiles,
       metaByName,
     ]
   );
@@ -625,7 +665,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const ov = opts?.buttonOverlay ?? buttonOverlay;
     const att: IFormValidationAttachmentContext = {
       attachmentCount,
-      pendingFiles: pendingFiles.map((f) => ({
+      pendingFiles: flatPendingFiles.map((f) => ({
         size: f.size,
         type: f.type || 'application/octet-stream',
         name: f.name,
@@ -672,7 +712,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const payload = formValuesToSharePointPayload(fieldMetadata, vals, names, {
         nullWhenEmptyFieldNames: ocultosNullFieldNames,
       });
-      await onSubmit(payload, submitKind, pendingFiles);
+      await onSubmit(
+        payload,
+        submitKind,
+        flatPendingFiles,
+        multiFolderAttachmentMode ? pendingFilesByFolder : undefined
+      );
       return true;
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
@@ -777,12 +822,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const { id: newId, filesForAttachments } = await itemsService.addItem(
           listTitle,
           payload,
-          pendingFiles
+          multiFolderAttachmentMode ? flatPendingFiles : pendingFiles
         );
-        await uploadListItemAttachments(listTitle, newId, filesForAttachments, formManager, {
-          ...mergedValues,
-          Id: newId,
-        });
+        await uploadListItemAttachments(
+          listTitle,
+          newId,
+          multiFolderAttachmentMode ? [] : filesForAttachments,
+          formManager,
+          {
+            ...mergedValues,
+            Id: newId,
+          },
+          multiFolderAttachmentMode ? pendingFilesByFolder : undefined
+        );
         try {
           await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
             sourceListTitle: listTitle,
@@ -817,10 +869,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
         await itemsService.updateItem(listTitle, itemId, payload);
-        await uploadListItemAttachments(listTitle, itemId, pendingFiles, formManager, {
-          ...mergedValues,
-          Id: itemId,
-        });
+        await uploadListItemAttachments(
+          listTitle,
+          itemId,
+          multiFolderAttachmentMode ? [] : pendingFiles,
+          formManager,
+          {
+            ...mergedValues,
+            Id: itemId,
+          },
+          multiFolderAttachmentMode ? pendingFilesByFolder : undefined
+        );
         await onAfterItemUpdated?.();
         try {
           await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
@@ -940,6 +999,52 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return new Set(s.fieldNames);
   }, [visibleStepsForUi, stepIndex]);
 
+  const foldersForCurrentAttachmentStep = useMemo(() => {
+    if (!multiFolderAttachmentMode) return [];
+    const tree = formManager.attachmentLibrary?.folderTree;
+    if (!tree?.length) return [];
+    const curId = visibleStepsForUi?.[stepIndex]?.id;
+    if (!curId) return [];
+    const ctx = runtimeCtx();
+    return flattenFolderTreeNodes(tree).filter(
+      (n) => n.showUploaderInStepIds?.includes(curId) && isAttachmentFolderUploaderVisible(n, ctx)
+    );
+  }, [
+    multiFolderAttachmentMode,
+    formManager.attachmentLibrary?.folderTree,
+    visibleStepsForUi,
+    stepIndex,
+    runtimeCtx,
+    formMode,
+    values,
+    userGroupTitles,
+    currentUserId,
+    authorId,
+    dynamicContext,
+  ]);
+
+  const libraryRowsForFolderNode = useCallback(
+    (nodeId: string): IServerAttachmentRow[] => {
+      if (!itemId) return [];
+      const tree = formManager.attachmentLibrary?.folderTree;
+      if (!tree?.length) return [];
+      const out: IServerAttachmentRow[] = [];
+      for (let i = 0; i < serverAttachments.length; i++) {
+        const row = serverAttachments[i];
+        const fr = row.fileRef;
+        if (
+          typeof fr === 'string' &&
+          fr.trim() &&
+          libraryFileRowBelongsToFolderNode(fr.trim(), nodeId, tree, itemId, values)
+        ) {
+          out.push(row);
+        }
+      }
+      return out;
+    },
+    [itemId, formManager.attachmentLibrary?.folderTree, serverAttachments, values]
+  );
+
   const tryGoToStep = useCallback(
     (targetIndex: number) => {
       if (!visibleStepsForUi?.length) return;
@@ -959,7 +1064,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const allowBackFree = sn?.allowBackWithoutValidation !== false;
       const attCtx: IFormValidationAttachmentContext = {
         attachmentCount,
-        pendingFiles: pendingFiles.map((f) => ({
+        pendingFiles: flatPendingFiles.map((f) => ({
           size: f.size,
           type: f.type || 'application/octet-stream',
           name: f.name,
@@ -1035,7 +1140,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       authorId,
       dynamicContext,
       attachmentCount,
-      pendingFiles,
+      flatPendingFiles,
       buttonOverlay.show,
       buttonOverlay.hide,
       buttonOverlay.showOnStepId,
@@ -1071,7 +1176,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       <Stack tokens={{ childrenGap: thumbBox ? 8 : 4 }}>
         {rows.map((a, ai) => (
           <Stack
-            key={`${a.fileName}-${ai}`}
+            key={`${a.fileRef ?? a.fileUrl}-${a.fileName}-${ai}`}
             horizontal
             verticalAlign="center"
             tokens={{ childrenGap: 10 }}
@@ -1132,9 +1237,55 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const attErr = localErrors._attachments;
       const attReq = derived.fieldRequired[name] === true;
       const attachmentSatisfied =
-        pendingFiles.length > 0 || (formMode !== 'create' && attachmentCount > 0);
+        flatPendingFiles.length > 0 || (formMode !== 'create' && attachmentCount > 0);
       const attReqEmpty = attReq && !readOnly && !attachmentSatisfied;
+      if (
+        multiFolderAttachmentMode &&
+        foldersForCurrentAttachmentStep.length === 0 &&
+        formMode !== 'view'
+      ) {
+        return null;
+      }
       if (formMode === 'view') {
+        if (multiFolderAttachmentMode && foldersForCurrentAttachmentStep.length === 0) {
+          return null;
+        }
+        if (multiFolderAttachmentMode && foldersForCurrentAttachmentStep.length > 0) {
+          let stepCount = 0;
+          for (let si = 0; si < foldersForCurrentAttachmentStep.length; si++) {
+            stepCount += libraryRowsForFolderNode(foldersForCurrentAttachmentStep[si].id).length;
+          }
+          return (
+            <Stack key={name} tokens={{ childrenGap: 12 }} styles={{ root: { marginBottom: 12 } }}>
+              <Label required={attReq}>{fc.label ?? 'Anexos ao item'}</Label>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                {stepCount} anexo(s) nesta etapa. Não é possível adicionar novos em modo ver.
+              </Text>
+              {foldersForCurrentAttachmentStep.map((node) => {
+                const folderRows = libraryRowsForFolderNode(node.id);
+                return (
+                  <Stack key={node.id} tokens={{ childrenGap: 6 }}>
+                    <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                      {node.nameTemplate?.trim() || 'Pasta'}
+                    </Text>
+                    {folderRows.length > 0 ? (
+                      renderServerAttachmentList(folderRows)
+                    ) : (
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Nenhum ficheiro nesta pasta.
+                      </Text>
+                    )}
+                  </Stack>
+                );
+              })}
+              {fc.helpText && (
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  {fc.helpText}
+                </Text>
+              )}
+            </Stack>
+          );
+        }
         return (
           <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 12 } }}>
             <Label required={attReq}>{fc.label ?? 'Anexos ao item'}</Label>
@@ -1156,12 +1307,54 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         );
       }
+      if (multiFolderAttachmentMode && foldersForCurrentAttachmentStep.length > 0) {
+        return (
+          <Stack key={name} tokens={{ childrenGap: 12 }} styles={{ root: { marginBottom: 12 } }}>
+            {foldersForCurrentAttachmentStep.map((node) => {
+              const folderRows = libraryRowsForFolderNode(node.id);
+              return (
+                <Stack key={node.id} tokens={{ childrenGap: 6 }}>
+                  {folderRows.length > 0 && (
+                    <Stack tokens={{ childrenGap: 6 }}>
+                      <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                        {isFormAttachmentLibraryRuntime(formManager)
+                          ? 'Ficheiros já na biblioteca'
+                          : 'Anexos já no item'}
+                      </Text>
+                      {renderServerAttachmentList(folderRows)}
+                    </Stack>
+                  )}
+                  <FormAttachmentUploader
+                    files={pendingFilesByFolder[node.id] ?? []}
+                    onFilesChange={(files) => {
+                      setPendingFilesByFolder((prev) => ({ ...prev, [node.id]: files }));
+                    }}
+                    disabled={readOnly}
+                    label={node.nameTemplate?.trim() || 'Pasta'}
+                    description={fc.helpText}
+                    errorMessage={attErr}
+                    required={attReq}
+                    requiredEmptyHighlight={attReqEmpty}
+                    layout={formManager.attachmentUploadLayout ?? 'default'}
+                    filePreview={attachmentPreviewKind}
+                    allowedFileExtensions={
+                      attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
+                    }
+                  />
+                </Stack>
+              );
+            })}
+          </Stack>
+        );
+      }
       return (
         <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
           {serverAttachments.length > 0 && (
             <Stack tokens={{ childrenGap: 6 }}>
               <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                Anexos já no item
+                {isFormAttachmentLibraryRuntime(formManager)
+                  ? 'Ficheiros já na biblioteca (ligados a este item)'
+                  : 'Anexos já no item'}
               </Text>
               {renderServerAttachmentList(serverAttachments)}
             </Stack>
@@ -1427,14 +1620,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (scope === 'main' && currentStepFieldSet) {
         const name = fc.internalName;
         if (!currentStepFieldSet.has(name)) {
-          if (!buttonOverlay.show.has(name)) continue;
-          const vis = visibleStepsForUi;
-          if (!vis?.length) continue;
-          const sid = buttonOverlay.showOnStepId?.[name];
-          const fallbackSingle = vis.length === 1 ? vis[0].id : undefined;
-          const target = sid || fallbackSingle;
-          const curId = vis[stepIndex]?.id;
-          if (!target || !curId || target !== curId) continue;
+          const allowMultiAttach =
+            name === FORM_ATTACHMENTS_FIELD_INTERNAL &&
+            multiFolderAttachmentMode &&
+            foldersForCurrentAttachmentStep.length > 0;
+          if (!allowMultiAttach) {
+            if (!buttonOverlay.show.has(name)) continue;
+            const vis = visibleStepsForUi;
+            if (!vis?.length) continue;
+            const sid = buttonOverlay.showOnStepId?.[name];
+            const fallbackSingle = vis.length === 1 ? vis[0].id : undefined;
+            const target = sid || fallbackSingle;
+            const curId = vis[stepIndex]?.id;
+            if (!target || !curId || target !== curId) continue;
+          }
         }
       }
       let sid =

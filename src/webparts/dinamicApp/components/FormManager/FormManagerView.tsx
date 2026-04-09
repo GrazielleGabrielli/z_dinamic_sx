@@ -20,6 +20,7 @@ import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormMa
 import {
   isFormAttachmentLibraryRuntime,
   uploadFilesToAttachmentLibrary,
+  uploadFilesToAttachmentLibraryByFolderNodes,
 } from '../../core/formManager/formAttachmentLibrary';
 import { resolveFormRootLayoutStyles } from '../../core/formManager/formRootLayout';
 import {
@@ -37,11 +38,26 @@ async function uploadAttachments(
   listTitle: string,
   itemId: number,
   files: File[],
-  itemFieldValues: Record<string, unknown>
+  itemFieldValues: Record<string, unknown>,
+  filesByFolderNodeId?: Record<string, File[]>
 ): Promise<void> {
-  if (!files.length) return;
+  const hasBuckets =
+    !!filesByFolderNodeId && Object.keys(filesByFolderNodeId).some((k) => filesByFolderNodeId[k].length > 0);
+  if (!files.length && !hasBuckets) return;
   if (isFormAttachmentLibraryRuntime(fm)) {
     const lib = fm.attachmentLibrary!;
+    const iv = { ...itemFieldValues, Id: itemId };
+    if (hasBuckets) {
+      await uploadFilesToAttachmentLibraryByFolderNodes(
+        lib.libraryTitle!,
+        lib.sourceListLookupFieldInternalName!,
+        itemId,
+        filesByFolderNodeId!,
+        lib.folderTree,
+        { itemFieldValues: iv }
+      );
+      return;
+    }
     await uploadFilesToAttachmentLibrary(
       lib.libraryTitle!,
       lib.sourceListLookupFieldInternalName!,
@@ -50,7 +66,7 @@ async function uploadAttachments(
       {
         folderTree: lib.folderTree,
         folderPathSegments: lib.folderPathSegments,
-        itemFieldValues: { ...itemFieldValues, Id: itemId },
+        itemFieldValues: iv,
       }
     );
     return;
@@ -215,21 +231,43 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
   const handleSubmit = async (
     payload: Record<string, unknown>,
     _submitKind: TFormSubmitKind,
-    files: File[]
+    files: File[],
+    filesByFolderNodeId?: Record<string, File[]>
   ): Promise<void> => {
     if (formMode === 'view') {
       return;
     }
+    const multiLib =
+      !!filesByFolderNodeId &&
+      Object.keys(filesByFolderNodeId).some((k) => filesByFolderNodeId[k].length > 0);
     if (formMode === 'create') {
-      const { id, filesForAttachments } = await itemsService.addItem(listTitle, payload, files);
-      await uploadAttachments(fm, listTitle, id, filesForAttachments, { ...payload, Id: id });
+      const { id, filesForAttachments } = await itemsService.addItem(
+        listTitle,
+        payload,
+        multiLib ? Object.values(filesByFolderNodeId!).flat() : files
+      );
+      await uploadAttachments(
+        fm,
+        listTitle,
+        id,
+        multiLib ? [] : filesForAttachments,
+        { ...payload, Id: id },
+        multiLib ? filesByFolderNodeId : undefined
+      );
       resetToNew();
       return;
     }
     if (formMode === 'edit' && activeItem) {
       const id = Number(activeItem.Id);
       await itemsService.updateItem(listTitle, id, payload);
-      await uploadAttachments(fm, listTitle, id, files, { ...payload, Id: id });
+      await uploadAttachments(
+        fm,
+        listTitle,
+        id,
+        multiLib ? [] : files,
+        { ...payload, Id: id },
+        multiLib ? filesByFolderNodeId : undefined
+      );
       await loadItemById(id, 'edit');
     }
   };
