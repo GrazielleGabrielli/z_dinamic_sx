@@ -64,6 +64,7 @@ import { getSP } from '../../../../services/core/sp';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
 import { FormItemHistoryUi } from './FormItemHistoryUi';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
+import { stepVisibleInFormMode } from '../../core/formManager/stepFormMode';
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -498,9 +499,33 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     [itemsService, metaByName]
   );
 
+  const lookupFetchKey = useMemo(() => {
+    const parts: string[] = [];
+    for (let i = 0; i < fieldConfigs.length; i++) {
+      const fn = fieldConfigs[i].internalName;
+      const m = metaByName.get(fn);
+      if (m?.MappedType !== 'lookup') continue;
+      const listId = String(m.LookupList ?? '');
+      const disp = String(m.LookupField || 'Title');
+      const lf = derived.lookupFilters[fn];
+      if (lf) {
+        const pid = lookupIdFromValue(values[lf.parentField]);
+        parts.push(
+          `${fn}\t${listId}\t${disp}\t${lf.parentField}\t${lf.odataFilterTemplate}\t${pid === undefined ? '' : String(pid)}`
+        );
+      } else {
+        parts.push(`${fn}\t${listId}\t${disp}\t`);
+      }
+    }
+    parts.sort();
+    return parts.join('\n');
+  }, [fieldConfigs, metaByName, derived.lookupFilters, values]);
+
   useEffect(() => {
+    let cancelled = false;
     void (async (): Promise<void> => {
       for (let i = 0; i < fieldConfigs.length; i++) {
+        if (cancelled) return;
         const fn = fieldConfigs[i].internalName;
         const m = metaByName.get(fn);
         if (m?.MappedType === 'lookup') {
@@ -514,7 +539,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }
       }
     })();
-  }, [fieldConfigs, metaByName, derived.lookupFilters, values, loadLookupOptions]);
+    return (): void => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fieldConfigs, metaByName, derived, values entram via lookupFetchKey (conteúdo estável).
+  }, [lookupFetchKey, loadLookupOptions]);
 
   useEffect(() => {
     if (formMode === 'create' || !itemId) {
@@ -623,8 +652,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const stepsAll = formManager.steps?.length ? formManager.steps : null;
   const visibleStepsForUi = useMemo(() => {
     if (!stepsAll) return null;
-    return stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
-  }, [stepsAll]);
+    const nonOcultos = stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
+    const forMode = nonOcultos.filter((s) => stepVisibleInFormMode(s, formMode));
+    return forMode.length > 0 ? forMode : nonOcultos;
+  }, [stepsAll, formMode]);
   const [stepIndex, setStepIndex] = useState(0);
   const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
   useEffect(() => {

@@ -6,6 +6,20 @@ export { getGraph } from './core/graph';
 export { UsersService } from './users/UsersService';
 export { GroupsService } from './groups/GroupsService';
 export { ListsService } from './lists/ListsService';
+export {
+  provisionLancamentosContabeisList,
+  deleteLancamentosContabeisProvisionedFields,
+  LANCAMENTOS_CONTABEIS_LIST_TITLE,
+  LANCAMENTOS_CONTABEIS_PROVISIONED_FIELD_INTERNAL_NAMES,
+  NATUREZAS_OPERACAO_LIST_TITLE,
+} from './lists/provisionLancamentosContabeisList';
+export type { IProvisionLancamentosContabeisResult } from './lists/provisionLancamentosContabeisList';
+export {
+  criarFieldsListaLancamentosContabeis,
+  LISTA_LANCAMENTOS_CONTABEIS,
+  LISTA_NATUREZA_OPERACAO_LOOKUP,
+} from './lists/criarFieldsListaLancamentosContabeis';
+export type { ICriarFieldsListaLancamentosContabeisResult } from './lists/criarFieldsListaLancamentosContabeis';
 export { LibrariesService } from './libraries/LibrariesService';
 export { FieldsService } from './fields/FieldsService';
 export { ViewsService } from './views/ViewsService';

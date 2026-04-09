@@ -254,6 +254,8 @@ export interface IFormStepConfig {
   id: string;
   title: string;
   fieldNames: string[];
+  /** Modos em que a etapa entra no passador. Omitido ou vazio = Criar, Editar e Ver. */
+  showInFormModes?: TFormManagerFormMode[];
 }
 
 /** Navegação visual entre etapas no formulário (várias etapas). */

@@ -523,6 +523,27 @@ function sanitizeStepNavigation(raw: unknown): IFormStepNavigationConfig | undef
   return out;
 }
 
+const FORM_MANAGER_MODES = ['create', 'edit', 'view'] as const;
+
+function sanitizeShowInFormModes(raw: unknown): TFormManagerFormMode[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: TFormManagerFormMode[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const v = String(raw[i]).trim();
+    if (FORM_MANAGER_MODES.indexOf(v as (typeof FORM_MANAGER_MODES)[number]) !== -1) {
+      out.push(v as TFormManagerFormMode);
+    }
+  }
+  const uniq = out.filter((m, j) => out.indexOf(m) === j);
+  if (uniq.length === 0) return undefined;
+  if (uniq.length === 3) return undefined;
+  return uniq.sort(
+    (a, b) =>
+      FORM_MANAGER_MODES.indexOf(a as (typeof FORM_MANAGER_MODES)[number]) -
+      FORM_MANAGER_MODES.indexOf(b as (typeof FORM_MANAGER_MODES)[number])
+  );
+}
+
 function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const s = raw as Record<string, unknown>;
@@ -530,7 +551,8 @@ function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   const title = typeof s.title === 'string' ? s.title.trim() : '';
   const fieldNames = Array.isArray(s.fieldNames) ? (s.fieldNames as unknown[]).map((x) => String(x).trim()).filter(Boolean) : [];
   if (!id || !title) return undefined;
-  return { id, title, fieldNames };
+  const showInFormModes = sanitizeShowInFormModes(s.showInFormModes);
+  return { id, title, fieldNames, ...(showInFormModes?.length ? { showInFormModes } : {}) };
 }
 
 function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefined {

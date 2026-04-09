@@ -57,6 +57,7 @@ import {
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import { ALL_FORM_MANAGER_MODES, toggleStepShowInFormMode } from '../../core/formManager/stepFormMode';
 import {
   buildFieldUiRules,
   compileConditionalCard,
@@ -1585,6 +1586,40 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     <Text variant="small" styles={{ root: { color: '#605e5c', alignSelf: 'center' } }}>
                       {st.fieldNames.length} campo(s)
                     </Text>
+                  )}
+                  {st.id === FORM_OCULTOS_STEP_ID ? (
+                    <Text variant="small" styles={{ root: { color: '#605e5c', alignSelf: 'center' } }}>
+                      Não entra no passador (reserva de campos)
+                    </Text>
+                  ) : (
+                    <Stack
+                      horizontal
+                      verticalAlign="center"
+                      wrap
+                      tokens={{ childrenGap: 12 }}
+                      styles={{ root: { alignItems: 'center' } }}
+                    >
+                      <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
+                        Mostrar em:
+                      </Text>
+                      {ALL_FORM_MANAGER_MODES.map((m) => {
+                        const sel = st.showInFormModes;
+                        const checked = !sel?.length || sel.indexOf(m) !== -1;
+                        const label = m === 'create' ? 'Criar' : m === 'edit' ? 'Editar' : 'Ver';
+                        return (
+                          <Checkbox
+                            key={m}
+                            label={label}
+                            checked={checked}
+                            onChange={(_, c) =>
+                              updateStep(si, {
+                                showInFormModes: toggleStepShowInFormMode(st.showInFormModes, m, !!c),
+                              })
+                            }
+                          />
+                        );
+                      })}
+                    </Stack>
                   )}
                   <DefaultButton text="Remover etapa" onClick={() => removeStep(si)} />
                 </Stack>

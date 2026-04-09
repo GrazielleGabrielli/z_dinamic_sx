@@ -336,6 +336,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setLayoutSubTab('geral');
   }, [isOpen, listView, pagination, pdfTemplate, projectManagement]);
 
+  const showPdfExcelConfigTabs = mode !== 'list';
+
+  useEffect(() => {
+    if (mode !== 'list') return;
+    setActiveTab((tab) => (tab === 'pdf' || tab === 'excel' ? 'lista' : tab));
+  }, [mode]);
 
   const toggle = (internalName: string): void => {
     setOptions((prev) =>
@@ -1002,25 +1008,49 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
               {mode !== 'projectManagement' ? (
                 <PivotItem itemKey="acoes" headerText="Ações">
                   <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
-                    <Text
-                      variant="small"
-                      block
-                      styles={{
-                        root: {
-                          display: 'block',
-                          color: '#605e5c',
-                          lineHeight: 1.55,
-                          whiteSpace: 'normal',
-                          wordBreak: 'break-word',
-                          overflowWrap: 'break-word',
-                        },
-                      }}
+                    <Stack
+                      tokens={{ childrenGap: 10 }}
+                      styles={{ root: { width: '100%', flexShrink: 0, minHeight: 0 } }}
                     >
-                      {
-                        'Botões por item na tabela e nos cards. Opcionalmente a linha ou o card inteiro abre a URL da ação marcada como "Linha ou card inteiro" (usa a primeira ação assim na lista). ' +
-                        'Campos: {{ID}}, {{ Title }} (duplas chaves), {Id}, {Title}; lookup {Autor/Title}; tokens [me], [siteurl], [query:chave], etc.'
-                      }
-                    </Text>
+                      <Text
+                        variant="small"
+                        block
+                        styles={{
+                          root: {
+                            display: 'block',
+                            width: '100%',
+                            margin: 0,
+                            color: '#605e5c',
+                            lineHeight: 1.55,
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word',
+                          },
+                        }}
+                      >
+                        {
+                          'Botões por item na tabela e nos cards. Opcionalmente a linha ou o card inteiro abre a URL da ação marcada como "Linha ou card inteiro" (usa a primeira ação assim na lista).'
+                        }
+                      </Text>
+                      <Text
+                        variant="small"
+                        block
+                        styles={{
+                          root: {
+                            display: 'block',
+                            width: '100%',
+                            margin: 0,
+                            color: '#605e5c',
+                            lineHeight: 1.55,
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word',
+                          },
+                        }}
+                      >
+                        {`Campos: {{ID}}, {{ Title }} (duplas chaves), {Id}, {Title}; lookup {Autor/Title}; tokens [me], [siteurl], [query:chave], etc.`}
+                      </Text>
+                    </Stack>
                     {rowActions.map((act, ai) => (
                       <Stack
                         key={act.id}
@@ -1089,27 +1119,31 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   </Stack>
                 </PivotItem>
               ) : null}
-              <PivotItem itemKey="pdf" headerText="PDF">
-                <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
-                  <Checkbox
-                    label="Exibir botão Exportar PDF ao lado do seletor de abas"
-                    checked={pdfExportEnabled}
-                    onChange={(_, v) => setPdfExportEnabled(!!v)}
-                  />
-                  <PdfTemplateEditor
-                    value={localPdfTemplate}
-                    onChange={setLocalPdfTemplate}
-                    fieldOptions={pdfFieldOptions}
-                  />
-                </Stack>
-              </PivotItem>
-              <PivotItem itemKey="excel" headerText="Excel">
-                <Stack tokens={{ childrenGap: 8 }} styles={{ root: { paddingTop: 16, minWidth: 0, maxWidth: '100%' } }}>
-                  <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
-                    Exportação para Excel em breve.
-                  </Text>
-                </Stack>
-              </PivotItem>
+              {showPdfExcelConfigTabs ? (
+                <>
+                  <PivotItem itemKey="pdf" headerText="PDF">
+                    <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
+                      <Checkbox
+                        label="Exibir botão Exportar PDF ao lado do seletor de abas"
+                        checked={pdfExportEnabled}
+                        onChange={(_, v) => setPdfExportEnabled(!!v)}
+                      />
+                      <PdfTemplateEditor
+                        value={localPdfTemplate}
+                        onChange={setLocalPdfTemplate}
+                        fieldOptions={pdfFieldOptions}
+                      />
+                    </Stack>
+                  </PivotItem>
+                  <PivotItem itemKey="excel" headerText="Excel">
+                    <Stack tokens={{ childrenGap: 8 }} styles={{ root: { paddingTop: 16, minWidth: 0, maxWidth: '100%' } }}>
+                      <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
+                        Exportação para Excel em breve.
+                      </Text>
+                    </Stack>
+                  </PivotItem>
+                </>
+              ) : null}
               <PivotItem itemKey="layout" headerText="Layout">
                 <Pivot
                   selectedKey={layoutSubTab}
