@@ -1,4 +1,5 @@
 import type { IAttachmentLibraryFolderTreeNode, IFormManagerAttachmentLibraryConfig } from '../config/types/formManager';
+import { sanitizeFolderNameTemplatePreservingPlaceholders } from './attachmentFolderNameTemplate';
 
 export const MAX_ATTACHMENT_FOLDER_TREE_NODES = 40;
 export const MAX_ATTACHMENT_FOLDER_TREE_DEPTH = 12;
@@ -137,7 +138,9 @@ function sanitizeNode(
   const o = raw as Record<string, unknown>;
   const id = typeof o.id === 'string' && o.id.trim() ? o.id.trim().slice(0, 80) : newAttachmentFolderNodeId();
   const nameTemplate =
-    typeof o.nameTemplate === 'string' ? o.nameTemplate.trim().slice(0, 200) : '';
+    typeof o.nameTemplate === 'string'
+      ? sanitizeFolderNameTemplatePreservingPlaceholders(String(o.nameTemplate)).slice(0, 200)
+      : '';
   if (nodeCount.n >= MAX_ATTACHMENT_FOLDER_TREE_NODES) return undefined;
   nodeCount.n += 1;
   let children: IAttachmentLibraryFolderTreeNode[] | undefined;
@@ -165,7 +168,19 @@ export function sanitizeFolderTreeInput(raw: unknown): IAttachmentLibraryFolderT
     const n = sanitizeNode(raw[i], 0, nodeCount);
     if (n) out.push(n);
   }
-  return normalizeFolderTreeUploadTarget(out);
+  return normalizeFolderTreeUploadTarget(mergeExtraRootsIntoFirst(out));
+}
+
+function mergeExtraRootsIntoFirst(nodes: IAttachmentLibraryFolderTreeNode[]): IAttachmentLibraryFolderTreeNode[] {
+  if (nodes.length <= 1) return nodes;
+  const [first, ...rest] = nodes;
+  const mergedChildren = [...(first.children ?? []), ...rest];
+  return [
+    {
+      ...first,
+      children: mergedChildren.length ? mergedChildren : undefined,
+    },
+  ];
 }
 
 export function loadFolderTreeFromAttachmentLibrary(
@@ -189,6 +204,7 @@ export function findUploadTargetId(nodes: IAttachmentLibraryFolderTreeNode[]): s
 }
 
 export function addRootSibling(nodes: IAttachmentLibraryFolderTreeNode[]): IAttachmentLibraryFolderTreeNode[] {
+  if (nodes.length >= 1) return nodes;
   if (countNodesInTree(nodes) >= MAX_ATTACHMENT_FOLDER_TREE_NODES) return nodes;
   const n = createEmptyFolderNode('');
   const cleared = clearUploadTargets(nodes);
@@ -223,18 +239,22 @@ export function addChild(
 
 export function addSiblingAfter(
   nodes: IAttachmentLibraryFolderTreeNode[],
-  afterId: string
+  afterId: string,
+  isFolderTreeRootLevel = true
 ): IAttachmentLibraryFolderTreeNode[] {
   if (countNodesInTree(nodes) >= MAX_ATTACHMENT_FOLDER_TREE_NODES) return nodes;
   const idx = nodes.findIndex((n) => n.id === afterId);
   if (idx >= 0) {
+    if (isFolderTreeRootLevel) {
+      return nodes;
+    }
     const next = nodes.slice();
     next.splice(idx + 1, 0, createEmptyFolderNode(''));
     if (treeMaxDepth(next) > MAX_ATTACHMENT_FOLDER_TREE_DEPTH) return nodes;
     return next;
   }
   const out = nodes.map((n) =>
-    n.children?.length ? { ...n, children: addSiblingAfter(n.children, afterId) } : n
+    n.children?.length ? { ...n, children: addSiblingAfter(n.children, afterId, false) } : n
   );
   if (treeMaxDepth(out) > MAX_ATTACHMENT_FOLDER_TREE_DEPTH) return nodes;
   return out;

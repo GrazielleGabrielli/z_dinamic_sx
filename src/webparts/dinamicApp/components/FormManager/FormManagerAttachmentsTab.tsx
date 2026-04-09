@@ -283,11 +283,11 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                     onToggle={() => toggleSection(SECTION_IDS.folders)}
                   >
                     <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                      O nível 1 é sempre a pasta com o ID do item na lista principal. Abaixo dela pode definir uma
-                      árvore de subpastas (vários ramos ao mesmo nível e pastas dentro de pastas). Use texto fixo ou
-                      placeholders <code style={{ fontSize: 12 }}>{'{{Title}}'}</code>,{' '}
-                      <code style={{ fontSize: 12 }}>{'{{NomeInterno}}'}</code>, etc. Árvore vazia = ficheiros na pasta
-                      do ID.
+                      O nível 1 é sempre a pasta com o ID do item na lista principal. Abaixo só existe uma pasta raiz
+                      por solicitação; a ramificação (irmãos e filhos) fica dentro dela, para agrupar por ID. Use texto
+                      fixo ou placeholders <code style={{ fontSize: 12 }}>{'{{Title}}'}</code>,{' '}
+                      <code style={{ fontSize: 12 }}>{'{{NomeInterno}}'}</code>, etc. Sem pastas configuradas = ficheiros
+                      diretamente na pasta do ID.
                     </Text>
                     <Stack
                       horizontal

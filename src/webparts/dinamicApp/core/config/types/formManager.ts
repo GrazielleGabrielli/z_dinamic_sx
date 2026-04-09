@@ -323,8 +323,8 @@ export interface IFormManagerAttachmentLibraryConfig {
    */
   sourceListLookupFieldInternalName?: string;
   /**
-   * Subpastas **abaixo** da pasta de nível 1 (nome = ID do item na lista principal).
-   * Permite vários ramos (irmãos e filhos). Um nó com `uploadTarget` define onde o upload grava.
+   * Subpastas **abaixo** da pasta de nível 1 (nome = ID do item). Só uma pasta raiz nesse nível;
+   * ramos e irmãos ficam dentro dela. `uploadTarget` define onde o upload grava.
    */
   folderTree?: IAttachmentLibraryFolderTreeNode[];
   /**
