@@ -17,6 +17,10 @@ import {
   type TFormSubmitKind,
 } from '../../core/config/types/formManager';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import {
+  isFormAttachmentLibraryRuntime,
+  uploadFilesToAttachmentLibrary,
+} from '../../core/formManager/formAttachmentLibrary';
 import { resolveFormRootLayoutStyles } from '../../core/formManager/formRootLayout';
 import {
   isFormNewModeQuery,
@@ -28,8 +32,23 @@ export interface IFormManagerViewProps {
   config: IDynamicViewConfig;
 }
 
-async function uploadAttachments(listTitle: string, itemId: number, files: File[]): Promise<void> {
+async function uploadAttachments(
+  fm: IFormManagerConfig,
+  listTitle: string,
+  itemId: number,
+  files: File[]
+): Promise<void> {
   if (!files.length) return;
+  if (isFormAttachmentLibraryRuntime(fm)) {
+    const lib = fm.attachmentLibrary!;
+    await uploadFilesToAttachmentLibrary(
+      lib.libraryTitle!,
+      lib.sourceListLookupFieldInternalName!,
+      itemId,
+      files
+    );
+    return;
+  }
   const sp = getSP();
   const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(listTitle);
   const list = isGuid ? sp.web.lists.getById(listTitle) : sp.web.lists.getByTitle(listTitle);
@@ -197,14 +216,14 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     }
     if (formMode === 'create') {
       const { id, filesForAttachments } = await itemsService.addItem(listTitle, payload, files);
-      await uploadAttachments(listTitle, id, filesForAttachments);
+      await uploadAttachments(fm, listTitle, id, filesForAttachments);
       resetToNew();
       return;
     }
     if (formMode === 'edit' && activeItem) {
       const id = Number(activeItem.Id);
       await itemsService.updateItem(listTitle, id, payload);
-      await uploadAttachments(listTitle, id, files);
+      await uploadAttachments(fm, listTitle, id, files);
       await loadItemById(id, 'edit');
     }
   };

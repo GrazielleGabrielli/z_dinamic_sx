@@ -46,9 +46,9 @@ import type {
   TFormHistoryPresentationKind,
   TFormHistoryLayoutKind,
   TFormHistoryButtonKind,
-  TFormHistoryIntegratedClickBehavior,
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
+  TFormAttachmentStorageKind,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -85,6 +85,7 @@ import {
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
+import { FormManagerAttachmentsTabContent } from './FormManagerAttachmentsTab';
 import {
   FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
   FORM_SUBMIT_LOADING_INHERIT_KEY,
@@ -337,13 +338,6 @@ const BUTTON_BEHAVIOR_OPTIONS: IDropdownOption[] = [
   { key: 'close', text: 'Ações e depois fechar formulário' },
 ];
 
-const HISTORY_INTEGRATED_CLICK_OPTIONS: IDropdownOption[] = [
-  { key: 'openOnly', text: 'Só abrir o painel de histórico' },
-  { key: 'actionsOnly', text: 'Ações, registo de log (se ativo) e abrir histórico' },
-  { key: 'draft', text: 'Ações, gravar rascunho, log se ok, abrir histórico' },
-  { key: 'submit', text: 'Ações, enviar, log se ok, abrir histórico' },
-];
-
 const ESTRUTURA_COLLAPSE_IDS = {
   formLayout: 'estruturaFormLayout',
   stepNav: 'estruturaStepNav',
@@ -541,7 +535,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actions: b.actions.map((a) => ({ ...a })),
     }))
   );
-  const [showDefaultFormButtons, setShowDefaultFormButtons] = useState(() => value.showDefaultFormButtons === true);
   const [stepLayout, setStepLayout] = useState<TFormStepLayoutKind>(() => value.stepLayout ?? 'segmented');
   const [stepNavButtons, setStepNavButtons] = useState<TFormStepNavButtonsKind>(
     () => value.stepNavButtons ?? 'fluent'
@@ -557,6 +550,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   );
   const [attachmentFilePreview, setAttachmentFilePreview] = useState<TFormAttachmentFilePreviewKind>(
     () => value.attachmentFilePreview ?? 'nameAndSize'
+  );
+  const [attachmentStorageKind, setAttachmentStorageKind] = useState<TFormAttachmentStorageKind>(
+    () => value.attachmentStorageKind ?? 'itemAttachments'
+  );
+  const [attachmentLibLibraryTitle, setAttachmentLibLibraryTitle] = useState(
+    () => value.attachmentLibrary?.libraryTitle ?? ''
+  );
+  const [attachmentLibLookupField, setAttachmentLibLookupField] = useState(
+    () => value.attachmentLibrary?.sourceListLookupFieldInternalName ?? ''
   );
   const [stepRequireFilledToAdvance, setStepRequireFilledToAdvance] = useState(
     () => value.stepNavigation?.requireFilledRequiredToAdvance === true
@@ -620,11 +622,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [historyButtonIcon, setHistoryButtonIcon] = useState(() => value.historyButtonIcon ?? 'History');
   const [historyPanelSubtitle, setHistoryPanelSubtitle] = useState(() => value.historyPanelSubtitle ?? '');
   const [historyGroupTitles, setHistoryGroupTitles] = useState<string[]>(() => value.historyGroupTitles ?? []);
-  const [historyButtonClickBehavior, setHistoryButtonClickBehavior] =
-    useState<TFormHistoryIntegratedClickBehavior>(() => value.historyButtonClickBehavior ?? 'actionsOnly');
-  const [historyButtonActions, setHistoryButtonActions] = useState<TFormButtonAction[]>(() =>
-    (value.historyButtonActions ?? []).map((a) => ({ ...a }))
-  );
 
   const fieldsService = useMemo(() => new FieldsService(), []);
   const groupsService = useMemo(() => new GroupsService(), []);
@@ -643,13 +640,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         actions: b.actions.map((a) => ({ ...a })),
       }))
     );
-    setShowDefaultFormButtons(value.showDefaultFormButtons === true);
     setStepLayout(value.stepLayout ?? 'segmented');
     setStepNavButtons(value.stepNavButtons ?? 'fluent');
     setFormDataLoadingKind(value.formDataLoadingKind ?? 'spinner');
     setDefaultSubmitLoadingKind(value.defaultSubmitLoadingKind ?? 'overlay');
     setAttachmentUploadLayout(value.attachmentUploadLayout ?? 'default');
     setAttachmentFilePreview(value.attachmentFilePreview ?? 'nameAndSize');
+    setAttachmentStorageKind(value.attachmentStorageKind ?? 'itemAttachments');
+    setAttachmentLibLibraryTitle(value.attachmentLibrary?.libraryTitle ?? '');
+    setAttachmentLibLookupField(value.attachmentLibrary?.sourceListLookupFieldInternalName ?? '');
     setStepRequireFilledToAdvance(value.stepNavigation?.requireFilledRequiredToAdvance === true);
     setStepFullValOnAdvance(value.stepNavigation?.fullValidationOnAdvance === true);
     setStepAllowBackWithoutVal(value.stepNavigation?.allowBackWithoutValidation !== false);
@@ -682,8 +681,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setHistoryButtonIcon(value.historyButtonIcon ?? 'History');
     setHistoryPanelSubtitle(value.historyPanelSubtitle ?? '');
     setHistoryGroupTitles(value.historyGroupTitles ?? []);
-    setHistoryButtonClickBehavior(value.historyButtonClickBehavior ?? 'actionsOnly');
-    setHistoryButtonActions((value.historyButtonActions ?? []).map((a) => ({ ...a })));
   }, [isOpen, value]);
 
   useEffect(() => {
@@ -942,6 +939,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         return;
       }
     }
+    if (attachmentStorageKind === 'documentLibrary') {
+      if (!attachmentLibLibraryTitle.trim() || !attachmentLibLookupField.trim()) {
+        setErr(
+          'No modo Biblioteca, indique a biblioteca de documentos e o campo Lookup que relaciona com a lista principal.'
+        );
+        return;
+      }
+    }
     const withRules = mergeAttachmentUiRule(rules, {
       minCount: numOpt(attachMin),
       maxCount: numOpt(attachMax),
@@ -974,6 +979,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogPayload.sourceListLookupFieldInternalName ||
       actionLogPayload.descriptionsHtmlByButtonId
     );
+    const attachmentLibPayload =
+      attachmentStorageKind === 'documentLibrary'
+        ? {
+            libraryTitle: attachmentLibLibraryTitle.trim(),
+            sourceListLookupFieldInternalName: attachmentLibLookupField.trim(),
+          }
+        : undefined;
     const raw: IFormManagerConfig = {
       sections: sectionsOut,
       fields,
@@ -991,18 +1003,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
         ? { defaultSubmitLoadingKind }
         : {}),
-      ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
       ...(stepNavigation ? { stepNavigation } : {}),
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
+      ...(attachmentStorageKind === 'documentLibrary' && attachmentLibPayload
+        ? { attachmentStorageKind, attachmentLibrary: attachmentLibPayload }
+        : {}),
       ...(hasActionLog ? { actionLog: actionLogPayload } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
-      ...(historyButtonClickBehavior && historyButtonClickBehavior !== 'actionsOnly'
-        ? { historyButtonClickBehavior }
-        : {}),
-      ...(historyButtonActions.length
-        ? { historyButtonActions: historyButtonActions.map((a) => ({ ...a })) }
-        : {}),
       ...(historyEnabled
         ? {
             historyEnabled: true,
@@ -1150,27 +1158,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     );
   };
 
-  const patchHistoryButtonAction = (ai: number, next: TFormButtonAction): void => {
-    setHistoryButtonActions((prev) => prev.map((a, k) => (k === ai ? next : a)));
-  };
-  const addHistoryButtonAction = (): void => {
-    setHistoryButtonActions((prev) => prev.concat([{ kind: 'showFields', fields: [] }]));
-  };
-  const removeHistoryButtonAction = (ai: number): void => {
-    setHistoryButtonActions((prev) => prev.filter((_, k) => k !== ai));
-  };
-  const patchHistoryButtonActionWhenUi = (ai: number, partial: Partial<IWhenUi>): void => {
-    setHistoryButtonActions((prev) =>
-      prev.map((a, k) => {
-        if (k !== ai) return a;
-        const baseLeaf = a.when ? whenNodeToUi(a.when) : undefined;
-        const base: IWhenUi = baseLeaf ?? defaultWhenUi(meta);
-        const merged: IWhenUi = { ...base, ...partial };
-        return { ...a, when: whenUiToNode(merged) } as TFormButtonAction;
-      })
-    );
-  };
-
   const setButtonModesFromTriState = (bi: number, c: boolean, e: boolean, v: boolean): void => {
     patchCustomButton(bi, { modes: modesFromCheckboxes(c, e, v) });
   };
@@ -1232,6 +1219,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogPreview.sourceListLookupFieldInternalName ||
       actionLogPreview.descriptionsHtmlByButtonId
     );
+    const attachmentLibPreview =
+      attachmentStorageKind === 'documentLibrary'
+        ? {
+            libraryTitle: attachmentLibLibraryTitle.trim(),
+            sourceListLookupFieldInternalName: attachmentLibLookupField.trim(),
+          }
+        : undefined;
     const raw: IFormManagerConfig = {
       sections: sectionsOut,
       fields,
@@ -1249,18 +1243,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
         ? { defaultSubmitLoadingKind }
         : {}),
-      ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
       ...(stepNavigation ? { stepNavigation } : {}),
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
+      ...(attachmentStorageKind === 'documentLibrary' && attachmentLibPreview
+        ? { attachmentStorageKind, attachmentLibrary: attachmentLibPreview }
+        : {}),
       ...(hasActionLogPreview ? { actionLog: actionLogPreview } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
-      ...(historyButtonClickBehavior && historyButtonClickBehavior !== 'actionsOnly'
-        ? { historyButtonClickBehavior }
-        : {}),
-      ...(historyButtonActions.length
-        ? { historyButtonActions: historyButtonActions.map((a) => ({ ...a })) }
-        : {}),
       ...(historyEnabled
         ? {
             historyEnabled: true,
@@ -1285,9 +1275,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     stepNavButtons,
     formDataLoadingKind,
     defaultSubmitLoadingKind,
-    showDefaultFormButtons,
+    value,
     attachmentUploadLayout,
     attachmentFilePreview,
+    attachmentStorageKind,
+    attachmentLibLibraryTitle,
+    attachmentLibLookupField,
     stepRequireFilledToAdvance,
     stepFullValOnAdvance,
     stepAllowBackWithoutVal,
@@ -1311,8 +1304,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     historyButtonIcon,
     historyPanelSubtitle,
     historyGroupTitles,
-    historyButtonClickBehavior,
-    historyButtonActions,
   ]);
 
   const addConditionalCard = (): void => {
@@ -1838,12 +1829,26 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               onFormDataLoadingKindChange={setFormDataLoadingKind}
               defaultSubmitLoadingKind={defaultSubmitLoadingKind}
               onDefaultSubmitLoadingKindChange={setDefaultSubmitLoadingKind}
+              historyLayoutKind={historyLayoutKind}
+              onHistoryLayoutKindChange={setHistoryLayoutKind}
+            />
+          </Stack>
+        </PivotItem>
+        <PivotItem headerText="Anexos">
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+            <FormManagerAttachmentsTabContent
+              loading={loading}
+              primaryListTitle={listTitle}
+              attachmentStorageKind={attachmentStorageKind}
+              onAttachmentStorageKindChange={setAttachmentStorageKind}
+              attachmentLibraryTitle={attachmentLibLibraryTitle}
+              onAttachmentLibraryTitleChange={setAttachmentLibLibraryTitle}
+              attachmentLibraryLookupField={attachmentLibLookupField}
+              onAttachmentLibraryLookupFieldChange={setAttachmentLibLookupField}
               attachmentUploadLayout={attachmentUploadLayout}
               onAttachmentUploadLayoutChange={setAttachmentUploadLayout}
               attachmentFilePreview={attachmentFilePreview}
               onAttachmentFilePreviewChange={setAttachmentFilePreview}
-              historyLayoutKind={historyLayoutKind}
-              onHistoryLayoutKindChange={setHistoryLayoutKind}
               attachmentAllowedExtensions={attachAllowedExt}
               onAttachmentExtensionToggle={(ext, selected) => {
                 const e = ext.trim().replace(/^\./, '').toLowerCase();
@@ -1865,57 +1870,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               por condição em dados (ex.: coluna Status) usa os campos abaixo em cada botão. Condições compostas
               (várias cláusulas) só em JSON avançado.
             </Text>
-            <Checkbox
-              label="Mostrar também os botões padrão (Enviar, Rascunho, Fechar)"
-              checked={showDefaultFormButtons}
-              onChange={(_, c) => setShowDefaultFormButtons(!!c)}
-            />
-            {historyEnabled && (
-              <Stack
-                tokens={{ childrenGap: 10 }}
-                styles={{
-                  root: {
-                    border: '1px solid #c8c6c4',
-                    padding: 12,
-                    borderRadius: 4,
-                    background: '#f3f2f1',
-                  },
-                }}
-              >
-                <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                  Botão de histórico integrado
-                </Text>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                  Comportamento ao clicar em «Histórico» (configuração de aspeto na aba Lista de logs). «Só abrir o
-                  painel» não executa ações, não grava o item nem registo de log. As outras opções seguem a mesma lógica
-                  dos botões personalizados e abrem o histórico no final.
-                </Text>
-                <Dropdown
-                  label="Ao clicar"
-                  options={HISTORY_INTEGRATED_CLICK_OPTIONS}
-                  selectedKey={historyButtonClickBehavior}
-                  onChange={(_, o) =>
-                    o && setHistoryButtonClickBehavior(String(o.key) as TFormHistoryIntegratedClickBehavior)
-                  }
-                />
-                {historyButtonClickBehavior !== 'openOnly' && (
-                  <FormManagerChainedActionsBlock
-                    actions={historyButtonActions}
-                    patchAction={patchHistoryButtonAction}
-                    removeAction={removeHistoryButtonAction}
-                    addAction={addHistoryButtonAction}
-                    patchActionWhenUi={patchHistoryButtonActionWhenUi}
-                    reactKeysPrefix="hist-int"
-                    meta={meta}
-                    metaSortedForPool={metaSortedForPool}
-                    steps={steps}
-                    fieldOptions={fieldOptions}
-                    loading={loading}
-                    getDefaultWhenUi={() => defaultWhenUi(meta)}
-                  />
-                )}
-              </Stack>
-            )}
             <PrimaryButton text="Adicionar botão" onClick={addCustomButton} />
             {customButtons.map((btn, bi) => {
               const chk = checkboxesFromModes(btn.modes);
@@ -2113,7 +2067,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   )}
                   {(btn.operation ?? 'legacy') === 'add' && (
                     <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                      Cria um novo item na lista com os valores atuais do formulário (validação igual a «Enviar»).
+                      Cria um novo item na lista com os valores atuais do formulário (validação completa ao gravar).
                     </Text>
                   )}
                   {(btn.operation ?? 'legacy') === 'update' && (

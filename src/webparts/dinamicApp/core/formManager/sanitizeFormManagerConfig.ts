@@ -1,4 +1,5 @@
 import type {
+  IFormManagerAttachmentLibraryConfig,
   IFormManagerConfig,
   IFormManagerActionLogConfig,
   IFormStepNavigationConfig,
@@ -21,9 +22,9 @@ import type {
   TFormHistoryPresentationKind,
   TFormHistoryLayoutKind,
   TFormHistoryButtonKind,
-  TFormHistoryIntegratedClickBehavior,
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
+  TFormAttachmentStorageKind,
   IFormCompareRef,
 } from '../config/types/formManager';
 import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
@@ -555,6 +556,21 @@ function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   return { id, title, fieldNames, ...(showInFormModes?.length ? { showInFormModes } : {}) };
 }
 
+function sanitizeAttachmentLibrary(raw: unknown): IFormManagerAttachmentLibraryConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const libraryTitle = typeof o.libraryTitle === 'string' ? o.libraryTitle.trim() : '';
+  const sourceListLookupFieldInternalName =
+    typeof o.sourceListLookupFieldInternalName === 'string'
+      ? o.sourceListLookupFieldInternalName.trim()
+      : '';
+  if (!libraryTitle && !sourceListLookupFieldInternalName) return undefined;
+  return {
+    ...(libraryTitle ? { libraryTitle } : {}),
+    ...(sourceListLookupFieldInternalName ? { sourceListLookupFieldInternalName } : {}),
+  };
+}
+
 function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
@@ -674,7 +690,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof dslRaw === 'string' && FORM_SUBMIT_LOADING_SET.has(dslRaw)
       ? (dslRaw as TFormSubmitLoadingUiKind)
       : undefined;
-  const showDefaultFormButtons = o.showDefaultFormButtons === true;
   const frwmRaw = o.formRootWidthMode;
   const formRootWidthMode: TFormRootWidthMode | undefined =
     frwmRaw === 'full' || frwmRaw === 'percent' ? frwmRaw : undefined;
@@ -698,6 +713,24 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? (attPreviewRaw as TFormAttachmentFilePreviewKind)
       : undefined;
   const actionLog = sanitizeActionLog(o.actionLog);
+  const skRaw = o.attachmentStorageKind;
+  let attachmentStorageKind: TFormAttachmentStorageKind | undefined =
+    skRaw === 'documentLibrary' ? 'documentLibrary' : undefined;
+  const attachmentLibraryRaw = sanitizeAttachmentLibrary(o.attachmentLibrary);
+  let attachmentLibrary: IFormManagerAttachmentLibraryConfig | undefined = attachmentLibraryRaw;
+  if (attachmentStorageKind === 'documentLibrary') {
+    const lt = attachmentLibrary?.libraryTitle?.trim() ?? '';
+    const lk = attachmentLibrary?.sourceListLookupFieldInternalName?.trim() ?? '';
+    if (!lt || !lk) {
+      attachmentStorageKind = undefined;
+      attachmentLibrary = undefined;
+    } else {
+      attachmentLibrary = { libraryTitle: lt, sourceListLookupFieldInternalName: lk };
+    }
+  } else {
+    attachmentStorageKind = undefined;
+    attachmentLibrary = undefined;
+  }
   const historyEnabled = o.historyEnabled === true;
   const hkRaw = o.historyPresentationKind;
   const historyPresentationKind: TFormHistoryPresentationKind | undefined =
@@ -725,23 +758,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof hlRaw === 'string' && HISTORY_LAYOUT_SET.has(hlRaw)
       ? (hlRaw as TFormHistoryLayoutKind)
       : undefined;
-  const hbcbRaw = o.historyButtonClickBehavior;
-  const historyButtonClickBehavior: TFormHistoryIntegratedClickBehavior | undefined =
-    hbcbRaw === 'openOnly' ||
-    hbcbRaw === 'actionsOnly' ||
-    hbcbRaw === 'draft' ||
-    hbcbRaw === 'submit' ||
-    hbcbRaw === 'close'
-      ? (hbcbRaw as TFormHistoryIntegratedClickBehavior)
-      : undefined;
-  const hbaRaw = o.historyButtonActions;
-  const historyButtonActions: TFormButtonAction[] = [];
-  if (Array.isArray(hbaRaw)) {
-    for (let hi = 0; hi < hbaRaw.length; hi++) {
-      const act = sanitizeButtonAction(hbaRaw[hi]);
-      if (act) historyButtonActions.push(act);
-    }
-  }
   const customButtonsAdjusted: IFormCustomButtonConfig[] = [];
   for (let i = 0; i < customButtons.length; i++) {
     const btn = customButtons[i];
@@ -766,7 +782,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
       ? { defaultSubmitLoadingKind }
       : {}),
-    ...(showDefaultFormButtons ? { showDefaultFormButtons: true } : {}),
     ...(formRootWidthMode ? { formRootWidthMode } : {}),
     ...(formRootWidthPercent !== undefined && formRootWidthPercent !== 100
       ? { formRootWidthPercent }
@@ -775,6 +790,9 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(stepNavigation ? { stepNavigation } : {}),
     ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
     ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
+    ...(attachmentStorageKind === 'documentLibrary' && attachmentLibrary
+      ? { attachmentStorageKind, attachmentLibrary }
+      : {}),
     ...(actionLog ? { actionLog } : {}),
     ...(historyEnabled ? { historyEnabled: true } : {}),
     ...(historyPresentationKind && historyPresentationKind !== 'panel'
@@ -788,9 +806,5 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(historyEnabled && historyPanelSubtitle ? { historyPanelSubtitle } : {}),
     ...(historyEnabled && historyGroupTitles?.length ? { historyGroupTitles } : {}),
     ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
-    ...(historyButtonClickBehavior && historyButtonClickBehavior !== 'actionsOnly'
-      ? { historyButtonClickBehavior }
-      : {}),
-    ...(historyButtonActions.length ? { historyButtonActions } : {}),
   };
 }

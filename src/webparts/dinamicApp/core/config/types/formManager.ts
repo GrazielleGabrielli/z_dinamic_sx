@@ -292,13 +292,27 @@ export type TFormDataLoadingUiKind =
   | 'progress'
   | 'cardShimmer';
 
-/** Indicador ao gravar (Enviar, Rascunho, botões personalizados). */
+/** Indicador ao gravar (botões personalizados). */
 export type TFormSubmitLoadingUiKind =
   | 'overlay'
   | 'topProgress'
   | 'formShimmer'
   | 'belowButtons'
   | 'infoBar';
+
+/** Onde gravar ficheiros escolhidos no controlo «Anexos ao item». */
+export type TFormAttachmentStorageKind = 'itemAttachments' | 'documentLibrary';
+
+/** Destino em biblioteca: upload de ficheiros com lookup à lista principal do formulário. */
+export interface IFormManagerAttachmentLibraryConfig {
+  /** Título da biblioteca de documentos no site. */
+  libraryTitle?: string;
+  /**
+   * Campo Lookup (simples) na biblioteca que aponta para a **lista principal** do formulário.
+   * Na gravação define-se `{Campo}Id` com o id do item na lista principal.
+   */
+  sourceListLookupFieldInternalName?: string;
+}
 
 /** Vista do controlo de anexos quando o campo «Anexos ao item» está no formulário. */
 export type TFormAttachmentUploadLayoutKind =
@@ -498,11 +512,16 @@ export interface IFormManagerConfig {
    * O que fazer ao clicar no histórico integrado. Omitido = actionsOnly (ações + log se ativo + abrir painel).
    * openOnly = abrir só o painel, sem ações, sem gravar item, sem registo de log.
    */
+  /** Legado: ignorado pelo runtime; o botão de histórico integrado só abre o painel. */
   historyButtonClickBehavior?: TFormHistoryIntegratedClickBehavior;
-  /** Ações em cadeia antes de gravar/abrir (como nos botões personalizados). Ignoradas se historyButtonClickBehavior === openOnly. */
+  /** Legado: ignorado pelo runtime. */
   historyButtonActions?: TFormButtonAction[];
-  /** Se true, mostra Enviar, Rascunho e Fechar além dos botões personalizados. */
-  showDefaultFormButtons?: boolean;
+  /**
+   * Onde gravar os ficheiros do controlo «Anexos ao item». Omitido = anexos nativos do item na lista principal.
+   */
+  attachmentStorageKind?: TFormAttachmentStorageKind;
+  /** Só com `attachmentStorageKind === 'documentLibrary'`. Biblioteca e lookup à lista principal. */
+  attachmentLibrary?: IFormManagerAttachmentLibraryConfig;
   /** Layout visual do campo de ficheiros anexos (aba Componentes). Omitido = default. */
   attachmentUploadLayout?: TFormAttachmentUploadLayoutKind;
   /** Lista de ficheiros selecionados: nome, miniatura, ícone, etc. Omitido = nameAndSize. */

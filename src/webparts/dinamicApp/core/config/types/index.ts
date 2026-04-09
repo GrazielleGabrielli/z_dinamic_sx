@@ -392,6 +392,8 @@ export type {
   TFormSubmitLoadingUiKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
+  TFormAttachmentStorageKind,
+  IFormManagerAttachmentLibraryConfig,
   TFormHistoryPresentationKind,
   TFormHistoryLayoutKind,
   TFormHistoryButtonKind,

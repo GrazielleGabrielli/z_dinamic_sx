@@ -8,7 +8,6 @@ import {
   Shimmer,
   ShimmerElementType,
   ProgressIndicator,
-  Checkbox,
   IconButton,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
@@ -22,7 +21,6 @@ import type {
   TFormHistoryLayoutKind,
 } from '../../core/config/types/formManager';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
-import { FormAttachmentUploader } from './FormAttachmentUploader';
 import {
   FormDataLoadingView,
   FORM_DATA_LOADING_DROPDOWN_OPTIONS,
@@ -279,8 +277,6 @@ const SECTION_IDS = {
   loadData: 'loadData',
   submitLoading: 'submitLoading',
   steps: 'steps',
-  attachUi: 'attachUi',
-  attachExt: 'attachExt',
   historyAudit: 'historyAudit',
 } as const;
 
@@ -401,18 +397,11 @@ export interface IFormManagerComponentsTabContentProps {
   onFormDataLoadingKindChange: (v: TFormDataLoadingUiKind) => void;
   defaultSubmitLoadingKind: TFormSubmitLoadingUiKind;
   onDefaultSubmitLoadingKindChange: (v: TFormSubmitLoadingUiKind) => void;
-  attachmentUploadLayout: TFormAttachmentUploadLayoutKind;
-  onAttachmentUploadLayoutChange: (v: TFormAttachmentUploadLayoutKind) => void;
-  attachmentFilePreview: TFormAttachmentFilePreviewKind;
-  onAttachmentFilePreviewChange: (v: TFormAttachmentFilePreviewKind) => void;
   historyLayoutKind: TFormHistoryLayoutKind;
   onHistoryLayoutKindChange: (v: TFormHistoryLayoutKind) => void;
-  attachmentAllowedExtensions: string[];
-  onAttachmentExtensionToggle: (ext: string, selected: boolean) => void;
 }
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
-  const [attachDemoFiles, setAttachDemoFiles] = useState<File[]>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   const toggleSection = (id: string): void => {
@@ -471,7 +460,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         onToggle={() => toggleSection(SECTION_IDS.submitLoading)}
       >
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Usado em Enviar, Rascunho e em botões personalizados sem override. Cada botão pode definir outro estilo na aba
+          Usado em botões personalizados sem override. Cada botão pode definir outro estilo na aba
           Botões.
         </Text>
         <Dropdown
@@ -508,59 +497,6 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
       </FormManagerCollapseSection>
 
       <FormManagerCollapseSection
-        title="Anexos — aspeto e pré-visualização"
-        isOpen={isOpen(SECTION_IDS.attachUi)}
-        onToggle={() => toggleSection(SECTION_IDS.attachUi)}
-      >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa estes estilos.
-        </Text>
-        <Dropdown
-          label="Tipo de layout do input de anexos"
-          options={FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS}
-          selectedKey={props.attachmentUploadLayout}
-          onChange={(_, o) =>
-            o && props.onAttachmentUploadLayoutChange(String(o.key) as TFormAttachmentUploadLayoutKind)
-          }
-        />
-        <Dropdown
-          label="Pré-visualização dos ficheiros selecionados"
-          options={FORM_ATTACHMENT_FILE_PREVIEW_DROPDOWN_OPTIONS}
-          selectedKey={props.attachmentFilePreview}
-          onChange={(_, o) =>
-            o && props.onAttachmentFilePreviewChange(String(o.key) as TFormAttachmentFilePreviewKind)
-          }
-        />
-        <Stack
-          styles={{
-            root: {
-              border: '1px solid #edebe9',
-              borderRadius: 4,
-              padding: 12,
-              background: '#faf9f8',
-            },
-          }}
-          tokens={{ childrenGap: 8 }}
-        >
-          <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
-            Pré-visualização (pode adicionar ficheiros de teste)
-          </Text>
-          <FormAttachmentUploader
-            files={attachDemoFiles}
-            onFilesChange={setAttachDemoFiles}
-            disabled={false}
-            label="Anexos ao item"
-            description="Texto de ajuda opcional, como no formulário."
-            layout={props.attachmentUploadLayout}
-            filePreview={props.attachmentFilePreview}
-            allowedFileExtensions={
-              props.attachmentAllowedExtensions.length > 0 ? props.attachmentAllowedExtensions : undefined
-            }
-          />
-        </Stack>
-      </FormManagerCollapseSection>
-
-      <FormManagerCollapseSection
         title="Histórico de auditoria — apresentação"
         isOpen={isOpen(SECTION_IDS.historyAudit)}
         onToggle={() => toggleSection(SECTION_IDS.historyAudit)}
@@ -578,59 +514,6 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
           }
         />
         <HistoryLayoutPreview kind={props.historyLayoutKind} />
-      </FormManagerCollapseSection>
-
-      <FormManagerCollapseSection
-        title="Anexos — extensões permitidas"
-        isOpen={isOpen(SECTION_IDS.attachExt)}
-        onToggle={() => toggleSection(SECTION_IDS.attachExt)}
-      >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Nenhuma selecionada = qualquer tipo de ficheiro. Com uma ou mais marcadas, só essas extensões são aceites no
-          formulário e na validação ao gravar.
-        </Text>
-        <Stack tokens={{ childrenGap: 10 }}>
-          {FORM_ATTACHMENT_EXTENSION_GROUPS.map((group) => (
-            <Stack
-              key={group.title}
-              tokens={{ childrenGap: 8 }}
-              styles={{
-                root: {
-                  padding: '10px 12px',
-                  borderRadius: 6,
-                  border: '1px solid #edebe9',
-                  background: '#faf9f8',
-                },
-              }}
-            >
-              <Stack tokens={{ childrenGap: 2 }}>
-                <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                  {group.title}
-                </Text>
-                {group.hint && (
-                  <Text variant="tiny" styles={{ root: { color: '#8a8886' } }}>
-                    {group.hint}
-                  </Text>
-                )}
-              </Stack>
-              <Stack horizontal wrap tokens={{ childrenGap: 10 }} verticalAlign="center">
-                {group.items.map((p) => {
-                  const e = p.ext.toLowerCase();
-                  const checked = props.attachmentAllowedExtensions.some((x) => x.toLowerCase() === e);
-                  return (
-                    <Checkbox
-                      key={p.ext}
-                      label={p.label}
-                      checked={checked}
-                      onChange={(_, c) => props.onAttachmentExtensionToggle(p.ext, !!c)}
-                      styles={{ root: { minWidth: 0 } }}
-                    />
-                  );
-                })}
-              </Stack>
-            </Stack>
-          ))}
-        </Stack>
       </FormManagerCollapseSection>
     </Stack>
   );

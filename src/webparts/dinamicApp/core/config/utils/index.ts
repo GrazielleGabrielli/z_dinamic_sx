@@ -21,7 +21,6 @@ export function getDefaultFormManagerConfig(): IFormManagerConfig {
       { id: 'main', title: 'Geral', fieldNames: [] },
     ],
     stepLayout: 'segmented',
-    showDefaultFormButtons: false,
   };
 }
 
