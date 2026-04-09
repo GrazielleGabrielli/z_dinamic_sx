@@ -181,6 +181,18 @@ function sanitizeNode(
     );
     if (m.length) showUploaderModes = m.slice(0, 3);
   }
+  const ATT_LIM_CAP = 500;
+  let minAttachmentCount: number | undefined;
+  let maxAttachmentCount: number | undefined;
+  if (typeof o.minAttachmentCount === 'number' && Number.isFinite(o.minAttachmentCount)) {
+    minAttachmentCount = Math.max(0, Math.min(ATT_LIM_CAP, Math.floor(o.minAttachmentCount)));
+  }
+  if (typeof o.maxAttachmentCount === 'number' && Number.isFinite(o.maxAttachmentCount)) {
+    maxAttachmentCount = Math.max(0, Math.min(ATT_LIM_CAP, Math.floor(o.maxAttachmentCount)));
+  }
+  if (minAttachmentCount !== undefined && maxAttachmentCount !== undefined && maxAttachmentCount < minAttachmentCount) {
+    maxAttachmentCount = minAttachmentCount;
+  }
   return {
     id,
     nameTemplate,
@@ -189,6 +201,8 @@ function sanitizeNode(
     ...(showUploaderWhen ? { showUploaderWhen } : {}),
     ...(showUploaderGroupTitles ? { showUploaderGroupTitles } : {}),
     ...(showUploaderModes ? { showUploaderModes } : {}),
+    ...(minAttachmentCount !== undefined && minAttachmentCount > 0 ? { minAttachmentCount } : {}),
+    ...(maxAttachmentCount !== undefined ? { maxAttachmentCount } : {}),
     ...(children ? { children } : {}),
   };
 }
@@ -234,6 +248,41 @@ export function flattenFolderTreeNodes(nodes: IAttachmentLibraryFolderTreeNode[]
     }
   }
   walk(nodes);
+  return out;
+}
+
+export const FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX = '_attf_';
+
+export function collectFolderAttachmentLimitErrors(
+  tree: IAttachmentLibraryFolderTreeNode[] | undefined,
+  opts: {
+    pendingByFolder: Record<string, File[]>;
+    libraryCountByNodeId: (nodeId: string) => number;
+    isFolderUploaderVisible: (n: IAttachmentLibraryFolderTreeNode) => boolean;
+  }
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!tree?.length) return out;
+  const flat = flattenFolderTreeNodes(tree);
+  for (let i = 0; i < flat.length; i++) {
+    const n = flat[i];
+    const minC = n.minAttachmentCount;
+    const maxC = n.maxAttachmentCount;
+    const hasMin = minC !== undefined && minC > 0;
+    const hasMax = maxC !== undefined;
+    if (!hasMin && !hasMax) continue;
+    if (!opts.isFolderUploaderVisible(n)) continue;
+    const lib = opts.libraryCountByNodeId(n.id);
+    const pend = opts.pendingByFolder[n.id]?.length ?? 0;
+    const t = lib + pend;
+    const label = n.nameTemplate?.trim() || 'Pasta';
+    const key = `${FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX}${n.id}`;
+    if (hasMin && t < minC!) {
+      out[key] = `«${label}»: mínimo ${minC} ficheiro(s) (atual: ${t}).`;
+    } else if (hasMax && t > maxC!) {
+      out[key] = `«${label}»: máximo ${maxC} ficheiro(s) (atual: ${t}).`;
+    }
+  }
   return out;
 }
 

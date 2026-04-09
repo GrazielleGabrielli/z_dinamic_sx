@@ -323,6 +323,10 @@ export interface IAttachmentLibraryFolderTreeNode {
   showUploaderGroupTitles?: string[];
   /** Condição sobre valores dos campos (mesma árvore que nas regras do formulário). Omitida = sem filtro por dados. */
   showUploaderWhen?: TFormConditionNode;
+  /** Mínimo de ficheiros nesta pasta (já na biblioteca + pendentes). Omitido = sem mínimo. */
+  minAttachmentCount?: number;
+  /** Máximo de ficheiros nesta pasta (já na biblioteca + pendentes). Omitido = sem máximo. */
+  maxAttachmentCount?: number;
 }
 
 /** Destino em biblioteca: upload de ficheiros com lookup à lista principal do formulário. */

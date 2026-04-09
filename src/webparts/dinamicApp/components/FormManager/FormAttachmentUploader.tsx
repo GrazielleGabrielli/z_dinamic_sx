@@ -20,6 +20,10 @@ export interface IFormAttachmentUploaderProps {
   filePreview?: TFormAttachmentFilePreviewKind;
   /** Extensões sem ponto; vazio/omitido = aceitar qualquer ficheiro. */
   allowedFileExtensions?: string[];
+  /** Ficheiros já contados fora desta lista (ex.: na biblioteca). */
+  priorFileCount?: number;
+  /** Limite total (anteriores + lista abaixo). Omitido = sem teto. */
+  maxTotalAttachmentCount?: number;
 }
 
 const accent = '#0078d4';
@@ -36,12 +40,17 @@ function fileExtensionLower(name: string): string {
 function mergeFilesFiltered(
   prev: File[],
   added: FileList | null,
-  allowed: string[] | undefined
-): { next: File[]; rejected: number } {
+  allowed: string[] | undefined,
+  maxTotalAfterMerge?: number
+): { next: File[]; rejected: number; cappedByTotal?: number } {
   if (!added || added.length === 0) return { next: prev.slice(), rejected: 0 };
   if (!allowed || allowed.length === 0) {
     const next = prev.slice();
     for (let i = 0; i < added.length; i++) next.push(added[i]);
+    if (maxTotalAfterMerge !== undefined && next.length > maxTotalAfterMerge) {
+      const cappedByTotal = next.length - maxTotalAfterMerge;
+      return { next: next.slice(0, maxTotalAfterMerge), rejected: 0, cappedByTotal };
+    }
     return { next, rejected: 0 };
   }
   const allow = new Set(
@@ -54,6 +63,11 @@ function mergeFilesFiltered(
     const ext = fileExtensionLower(f.name);
     if (ext && allow.has(ext)) next.push(f);
     else rejected++;
+    if (maxTotalAfterMerge !== undefined && next.length > maxTotalAfterMerge) {
+      const cappedByTotal = next.length - maxTotalAfterMerge;
+      next.length = maxTotalAfterMerge;
+      return { next, rejected, cappedByTotal };
+    }
   }
   return { next, rejected };
 }
@@ -84,6 +98,8 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   layout = 'default',
   filePreview: filePreviewProp,
   allowedFileExtensions,
+  priorFileCount = 0,
+  maxTotalAttachmentCount,
 }) => {
   const preview: TFormAttachmentFilePreviewKind = filePreviewProp ?? 'nameAndSize';
   const useCompactChips =
@@ -120,41 +136,70 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
     inputRef.current?.click();
   }, []);
 
+  const maxPendingFiles = useMemo(() => {
+    if (maxTotalAttachmentCount === undefined) return undefined;
+    return Math.max(0, maxTotalAttachmentCount - priorFileCount);
+  }, [maxTotalAttachmentCount, priorFileCount]);
+
   const onInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>): void => {
       const fl = e.target.files;
-      const { next, rejected } = mergeFilesFiltered(files, fl, allowedFileExtensions);
+      const { next, rejected, cappedByTotal } = mergeFilesFiltered(
+        files,
+        fl,
+        allowedFileExtensions,
+        maxPendingFiles
+      );
+      const hints: string[] = [];
       if (rejected > 0) {
-        setPickRejectHint(
+        hints.push(
           rejected === 1
             ? 'Um ficheiro foi ignorado (extensão não permitida).'
             : `${rejected} ficheiros ignorados (extensão não permitida).`
         );
-      } else {
-        setPickRejectHint('');
       }
+      if (cappedByTotal && cappedByTotal > 0) {
+        hints.push(
+          cappedByTotal === 1
+            ? 'Um ficheiro ignorado (limite máximo desta pasta).'
+            : `${cappedByTotal} ficheiros ignorados (limite máximo desta pasta).`
+        );
+      }
+      setPickRejectHint(hints.join(' '));
       onFilesChange(next);
       e.target.value = '';
     },
-    [files, onFilesChange, allowedFileExtensions]
+    [files, onFilesChange, allowedFileExtensions, maxPendingFiles]
   );
 
   const addFromDataTransfer = useCallback(
     (dt: DataTransfer | null): void => {
       if (!dt?.files?.length) return;
-      const { next, rejected } = mergeFilesFiltered(files, dt.files, allowedFileExtensions);
+      const { next, rejected, cappedByTotal } = mergeFilesFiltered(
+        files,
+        dt.files,
+        allowedFileExtensions,
+        maxPendingFiles
+      );
+      const hints: string[] = [];
       if (rejected > 0) {
-        setPickRejectHint(
+        hints.push(
           rejected === 1
             ? 'Um ficheiro foi ignorado (extensão não permitida).'
             : `${rejected} ficheiros ignorados (extensão não permitida).`
         );
-      } else {
-        setPickRejectHint('');
       }
+      if (cappedByTotal && cappedByTotal > 0) {
+        hints.push(
+          cappedByTotal === 1
+            ? 'Um ficheiro ignorado (limite máximo desta pasta).'
+            : `${cappedByTotal} ficheiros ignorados (limite máximo desta pasta).`
+        );
+      }
+      setPickRejectHint(hints.join(' '));
       onFilesChange(next);
     },
-    [files, onFilesChange, allowedFileExtensions]
+    [files, onFilesChange, allowedFileExtensions, maxPendingFiles]
   );
 
   const removeAt = useCallback(

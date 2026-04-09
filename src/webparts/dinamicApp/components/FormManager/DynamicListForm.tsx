@@ -69,7 +69,9 @@ import {
   libraryFileRowBelongsToFolderNode,
 } from '../../core/formManager/formAttachmentLibrary';
 import {
+  collectFolderAttachmentLimitErrors,
   flattenFolderTreeNodes,
+  FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX,
   treeHasPerStepFolderUploaders,
 } from '../../core/formManager/attachmentFolderTree';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
@@ -684,8 +686,41 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       show: ov.show,
       hide: ov.hide,
     });
-    setLocalErrors(sync);
-    if (Object.keys(sync).length > 0) return false;
+    let mergedErr = { ...sync };
+    if (submitKind !== 'draft' && multiFolderAttachmentMode && isFormAttachmentLibraryRuntime(formManager)) {
+      const t = formManager.attachmentLibrary?.folderTree;
+      if (t?.length) {
+        mergedErr = {
+          ...mergedErr,
+          ...collectFolderAttachmentLimitErrors(t, {
+            pendingByFolder: pendingFilesByFolder,
+            libraryCountByNodeId: (nodeId) => {
+              if (!itemId) return 0;
+              let c = 0;
+              for (let i = 0; i < serverAttachments.length; i++) {
+                const row = serverAttachments[i];
+                const fr = row.fileRef;
+                if (typeof fr !== 'string' || !fr.trim()) continue;
+                if (libraryFileRowBelongsToFolderNode(fr.trim(), nodeId, t, itemId, vals)) c++;
+              }
+              return c;
+            },
+            isFolderUploaderVisible: (n) =>
+              isAttachmentFolderUploaderVisible(n, {
+                formMode,
+                values: vals,
+                submitKind,
+                userGroupTitles,
+                currentUserId,
+                authorId,
+                dynamicContext,
+              }),
+          }),
+        };
+      }
+    }
+    setLocalErrors(mergedErr);
+    if (Object.keys(mergedErr).length > 0) return false;
     const asyncErr = await runAsyncFormValidations(formManager, vals, itemsService, listTitle, itemId, submitKind);
     if (Object.keys(asyncErr).length > 0) {
       setLocalErrors(asyncErr);
@@ -1312,6 +1347,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           <Stack key={name} tokens={{ childrenGap: 12 }} styles={{ root: { marginBottom: 12 } }}>
             {foldersForCurrentAttachmentStep.map((node) => {
               const folderRows = libraryRowsForFolderNode(node.id);
+              const libCount = folderRows.length;
+              const minA = node.minAttachmentCount;
+              const maxA = node.maxAttachmentCount;
+              const limHint =
+                minA !== undefined && minA > 0 && maxA !== undefined
+                  ? `Entre ${minA} e ${maxA} ficheiro(s) nesta pasta.`
+                  : minA !== undefined && minA > 0
+                    ? `Mínimo ${minA} ficheiro(s) nesta pasta.`
+                    : maxA !== undefined
+                      ? `Máximo ${maxA} ficheiro(s) nesta pasta.`
+                      : undefined;
+              const desc = [limHint, fc.helpText].filter(Boolean).join(' · ') || undefined;
+              const folderLimKey = `${FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX}${node.id}`;
+              const folderLimErr = localErrors[folderLimKey];
               return (
                 <Stack key={node.id} tokens={{ childrenGap: 6 }}>
                   {folderRows.length > 0 && (
@@ -1331,8 +1380,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                     }}
                     disabled={readOnly}
                     label={node.nameTemplate?.trim() || 'Pasta'}
-                    description={fc.helpText}
-                    errorMessage={attErr}
+                    description={desc}
+                    errorMessage={folderLimErr || attErr}
                     required={attReq}
                     requiredEmptyHighlight={attReqEmpty}
                     layout={formManager.attachmentUploadLayout ?? 'default'}
@@ -1340,6 +1389,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                     allowedFileExtensions={
                       attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
                     }
+                    priorFileCount={libCount}
+                    maxTotalAttachmentCount={maxA}
                   />
                 </Stack>
               );
