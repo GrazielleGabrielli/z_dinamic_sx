@@ -589,6 +589,11 @@ export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
   minRows?: number;
   maxRows?: number;
   collapsedDefault?: boolean;
+  /**
+   * Id da etapa do formulário principal (`formManager.steps`) onde o bloco aparece no passador.
+   * Omitido = primeira etapa do passador (excl. Ocultos/Fixos).
+   */
+  mainFormStepId?: string;
 }
 
 export interface IFormManagerConfig {

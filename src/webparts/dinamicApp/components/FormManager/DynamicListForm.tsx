@@ -1321,6 +1321,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
   }, [visibleStepsForUi]);
 
+  const linkedConfigsForCurrentMainStep = useMemo(() => {
+    if (!linkedConfigsSorted.length) return [];
+    const vis = visibleStepsForUi;
+    if (!vis?.length) return linkedConfigsSorted;
+    const curId = vis[stepIndex]?.id;
+    if (!curId) return linkedConfigsSorted;
+    const visibleIds = new Set(vis.map((s) => s.id));
+    const defaultId = vis[0].id;
+    return linkedConfigsSorted.filter((c) => {
+      const raw = (c.mainFormStepId ?? '').trim();
+      const resolved = raw && visibleIds.has(raw) ? raw : defaultId;
+      return resolved === curId;
+    });
+  }, [linkedConfigsSorted, visibleStepsForUi, stepIndex]);
+
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
     if (op === 'history') {
@@ -2565,9 +2580,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             layoutDeps={values}
           />
         )}
-        {linkedConfigsSorted.length > 0 && (
+        {linkedConfigsForCurrentMainStep.length > 0 && (
           <LinkedChildFormsBlock
-            configs={linkedConfigsSorted}
+            configs={linkedConfigsForCurrentMainStep}
             parentItemId={itemId}
             formMode={formMode}
             rowsByConfigId={linkedRowsById}

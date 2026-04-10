@@ -149,6 +149,14 @@ function cloneLinkedChildFormConfig(c: IFormLinkedChildFormConfig): IFormLinkedC
   };
 }
 
+function patchLinkedChildFormById(
+  arr: IFormLinkedChildFormConfig[],
+  id: string,
+  patch: Partial<IFormLinkedChildFormConfig>
+): IFormLinkedChildFormConfig[] {
+  return arr.map((c) => (c.id === id ? { ...c, ...patch } : c));
+}
+
 const REQ_FIELD_BG_OK = '#dff6dd';
 const REQ_FIELD_BG_BAD = '#fde7e9';
 const REQ_FIELD_BORDER_OK = '#92c353';
@@ -739,6 +747,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         .map((s) => ({ id: s.id, title: s.title })),
     [steps]
   );
+
+  const linkedMainStepPlacementOptions = useMemo((): IDropdownOption[] => {
+    return steps
+      .filter((s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID)
+      .map((s) => ({ key: s.id, text: `${s.title} (${s.id})` }));
+  }, [steps]);
+
+  const linkedChildFormsSortedForStructure = useMemo(
+    () => linkedChildForms.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [linkedChildForms]
+  );
+
+  const linkedMainStepDefaultKey = useMemo(() => {
+    const k = linkedMainStepPlacementOptions[0]?.key;
+    return typeof k === 'string' ? k : 'main';
+  }, [linkedMainStepPlacementOptions]);
 
   const attachmentFolderOptionsForFieldRules = useMemo(() => {
     if (attachmentStorageKind !== 'documentLibrary' || !attachmentLibFolderTree.length) return [];
@@ -2426,6 +2450,59 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               </Stack>
               );
             })}
+            {linkedChildFormsSortedForStructure.length > 0 && (
+              <>
+                <Text variant="medium" styles={{ root: { fontWeight: 600, marginTop: 16 } }}>
+                  Listas vinculadas (etapa no passador)
+                </Text>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  Cada bloco aparece só na etapa escolhida do formulário principal.
+                </Text>
+                {linkedMainStepPlacementOptions.length === 0 ? (
+                  <MessageBar messageBarType={MessageBarType.info}>
+                    Adicione pelo menos uma etapa (além de Ocultos/Fixos) para posicionar os blocos.
+                  </MessageBar>
+                ) : (
+                  <Stack tokens={{ childrenGap: 10 }}>
+                    {linkedChildFormsSortedForStructure.map((cfg) => {
+                      const validSel =
+                        typeof cfg.mainFormStepId === 'string' &&
+                        linkedMainStepPlacementOptions.some((o) => o.key === cfg.mainFormStepId);
+                      const selectedKey = validSel ? cfg.mainFormStepId! : linkedMainStepDefaultKey;
+                      const label = (cfg.title?.trim() || cfg.listTitle.trim() || cfg.id).slice(0, 120);
+                      return (
+                        <Stack
+                          key={`lcf-step-${cfg.id}`}
+                          horizontal
+                          verticalAlign="end"
+                          tokens={{ childrenGap: 12 }}
+                          wrap
+                        >
+                          <Text styles={{ root: { minWidth: 160, maxWidth: 280 } }} variant="small">
+                            {label}
+                          </Text>
+                          <div style={{ minWidth: 260, flex: '1 1 200px' }}>
+                            <Dropdown
+                              label="Etapa"
+                              options={linkedMainStepPlacementOptions}
+                              selectedKey={selectedKey}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                setLinkedChildForms((prev) =>
+                                  patchLinkedChildFormById(prev, cfg.id, {
+                                    mainFormStepId: String(o.key),
+                                  })
+                                );
+                              }}
+                            />
+                          </div>
+                        </Stack>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </>
+            )}
           </Stack>
         </PivotItem>
         <PivotItem headerText="Componentes">

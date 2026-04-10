@@ -661,6 +661,11 @@ function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig
   }
   if (minRows !== undefined && maxRows !== undefined && maxRows < minRows) maxRows = minRows;
   const collapsedDefault = o.collapsedDefault === true ? true : undefined;
+  let mainFormStepId: string | undefined;
+  if (typeof o.mainFormStepId === 'string') {
+    const t = o.mainFormStepId.trim();
+    if (t) mainFormStepId = t.slice(0, 120);
+  }
   return {
     id,
     listTitle,
@@ -671,6 +676,7 @@ function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig
     ...(minRows !== undefined ? { minRows } : {}),
     ...(maxRows !== undefined ? { maxRows } : {}),
     ...(collapsedDefault ? { collapsedDefault: true } : {}),
+    ...(mainFormStepId ? { mainFormStepId } : {}),
   };
 }
 
