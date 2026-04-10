@@ -2,6 +2,7 @@ import type {
   IFormManagerAttachmentLibraryConfig,
   IFormManagerConfig,
   IFormManagerActionLogConfig,
+  IFormLinkedChildFormConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
   IFormSectionConfig,
@@ -574,6 +575,104 @@ function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
 
 const MAX_ATTACHMENT_FOLDER_SEGMENTS = 10;
 const MAX_ATTACHMENT_FOLDER_TEMPLATE_CHARS = 200;
+const MAX_LINKED_CHILD_FORMS = 10;
+
+function sanitizeFormBodySubset(o: Record<string, unknown>): Pick<
+  IFormLinkedChildFormConfig,
+  'sections' | 'fields' | 'rules' | 'steps'
+> {
+  const sectionsRaw = Array.isArray(o.sections) ? o.sections : [];
+  const fieldsRaw = Array.isArray(o.fields) ? o.fields : [];
+  const rulesRaw = Array.isArray(o.rules) ? o.rules : [];
+  const stepsRaw = Array.isArray(o.steps) ? o.steps : [];
+  const sections: IFormSectionConfig[] = [];
+  for (let i = 0; i < sectionsRaw.length; i++) {
+    const sec = sanitizeSection(sectionsRaw[i]);
+    if (sec) sections.push(sec);
+  }
+  if (sections.length === 0) sections.push({ id: 'main', title: 'Geral', visible: true });
+  if (!sections.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
+    sections.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true });
+  }
+  pinOcultosFirstSections(sections);
+  if (!sections.some((s) => s.id === FORM_FIXOS_STEP_ID)) {
+    const oi = sections.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+    sections.splice(oi >= 0 ? oi + 1 : 0, 0, { id: FORM_FIXOS_STEP_ID, title: 'Fixos', visible: true });
+  } else {
+    pinFixosAfterOcultosSections(sections);
+  }
+  const fields: IFormFieldConfig[] = [];
+  for (let i = 0; i < fieldsRaw.length; i++) {
+    const fc = sanitizeField(fieldsRaw[i]);
+    if (fc) fields.push(fc);
+  }
+  const rules: TFormRule[] = [];
+  for (let i = 0; i < rulesRaw.length; i++) {
+    const rule = sanitizeRule(rulesRaw[i]);
+    if (rule) rules.push(rule);
+  }
+  const steps: IFormStepConfig[] = [];
+  for (let i = 0; i < stepsRaw.length; i++) {
+    const st = sanitizeStep(stepsRaw[i]);
+    if (st) steps.push(st);
+  }
+  if (steps.length > 0 && !steps.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
+    steps.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+  }
+  if (steps.length > 0) {
+    pinOcultosFirstSteps(steps);
+  }
+  if (steps.length > 0 && !steps.some((s) => s.id === FORM_FIXOS_STEP_ID)) {
+    const oi = steps.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+    steps.splice(oi >= 0 ? oi + 1 : 0, 0, { id: FORM_FIXOS_STEP_ID, title: 'Fixos', fieldNames: [] });
+  } else if (steps.length > 0) {
+    pinFixosAfterOcultosSteps(steps);
+  }
+  return {
+    sections,
+    fields,
+    rules,
+    ...(steps.length ? { steps } : {}),
+  };
+}
+
+function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const id = typeof o.id === 'string' ? o.id.trim() : '';
+  if (!id) return undefined;
+  const listTitle = typeof o.listTitle === 'string' ? o.listTitle.trim() : '';
+  const parentLookupFieldInternalName =
+    typeof o.parentLookupFieldInternalName === 'string' ? o.parentLookupFieldInternalName.trim() : '';
+  const body = sanitizeFormBodySubset(o);
+  const titleRaw = typeof o.title === 'string' ? o.title.trim() : '';
+  const title = titleRaw ? titleRaw.slice(0, 200) : undefined;
+  let order: number | undefined;
+  if (typeof o.order === 'number' && isFinite(o.order)) order = Math.round(o.order);
+  let minRows: number | undefined;
+  if (typeof o.minRows === 'number' && isFinite(o.minRows)) {
+    const m = Math.round(o.minRows);
+    if (m >= 0 && m <= 500) minRows = m;
+  }
+  let maxRows: number | undefined;
+  if (typeof o.maxRows === 'number' && isFinite(o.maxRows)) {
+    const m = Math.round(o.maxRows);
+    if (m >= 0 && m <= 500) maxRows = m;
+  }
+  if (minRows !== undefined && maxRows !== undefined && maxRows < minRows) maxRows = minRows;
+  const collapsedDefault = o.collapsedDefault === true ? true : undefined;
+  return {
+    id,
+    listTitle,
+    parentLookupFieldInternalName,
+    ...body,
+    ...(title ? { title } : {}),
+    ...(order !== undefined ? { order } : {}),
+    ...(minRows !== undefined ? { minRows } : {}),
+    ...(maxRows !== undefined ? { maxRows } : {}),
+    ...(collapsedDefault ? { collapsedDefault: true } : {}),
+  };
+}
 
 function stripLeadingRedundantItemIdTemplate(segments: string[]): string[] {
   const out = segments.slice();
@@ -756,6 +855,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   const frhaRaw = o.formRootHorizontalAlign;
   const formRootHorizontalAlign: TFormRootHorizontalAlign | undefined =
     frhaRaw === 'start' || frhaRaw === 'center' || frhaRaw === 'end' ? frhaRaw : undefined;
+  const frppRaw = o.formRootPaddingPx;
+  let formRootPaddingPx: number | undefined;
+  if (typeof frppRaw === 'number' && isFinite(frppRaw)) {
+    const r = Math.round(frppRaw);
+    if (r >= 1 && r <= 160) formRootPaddingPx = r;
+  }
   const stepNavigation = sanitizeStepNavigation(o.stepNavigation);
   const attLayoutRaw = o.attachmentUploadLayout;
   const attachmentUploadLayout: TFormAttachmentUploadLayoutKind | undefined =
@@ -846,6 +951,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? { formRootWidthPercent }
       : {}),
     ...(formRootHorizontalAlign ? { formRootHorizontalAlign } : {}),
+    ...(formRootPaddingPx !== undefined ? { formRootPaddingPx } : {}),
     ...(stepNavigation ? { stepNavigation } : {}),
     ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
     ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
@@ -867,5 +973,14 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(historyEnabled && historyPanelSubtitle ? { historyPanelSubtitle } : {}),
     ...(historyEnabled && historyGroupTitles?.length ? { historyGroupTitles } : {}),
     ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
+    ...((): { linkedChildForms?: IFormLinkedChildFormConfig[] } => {
+      const linkedRaw = Array.isArray(o.linkedChildForms) ? o.linkedChildForms : [];
+      const linkedChildForms: IFormLinkedChildFormConfig[] = [];
+      for (let i = 0; i < linkedRaw.length && i < MAX_LINKED_CHILD_FORMS; i++) {
+        const lc = sanitizeLinkedChildFormConfig(linkedRaw[i]);
+        if (lc) linkedChildForms.push(lc);
+      }
+      return linkedChildForms.length ? { linkedChildForms } : {};
+    })(),
   };
 }

@@ -26,6 +26,7 @@ import type { IFieldMetadata, IGroupDetails } from '../../../../services';
 import type {
   IFormManagerConfig,
   IFormManagerActionLogConfig,
+  IFormLinkedChildFormConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
   IFormSectionConfig,
@@ -107,6 +108,7 @@ import {
   FORM_SUBMIT_LOADING_INHERIT_KEY,
 } from './FormLoadingUi';
 import { FormManagerActionLogTabContent } from './FormManagerActionLogTab';
+import { FormManagerLinkedChildFormsTabContent } from './FormManagerLinkedChildFormsTab';
 import { FormManagerChainedActionsBlock } from './FormManagerChainedActionsBlock';
 
 function attachmentLibraryFromPanelState(
@@ -135,6 +137,16 @@ function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
   const item = moved[0] as T;
   next.splice(to, 0, item);
   return next;
+}
+
+function cloneLinkedChildFormConfig(c: IFormLinkedChildFormConfig): IFormLinkedChildFormConfig {
+  return {
+    ...c,
+    sections: c.sections.map((s) => ({ ...s })),
+    fields: c.fields.map((f) => ({ ...f })),
+    rules: c.rules.map((r) => JSON.parse(JSON.stringify(r)) as TFormRule),
+    steps: (c.steps ?? []).map((s) => ({ ...s, fieldNames: [...s.fieldNames] })),
+  };
 }
 
 const REQ_FIELD_BG_OK = '#dff6dd';
@@ -410,6 +422,14 @@ function clampFormRootPercentInput(s: string): number {
   return Math.min(100, Math.max(1, Math.round(n)));
 }
 
+function clampFormRootPaddingInput(s: string): number {
+  const t = String(s).replace(',', '.').trim();
+  if (t === '') return 0;
+  const n = Number(t);
+  if (!isFinite(n) || n < 1) return 0;
+  return Math.min(160, Math.max(1, Math.round(n)));
+}
+
 function modesFromCheckboxes(c: boolean, e: boolean, v: boolean): TFormManagerFormMode[] | undefined {
   if (c && e && v) return undefined;
   const out: TFormManagerFormMode[] = [];
@@ -655,6 +675,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [formRootHorizontalAlign, setFormRootHorizontalAlign] = useState<TFormRootHorizontalAlign>(
     () => value.formRootHorizontalAlign ?? 'start'
   );
+  const [formRootPaddingPx, setFormRootPaddingPx] = useState(() =>
+    value.formRootPaddingPx != null && value.formRootPaddingPx >= 1
+      ? String(value.formRootPaddingPx)
+      : ''
+  );
   const [estruturaOpen, setEstruturaOpen] = useState<Record<string, boolean>>({});
   const toggleEstruturaSection = (id: string): void => {
     setEstruturaOpen((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -701,6 +726,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [historyButtonIcon, setHistoryButtonIcon] = useState(() => value.historyButtonIcon ?? 'History');
   const [historyPanelSubtitle, setHistoryPanelSubtitle] = useState(() => value.historyPanelSubtitle ?? '');
   const [historyGroupTitles, setHistoryGroupTitles] = useState<string[]>(() => value.historyGroupTitles ?? []);
+  const [linkedChildForms, setLinkedChildForms] = useState<IFormLinkedChildFormConfig[]>(() =>
+    (value.linkedChildForms ?? []).map(cloneLinkedChildFormConfig)
+  );
 
   const fieldsService = useMemo(() => new FieldsService(), []);
   const groupsService = useMemo(() => new GroupsService(), []);
@@ -749,6 +777,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setFormRootWidthMode(cfg.formRootWidthMode ?? 'percent');
     setFormRootWidthPercent(String(cfg.formRootWidthPercent ?? 100));
     setFormRootHorizontalAlign(cfg.formRootHorizontalAlign ?? 'start');
+    setFormRootPaddingPx(
+      cfg.formRootPaddingPx != null && cfg.formRootPaddingPx >= 1 ? String(cfg.formRootPaddingPx) : ''
+    );
     const att = parseAttachmentUiRule(cfg.rules ?? []);
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
@@ -775,6 +806,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setHistoryButtonIcon(cfg.historyButtonIcon ?? 'History');
     setHistoryPanelSubtitle(cfg.historyPanelSubtitle ?? '');
     setHistoryGroupTitles(cfg.historyGroupTitles ?? []);
+    setLinkedChildForms((cfg.linkedChildForms ?? []).map(cloneLinkedChildFormConfig));
   }, []);
 
   useEffect(() => {
@@ -1200,6 +1232,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       formRootWidthMode,
       formRootWidthPercent: clampFormRootPercentInput(formRootWidthPercent),
       formRootHorizontalAlign,
+      ...(clampFormRootPaddingInput(formRootPaddingPx) > 0
+        ? { formRootPaddingPx: clampFormRootPaddingInput(formRootPaddingPx) }
+        : {}),
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
       ...(customButtons.length ? { customButtons } : {}),
@@ -1230,6 +1265,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             ...(historyGroupTitles.length ? { historyGroupTitles: historyGroupTitles.slice() } : {}),
           }
         : {}),
+      ...(linkedChildForms.length ? { linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig) } : {}),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -1448,6 +1484,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       formRootWidthMode,
       formRootWidthPercent: clampFormRootPercentInput(formRootWidthPercent),
       formRootHorizontalAlign,
+      ...(clampFormRootPaddingInput(formRootPaddingPx) > 0
+        ? { formRootPaddingPx: clampFormRootPaddingInput(formRootPaddingPx) }
+        : {}),
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
       ...(customButtons.length ? { customButtons } : {}),
@@ -1478,6 +1517,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             ...(historyGroupTitles.length ? { historyGroupTitles: historyGroupTitles.slice() } : {}),
           }
         : {}),
+      ...(linkedChildForms.length ? { linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig) } : {}),
     };
     return JSON.stringify(raw, null, 2);
   }, [
@@ -1487,6 +1527,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     helpJson,
     managerColumnFields,
     customButtons,
+    linkedChildForms,
     stepLayout,
     stepNavButtons,
     formDataLoadingKind,
@@ -1504,6 +1545,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     formRootWidthMode,
     formRootWidthPercent,
     formRootHorizontalAlign,
+    formRootPaddingPx,
     attachMin,
     attachMax,
     attachMsg,
@@ -1720,6 +1762,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   o && setFormRootHorizontalAlign(String(o.key) as TFormRootHorizontalAlign)
                 }
               />
+              <TextField
+                label="Padding (px)"
+                value={formRootPaddingPx}
+                onChange={(_, v) => setFormRootPaddingPx(v ?? '')}
+                description="Espaço interior em torno do conteúdo (1–160). Vazio = sem padding extra."
+              />
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
               title="Navegação entre etapas (formulário)"
@@ -1754,10 +1802,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               <PrimaryButton text="Nova etapa" onClick={addStep} />
             </Stack>
             {steps.map((st, si) => {
-              const panelOpen =
-                st.id === FORM_OCULTOS_STEP_ID || st.id === FORM_FIXOS_STEP_ID
-                  ? stepSectionOpen[st.id] !== false
-                  : stepSectionOpen[st.id] === true;
+              const panelOpen = stepSectionOpen[st.id] === true;
               return (
               <Stack
                 key={st.id}
@@ -2929,6 +2974,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               setActionLogDescById((prev) => ({ ...prev, [buttonId]: html }))
             }
             customButtons={customButtons}
+          />
+        </PivotItem>
+        <PivotItem headerText="Listas vinculadas">
+          <FormManagerLinkedChildFormsTabContent
+            primaryListTitle={listTitle.trim()}
+            linkedChildForms={linkedChildForms}
+            onLinkedChildFormsChange={setLinkedChildForms}
           />
         </PivotItem>
         <PivotItem headerText="Regras condicionais">

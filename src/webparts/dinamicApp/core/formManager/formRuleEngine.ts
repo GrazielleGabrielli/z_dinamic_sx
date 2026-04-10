@@ -878,7 +878,7 @@ export function buildFormFieldLabelMap(
 }
 
 function isSpecialValidationKey(key: string): boolean {
-  if (key === '_attachments' || key === '_async') return true;
+  if (key === '_attachments' || key === '_async' || key === '_linked') return true;
   return key.startsWith('_attf_');
 }
 

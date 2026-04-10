@@ -567,6 +567,30 @@ export interface IFormManagerActionLogConfig {
   descriptionsHtmlByButtonId?: Record<string, string>;
 }
 
+/** Corpo de formulário reutilizável (lista principal ou lista filha vinculada). */
+export interface IFormBodyConfig {
+  sections: IFormSectionConfig[];
+  fields: IFormFieldConfig[];
+  rules: TFormRule[];
+  steps?: IFormStepConfig[];
+}
+
+/** Lista secundária com mini-formulário e Lookup para o item da lista principal. */
+export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
+  id: string;
+  /** Título da lista SharePoint filha. */
+  listTitle: string;
+  /** Lookup simples na lista filha que aponta para a lista principal. */
+  parentLookupFieldInternalName: string;
+  /** Rótulo da secção no formulário. */
+  title?: string;
+  /** Ordem de exibição relativa a outras listas vinculadas (menor primeiro). */
+  order?: number;
+  minRows?: number;
+  maxRows?: number;
+  collapsedDefault?: boolean;
+}
+
 export interface IFormManagerConfig {
   sections: IFormSectionConfig[];
   fields: IFormFieldConfig[];
@@ -581,6 +605,8 @@ export interface IFormManagerConfig {
   formRootWidthPercent?: number;
   /** Alinhamento do bloco do formulário. Omitido = start (legacy). */
   formRootHorizontalAlign?: TFormRootHorizontalAlign;
+  /** Espaço interior (padding) em px em torno do conteúdo do formulário. Omitido ou 0 = sem valor extra. */
+  formRootPaddingPx?: number;
   stepNavigation?: IFormStepNavigationConfig;
   /** Colunas da grade gestor (usa mesma origem que listView se vazio) */
   managerColumnFields?: string[];
@@ -632,4 +658,6 @@ export interface IFormManagerConfig {
   attachmentUploadLayout?: TFormAttachmentUploadLayoutKind;
   /** Lista de ficheiros selecionados: nome, miniatura, ícone, etc. Omitido = nameAndSize. */
   attachmentFilePreview?: TFormAttachmentFilePreviewKind;
+  /** Mini-formulários em listas secundárias ligadas ao item principal via Lookup. */
+  linkedChildForms?: IFormLinkedChildFormConfig[];
 }

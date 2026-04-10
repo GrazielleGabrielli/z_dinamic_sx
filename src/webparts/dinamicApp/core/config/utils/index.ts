@@ -5,7 +5,11 @@ import {
   IFormManagerConfig,
   TViewMode,
 } from '../types';
-import { FORM_FIXOS_STEP_ID, FORM_OCULTOS_STEP_ID } from '../types/formManager';
+import {
+  FORM_FIXOS_STEP_ID,
+  FORM_OCULTOS_STEP_ID,
+  type IFormLinkedChildFormConfig,
+} from '../types/formManager';
 import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
 
 export function getDefaultFormManagerConfig(): IFormManagerConfig {
@@ -23,6 +27,27 @@ export function getDefaultFormManagerConfig(): IFormManagerConfig {
       { id: 'main', title: 'Geral', fieldNames: [] },
     ],
     stepLayout: 'segmented',
+    linkedChildForms: [],
+  };
+}
+
+export function newLinkedChildFormConfig(id: string): IFormLinkedChildFormConfig {
+  return {
+    id,
+    listTitle: '',
+    parentLookupFieldInternalName: '',
+    sections: [
+      { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true },
+      { id: FORM_FIXOS_STEP_ID, title: 'Fixos', visible: true },
+      { id: 'main', title: 'Geral', visible: true },
+    ],
+    fields: [],
+    rules: [],
+    steps: [
+      { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] },
+      { id: FORM_FIXOS_STEP_ID, title: 'Fixos', fieldNames: [] },
+      { id: 'main', title: 'Geral', fieldNames: [] },
+    ],
   };
 }
 

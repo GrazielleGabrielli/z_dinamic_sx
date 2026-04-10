@@ -89,8 +89,16 @@ import {
 } from '../../core/formManager/attachmentFolderTree';
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
 import { FormItemHistoryUi } from './FormItemHistoryUi';
+import { LinkedChildFormsBlock } from './LinkedChildFormsBlock';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
 import { stepVisibleInFormMode } from '../../core/formManager/stepFormMode';
+import {
+  linkedChildFormAsManagerConfig,
+  loadLinkedChildRows,
+  syncAllLinkedChildLists,
+  type ILinkedChildRowState,
+} from '../../core/formManager/formLinkedChildSync';
+import { FieldsService } from '../../../../services';
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -107,7 +115,7 @@ export interface IDynamicListFormProps {
     submitKind: TFormSubmitKind,
     pendingFiles: File[],
     pendingFilesByFolderNodeId?: Record<string, File[]>
-  ) => Promise<void>;
+  ) => Promise<number | undefined>;
   onDismiss: () => void;
   /** Chamado após botão «Atualizar» personalizado gravar com sucesso (ex.: recarregar item). */
   onAfterItemUpdated?: () => void | Promise<void>;
@@ -628,8 +636,24 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [initialItem]);
 
   const itemsService = useMemo(() => new ItemsService(), []);
+  const fieldsService = useMemo(() => new FieldsService(), []);
   const usersService = useMemo(() => new UsersService(), []);
   const [siteUserOptions, setSiteUserOptions] = useState<IDropdownOption[]>([{ key: '', text: '—' }]);
+
+  const linkedConfigsSorted = useMemo(() => {
+    const raw = formManager.linkedChildForms ?? [];
+    return raw
+      .filter((c) => c.listTitle.trim() && c.parentLookupFieldInternalName.trim())
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [formManager.linkedChildForms]);
+
+  const [linkedMetaById, setLinkedMetaById] = useState<Record<string, IFieldMetadata[]>>({});
+  const [linkedRowsById, setLinkedRowsById] = useState<Record<string, ILinkedChildRowState[]>>({});
+  const [linkedBaselineById, setLinkedBaselineById] = useState<Record<string, number[]>>({});
+  const [linkedLoadErrById, setLinkedLoadErrById] = useState<Record<string, string>>({});
+  const [linkedLoadingById, setLinkedLoadingById] = useState<Record<string, boolean>>({});
+  const [linkedRowErrorsById, setLinkedRowErrorsById] = useState<Record<string, Record<string, string>[]>>({});
 
   const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
     const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
@@ -674,6 +698,100 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       cancelled = true;
     };
   }, [usersService]);
+
+  useEffect(() => {
+    if (!linkedConfigsSorted.length) {
+      setLinkedMetaById({});
+      setLinkedLoadErrById({});
+      return;
+    }
+    let cancel = false;
+    void (async (): Promise<void> => {
+      const next: Record<string, IFieldMetadata[]> = {};
+      const err: Record<string, string> = {};
+      const load: Record<string, boolean> = {};
+      for (let i = 0; i < linkedConfigsSorted.length; i++) {
+        load[linkedConfigsSorted[i].id] = true;
+      }
+      setLinkedLoadingById((prev) => ({ ...prev, ...load }));
+      for (let i = 0; i < linkedConfigsSorted.length; i++) {
+        if (cancel) return;
+        const c = linkedConfigsSorted[i];
+        try {
+          const f = await fieldsService.getVisibleFields(c.listTitle.trim());
+          if (!cancel) next[c.id] = f;
+        } catch (e) {
+          if (!cancel) err[c.id] = e instanceof Error ? e.message : String(e);
+        } finally {
+          if (!cancel) {
+            setLinkedLoadingById((prev) => {
+              const p = { ...prev };
+              delete p[c.id];
+              return p;
+            });
+          }
+        }
+      }
+      if (!cancel) {
+        setLinkedMetaById(next);
+        setLinkedLoadErrById(err);
+      }
+    })();
+    return (): void => {
+      cancel = true;
+    };
+  }, [linkedConfigsSorted, fieldsService]);
+
+  useEffect(() => {
+    if (formMode !== 'create') return;
+    setLinkedRowsById((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < linkedConfigsSorted.length; i++) {
+        const c = linkedConfigsSorted[i];
+        if (next[c.id] !== undefined) continue;
+        const min = c.minRows ?? 0;
+        const count = Math.max(min, 1);
+        next[c.id] = Array.from({ length: count }, (_, j) => ({
+          localKey: `new_${c.id}_${j}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          values: {},
+        }));
+      }
+      return next;
+    });
+    setLinkedBaselineById({});
+  }, [formMode, linkedConfigsSorted]);
+
+  useEffect(() => {
+    if (formMode === 'create' || itemId === undefined || itemId === null) return;
+    let cancel = false;
+    void (async (): Promise<void> => {
+      const nextRows: Record<string, ILinkedChildRowState[]> = {};
+      const nextBase: Record<string, number[]> = {};
+      for (let i = 0; i < linkedConfigsSorted.length; i++) {
+        if (cancel) return;
+        const c = linkedConfigsSorted[i];
+        const meta = linkedMetaById[c.id];
+        if (!meta?.length) continue;
+        try {
+          const rows = await loadLinkedChildRows(itemsService, c, itemId, meta);
+          nextRows[c.id] = rows;
+          nextBase[c.id] = rows
+            .map((r) => r.sharePointId)
+            .filter((x): x is number => typeof x === 'number' && isFinite(x));
+        } catch {
+          nextRows[c.id] = [];
+          nextBase[c.id] = [];
+        }
+      }
+      if (!cancel) {
+        setLinkedRowsById(nextRows);
+        setLinkedBaselineById(nextBase);
+      }
+    })();
+    return (): void => {
+      cancel = true;
+    };
+  }, [formMode, itemId, linkedConfigsSorted, linkedMetaById, itemsService]);
 
   useEffect(() => {
     if (formMode !== 'create') return;
@@ -945,6 +1063,55 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     setValues((prev) => ({ ...prev, [name]: v }));
   };
 
+  const reloadLinkedRowsForParent = useCallback(
+    async (parentId: number) => {
+      const nextRows: Record<string, ILinkedChildRowState[]> = {};
+      const nextBase: Record<string, number[]> = {};
+      for (let i = 0; i < linkedConfigsSorted.length; i++) {
+        const c = linkedConfigsSorted[i];
+        const meta = linkedMetaById[c.id];
+        if (!meta?.length) continue;
+        try {
+          const rows = await loadLinkedChildRows(itemsService, c, parentId, meta);
+          nextRows[c.id] = rows;
+          nextBase[c.id] = rows
+            .map((r) => r.sharePointId)
+            .filter((x): x is number => typeof x === 'number' && isFinite(x));
+        } catch {
+          nextRows[c.id] = [];
+          nextBase[c.id] = [];
+        }
+      }
+      setLinkedRowsById(nextRows);
+      setLinkedBaselineById(nextBase);
+    },
+    [linkedConfigsSorted, linkedMetaById, itemsService]
+  );
+
+  const performLinkedSync = useCallback(
+    async (parentId: number) => {
+      if (!linkedConfigsSorted.length) return;
+      await syncAllLinkedChildLists(
+        itemsService,
+        linkedConfigsSorted,
+        parentId,
+        linkedRowsById,
+        linkedMetaById,
+        linkedBaselineById
+      );
+      await reloadLinkedRowsForParent(parentId);
+      setLinkedRowErrorsById({});
+    },
+    [
+      linkedConfigsSorted,
+      itemsService,
+      linkedRowsById,
+      linkedMetaById,
+      linkedBaselineById,
+      reloadLinkedRowsForParent,
+    ]
+  );
+
   const validate = async (
     submitKind: TFormSubmitKind,
     opts?: {
@@ -1017,6 +1184,68 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       setLocalErrors(asyncErr);
       return asyncErr;
     }
+    if (submitKind === 'submit' && linkedConfigsSorted.length > 0) {
+      const rowErr: Record<string, Record<string, string>[]> = {};
+      let anyMsg = false;
+      for (let ci = 0; ci < linkedConfigsSorted.length; ci++) {
+        const cfg = linkedConfigsSorted[ci];
+        const meta = linkedMetaById[cfg.id];
+        if (!meta?.length) continue;
+        const shell = linkedChildFormAsManagerConfig(cfg);
+        const rows = linkedRowsById[cfg.id] ?? [];
+        const minR = cfg.minRows ?? 0;
+        if (rows.length < minR) {
+          anyMsg = true;
+          if (!rowErr[cfg.id]) rowErr[cfg.id] = [];
+          rowErr[cfg.id][0] = { _block: `Mínimo ${minR} linha(s).` };
+        }
+        const maxR = cfg.maxRows;
+        if (maxR !== undefined && rows.length > maxR) {
+          anyMsg = true;
+          if (!rowErr[cfg.id]) rowErr[cfg.id] = [];
+          rowErr[cfg.id][0] = { ...rowErr[cfg.id][0], _block: `Máximo ${maxR} linha(s).` };
+        }
+        for (let ri = 0; ri < rows.length; ri++) {
+          const row = rows[ri];
+          const ctxL: IFormRuleRuntimeContext = {
+            formMode,
+            values: row.values,
+            submitKind,
+            userGroupTitles,
+            currentUserId,
+            authorId,
+            dynamicContext,
+          };
+          const attEmpty: IFormValidationAttachmentContext = {
+            attachmentCount: 0,
+            pendingFiles: [],
+          };
+          const syncL = collectFormValidationErrors(shell, cfg.fields, ctxL, attEmpty, undefined);
+          const asyncL = await runAsyncFormValidations(
+            shell,
+            row.values,
+            itemsService,
+            cfg.listTitle.trim(),
+            row.sharePointId,
+            submitKind
+          );
+          const mergedL = { ...syncL, ...asyncL };
+          if (Object.keys(mergedL).length > 0) {
+            anyMsg = true;
+            if (!rowErr[cfg.id]) rowErr[cfg.id] = [];
+            while (rowErr[cfg.id].length <= ri) rowErr[cfg.id].push({});
+            rowErr[cfg.id][ri] = { ...rowErr[cfg.id][ri], ...mergedL };
+          }
+        }
+      }
+      setLinkedRowErrorsById(rowErr);
+      if (anyMsg) {
+        const flat: Record<string, string> = { _linked: 'Corrija as listas vinculadas.' };
+        setLocalErrors(flat);
+        return flat;
+      }
+    }
+    setLinkedRowErrorsById({});
     setLocalErrors({});
     return undefined;
   };
@@ -1042,12 +1271,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const payload = formValuesToSharePointPayload(fieldMetadata, vals, names, {
         nullWhenEmptyFieldNames: ocultosNullFieldNames,
       });
-      await onSubmit(
+      const savedId = await onSubmit(
         payload,
         submitKind,
         flatPendingFiles,
         multiFolderAttachmentMode ? pendingFilesByFolder : undefined
       );
+      if (submitKind === 'submit' && linkedConfigsSorted.length > 0) {
+        const parentId = savedId ?? itemId;
+        if (parentId !== undefined && parentId !== null && typeof parentId === 'number' && isFinite(parentId)) {
+          try {
+            await performLinkedSync(parentId);
+          } catch (le) {
+            setFormError(
+              `Registo principal gravado, mas as listas vinculadas falharam: ${
+                le instanceof Error ? le.message : String(le)
+              }`
+            );
+            return false;
+          }
+        }
+      }
       return true;
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
@@ -1176,6 +1420,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           multiFolderAttachmentMode ? pendingFilesByFolder : undefined
         );
         try {
+          await performLinkedSync(newId);
+        } catch (le) {
+          setFormError(
+            `Item criado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
+          );
+          setSubmitUi(null);
+          return;
+        }
+        try {
           await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
             sourceListTitle: listTitle,
             sourceItemId: newId,
@@ -1223,6 +1476,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           },
           multiFolderAttachmentMode ? pendingFilesByFolder : undefined
         );
+        try {
+          await performLinkedSync(itemId);
+        } catch (le) {
+          setFormError(
+            `Gravado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
+          );
+          setSubmitUi(null);
+          return;
+        }
         await onAfterItemUpdated?.();
         try {
           await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
@@ -2301,6 +2563,25 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             fields={bottomChromeFields}
             renderField={(fc) => renderFieldControl(fc)}
             layoutDeps={values}
+          />
+        )}
+        {linkedConfigsSorted.length > 0 && (
+          <LinkedChildFormsBlock
+            configs={linkedConfigsSorted}
+            parentItemId={itemId}
+            formMode={formMode}
+            rowsByConfigId={linkedRowsById}
+            onRowsChange={(configId, rows) =>
+              setLinkedRowsById((prev) => ({ ...prev, [configId]: rows }))
+            }
+            fieldMetaByConfigId={linkedMetaById}
+            loadingByConfigId={linkedLoadingById}
+            errorByConfigId={linkedLoadErrById}
+            userGroupTitles={userGroupTitles}
+            currentUserId={currentUserId}
+            authorId={authorId}
+            dynamicContext={dynamicContext}
+            rowErrorsByConfigId={linkedRowErrorsById}
           />
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }} wrap>

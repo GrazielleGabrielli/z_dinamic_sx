@@ -237,9 +237,9 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     _submitKind: TFormSubmitKind,
     files: File[],
     filesByFolderNodeId?: Record<string, File[]>
-  ): Promise<void> => {
+  ): Promise<number | undefined> => {
     if (formMode === 'view') {
-      return;
+      return undefined;
     }
     const multiLib =
       !!filesByFolderNodeId &&
@@ -259,7 +259,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         multiLib ? filesByFolderNodeId : undefined
       );
       resetToNew();
-      return;
+      return id;
     }
     if (formMode === 'edit' && activeItem) {
       const id = Number(activeItem.Id);
@@ -273,7 +273,9 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         multiLib ? filesByFolderNodeId : undefined
       );
       await loadItemById(id, 'edit');
+      return id;
     }
+    return undefined;
   };
 
   const dataLoadKind = resolveFormDataLoadingKind(fm);
