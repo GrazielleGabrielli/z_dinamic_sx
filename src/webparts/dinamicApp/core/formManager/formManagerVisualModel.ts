@@ -348,11 +348,12 @@ export interface IFieldRuleEditorState {
     odataFilterTemplate: string;
   };
   computedExpression: string;
-  clearOnChange: {
-    enabled: boolean;
-    triggerField: string;
-    clearFieldsText: string;
-  };
+  /** Id do nó na árvore de pastas (Anexos); gera expressão `attfolder:id`. */
+  computedAttachmentFolderNodeId: string;
+  disableWhenActive: boolean;
+  disableWhenUi: IWhenUi;
+  enableWhenActive: boolean;
+  enableWhenUi: IWhenUi;
 }
 
 export function mergeFieldRuleEditorState(
@@ -365,7 +366,8 @@ export function mergeFieldRuleEditorState(
     validateValue: { ...base.validateValue, ...(patch.validateValue ?? {}) },
     validateDate: { ...base.validateDate, ...(patch.validateDate ?? {}) },
     filterLookup: { ...base.filterLookup, ...(patch.filterLookup ?? {}) },
-    clearOnChange: { ...base.clearOnChange, ...(patch.clearOnChange ?? {}) },
+    disableWhenUi: { ...base.disableWhenUi, ...(patch.disableWhenUi ?? {}) },
+    enableWhenUi: { ...base.enableWhenUi, ...(patch.enableWhenUi ?? {}) },
   };
 }
 
@@ -391,7 +393,11 @@ export function emptyFieldRuleEditorState(): IFieldRuleEditorState {
     },
     filterLookup: { parentField: '', odataFilterTemplate: '' },
     computedExpression: '',
-    clearOnChange: { enabled: false, triggerField: '', clearFieldsText: '' },
+    computedAttachmentFolderNodeId: '',
+    disableWhenActive: false,
+    disableWhenUi: { field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' },
+    enableWhenActive: false,
+    enableWhenUi: { field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' },
   };
 }
 
@@ -425,11 +431,27 @@ export function fieldRuleStateFromRules(
       st.filterLookup.parentField = r.parentField;
       st.filterLookup.odataFilterTemplate = r.odataFilterTemplate;
     }
-    if (r.action === 'setComputed' && r.field === internalName) st.computedExpression = r.expression;
-    if (r.action === 'clearFields' && r.fields.indexOf(internalName) !== -1 && r.triggerField) {
-      st.clearOnChange.enabled = true;
-      st.clearOnChange.triggerField = r.triggerField;
-      st.clearOnChange.clearFieldsText = r.fields.join(',');
+    if (r.action === 'setComputed' && r.field === internalName) {
+      const ex = String(r.expression ?? '').trim();
+      if (ex.indexOf('attfolder:') === 0) {
+        st.computedAttachmentFolderNodeId = ex.slice('attfolder:'.length).trim();
+        st.computedExpression = '';
+      } else {
+        st.computedExpression = ex;
+        st.computedAttachmentFolderNodeId = '';
+      }
+    }
+    if (r.action === 'setDisabled' && r.field === internalName && r.when) {
+      const w = whenNodeToUi(r.when);
+      if (w) {
+        if (r.id === `ui_f_${seg}_discond`) {
+          st.disableWhenActive = true;
+          st.disableWhenUi = w;
+        } else if (r.id === `ui_f_${seg}_enacond`) {
+          st.enableWhenActive = true;
+          st.enableWhenUi = w;
+        }
+      }
     }
     if (r.modes && r.modes.length && st.modes.length === 0) st.modes = r.modes.slice();
   }
@@ -515,27 +537,35 @@ export function buildFieldUiRules(internalName: string, st: IFieldRuleEditorStat
     });
   }
 
-  if (st.computedExpression.trim()) {
+  const attFolderId = st.computedAttachmentFolderNodeId.trim();
+  const cmpExpr = attFolderId ? `attfolder:${attFolderId}` : st.computedExpression.trim();
+  if (cmpExpr) {
     out.push({
       id: id('cmp'),
       action: 'setComputed',
       field: internalName,
-      expression: st.computedExpression.trim(),
+      expression: cmpExpr,
       ...baseModes,
     });
   }
 
-  if (st.clearOnChange.enabled && st.clearOnChange.triggerField.trim()) {
-    const fields = st.clearOnChange.clearFieldsText
-      .split(/[,;\s]+/)
-      .map((x) => x.trim())
-      .filter(Boolean);
-    if (fields.indexOf(internalName) === -1) fields.push(internalName);
+  if (st.disableWhenActive && st.disableWhenUi.field.trim()) {
     out.push({
-      id: id('clr'),
-      action: 'clearFields',
-      fields,
-      triggerField: st.clearOnChange.triggerField.trim(),
+      id: id('discond'),
+      action: 'setDisabled',
+      field: internalName,
+      disabled: true,
+      when: whenUiToNode(st.disableWhenUi),
+      ...baseModes,
+    });
+  }
+  if (st.enableWhenActive && st.enableWhenUi.field.trim()) {
+    out.push({
+      id: id('enacond'),
+      action: 'setDisabled',
+      field: internalName,
+      disabled: false,
+      when: whenUiToNode(st.enableWhenUi),
       ...baseModes,
     });
   }

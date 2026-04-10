@@ -35,6 +35,36 @@ export function parseFolderSegmentsUnderItemFolder(fileRef: string, itemId: numb
   return after.slice(0, -1);
 }
 
+/**
+ * Caminho de pastas (apenas nomes resolvidos) desde a pasta com nome = ID do item até ao nó indicado.
+ * URL absoluta: raiz da biblioteca + `/` + id + `/` + segmentos.
+ */
+export function buildAttachmentFolderAbsoluteUrl(opts: {
+  libraryRootServerRelativeUrl: string;
+  itemId: number | undefined;
+  folderTree: IAttachmentLibraryFolderTreeNode[] | undefined;
+  folderNodeId: string;
+  itemFieldValues: Record<string, unknown>;
+}): string | undefined {
+  const root = opts.libraryRootServerRelativeUrl.trim();
+  const id = opts.itemId;
+  if (!root || id === undefined || typeof id !== 'number' || !isFinite(id)) return undefined;
+  const tree = opts.folderTree;
+  if (!tree?.length) return undefined;
+  const nodeId = opts.folderNodeId.trim();
+  if (!nodeId) return undefined;
+  const segments = getResolvedFolderSegmentsForNode(tree, nodeId, id, opts.itemFieldValues);
+  if (segments === undefined) return undefined;
+  const idFolder = sanitizeSharePointFolderLeafName(String(id));
+  if (!idFolder) return undefined;
+  const base = root.replace(/\\/g, '/').replace(/\/$/, '');
+  const path = [base, idFolder, ...segments].join('/');
+  const rel = path.startsWith('/') ? path : `/${path}`;
+  if (/^https?:\/\//i.test(rel)) return rel;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}${rel}`;
+}
+
 export function getResolvedFolderSegmentsForNode(
   nodes: IAttachmentLibraryFolderTreeNode[],
   targetNodeId: string,

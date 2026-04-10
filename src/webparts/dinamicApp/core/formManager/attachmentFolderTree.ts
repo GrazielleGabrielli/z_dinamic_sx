@@ -215,19 +215,7 @@ export function sanitizeFolderTreeInput(raw: unknown): IAttachmentLibraryFolderT
     const n = sanitizeNode(raw[i], 0, nodeCount);
     if (n) out.push(n);
   }
-  return normalizeFolderTreeUploadTarget(mergeExtraRootsIntoFirst(out));
-}
-
-function mergeExtraRootsIntoFirst(nodes: IAttachmentLibraryFolderTreeNode[]): IAttachmentLibraryFolderTreeNode[] {
-  if (nodes.length <= 1) return nodes;
-  const [first, ...rest] = nodes;
-  const mergedChildren = [...(first.children ?? []), ...rest];
-  return [
-    {
-      ...first,
-      children: mergedChildren.length ? mergedChildren : undefined,
-    },
-  ];
+  return normalizeFolderTreeUploadTarget(out);
 }
 
 export function loadFolderTreeFromAttachmentLibrary(
@@ -237,6 +225,29 @@ export function loadFolderTreeFromAttachmentLibrary(
   if (lib.folderTree?.length) return sanitizeFolderTreeInput(lib.folderTree);
   if (lib.folderPathSegments?.length) return sanitizeFolderTreeInput(migrateFolderPathSegmentsToTree(lib.folderPathSegments));
   return [];
+}
+
+export function attachmentFolderNodePathLabel(
+  tree: IAttachmentLibraryFolderTreeNode[],
+  targetId: string
+): string {
+  function walk(
+    ns: IAttachmentLibraryFolderTreeNode[],
+    acc: string[]
+  ): string | undefined {
+    for (let i = 0; i < ns.length; i++) {
+      const n = ns[i];
+      const label = (n.nameTemplate ?? '').trim() || '(pasta)';
+      const next = acc.concat([label]);
+      if (n.id === targetId) return next.join(' / ');
+      if (n.children?.length) {
+        const d = walk(n.children, next);
+        if (d) return d;
+      }
+    }
+    return undefined;
+  }
+  return walk(tree, []) ?? targetId;
 }
 
 export function flattenFolderTreeNodes(nodes: IAttachmentLibraryFolderTreeNode[]): IAttachmentLibraryFolderTreeNode[] {
@@ -252,6 +263,24 @@ export function flattenFolderTreeNodes(nodes: IAttachmentLibraryFolderTreeNode[]
 }
 
 export const FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX = '_attf_';
+
+/** Mantém só erros de pastas cujo uploader está associado à etapa `stepId`. */
+export function filterFolderLimitErrorsToStep(
+  folderLimitErrors: Record<string, string>,
+  tree: IAttachmentLibraryFolderTreeNode[] | undefined,
+  stepId: string | undefined
+): Record<string, string> {
+  if (!tree?.length || !stepId) return {};
+  const byId = new Map(flattenFolderTreeNodes(tree).map((n) => [n.id, n]));
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(folderLimitErrors)) {
+    if (k.indexOf(FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX) !== 0) continue;
+    const nid = k.slice(FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX.length);
+    const n = byId.get(nid);
+    if (n?.showUploaderInStepIds?.includes(stepId)) out[k] = v;
+  }
+  return out;
+}
 
 export function collectFolderAttachmentLimitErrors(
   tree: IAttachmentLibraryFolderTreeNode[] | undefined,
@@ -338,14 +367,17 @@ export function findUploadTargetId(nodes: IAttachmentLibraryFolderTreeNode[]): s
 }
 
 export function addRootSibling(nodes: IAttachmentLibraryFolderTreeNode[]): IAttachmentLibraryFolderTreeNode[] {
-  if (nodes.length >= 1) return nodes;
   if (countNodesInTree(nodes) >= MAX_ATTACHMENT_FOLDER_TREE_NODES) return nodes;
-  const n = createEmptyFolderNode('');
-  const cleared = clearUploadTargets(nodes);
-  n.uploadTarget = true;
-  const out = [...cleared, n];
+  if (!nodes.length) {
+    const n = createEmptyFolderNode('');
+    n.uploadTarget = true;
+    const out = [n];
+    if (treeMaxDepth(out) > MAX_ATTACHMENT_FOLDER_TREE_DEPTH) return nodes;
+    return out;
+  }
+  const out = nodes.concat([createEmptyFolderNode('')]);
   if (treeMaxDepth(out) > MAX_ATTACHMENT_FOLDER_TREE_DEPTH) return nodes;
-  return out;
+  return normalizeFolderTreeUploadTarget(out);
 }
 
 export function addChild(
@@ -379,13 +411,10 @@ export function addSiblingAfter(
   if (countNodesInTree(nodes) >= MAX_ATTACHMENT_FOLDER_TREE_NODES) return nodes;
   const idx = nodes.findIndex((n) => n.id === afterId);
   if (idx >= 0) {
-    if (isFolderTreeRootLevel) {
-      return nodes;
-    }
     const next = nodes.slice();
     next.splice(idx + 1, 0, createEmptyFolderNode(''));
     if (treeMaxDepth(next) > MAX_ATTACHMENT_FOLDER_TREE_DEPTH) return nodes;
-    return next;
+    return isFolderTreeRootLevel ? normalizeFolderTreeUploadTarget(next) : next;
   }
   const out = nodes.map((n) =>
     n.children?.length ? { ...n, children: addSiblingAfter(n.children, afterId, false) } : n

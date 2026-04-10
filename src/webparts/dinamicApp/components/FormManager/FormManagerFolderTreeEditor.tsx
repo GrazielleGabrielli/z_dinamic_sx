@@ -367,10 +367,8 @@ function FolderStructureRow(props: {
   onRemove: (id: string) => void;
   onSetTarget: (id: string) => void;
   renderChildren: (nodes: IAttachmentLibraryFolderTreeNode[] | undefined, d: number) => React.ReactNode;
-  allowSiblingAtDepth: boolean;
 }): JSX.Element {
-  const { node, depth, disabled, onPatchName, onAddChild, onAddSibling, onRemove, onSetTarget, renderChildren, allowSiblingAtDepth } =
-    props;
+  const { node, depth, disabled, onPatchName, onAddChild, onAddSibling, onRemove, onSetTarget, renderChildren } = props;
   const pad = 12 + depth * 18;
   return (
     <Stack key={node.id} tokens={{ childrenGap: 4 }}>
@@ -412,13 +410,9 @@ function FolderStructureRow(props: {
         />
         <IconButton
           iconProps={{ iconName: 'RowInsert' }}
-          title={
-            allowSiblingAtDepth
-              ? 'Pasta ao mesmo nível (abaixo desta)'
-              : 'Só existe uma pasta raiz sob o ID do item; use subpastas ou níveis abaixo.'
-          }
+          title="Outra pasta ao mesmo nível (irmã). Na 1.ª linha = várias pastas diretas sob o ID; mais abaixo = irmãs na mesma pasta-pai."
           ariaLabel="Adicionar pasta irmã"
-          disabled={disabled || !allowSiblingAtDepth}
+          disabled={disabled}
           onClick={() => onAddSibling(node.id)}
         />
         <IconButton
@@ -596,7 +590,6 @@ export function FormManagerFolderTreeEditor(props: IFormManagerFolderTreeEditorP
             onRemove={(id) => onChange(removeNodeById(nodes, id))}
             onSetTarget={(id) => onChange(setUploadTargetById(nodes, id))}
             renderChildren={renderStructureChildren}
-            allowSiblingAtDepth={depth > 0}
           />
         ))}
       </Stack>
@@ -612,7 +605,8 @@ export function FormManagerFolderTreeEditor(props: IFormManagerFolderTreeEditorP
           Estrutura de pastas
         </Text>
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Uma raiz por item (pasta = ID). Indique o destino do upload (ícone) e nomes ou {'{{campos}}'}.
+          Sob a pasta do ID pode haver várias pastas ao mesmo nível; dentro de cada uma use + para subpastas e a linha
+          para irmãs. O ícone define onde o upload grava.
         </Text>
         {renderStructureChildren(nodes, 0)}
         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
@@ -620,7 +614,7 @@ export function FormManagerFolderTreeEditor(props: IFormManagerFolderTreeEditorP
             <DefaultButton
               iconProps={{ iconName: 'CreateNewFolder' }}
               text="Adicionar primeira pasta"
-              title="Raiz sob o ID do item; depois subpastas e irmãos nos níveis inferiores"
+              title="Primeira pasta sob o ID; depois use + ou irmã para mais pastas"
               disabled={disabled || atMax}
               onClick={() => onChange(addRootSibling(nodes))}
             />

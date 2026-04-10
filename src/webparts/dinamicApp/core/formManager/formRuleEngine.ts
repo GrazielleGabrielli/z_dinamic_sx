@@ -1,5 +1,6 @@
 import type { IDynamicContext } from '../dynamicTokens/types';
 import { DynamicTokenResolver } from '../dynamicTokens/services/DynamicTokenResolver';
+import { isDynamicToken, resolveStringToken } from '../dynamicTokens';
 import type {
   IAttachmentLibraryFolderTreeNode,
   IFormManagerConfig,
@@ -15,8 +16,17 @@ import type {
 } from '../config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../config/types/formManager';
 import type { IFieldMetadata } from '../../../../services';
+import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
+
+const ATT_FOLDER_EXPR_PREFIX = 'attfolder:';
+
+export interface IFormAttachmentFolderUrlContext {
+  libraryRootServerRelativeUrl?: string;
+  itemId?: number;
+  folderTree?: IAttachmentLibraryFolderTreeNode[];
+}
 
 export interface IFormRuleRuntimeContext {
   formMode: TFormManagerFormMode;
@@ -26,6 +36,8 @@ export interface IFormRuleRuntimeContext {
   currentUserId: number;
   authorId?: number;
   dynamicContext: IDynamicContext;
+  /** Resolução de expressões `attfolder:id` (pasta da árvore em Anexos → biblioteca). */
+  attachmentFolderUrl?: IFormAttachmentFolderUrlContext;
 }
 
 export interface IFormDerivedUiState {
@@ -195,6 +207,14 @@ export function evaluateCondition(
 function isValueEmptyForRequiredField(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;
+  }
+  if (mappedType === 'url') {
+    if (v === null || v === undefined) return true;
+    if (typeof v === 'object' && v !== null && 'Url' in (v as object)) {
+      return String((v as Record<string, unknown>).Url ?? '').trim() === '';
+    }
+    if (typeof v === 'string') return v.trim() === '';
+    return false;
   }
   if (v === null || v === undefined) return true;
   if (typeof v === 'string' && v.trim() === '') return true;
@@ -376,16 +396,46 @@ function evalArithmetic(expr: string): number | undefined {
   return v;
 }
 
-export function evaluateFormValueExpression(expr: string, values: Record<string, unknown>): unknown {
+export function evaluateFormValueExpression(
+  expr: string,
+  values: Record<string, unknown>,
+  dynamicContext?: IDynamicContext,
+  attachmentFolderUrl?: IFormAttachmentFolderUrlContext
+): unknown {
   const t = expr.trim();
+  if (dynamicContext && isDynamicToken(t)) {
+    const v = resolveStringToken(t, dynamicContext);
+    return v !== undefined ? v : '';
+  }
+  if (t.indexOf(ATT_FOLDER_EXPR_PREFIX) === 0) {
+    const nodeId = t.slice(ATT_FOLDER_EXPR_PREFIX.length).trim();
+    if (!nodeId || !attachmentFolderUrl?.libraryRootServerRelativeUrl?.trim()) return '';
+    const url = buildAttachmentFolderAbsoluteUrl({
+      libraryRootServerRelativeUrl: attachmentFolderUrl.libraryRootServerRelativeUrl,
+      itemId: attachmentFolderUrl.itemId,
+      folderTree: attachmentFolderUrl.folderTree,
+      folderNodeId: nodeId,
+      itemFieldValues: values,
+    });
+    return url ?? '';
+  }
   if (t.indexOf('str:') === 0) {
-    return t.slice(4).replace(/\{\{([^}]+)\}\}/g, (_, name) => {
+    let s = t.slice(4).replace(/\{\{([^}]+)\}\}/g, (_, name) => {
       const key = String(name).trim();
       const v = values[key];
       if (v === null || v === undefined) return '';
       if (typeof v === 'object' && v !== null && 'Title' in (v as object)) return String((v as Record<string, unknown>).Title ?? '');
       return String(v);
     });
+    if (dynamicContext) {
+      s = s.replace(/\[(.+?)\]/g, (full, inner: string) => {
+        const tok = `[${String(inner).trim()}]`;
+        if (!isDynamicToken(tok)) return full;
+        const r = resolveStringToken(tok, dynamicContext);
+        return r !== null && r !== undefined ? String(r) : '';
+      });
+    }
+    return s;
   }
   const withDays = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
     const da = parseIsoDate(String(values[String(a).trim()] ?? ''));
@@ -516,7 +566,7 @@ export function buildFormDerivedState(
   ctx: IFormRuleRuntimeContext,
   buttonOverlay?: IFormButtonVisibilityOverlay
 ): IFormDerivedUiState {
-  const { values, formMode, dynamicContext } = ctx;
+  const { values, formMode, dynamicContext, attachmentFolderUrl } = ctx;
   const fieldVisible: Record<string, boolean> = {};
   const sectionVisible: Record<string, boolean> = {};
   const fieldRequired: Record<string, boolean> = {};
@@ -580,7 +630,7 @@ export function buildFormDerivedState(
         lookupFilters[rule.field] = { parentField: rule.parentField, odataFilterTemplate: rule.odataFilterTemplate };
         break;
       case 'setComputed': {
-        const v = evaluateFormValueExpression(rule.expression, values);
+        const v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);
         if (v !== undefined) computedDisplay[rule.field] = v;
         break;
       }
@@ -795,6 +845,75 @@ export function collectFormValidationErrors(
   }
 
   return errors;
+}
+
+export function buildFormFieldLabelMap(
+  fieldConfigs: IFormFieldConfig[],
+  metaByName: ReadonlyMap<string, IFieldMetadata>
+): Map<string, string> {
+  const m = new Map<string, string>();
+  for (let i = 0; i < fieldConfigs.length; i++) {
+    const fc = fieldConfigs[i];
+    const name = fc.internalName;
+    const meta = metaByName.get(name);
+    const label = (fc.label?.trim() || meta?.Title?.trim() || name).trim() || name;
+    m.set(name, label);
+  }
+  metaByName.forEach((meta, name) => {
+    if (!m.has(name)) {
+      m.set(name, (meta.Title?.trim() || name).trim() || name);
+    }
+  });
+  return m;
+}
+
+function isSpecialValidationKey(key: string): boolean {
+  if (key === '_attachments' || key === '_async') return true;
+  return key.startsWith('_attf_');
+}
+
+function isGenericRequiredMessage(msg: string): boolean {
+  const t = msg.trim().toLowerCase();
+  return t === 'obrigatório.' || t === 'obrigatório' || t === 'obrigatório!';
+}
+
+/** Texto único para MessageBar quando a validação falha (gravar ou mudar de etapa). */
+export function formatValidationSummaryForForm(
+  errors: Record<string, string>,
+  labelByField?: ReadonlyMap<string, string>
+): string {
+  const entries = Object.entries(errors).filter(([, v]) => String(v).trim());
+  if (!entries.length) return 'Corrija os problemas indicados antes de continuar.';
+
+  const lines: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const key = entries[i][0];
+    const raw = entries[i][1];
+    const v = String(raw).trim();
+    if (!v) continue;
+
+    if (isSpecialValidationKey(key)) {
+      lines.push(v);
+      continue;
+    }
+
+    const label = labelByField?.get(key) ?? key;
+    if (isGenericRequiredMessage(v)) {
+      lines.push(`${label}: obrigatório.`);
+      continue;
+    }
+    const lblLower = label.toLowerCase();
+    const vLower = v.toLowerCase();
+    if (vLower.startsWith(lblLower + ':') || vLower.startsWith(lblLower + ' :')) {
+      lines.push(v);
+    } else {
+      lines.push(`${label}: ${v}`);
+    }
+  }
+
+  const unique = Array.from(new Set(lines));
+  if (unique.length === 1) return unique[0];
+  return unique.map((l) => `• ${l}`).join('\n');
 }
 
 export function filterValidationErrorsToStepFields(

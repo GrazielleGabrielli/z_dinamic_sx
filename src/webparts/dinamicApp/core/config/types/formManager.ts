@@ -143,7 +143,12 @@ export interface IFormRuleFilterLookup extends IFormRuleBase {
 export interface IFormRuleSetComputed extends IFormRuleBase {
   action: 'setComputed';
   field: string;
-  /** Expressão segura: números, + - * / ( ), nomes de campo, STR_concat(a,b), DAYS(a,b) */
+  /**
+   * Números: `{{Campo}}`, operadores + - * / ( ).
+   * Texto: prefixo `str:` com `{{Campo}}` e tokens dinâmicos entre colchetes, ex. `[me]`, `[myEmail]`, `[today]`, `[query:chave]`.
+   * Só token: `[myName]` (valor único).
+   * Pasta de anexos (biblioteca): `attfolder:nodeId` com id do nó configurado na árvore de pastas em Anexos.
+   */
   expression: string;
 }
 
@@ -339,8 +344,8 @@ export interface IFormManagerAttachmentLibraryConfig {
    */
   sourceListLookupFieldInternalName?: string;
   /**
-   * Subpastas **abaixo** da pasta de nível 1 (nome = ID do item). Só uma pasta raiz nesse nível;
-   * ramos e irmãos ficam dentro dela. `uploadTarget` define onde o upload grava.
+   * Pastas **abaixo** da pasta de nível 1 (nome = ID do item): pode haver várias ao mesmo nível;
+   * cada uma pode ter filhos e irmãos. `uploadTarget` define onde o upload grava.
    */
   folderTree?: IAttachmentLibraryFolderTreeNode[];
   /**
@@ -413,7 +418,7 @@ export interface IFormButtonActionHideFields {
 export interface IFormButtonActionSetFieldValue {
   kind: 'setFieldValue';
   field: string;
-  /** Texto fixo ou expressão `str:{{Campo}}` (mesma sintaxe de setComputed texto) */
+  /** Texto fixo, `str:…`, token `[me]`, ou `attfolder:idDoNo` (pasta Anexos), como em setComputed. */
   valueTemplate: string;
   when?: TFormConditionNode;
 }

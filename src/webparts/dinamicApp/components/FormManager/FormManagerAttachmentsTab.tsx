@@ -11,6 +11,7 @@ import {
   ChoiceGroup,
   IChoiceGroupOption,
   Checkbox,
+  IconButton,
 } from '@fluentui/react';
 import { ListsService, FieldsService } from '../../../../services';
 import type { IListSummary, IFieldMetadata } from '../../../../services';
@@ -21,6 +22,11 @@ import type {
   IAttachmentLibraryFolderTreeNode,
 } from '../../core/config/types/formManager';
 import { FormManagerFolderTreeEditor, type IFolderVisibilityEditorProps } from './FormManagerFolderTreeEditor';
+import {
+  addRootSibling,
+  countNodesInTree,
+  MAX_ATTACHMENT_FOLDER_TREE_NODES,
+} from '../../core/formManager/attachmentFolderTree';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import {
   FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS,
@@ -99,6 +105,11 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
   const [primaryListLoading, setPrimaryListLoading] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [attachDemoFiles, setAttachDemoFiles] = useState<File[]>([]);
+
+  const attachmentFolderTreeAtMax = useMemo(
+    () => countNodesInTree(attachmentLibFolderTree) >= MAX_ATTACHMENT_FOLDER_TREE_NODES,
+    [attachmentLibFolderTree]
+  );
 
   const toggleSection = (id: string): void => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -287,9 +298,9 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                     onToggle={() => toggleSection(SECTION_IDS.folders)}
                   >
                     <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                      O nível 1 é sempre a pasta com o ID do item na lista principal. Abaixo só existe uma pasta raiz
-                      por solicitação; a ramificação (irmãos e filhos) fica dentro dela, para agrupar por ID. Use texto
-                      fixo ou placeholders <code style={{ fontSize: 12 }}>{'{{Title}}'}</code>,{' '}
+                      O nível 1 é sempre a pasta com o ID do item na lista principal. Abaixo pode haver várias pastas
+                      ao mesmo nível; dentro de cada uma use subpastas e irmãs como precisar. Use texto fixo ou
+                      placeholders <code style={{ fontSize: 12 }}>{'{{Title}}'}</code>,{' '}
                       <code style={{ fontSize: 12 }}>{'{{NomeInterno}}'}</code>, etc. Sem pastas configuradas = ficheiros
                       diretamente na pasta do ID.
                     </Text>
@@ -304,6 +315,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                           border: '1px solid #edebe9',
                           background: '#faf9f8',
                           maxWidth: 520,
+                          flexWrap: 'wrap',
                         },
                       }}
                     >
@@ -316,6 +328,16 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                         (automático — nome da pasta = id do item)
                       </Text>
+                      <IconButton
+                        styles={{ root: { marginLeft: 'auto' } }}
+                        iconProps={{ iconName: 'Add' }}
+                        title="Adicionar pasta diretamente na pasta do ID (mesmo nível que as linhas abaixo)"
+                        ariaLabel="Adicionar pasta na pasta do ID"
+                        disabled={attachmentFolderTreeAtMax}
+                        onClick={() =>
+                          onAttachmentLibFolderTreeChange(addRootSibling(attachmentLibFolderTree))
+                        }
+                      />
                     </Stack>
                     <FormManagerFolderTreeEditor
                       nodes={attachmentLibFolderTree}

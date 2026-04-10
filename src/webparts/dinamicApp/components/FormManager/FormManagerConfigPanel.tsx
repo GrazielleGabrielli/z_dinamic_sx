@@ -58,7 +58,11 @@ import {
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
-import { loadFolderTreeFromAttachmentLibrary } from '../../core/formManager/attachmentFolderTree';
+import {
+  attachmentFolderNodePathLabel,
+  flattenFolderTreeNodes,
+  loadFolderTreeFromAttachmentLibrary,
+} from '../../core/formManager/attachmentFolderTree';
 import { ALL_FORM_MANAGER_MODES, toggleStepShowInFormMode } from '../../core/formManager/stepFormMode';
 import {
   buildFieldUiRules,
@@ -72,14 +76,12 @@ import {
   newCardId,
   parseAttachmentUiRule,
   parseConditionalCardsFromRules,
-  countFieldUiRules,
   CONDITIONAL_EFFECT_OPTIONS,
   CONDITION_OP_OPTIONS,
   type IConditionalEffectUi,
   type IConditionalRuleCard,
   type IWhenUi,
   type TConditionalEffectKind,
-  fieldRuleStateFromRules,
   templateConditionalShowWhenEquals,
   templateFieldRulesChoiceRequiresOther,
   whenUiToNode,
@@ -174,7 +176,6 @@ function isFormConfigSelectableField(m: IFieldMetadata): boolean {
   return !FORM_CONFIG_UI_EXCLUDED_FIELD_INTERNALS.has(m.InternalName);
 }
 
-const DND_FIELD = 'fm/field:';
 const DND_STEP = 'fm/step:';
 const DND_POOL = 'fm/pool:';
 const DND_FS = 'fm/fs:';
@@ -269,17 +270,6 @@ function fieldsAlignedToSteps(flds: IFormFieldConfig[], st: IFormStepConfig[]): 
     }
   }
   return out;
-}
-
-function resyncStepsOrderFromFields(flds: IFormFieldConfig[], st: IFormStepConfig[]): IFormStepConfig[] {
-  const orderMap: Record<string, number> = {};
-  for (let i = 0; i < flds.length; i++) {
-    orderMap[flds[i].internalName] = i;
-  }
-  return st.map((s) => ({
-    ...s,
-    fieldNames: s.fieldNames.slice().sort((a, b) => (orderMap[a] ?? 99999) - (orderMap[b] ?? 99999)),
-  }));
 }
 
 function numOpt(s: string): number | undefined {
@@ -639,6 +629,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     [steps]
   );
 
+  const attachmentFolderOptionsForFieldRules = useMemo(() => {
+    if (attachmentStorageKind !== 'documentLibrary' || !attachmentLibFolderTree.length) return [];
+    return flattenFolderTreeNodes(attachmentLibFolderTree).map((n) => ({
+      key: n.id,
+      text: attachmentFolderNodePathLabel(attachmentLibFolderTree, n.id),
+    }));
+  }, [attachmentStorageKind, attachmentLibFolderTree]);
+
   useEffect(() => {
     if (!isOpen) return;
     const norm = buildInitialFieldsAndSteps(value);
@@ -880,18 +878,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         fieldNames: s.fieldNames.filter((n) => n !== internalName),
       }))
     );
-  };
-
-  const reorderField = (from: number, to: number): void => {
-    setFields((prev) => {
-      const next = reorderByIndex(prev, from, to);
-      setSteps((st) => resyncStepsOrderFromFields(next, st));
-      return next;
-    });
-  };
-
-  const updateFieldAt = (internalName: string, patch: Partial<IFormFieldConfig>): void => {
-    setFields((prev) => prev.map((f) => (f.internalName === internalName ? { ...f, ...patch } : f)));
   };
 
   const handleStructureFieldDrop = useCallback((toStepIdx: number, insertBefore: number) => {
@@ -2406,110 +2392,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             customButtons={customButtons}
           />
         </PivotItem>
-        <PivotItem headerText="Regras rápidas">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Ajustes base por campo. Reordene linhas arrastando a alça. Regras geradas pela UI aparecem no motor com prefixo ui_f_.
-            </Text>
-            {fields.map((fc, fIdx) => {
-                let m: IFieldMetadata | undefined;
-                for (let mi = 0; mi < meta.length; mi++) {
-                  if (meta[mi].InternalName === fc.internalName) {
-                    m = meta[mi];
-                    break;
-                  }
-                }
-              const n = countFieldUiRules(fc.internalName, rules);
-              const def = fieldRuleStateFromRules(fc.internalName, rules).defaultValue;
-              return (
-                <Stack
-                  key={fc.internalName}
-                  horizontal
-                  tokens={{ childrenGap: 8 }}
-                  verticalAlign="end"
-                  wrap
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const from = parseDragIndex(e.dataTransfer.getData('text/plain'), DND_FIELD);
-                    if (from === undefined || from === fIdx) return;
-                    reorderField(from, fIdx);
-                  }}
-                >
-                  <span
-                    draggable
-                    title="Arrastar para reordenar"
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', dragPayload(DND_FIELD, fIdx));
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
-                  >
-                    <Icon iconName="GripperBarVertical" />
-                  </span>
-                  <Text styles={{ root: { minWidth: 140, fontWeight: 600 } }}>{fc.internalName}</Text>
-                  <Checkbox
-                    label="Visível"
-                    checked={fc.visible !== false}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { visible: !!c })}
-                  />
-                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
-                    <Checkbox
-                      label="Obrigatório"
-                      checked={fc.required === true}
-                      onChange={(_, c) => updateFieldAt(fc.internalName, { required: !!c })}
-                    />
-                  )}
-                  <Checkbox
-                    label="Só leitura"
-                    checked={fc.readOnly === true}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { readOnly: !!c })}
-                  />
-                  <Checkbox
-                    label="Desativado"
-                    checked={fc.disabled === true}
-                    onChange={(_, c) => updateFieldAt(fc.internalName, { disabled: !!c })}
-                  />
-                  <TextField
-                    label="Ajuda"
-                    value={fc.helpText ?? ''}
-                    onChange={(_, v) => updateFieldAt(fc.internalName, { helpText: v || undefined })}
-                  />
-                  {fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
-                    <TextField
-                      label="Padrão (texto/token)"
-                      value={def}
-                      onChange={(_, v) => {
-                        const st = fieldRuleStateFromRules(fc.internalName, rules);
-                        st.defaultValue = v ?? '';
-                        setRules((r) => mergeFieldRules(r, fc.internalName, buildFieldUiRules(fc.internalName, st)));
-                      }}
-                    />
-                  )}
-                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
-                    <Text variant="small" styles={{ root: { color: '#605e5c', maxWidth: 280 } }}>
-                      Extensões permitidas: aba Componentes. Mín./máx. e mensagens: regra de anexos (JSON avançado).
-                    </Text>
-                  ) : (
-                    <DefaultButton
-                      text={n ? `${n} regra(s)` : 'Regras…'}
-                      onClick={() => setFieldPanelName(fc.internalName)}
-                    />
-                  )}
-                  {fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL ? (
-                    <Text variant="small">(anexos)</Text>
-                  ) : (
-                    m && <Text variant="small">({m.MappedType})</Text>
-                  )}
-                </Stack>
-              );
-            })}
-            {!fields.length && <Text>Nenhum campo no formulário. Use a aba Estrutura.</Text>}
-          </Stack>
-        </PivotItem>
         <PivotItem headerText="Regras condicionais">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
@@ -2666,6 +2548,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           meta={fieldPanelMeta}
           rules={rules}
           fieldOptions={fieldOptions}
+          attachmentLibraryFolderOptions={attachmentFolderOptionsForFieldRules}
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
             setFields((prev) => prev.map((f) => (f.internalName === fieldPanelName ? { ...f, ...nextFc } : f)));

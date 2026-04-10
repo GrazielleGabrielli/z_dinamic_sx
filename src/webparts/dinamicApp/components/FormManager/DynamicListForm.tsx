@@ -37,6 +37,7 @@ import {
   FORM_BUILTIN_HISTORY_BUTTON_ID,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
+import { isDynamicToken } from '../../core/dynamicTokens';
 import {
   buildFormDerivedState,
   collectFormValidationErrors,
@@ -49,6 +50,9 @@ import {
   shouldShowBuiltinHistoryButton,
   areAllRequiredFieldsFilled,
   isAttachmentFolderUploaderVisible,
+  buildFormFieldLabelMap,
+  formatValidationSummaryForForm,
+  type IFormAttachmentFolderUrlContext,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
 } from '../../core/formManager/formRuleEngine';
@@ -59,7 +63,7 @@ import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidat
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
 import { appendFormActionLogEntry } from '../../core/formManager/formActionLog';
 import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
-import { ItemsService } from '../../../../services';
+import { ItemsService, UsersService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
 import {
   isFormAttachmentLibraryRuntime,
@@ -70,6 +74,7 @@ import {
 } from '../../core/formManager/formAttachmentLibrary';
 import {
   collectFolderAttachmentLimitErrors,
+  filterFolderLimitErrorsToStep,
   flattenFolderTreeNodes,
   FOLDER_ATTACHMENT_LIMIT_ERROR_PREFIX,
   treeHasPerStepFolderUploaders,
@@ -217,7 +222,8 @@ function reduceCustomButtonActions(
   actions: TFormButtonAction[],
   startValues: Record<string, unknown>,
   dynamicContext: IDynamicContext,
-  baseOverlay: IFormButtonFieldOverlay
+  baseOverlay: IFormButtonFieldOverlay,
+  attachmentFolderUrl?: IFormAttachmentFolderUrlContext
 ): { mergedValues: Record<string, unknown>; mergedOverlay: IFormButtonFieldOverlay } {
   let next = { ...startValues };
   const mergedOverlay: IFormButtonFieldOverlay = {
@@ -233,9 +239,13 @@ function reduceCustomButtonActions(
       continue;
     }
     if (a.kind === 'setFieldValue') {
-      const tpl = a.valueTemplate;
-      const raw =
-        tpl.trim().indexOf('str:') === 0 ? evaluateFormValueExpression(tpl, next) : tpl;
+      const tplRaw = String(a.valueTemplate ?? '');
+      const trimmed = tplRaw.trim();
+      let useExpr = trimmed.startsWith('str:') || trimmed.startsWith('attfolder:');
+      if (!useExpr) useExpr = isDynamicToken(trimmed);
+      const raw = useExpr
+        ? evaluateFormValueExpression(tplRaw, next, dynamicContext, attachmentFolderUrl)
+        : tplRaw;
       next = { ...next, [a.field]: raw };
     } else if (a.kind === 'joinFields') {
       const tpl = (a.valueTemplate ?? '').trim();
@@ -287,6 +297,14 @@ function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;
   }
+  if (mappedType === 'url') {
+    if (v === null || v === undefined) return true;
+    if (typeof v === 'object' && v !== null && 'Url' in v) {
+      return String((v as Record<string, unknown>).Url ?? '').trim() === '';
+    }
+    if (typeof v === 'string') return v.trim() === '';
+    return false;
+  }
   if (v === null || v === undefined) return true;
   if (typeof v === 'string' && v.trim() === '') return true;
   if (Array.isArray(v) && v.length === 0) return true;
@@ -336,6 +354,79 @@ function lookupIdFromValue(v: unknown): number | undefined {
   return undefined;
 }
 
+function normalizeIdTitleArray(v: unknown): { Id: number; Title: string }[] {
+  if (v === null || v === undefined) return [];
+  if (Array.isArray(v)) {
+    const out: { Id: number; Title: string }[] = [];
+    for (let i = 0; i < v.length; i++) {
+      const x = v[i];
+      const id = lookupIdFromValue(x);
+      if (id === undefined) continue;
+      let title = '';
+      if (typeof x === 'object' && x !== null && 'Title' in x) {
+        title = String((x as Record<string, unknown>).Title ?? '');
+      }
+      out.push({ Id: id, Title: title });
+    }
+    return out;
+  }
+  if (typeof v === 'object' && v !== null && 'results' in v) {
+    const r = (v as { results?: unknown }).results;
+    if (Array.isArray(r)) return normalizeIdTitleArray(r);
+  }
+  const id = lookupIdFromValue(v);
+  return id !== undefined ? [{ Id: id, Title: '' }] : [];
+}
+
+function mergeOptionsForIds(
+  opts: IDropdownOption[],
+  entries: { id: number; label: string }[]
+): IDropdownOption[] {
+  const keys = new Set(opts.map((o) => String(o.key)));
+  let out = opts;
+  for (let i = 0; i < entries.length; i++) {
+    const k = String(entries[i].id);
+    if (keys.has(k)) continue;
+    keys.add(k);
+    out = [...out, { key: k, text: entries[i].label.trim() || `#${entries[i].id}` }];
+  }
+  return out;
+}
+
+function userTitleFromValue(v: unknown): string {
+  if (typeof v === 'object' && v !== null && 'Title' in v) {
+    return String((v as Record<string, unknown>).Title ?? '');
+  }
+  return '';
+}
+
+function parseUrlFieldValue(v: unknown): { Url: string; Description: string } {
+  if (v === null || v === undefined) return { Url: '', Description: '' };
+  if (typeof v === 'object' && v !== null && 'Url' in v) {
+    const o = v as Record<string, unknown>;
+    return { Url: String(o.Url ?? ''), Description: String(o.Description ?? '') };
+  }
+  const s = String(v);
+  const comma = s.indexOf(',');
+  if (comma !== -1) {
+    return { Url: s.slice(0, comma).trim(), Description: s.slice(comma + 1).trim() };
+  }
+  return { Url: s, Description: '' };
+}
+
+function dropdownReqStyles(showReq: boolean | undefined) {
+  return showReq
+    ? {
+        dropdown: {
+          borderColor: REQ_EMPTY_BORDER,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderRadius: 2,
+        },
+      }
+    : undefined;
+}
+
 export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   listTitle,
   formManager,
@@ -370,6 +461,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     [fieldConfigs]
   );
   const metaByName = useMemo(() => new Map(fieldMetadata.map((f) => [f.InternalName, f])), [fieldMetadata]);
+  const fieldLabelByName = useMemo(
+    () => buildFormFieldLabelMap(fieldConfigs, metaByName),
+    [fieldConfigs, metaByName]
+  );
 
   const attachmentAllowedExtensions = useMemo(
     () => parseAttachmentUiRule(formManager.rules ?? []).allowedFileExtensions ?? [],
@@ -402,6 +497,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     show: new Set<string>(),
     hide: new Set<string>(),
   }));
+  const [attachmentLibRootServerRelative, setAttachmentLibRootServerRelative] = useState<string | undefined>(
+    undefined
+  );
 
   const authorId = useMemo(() => {
     const a = initialItem?.AuthorId ?? initialItem?.Author;
@@ -411,6 +509,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [initialItem]);
 
   const itemsService = useMemo(() => new ItemsService(), []);
+  const usersService = useMemo(() => new UsersService(), []);
+  const [siteUserOptions, setSiteUserOptions] = useState<IDropdownOption[]>([{ key: '', text: '—' }]);
 
   const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
     const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
@@ -432,12 +532,71 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [initialItem, names]);
 
   useEffect(() => {
+    let cancelled = false;
+    void usersService
+      .getSiteUsers()
+      .then((users) => {
+        if (cancelled) return;
+        const sorted = [...users].sort((a, b) =>
+          (a.Title || a.Email || '').localeCompare(b.Title || b.Email || '', undefined, { sensitivity: 'base' })
+        );
+        setSiteUserOptions([
+          { key: '', text: '—' },
+          ...sorted.map((u) => ({
+            key: String(u.Id),
+            text: (u.Title || u.Email || u.LoginName || '').trim() || `#${u.Id}`,
+          })),
+        ]);
+      })
+      .catch(() => {
+        if (!cancelled) setSiteUserOptions([{ key: '', text: '—' }]);
+      });
+    return (): void => {
+      cancelled = true;
+    };
+  }, [usersService]);
+
+  useEffect(() => {
     if (formMode !== 'create') return;
     setValues((prev) => {
       const merged = getDefaultValuesFromRules(formManager, prev, dynamicContext);
       return merged;
     });
   }, [formManager, formMode, dynamicContext]);
+
+  useEffect(() => {
+    if (!isFormAttachmentLibraryRuntime(formManager)) {
+      setAttachmentLibRootServerRelative(undefined);
+      return;
+    }
+    const title = formManager.attachmentLibrary!.libraryTitle!.trim();
+    let cancelled = false;
+    (async () => {
+      try {
+        const sp = getSP();
+        const list = sp.web.lists.getByTitle(title);
+        const rf = await list.rootFolder.select('ServerRelativeUrl')();
+        const u = (rf as { ServerRelativeUrl?: string }).ServerRelativeUrl;
+        if (!cancelled) {
+          setAttachmentLibRootServerRelative(typeof u === 'string' && u.trim() ? u.trim() : undefined);
+        }
+      } catch {
+        if (!cancelled) setAttachmentLibRootServerRelative(undefined);
+      }
+    })().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [formManager.attachmentStorageKind, formManager.attachmentLibrary?.libraryTitle]);
+
+  const attachmentFolderUrl = useMemo(
+    (): IFormAttachmentFolderUrlContext => ({
+      libraryRootServerRelativeUrl: attachmentLibRootServerRelative,
+      itemId,
+      folderTree: formManager.attachmentLibrary?.folderTree,
+    }),
+    [attachmentLibRootServerRelative, itemId, formManager.attachmentLibrary?.folderTree]
+  );
 
   const runtimeCtx = useCallback(
     (submitKind?: TFormSubmitKind): IFormRuleRuntimeContext => ({
@@ -448,8 +607,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       currentUserId,
       authorId,
       dynamicContext,
+      attachmentFolderUrl,
     }),
-    [formMode, values, userGroupTitles, currentUserId, authorId, dynamicContext]
+    [
+      formMode,
+      values,
+      userGroupTitles,
+      currentUserId,
+      authorId,
+      dynamicContext,
+      attachmentFolderUrl,
+    ]
   );
 
   const derived = useMemo(
@@ -468,6 +636,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       currentUserId,
       authorId,
       dynamicContext,
+      attachmentFolderUrl,
       buttonOverlay,
     ]
   );
@@ -504,6 +673,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       currentUserId,
       authorId,
       dynamicContext,
+      attachmentFolderUrl,
       buttonOverlay,
       attachmentCount,
       flatPendingFiles,
@@ -565,7 +735,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     for (let i = 0; i < fieldConfigs.length; i++) {
       const fn = fieldConfigs[i].internalName;
       const m = metaByName.get(fn);
-      if (m?.MappedType !== 'lookup') continue;
+      if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
       const listId = String(m.LookupList ?? '');
       const disp = String(m.LookupField || 'Title');
       const lf = derived.lookupFilters[fn];
@@ -589,7 +759,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         if (cancelled) return;
         const fn = fieldConfigs[i].internalName;
         const m = metaByName.get(fn);
-        if (m?.MappedType === 'lookup') {
+        if (m?.MappedType === 'lookup' || m?.MappedType === 'lookupmulti') {
           const lf = derived.lookupFilters[fn];
           let filter: string | undefined;
           if (lf) {
@@ -662,7 +832,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       values?: Record<string, unknown>;
       buttonOverlay?: IFormButtonFieldOverlay;
     }
-  ): Promise<boolean> => {
+  ): Promise<Record<string, string> | undefined> => {
     const vals = opts?.values ?? values;
     const ov = opts?.buttonOverlay ?? buttonOverlay;
     const att: IFormValidationAttachmentContext = {
@@ -681,6 +851,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       currentUserId,
       authorId,
       dynamicContext,
+      attachmentFolderUrl,
     };
     const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, att, {
       show: ov.show,
@@ -714,19 +885,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 currentUserId,
                 authorId,
                 dynamicContext,
+                attachmentFolderUrl,
               }),
           }),
         };
       }
     }
     setLocalErrors(mergedErr);
-    if (Object.keys(mergedErr).length > 0) return false;
+    if (Object.keys(mergedErr).length > 0) return mergedErr;
     const asyncErr = await runAsyncFormValidations(formManager, vals, itemsService, listTitle, itemId, submitKind);
     if (Object.keys(asyncErr).length > 0) {
       setLocalErrors(asyncErr);
-      return false;
+      return asyncErr;
     }
-    return true;
+    setLocalErrors({});
+    return undefined;
   };
 
   const handleSave = async (
@@ -740,8 +913,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const vals = opts?.valuesOverride ?? values;
     const ov = opts?.buttonOverlayOverride ?? buttonOverlay;
     setFormError(undefined);
-    const ok = await validate(submitKind, { values: vals, buttonOverlay: ov });
-    if (!ok) return false;
+    const validationErrors = await validate(submitKind, { values: vals, buttonOverlay: ov });
+    if (validationErrors) {
+      setFormError(formatValidationSummaryForForm(validationErrors, fieldLabelByName));
+      return false;
+    }
     setSubmitUi(resolveSubmitLoadingKind(formManager, opts?.submitLoadingFromButton));
     try {
       const payload = formValuesToSharePointPayload(fieldMetadata, vals, names, {
@@ -796,7 +972,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       actions,
       values,
       dynamicContext,
-      buttonOverlay
+      buttonOverlay,
+      attachmentFolderUrl
     );
     if (op !== 'redirect') {
       flushSync(() => {
@@ -847,8 +1024,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 
     if (op === 'add') {
       setFormError(undefined);
-      const ok = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
-      if (!ok) return;
+      const validationErrors = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
+      if (validationErrors) {
+        setFormError(formatValidationSummaryForForm(validationErrors, fieldLabelByName));
+        return;
+      }
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
@@ -896,8 +1076,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         return;
       }
       setFormError(undefined);
-      const ok = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
-      if (!ok) return;
+      const validationErrors = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
+      if (validationErrors) {
+        setFormError(formatValidationSummaryForForm(validationErrors, fieldLabelByName));
+        return;
+      }
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
@@ -1113,18 +1296,51 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         currentUserId,
         authorId,
         dynamicContext,
+        attachmentFolderUrl,
       };
       const overlay = { show: buttonOverlay.show, hide: buttonOverlay.hide };
-      const syncErrorsForStep = (stepFieldList: Set<string>): Record<string, string> | null => {
+      const syncErrorsForStep = (stepFieldList: Set<string>, stepIdx: number): Record<string, string> | null => {
         const derivedStep = buildFormDerivedState(formManager, fieldConfigs, ctx, overlay);
         const fv = (n: string): boolean => derivedStep.fieldVisible[n] !== false;
         const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, attCtx, overlay);
         let rel = filterValidationErrorsToStepFields(sync, stepFieldList);
         if (!fullVal) rel = pickRequiredStyleStepErrors(rel);
         const listReq = listRequiredEmptyErrorsInStep(stepFieldList, values, metaByName, fv);
-        const blocks = Object.keys(rel).length > 0 || Object.keys(listReq).length > 0;
-        if (!blocks) return null;
-        return { ...sync, ...listReq };
+        let merged: Record<string, string> = { ...rel, ...listReq };
+        if (multiFolderAttachmentMode && isFormAttachmentLibraryRuntime(formManager)) {
+          const tree = formManager.attachmentLibrary?.folderTree;
+          if (tree?.length) {
+            const folderAll = collectFolderAttachmentLimitErrors(tree, {
+              pendingByFolder: pendingFilesByFolder,
+              libraryCountByNodeId: (nodeId) => {
+                if (!itemId) return 0;
+                let c = 0;
+                for (let i = 0; i < serverAttachments.length; i++) {
+                  const row = serverAttachments[i];
+                  const fr = row.fileRef;
+                  if (typeof fr !== 'string' || !fr.trim()) continue;
+                  if (libraryFileRowBelongsToFolderNode(fr.trim(), nodeId, tree, itemId, values)) c++;
+                }
+                return c;
+              },
+              isFolderUploaderVisible: (n) =>
+                isAttachmentFolderUploaderVisible(n, {
+                  formMode,
+                  values,
+                  submitKind: 'submit',
+                  userGroupTitles,
+                  currentUserId,
+                  authorId,
+                  dynamicContext,
+                  attachmentFolderUrl,
+                }),
+            });
+            const sid = visibleStepsForUi[stepIdx]?.id;
+            merged = { ...merged, ...filterFolderLimitErrorsToStep(folderAll, tree, sid) };
+          }
+        }
+        if (Object.keys(merged).length === 0) return null;
+        return merged;
       };
       if (!requireBlock) {
         setFormError(undefined);
@@ -1139,10 +1355,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }
         const cur = visibleStepsForUi[stepIndex];
         const curSet = new Set(cur?.fieldNames ?? []);
-        const bad = syncErrorsForStep(curSet);
+        const bad = syncErrorsForStep(curSet, stepIndex);
         if (bad) {
           setLocalErrors(bad);
-          setFormError('Complete esta etapa antes de mudar.');
+          setFormError(formatValidationSummaryForForm(bad, fieldLabelByName));
           return;
         }
         setFormError(undefined);
@@ -1152,11 +1368,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       for (let k = stepIndex; k < t; k++) {
         const st = visibleStepsForUi[k];
         const fieldSet = new Set(st?.fieldNames ?? []);
-        const bad = syncErrorsForStep(fieldSet);
+        const bad = syncErrorsForStep(fieldSet, k);
         if (bad) {
           setStepIndex(k);
           setLocalErrors(bad);
-          setFormError('Complete esta etapa antes de continuar.');
+          setFormError(formatValidationSummaryForForm(bad, fieldLabelByName));
           return;
         }
       }
@@ -1169,6 +1385,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       formMode,
       formManager,
       fieldConfigs,
+      fieldLabelByName,
       values,
       userGroupTitles,
       currentUserId,
@@ -1180,6 +1397,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       buttonOverlay.hide,
       buttonOverlay.showOnStepId,
       metaByName,
+      multiFolderAttachmentMode,
+      pendingFilesByFolder,
+      serverAttachments,
+      itemId,
+      attachmentFolderUrl,
+      formManager.attachmentLibrary?.folderTree,
     ]
   );
 
@@ -1510,30 +1733,24 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         );
       case 'choice': {
-        const opts: IDropdownOption[] = (m.Choices ?? []).map((c) => ({ key: c, text: c }));
+        const raw = (m.Choices ?? []).map((c) => ({ key: c, text: c }));
+        const opts: IDropdownOption[] = !isRequired ? [{ key: '', text: '—' }, ...raw] : raw;
         return (
           <Dropdown
             key={name}
             label={label}
             placeholder={fc.placeholder}
             options={opts}
-            selectedKey={values[name] !== undefined && values[name] !== null ? String(values[name]) : ''}
-            onChange={(_, o) => o && updateField(name, o.key)}
+            selectedKey={
+              values[name] !== undefined && values[name] !== null && String(values[name]) !== ''
+                ? String(values[name])
+                : ''
+            }
+            onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={
-              showReqEmpty
-                ? {
-                    dropdown: {
-                      borderColor: REQ_EMPTY_BORDER,
-                      borderWidth: 1,
-                      borderStyle: 'solid',
-                      borderRadius: 2,
-                    },
-                  }
-                : undefined
-            }
+            styles={dropdownReqStyles(showReqEmpty)}
           />
         );
       }
@@ -1565,24 +1782,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={
-              showReqEmpty
-                ? {
-                    dropdown: {
-                      borderColor: REQ_EMPTY_BORDER,
-                      borderWidth: 1,
-                      borderStyle: 'solid',
-                      borderRadius: 2,
-                    },
-                  }
-                : undefined
-            }
+            styles={dropdownReqStyles(showReqEmpty)}
           />
         );
       }
       case 'lookup': {
-        const opts = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const id = lookupIdFromValue(values[name]);
+        const baseOpts = lookupOptions[name] ?? [{ key: '', text: '—' }];
+        const opts =
+          id !== undefined && id > 0
+            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
+            : baseOpts;
         return (
           <Dropdown
             key={name}
@@ -1592,40 +1802,129 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             selectedKey={id !== undefined ? String(id) : ''}
             onChange={(_, o) => {
               if (!o || o.key === '') updateField(name, null);
-              else updateField(name, { Id: Number(o.key), Title: o.text });
+              else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
             }}
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={
-              showReqEmpty
-                ? {
-                    dropdown: {
-                      borderColor: REQ_EMPTY_BORDER,
-                      borderWidth: 1,
-                      borderStyle: 'solid',
-                      borderRadius: 2,
-                    },
-                  }
-                : undefined
-            }
+            styles={dropdownReqStyles(showReqEmpty)}
+          />
+        );
+      }
+      case 'lookupmulti': {
+        const selected = normalizeIdTitleArray(values[name]);
+        const baseRaw = lookupOptions[name] ?? [{ key: '', text: '—' }];
+        const baseOpts = baseRaw.filter((o) => o.key !== '');
+        const extra = selected.map((x) => ({ id: x.Id, label: x.Title }));
+        const opts = mergeOptionsForIds(baseOpts, extra);
+        const keys = selected.map((x) => String(x.Id));
+        return (
+          <Dropdown
+            key={name}
+            label={label}
+            placeholder={fc.placeholder}
+            multiSelect
+            options={opts}
+            selectedKeys={keys}
+            onChange={(_, o) => {
+              if (!o || o.key === '') return;
+              const k = String(o.key);
+              const hit = selected.findIndex((x) => String(x.Id) === k);
+              const next =
+                hit === -1
+                  ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                  : selected.filter((_, i) => i !== hit);
+              updateField(name, next);
+            }}
+            required={isRequired}
+            errorMessage={err}
+            disabled={readOnly}
+            styles={dropdownReqStyles(showReqEmpty)}
           />
         );
       }
       case 'user': {
         const id = lookupIdFromValue(values[name]);
+        const baseOpts = !isRequired ? siteUserOptions : siteUserOptions.filter((o) => o.key !== '');
+        const opts =
+          id !== undefined && id > 0
+            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
+            : baseOpts;
         return (
-          <TextField
+          <Dropdown
             key={name}
-            label={`${label} (Id)`}
+            label={label}
             placeholder={fc.placeholder}
-            value={id !== undefined ? String(id) : ''}
-            onChange={(_, v) => updateField(name, v === '' ? null : { Id: Number(v), Title: '' })}
+            options={opts}
+            selectedKey={id !== undefined ? String(id) : ''}
+            onChange={(_, o) => {
+              if (!o || o.key === '') updateField(name, null);
+              else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+            }}
             required={isRequired}
-            {...common}
-            description={help ?? 'Informe o ID numérico do usuário no site.'}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            errorMessage={err}
+            disabled={readOnly}
+            styles={dropdownReqStyles(showReqEmpty)}
           />
+        );
+      }
+      case 'usermulti': {
+        const selected = normalizeIdTitleArray(values[name]);
+        const baseOpts = siteUserOptions.filter((o) => o.key !== '');
+        const extra = selected.map((x) => ({ id: x.Id, label: x.Title }));
+        const opts = mergeOptionsForIds(baseOpts, extra);
+        const keys = selected.map((x) => String(x.Id));
+        return (
+          <Dropdown
+            key={name}
+            label={label}
+            placeholder={fc.placeholder}
+            multiSelect
+            options={opts}
+            selectedKeys={keys}
+            onChange={(_, o) => {
+              if (!o || o.key === '') return;
+              const k = String(o.key);
+              const hit = selected.findIndex((x) => String(x.Id) === k);
+              const next =
+                hit === -1
+                  ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                  : selected.filter((_, i) => i !== hit);
+              updateField(name, next);
+            }}
+            required={isRequired}
+            errorMessage={err}
+            disabled={readOnly}
+            styles={dropdownReqStyles(showReqEmpty)}
+          />
+        );
+      }
+      case 'url': {
+        const uv = parseUrlFieldValue(values[name]);
+        return (
+          <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+            <Label required={isRequired}>{label}</Label>
+            <TextField
+              label="Endereço web"
+              placeholder="https://"
+              value={uv.Url}
+              onChange={(_, v) =>
+                updateField(name, { Url: v ?? '', Description: uv.Description })
+              }
+              disabled={readOnly}
+              errorMessage={err}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            />
+            <TextField
+              label="Descrição a apresentar"
+              value={uv.Description}
+              onChange={(_, v) =>
+                updateField(name, { Url: uv.Url, Description: v ?? '' })
+              }
+              disabled={readOnly}
+            />
+            {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+          </Stack>
         );
       }
       case 'multiline':
@@ -1738,7 +2037,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }}
         tokens={{ childrenGap: 16 }}
       >
-        {formError && <MessageBar messageBarType={MessageBarType.error}>{formError}</MessageBar>}
+        {formError && (
+          <MessageBar messageBarType={MessageBarType.error} styles={{ root: { whiteSpace: 'pre-line' } }}>
+            {formError}
+          </MessageBar>
+        )}
         {localErrors._attachments && (
           <MessageBar messageBarType={MessageBarType.error}>{localErrors._attachments}</MessageBar>
         )}
