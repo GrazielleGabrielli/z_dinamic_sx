@@ -62,7 +62,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
 
-  const rawConfig = parseConfig(configJson ?? undefined);
+  const rawConfig = useMemo(() => parseConfig(configJson ?? undefined), [configJson]);
   const config = useMemo((): IDynamicViewConfig | undefined => {
     if (forcedMode === undefined) return rawConfig;
     if (rawConfig === undefined) return undefined;

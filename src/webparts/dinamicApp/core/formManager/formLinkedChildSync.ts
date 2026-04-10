@@ -40,7 +40,10 @@ export function payloadFieldNamesForLinkedChild(
   cfg: IFormLinkedChildFormConfig
 ): string[] {
   const lk = cfg.parentLookupFieldInternalName.trim();
-  return getLinkedChildMainStepFieldNames(cfg).filter((n) => n !== lk);
+  const base = normalizeParentLookupFieldInternalName(lk);
+  return getLinkedChildMainStepFieldNames(cfg).filter(
+    (n) => n !== lk && n !== base && n !== `${base}Id`
+  );
 }
 
 function isEmptyPayloadValue(v: unknown): boolean {
@@ -77,11 +80,21 @@ export function isLinkedChildRowSkippableForCreate(
   return !anyFilled;
 }
 
+/** Nome interno da coluna Lookup (sem sufixo Id). Evita «CampoId» → «CampoIdId» no OData/payload. */
+export function normalizeParentLookupFieldInternalName(name: string): string {
+  const t = name.trim();
+  if (t.length > 2 && /Id$/i.test(t)) {
+    return t.slice(0, -2);
+  }
+  return t;
+}
+
 export function buildODataFilterForParentLookup(
   parentLookupFieldInternalName: string,
   parentItemId: number
 ): string {
-  return `${parentLookupFieldInternalName}Id eq ${parentItemId}`;
+  const base = normalizeParentLookupFieldInternalName(parentLookupFieldInternalName);
+  return `${base}Id eq ${parentItemId}`;
 }
 
 export async function loadLinkedChildRows(
@@ -126,7 +139,7 @@ export async function syncLinkedChildList(
   const list = cfg.listTitle.trim();
   const lk = cfg.parentLookupFieldInternalName.trim();
   if (!list || !lk) return;
-  const idKey = `${lk}Id`;
+  const idKey = `${normalizeParentLookupFieldInternalName(lk)}Id`;
   const payloadNames = payloadFieldNamesForLinkedChild(cfg);
   const nextIds = new Set(
     rows.map((r) => r.sharePointId).filter((x): x is number => typeof x === 'number' && isFinite(x))

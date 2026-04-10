@@ -833,9 +833,16 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setLinkedChildForms((cfg.linkedChildForms ?? []).map(cloneLinkedChildFormConfig));
   }, []);
 
+  const formManagerPanelHydratedForOpenRef = useRef(false);
   useEffect(() => {
-    if (!isOpen) return;
-    hydrateFromFormManagerConfig(value);
+    if (!isOpen) {
+      formManagerPanelHydratedForOpenRef.current = false;
+      return;
+    }
+    if (!formManagerPanelHydratedForOpenRef.current) {
+      hydrateFromFormManagerConfig(value);
+      formManagerPanelHydratedForOpenRef.current = true;
+    }
   }, [isOpen, value, hydrateFromFormManagerConfig]);
 
   useEffect(() => {
@@ -1289,7 +1296,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             ...(historyGroupTitles.length ? { historyGroupTitles: historyGroupTitles.slice() } : {}),
           }
         : {}),
-      ...(linkedChildForms.length ? { linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig) } : {}),
+      linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig),
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -1541,7 +1548,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             ...(historyGroupTitles.length ? { historyGroupTitles: historyGroupTitles.slice() } : {}),
           }
         : {}),
-      ...(linkedChildForms.length ? { linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig) } : {}),
+      linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig),
     };
     return JSON.stringify(raw, null, 2);
   }, [

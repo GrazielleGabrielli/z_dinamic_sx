@@ -620,6 +620,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [serverAttachments, setServerAttachments] = useState<IServerAttachmentRow[]>([]);
   const prevByTriggerRef = useRef<Record<string, unknown>>({});
+  const prevLinkedParentItemIdRef = useRef<number | undefined>(undefined);
   const [buttonOverlay, setButtonOverlay] = useState<IFormButtonFieldOverlay>(() => ({
     show: new Set<string>(),
     hide: new Set<string>(),
@@ -762,6 +763,22 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [formMode, linkedConfigsSorted]);
 
   useEffect(() => {
+    if (formMode === 'create') {
+      prevLinkedParentItemIdRef.current = undefined;
+      return;
+    }
+    if (itemId === undefined || itemId === null) {
+      prevLinkedParentItemIdRef.current = undefined;
+      return;
+    }
+    if (prevLinkedParentItemIdRef.current !== itemId) {
+      setLinkedRowsById({});
+      setLinkedBaselineById({});
+      prevLinkedParentItemIdRef.current = itemId;
+    }
+  }, [formMode, itemId]);
+
+  useEffect(() => {
     if (formMode === 'create' || itemId === undefined || itemId === null) return;
     let cancel = false;
     void (async (): Promise<void> => {
@@ -784,8 +801,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }
       }
       if (!cancel) {
-        setLinkedRowsById(nextRows);
-        setLinkedBaselineById(nextBase);
+        const validIds = new Set(linkedConfigsSorted.map((c) => c.id));
+        setLinkedRowsById((prev) => {
+          const merged = { ...prev };
+          for (const id of Object.keys(nextRows)) {
+            merged[id] = nextRows[id];
+          }
+          for (const k of Object.keys(merged)) {
+            if (!validIds.has(k)) delete merged[k];
+          }
+          return merged;
+        });
+        setLinkedBaselineById((prev) => {
+          const merged = { ...prev };
+          for (const id of Object.keys(nextBase)) {
+            merged[id] = nextBase[id];
+          }
+          for (const k of Object.keys(merged)) {
+            if (!validIds.has(k)) delete merged[k];
+          }
+          return merged;
+        });
       }
     })();
     return (): void => {
@@ -1082,8 +1118,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           nextBase[c.id] = [];
         }
       }
-      setLinkedRowsById(nextRows);
-      setLinkedBaselineById(nextBase);
+      const validIds = new Set(linkedConfigsSorted.map((c) => c.id));
+      setLinkedRowsById((prev) => {
+        const merged = { ...prev };
+        for (const id of Object.keys(nextRows)) {
+          merged[id] = nextRows[id];
+        }
+        for (const k of Object.keys(merged)) {
+          if (!validIds.has(k)) delete merged[k];
+        }
+        return merged;
+      });
+      setLinkedBaselineById((prev) => {
+        const merged = { ...prev };
+        for (const id of Object.keys(nextBase)) {
+          merged[id] = nextBase[id];
+        }
+        for (const k of Object.keys(merged)) {
+          if (!validIds.has(k)) delete merged[k];
+        }
+        return merged;
+      });
     },
     [linkedConfigsSorted, linkedMetaById, itemsService]
   );
@@ -2554,6 +2609,25 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         )}
         {renderFields('main')}
+        {linkedConfigsForCurrentMainStep.length > 0 && (
+          <LinkedChildFormsBlock
+            configs={linkedConfigsForCurrentMainStep}
+            parentItemId={itemId}
+            formMode={formMode}
+            rowsByConfigId={linkedRowsById}
+            onRowsChange={(configId, rows) =>
+              setLinkedRowsById((prev) => ({ ...prev, [configId]: rows }))
+            }
+            fieldMetaByConfigId={linkedMetaById}
+            loadingByConfigId={linkedLoadingById}
+            errorByConfigId={linkedLoadErrById}
+            userGroupTitles={userGroupTitles}
+            currentUserId={currentUserId}
+            authorId={authorId}
+            dynamicContext={dynamicContext}
+            rowErrorsByConfigId={linkedRowErrorsById}
+          />
+        )}
         {visibleStepsForUi && visibleStepsForUi.length > 1 && (
           <Stack
             horizontal
@@ -2578,25 +2652,6 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             fields={bottomChromeFields}
             renderField={(fc) => renderFieldControl(fc)}
             layoutDeps={values}
-          />
-        )}
-        {linkedConfigsForCurrentMainStep.length > 0 && (
-          <LinkedChildFormsBlock
-            configs={linkedConfigsForCurrentMainStep}
-            parentItemId={itemId}
-            formMode={formMode}
-            rowsByConfigId={linkedRowsById}
-            onRowsChange={(configId, rows) =>
-              setLinkedRowsById((prev) => ({ ...prev, [configId]: rows }))
-            }
-            fieldMetaByConfigId={linkedMetaById}
-            loadingByConfigId={linkedLoadingById}
-            errorByConfigId={linkedLoadErrById}
-            userGroupTitles={userGroupTitles}
-            currentUserId={currentUserId}
-            authorId={authorId}
-            dynamicContext={dynamicContext}
-            rowErrorsByConfigId={linkedRowErrorsById}
           />
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }} wrap>

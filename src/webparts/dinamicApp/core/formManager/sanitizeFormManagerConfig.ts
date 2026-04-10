@@ -636,19 +636,45 @@ function sanitizeFormBodySubset(o: Record<string, unknown>): Pick<
   };
 }
 
+function sanitizeLinkedChildId(raw: unknown): string {
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (t) return t.slice(0, 200);
+  }
+  if (typeof raw === 'number' && isFinite(raw)) {
+    const t = String(Math.trunc(raw));
+    if (t) return t.slice(0, 200);
+  }
+  return '';
+}
+
 function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
-  const id = typeof o.id === 'string' ? o.id.trim() : '';
+  const id = sanitizeLinkedChildId(o.id);
   if (!id) return undefined;
-  const listTitle = typeof o.listTitle === 'string' ? o.listTitle.trim() : '';
+  const listTitle =
+    typeof o.listTitle === 'string'
+      ? o.listTitle.trim()
+      : String(o.listTitle ?? '')
+          .trim()
+          .slice(0, 500);
   const parentLookupFieldInternalName =
-    typeof o.parentLookupFieldInternalName === 'string' ? o.parentLookupFieldInternalName.trim() : '';
+    typeof o.parentLookupFieldInternalName === 'string'
+      ? o.parentLookupFieldInternalName.trim()
+      : String(o.parentLookupFieldInternalName ?? '')
+          .trim()
+          .slice(0, 500);
   const body = sanitizeFormBodySubset(o);
-  const titleRaw = typeof o.title === 'string' ? o.title.trim() : '';
+  const titleRaw =
+    typeof o.title === 'string' ? o.title.trim() : String(o.title ?? '').trim();
   const title = titleRaw ? titleRaw.slice(0, 200) : undefined;
   let order: number | undefined;
   if (typeof o.order === 'number' && isFinite(o.order)) order = Math.round(o.order);
+  else if (typeof o.order === 'string' && o.order.trim()) {
+    const n = Number(o.order);
+    if (isFinite(n)) order = Math.round(n);
+  }
   let minRows: number | undefined;
   if (typeof o.minRows === 'number' && isFinite(o.minRows)) {
     const m = Math.round(o.minRows);
@@ -980,13 +1006,14 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(historyEnabled && historyGroupTitles?.length ? { historyGroupTitles } : {}),
     ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
     ...((): { linkedChildForms?: IFormLinkedChildFormConfig[] } => {
+      if (!('linkedChildForms' in o)) return {};
       const linkedRaw = Array.isArray(o.linkedChildForms) ? o.linkedChildForms : [];
       const linkedChildForms: IFormLinkedChildFormConfig[] = [];
       for (let i = 0; i < linkedRaw.length && i < MAX_LINKED_CHILD_FORMS; i++) {
         const lc = sanitizeLinkedChildFormConfig(linkedRaw[i]);
         if (lc) linkedChildForms.push(lc);
       }
-      return linkedChildForms.length ? { linkedChildForms } : {};
+      return { linkedChildForms };
     })(),
   };
 }
