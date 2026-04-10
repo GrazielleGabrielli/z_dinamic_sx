@@ -23,6 +23,8 @@ import {
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
 import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinkedChildSync';
+import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePointNoteHtml';
+import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
 import { ItemsService, UsersService } from '../../../../services';
 
 const REQ_EMPTY_BORDER = '#a4262c';
@@ -582,7 +584,21 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           </Stack>
         );
       }
-      case 'multiline':
+      case 'multiline': {
+        const raw =
+          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+        if (readOnly && shouldRenderMultilineNoteAsHtml(m, raw)) {
+          return (
+            <MultilineReadonlyHtml
+              key={name}
+              label={label}
+              required={isRequired}
+              html={raw}
+              help={help}
+              showReqEmpty={showReqEmpty}
+            />
+          );
+        }
         return (
           <TextField
             key={name}
@@ -590,7 +606,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             multiline
             rows={3}
             placeholder={fc.placeholder}
-            value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
+            value={raw}
             onChange={(_, v) => updateField(name, v ?? '')}
             required={isRequired}
             {...common}
@@ -598,6 +614,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
+      }
       default:
         return (
           <TextField

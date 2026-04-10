@@ -38,6 +38,8 @@ export interface IFieldMetadata {
   LookupField?: string;
   AllowMultipleValues?: boolean;
   MaxLength?: number;
+  /** Coluna Nota com rich text / formatação (SharePoint). */
+  RichText?: boolean;
 }
 
 export type FieldMappedType =

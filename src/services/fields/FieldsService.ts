@@ -1,7 +1,8 @@
 import { getSP } from '../core/sp';
 import { IFieldMetadata, FieldMappedType, IRawSPField } from './types';
 
-const FIELD_SELECT = 'Id,Title,InternalName,TypeAsString,Required,ReadOnlyField,Hidden,Description,DefaultValue,Choices,LookupList,LookupField,AllowMultipleValues,MaxLength';
+const FIELD_SELECT =
+  'Id,Title,InternalName,TypeAsString,Required,ReadOnlyField,Hidden,Description,DefaultValue,Choices,LookupList,LookupField,AllowMultipleValues,MaxLength,RichText';
 
 const SP_TYPE_MAP: Record<string, FieldMappedType> = {
   Text: 'text',

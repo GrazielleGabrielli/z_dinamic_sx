@@ -90,7 +90,9 @@ import {
 import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoadingUi';
 import { FormItemHistoryUi } from './FormItemHistoryUi';
 import { LinkedChildFormsBlock } from './LinkedChildFormsBlock';
+import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
+import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePointNoteHtml';
 import { stepVisibleInFormMode } from '../../core/formManager/stepFormMode';
 import {
   linkedChildFormAsManagerConfig,
@@ -2428,7 +2430,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         );
       }
-      case 'multiline':
+      case 'multiline': {
+        const raw =
+          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+        if (readOnly && shouldRenderMultilineNoteAsHtml(m, raw)) {
+          return (
+            <MultilineReadonlyHtml
+              key={name}
+              label={label}
+              required={isRequired}
+              html={raw}
+              help={help}
+              showReqEmpty={showReqEmpty}
+            />
+          );
+        }
         return (
           <TextField
             key={name}
@@ -2436,7 +2452,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             multiline
             rows={4}
             placeholder={fc.placeholder}
-            value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
+            value={raw}
             onChange={(_, v) => updateField(name, v ?? '')}
             required={isRequired}
             {...common}
@@ -2444,6 +2460,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
+      }
       default:
         return (
           <TextField

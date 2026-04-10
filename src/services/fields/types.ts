@@ -17,4 +17,5 @@ export interface IRawSPField {
   LookupField?: string;
   AllowMultipleValues?: boolean;
   MaxLength?: number;
+  RichText?: boolean;
 }
