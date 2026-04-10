@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Panel,
   PanelType,
@@ -50,11 +50,22 @@ import type {
   TFormRootHorizontalAlign,
   TFormAttachmentStorageKind,
   IAttachmentLibraryFolderTreeNode,
+  IFormManagerAttachmentLibraryConfig,
+  TFormBannerPlacement,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_BANNER_INTERNAL_PREFIX,
   FORM_OCULTOS_STEP_ID,
+  FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
+  isFormBannerFieldConfig,
+  resolveBannerPlacement,
+  resolveBannerWidthPercent,
+  resolveFixedPlacement,
+  resolveChromePositionMode,
+  type TFixedChromePlacement,
+  type TChromePositionMode,
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
@@ -97,6 +108,21 @@ import {
 } from './FormLoadingUi';
 import { FormManagerActionLogTabContent } from './FormManagerActionLogTab';
 import { FormManagerChainedActionsBlock } from './FormManagerChainedActionsBlock';
+
+function attachmentLibraryFromPanelState(
+  libraryTitle: string,
+  sourceListLookupFieldInternalName: string,
+  folderTree: IAttachmentLibraryFolderTreeNode[]
+): IFormManagerAttachmentLibraryConfig | undefined {
+  const lt = libraryTitle.trim();
+  const lk = sourceListLookupFieldInternalName.trim();
+  if (!lt && !lk && !folderTree.length) return undefined;
+  return {
+    ...(lt ? { libraryTitle: lt } : {}),
+    ...(lk ? { sourceListLookupFieldInternalName: lk } : {}),
+    ...(folderTree.length ? { folderTree } : {}),
+  };
+}
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -181,6 +207,23 @@ const DND_POOL = 'fm/pool:';
 const DND_FS = 'fm/fs:';
 const DND_BTN = 'fm/btn:';
 
+const BANNER_PLACEMENT_DROPDOWN_OPTIONS: IDropdownOption[] = [
+  { key: 'inStep', text: 'Na etapa (ordem com os campos)' },
+  { key: 'topFixed', text: 'Fixo no topo (sticky)' },
+  { key: 'bottomFixed', text: 'Fixo em baixo (sticky)' },
+];
+
+const FIXED_CHROME_PLACEMENT_OPTIONS: IDropdownOption[] = [
+  { key: 'top', text: 'Fixo no topo' },
+  { key: 'bottom', text: 'Fixo em baixo' },
+];
+
+const CHROME_POSITION_MODE_OPTIONS: IDropdownOption[] = [
+  { key: 'sticky', text: 'Fixo (acompanha ao scroll)' },
+  { key: 'absolute', text: 'Absoluto (sobre o conteúdo)' },
+  { key: 'flow', text: 'No espaço (fluxo normal)' },
+];
+
 function dragPayload(kind: string, index: number): string {
   return kind + String(index);
 }
@@ -245,6 +288,20 @@ function insertFieldNameIntoStep(
   return next;
 }
 
+function normalizeFixosFieldConfigs(flds: IFormFieldConfig[]): IFormFieldConfig[] {
+  return flds.map((fc) => {
+    if (fc.sectionId === FORM_FIXOS_STEP_ID) {
+      if (!fc.fixedPlacement) return { ...fc, fixedPlacement: 'top' };
+      return fc;
+    }
+    if (fc.fixedPlacement) {
+      const { fixedPlacement: _fp, ...rest } = fc;
+      return rest;
+    }
+    return fc;
+  });
+}
+
 function fieldsAlignedToSteps(flds: IFormFieldConfig[], st: IFormStepConfig[]): IFormFieldConfig[] {
   const byName: Record<string, IFormFieldConfig> = {};
   for (let i = 0; i < flds.length; i++) {
@@ -269,7 +326,7 @@ function fieldsAlignedToSteps(flds: IFormFieldConfig[], st: IFormStepConfig[]): 
       out.push({ ...flds[i], sectionId: st[0]?.id ?? flds[i].sectionId });
     }
   }
-  return out;
+  return normalizeFixosFieldConfigs(out);
 }
 
 function numOpt(s: string): number | undefined {
@@ -414,10 +471,28 @@ function pinOcultosStepFirst(st: IFormStepConfig[]): IFormStepConfig[] {
   return out;
 }
 
+function pinFixosAfterOcultos(st: IFormStepConfig[]): IFormStepConfig[] {
+  const out = st.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }));
+  const fi = out.findIndex((s) => s.id === FORM_FIXOS_STEP_ID);
+  if (fi < 0) return out;
+  const oi = out.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+  const wantIdx = oi >= 0 ? oi + 1 : 0;
+  if (fi === wantIdx) return out;
+  const [fx] = out.splice(fi, 1);
+  const insertAt = fi < wantIdx ? wantIdx - 1 : wantIdx;
+  out.splice(insertAt, 0, fx);
+  return out;
+}
+
+function pinCoreStepsOrder(st: IFormStepConfig[]): IFormStepConfig[] {
+  return pinFixosAfterOcultos(pinOcultosStepFirst(st));
+}
+
 function ensureCoreSteps(st: IFormStepConfig[]): IFormStepConfig[] {
   if (st.length === 0) {
     return [
       { id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] },
+      { id: FORM_FIXOS_STEP_ID, title: 'Fixos', fieldNames: [] },
       { id: 'main', title: 'Geral', fieldNames: [] },
     ];
   }
@@ -429,6 +504,12 @@ function ensureCoreSteps(st: IFormStepConfig[]): IFormStepConfig[] {
     out.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
   } else {
     out = pinOcultosStepFirst(out);
+  }
+  if (!out.some((s) => s.id === FORM_FIXOS_STEP_ID)) {
+    const oi = out.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+    out.splice(oi >= 0 ? oi + 1 : 0, 0, { id: FORM_FIXOS_STEP_ID, title: 'Fixos', fieldNames: [] });
+  } else {
+    out = pinFixosAfterOcultos(out);
   }
   return out;
 }
@@ -591,6 +672,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | undefined>(undefined);
   const [jsonOpen, setJsonOpen] = useState(false);
+  const [jsonPanelText, setJsonPanelText] = useState('');
+  const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
   const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
   const [redirectInsertNonceByBtn, setRedirectInsertNonceByBtn] = useState<Record<string, number>>({});
@@ -624,7 +707,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const attachmentFolderStepOptions = useMemo(
     () =>
       steps
-        .filter((s) => s.id !== FORM_OCULTOS_STEP_ID)
+        .filter((s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID)
         .map((s) => ({ id: s.id, title: s.title })),
     [steps]
   );
@@ -637,37 +720,36 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     }));
   }, [attachmentStorageKind, attachmentLibFolderTree]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const norm = buildInitialFieldsAndSteps(value);
+  const hydrateFromFormManagerConfig = useCallback((cfg: IFormManagerConfig) => {
+    const norm = buildInitialFieldsAndSteps(cfg);
     setFields(norm.fields);
     setSteps(norm.steps);
-    setRules(value.rules ?? []);
-    setHelpJson(JSON.stringify(value.dynamicHelp ?? [], null, 2));
-    setManagerColumnFields(value.managerColumnFields ?? []);
+    setRules(cfg.rules ?? []);
+    setHelpJson(JSON.stringify(cfg.dynamicHelp ?? [], null, 2));
+    setManagerColumnFields(cfg.managerColumnFields ?? []);
     setCustomButtons(
-      (value.customButtons ?? []).map((b) => ({
+      (cfg.customButtons ?? []).map((b) => ({
         ...b,
         actions: b.actions.map((a) => ({ ...a })),
       }))
     );
-    setStepLayout(value.stepLayout ?? 'segmented');
-    setStepNavButtons(value.stepNavButtons ?? 'fluent');
-    setFormDataLoadingKind(value.formDataLoadingKind ?? 'spinner');
-    setDefaultSubmitLoadingKind(value.defaultSubmitLoadingKind ?? 'overlay');
-    setAttachmentUploadLayout(value.attachmentUploadLayout ?? 'default');
-    setAttachmentFilePreview(value.attachmentFilePreview ?? 'nameAndSize');
-    setAttachmentStorageKind(value.attachmentStorageKind ?? 'itemAttachments');
-    setAttachmentLibLibraryTitle(value.attachmentLibrary?.libraryTitle ?? '');
-    setAttachmentLibLookupField(value.attachmentLibrary?.sourceListLookupFieldInternalName ?? '');
-    setAttachmentLibFolderTree(loadFolderTreeFromAttachmentLibrary(value.attachmentLibrary));
-    setStepRequireFilledToAdvance(value.stepNavigation?.requireFilledRequiredToAdvance === true);
-    setStepFullValOnAdvance(value.stepNavigation?.fullValidationOnAdvance === true);
-    setStepAllowBackWithoutVal(value.stepNavigation?.allowBackWithoutValidation !== false);
-    setFormRootWidthMode(value.formRootWidthMode ?? 'percent');
-    setFormRootWidthPercent(String(value.formRootWidthPercent ?? 100));
-    setFormRootHorizontalAlign(value.formRootHorizontalAlign ?? 'start');
-    const att = parseAttachmentUiRule(value.rules ?? []);
+    setStepLayout(cfg.stepLayout ?? 'segmented');
+    setStepNavButtons(cfg.stepNavButtons ?? 'fluent');
+    setFormDataLoadingKind(cfg.formDataLoadingKind ?? 'spinner');
+    setDefaultSubmitLoadingKind(cfg.defaultSubmitLoadingKind ?? 'overlay');
+    setAttachmentUploadLayout(cfg.attachmentUploadLayout ?? 'default');
+    setAttachmentFilePreview(cfg.attachmentFilePreview ?? 'nameAndSize');
+    setAttachmentStorageKind(cfg.attachmentStorageKind ?? 'itemAttachments');
+    setAttachmentLibLibraryTitle(cfg.attachmentLibrary?.libraryTitle ?? '');
+    setAttachmentLibLookupField(cfg.attachmentLibrary?.sourceListLookupFieldInternalName ?? '');
+    setAttachmentLibFolderTree(loadFolderTreeFromAttachmentLibrary(cfg.attachmentLibrary));
+    setStepRequireFilledToAdvance(cfg.stepNavigation?.requireFilledRequiredToAdvance === true);
+    setStepFullValOnAdvance(cfg.stepNavigation?.fullValidationOnAdvance === true);
+    setStepAllowBackWithoutVal(cfg.stepNavigation?.allowBackWithoutValidation !== false);
+    setFormRootWidthMode(cfg.formRootWidthMode ?? 'percent');
+    setFormRootWidthPercent(String(cfg.formRootWidthPercent ?? 100));
+    setFormRootHorizontalAlign(cfg.formRootHorizontalAlign ?? 'start');
+    const att = parseAttachmentUiRule(cfg.rules ?? []);
     setAttachMin(att.minCount);
     setAttachMax(att.maxCount);
     setAttachMsg(att.message);
@@ -676,24 +758,29 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setFieldPanelName(null);
     setStepSectionOpen({});
     setButtonSectionOpen({});
-    setActionLogCaptureEnabled(value.actionLog?.captureEnabled === true);
-    setActionLogListTitle(value.actionLog?.listTitle ?? '');
-    setActionLogFieldInternalName(value.actionLog?.actionFieldInternalName ?? '');
-    setActionLogSourceListLookupFieldInternalName(value.actionLog?.sourceListLookupFieldInternalName ?? '');
+    setActionLogCaptureEnabled(cfg.actionLog?.captureEnabled === true);
+    setActionLogListTitle(cfg.actionLog?.listTitle ?? '');
+    setActionLogFieldInternalName(cfg.actionLog?.actionFieldInternalName ?? '');
+    setActionLogSourceListLookupFieldInternalName(cfg.actionLog?.sourceListLookupFieldInternalName ?? '');
     setActionLogDescById(
-      value.actionLog?.descriptionsHtmlByButtonId
-        ? { ...value.actionLog.descriptionsHtmlByButtonId }
+      cfg.actionLog?.descriptionsHtmlByButtonId
+        ? { ...cfg.actionLog.descriptionsHtmlByButtonId }
         : {}
     );
-    setHistoryEnabled(value.historyEnabled === true);
-    setHistoryPresentationKind(value.historyPresentationKind ?? 'panel');
-    setHistoryLayoutKind(value.historyLayoutKind ?? 'list');
-    setHistoryButtonKind(value.historyButtonKind ?? 'text');
-    setHistoryButtonLabel(value.historyButtonLabel ?? 'Histórico');
-    setHistoryButtonIcon(value.historyButtonIcon ?? 'History');
-    setHistoryPanelSubtitle(value.historyPanelSubtitle ?? '');
-    setHistoryGroupTitles(value.historyGroupTitles ?? []);
-  }, [isOpen, value]);
+    setHistoryEnabled(cfg.historyEnabled === true);
+    setHistoryPresentationKind(cfg.historyPresentationKind ?? 'panel');
+    setHistoryLayoutKind(cfg.historyLayoutKind ?? 'list');
+    setHistoryButtonKind(cfg.historyButtonKind ?? 'text');
+    setHistoryButtonLabel(cfg.historyButtonLabel ?? 'Histórico');
+    setHistoryButtonIcon(cfg.historyButtonIcon ?? 'History');
+    setHistoryPanelSubtitle(cfg.historyPanelSubtitle ?? '');
+    setHistoryGroupTitles(cfg.historyGroupTitles ?? []);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    hydrateFromFormManagerConfig(value);
+  }, [isOpen, value, hydrateFromFormManagerConfig]);
 
   useEffect(() => {
     setActionLogDescById((prev) => {
@@ -859,6 +946,107 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     });
   };
 
+  const addBannerField = (): void => {
+    const internalName = `${FORM_BANNER_INTERNAL_PREFIX}${Date.now().toString(36)}_${Math.random()
+      .toString(36)
+      .slice(2, 9)}`;
+    setSteps((prevSteps) => {
+      const st = ensureCoreSteps(prevSteps);
+      const oi = st.findIndex((x) => x.id === FORM_OCULTOS_STEP_ID);
+      const idx = oi >= 0 ? oi : 0;
+      const sid = st[idx].id;
+      const nextSteps = st.map((s, i) =>
+        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
+      );
+      setFields((prev) => {
+        const withF = prev.some((f) => f.internalName === internalName)
+          ? prev
+          : prev.concat([
+              {
+                internalName,
+                sectionId: sid,
+                fieldKind: 'banner',
+                label: 'Banner',
+                bannerImageUrl: '',
+                bannerPlacement: 'inStep',
+                bannerWidthPercent: 100,
+              },
+            ]);
+        return fieldsAlignedToSteps(withF, nextSteps);
+      });
+      return nextSteps;
+    });
+  };
+
+  const addFieldToFixos = (internalName: string): void => {
+    if (!internalName) return;
+    setSteps((prevSteps) => {
+      const st = ensureCoreSteps(prevSteps);
+      let already = false;
+      for (let s = 0; s < st.length; s++) {
+        if (st[s].fieldNames.indexOf(internalName) !== -1) {
+          already = true;
+          break;
+        }
+      }
+      if (already) return st;
+      const fi = st.findIndex((x) => x.id === FORM_FIXOS_STEP_ID);
+      const idx = fi >= 0 ? fi : 0;
+      const sid = st[idx].id;
+      const nextSteps = st.map((s, i) =>
+        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
+      );
+      setFields((prev) => {
+        const withF = prev.some((f) => f.internalName === internalName)
+          ? prev
+          : prev.concat([
+              {
+                internalName,
+                sectionId: sid,
+                fixedPlacement: 'top',
+                chromePositionMode: 'sticky',
+              },
+            ]);
+        return fieldsAlignedToSteps(withF, nextSteps);
+      });
+      return nextSteps;
+    });
+  };
+
+  const addBannerFieldToFixos = (): void => {
+    const internalName = `${FORM_BANNER_INTERNAL_PREFIX}${Date.now().toString(36)}_${Math.random()
+      .toString(36)
+      .slice(2, 9)}`;
+    setSteps((prevSteps) => {
+      const st = ensureCoreSteps(prevSteps);
+      const fi = st.findIndex((x) => x.id === FORM_FIXOS_STEP_ID);
+      const idx = fi >= 0 ? fi : 0;
+      const sid = st[idx].id;
+      const nextSteps = st.map((s, i) =>
+        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
+      );
+      setFields((prev) => {
+        const withF = prev.some((f) => f.internalName === internalName)
+          ? prev
+          : prev.concat([
+              {
+                internalName,
+                sectionId: sid,
+                fieldKind: 'banner',
+                label: 'Banner',
+                bannerImageUrl: '',
+                bannerPlacement: 'inStep',
+                bannerWidthPercent: 100,
+                fixedPlacement: 'top',
+                chromePositionMode: 'sticky',
+              },
+            ]);
+        return fieldsAlignedToSteps(withF, nextSteps);
+      });
+      return nextSteps;
+    });
+  };
+
   const removeField = (internalName: string): void => {
     setErr(undefined);
     if (hasAnyFieldInAnyStep(steps)) {
@@ -991,6 +1179,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogPayload.sourceListLookupFieldInternalName ||
       actionLogPayload.descriptionsHtmlByButtonId
     );
+    const attachmentLibStashed = attachmentLibraryFromPanelState(
+      attachmentLibLibraryTitle,
+      attachmentLibLookupField,
+      attachmentLibFolderTree
+    );
     const attachmentLibPayload =
       attachmentStorageKind === 'documentLibrary'
         ? {
@@ -1021,7 +1214,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
       ...(attachmentStorageKind === 'documentLibrary' && attachmentLibPayload
         ? { attachmentStorageKind, attachmentLibrary: attachmentLibPayload }
-        : {}),
+        : attachmentLibStashed
+          ? { attachmentLibrary: attachmentLibStashed }
+          : {}),
       ...(hasActionLog ? { actionLog: actionLogPayload } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
       ...(historyEnabled
@@ -1055,7 +1250,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const reorderStep = (from: number, to: number): void => {
     setSteps((prev) => {
-      const n = pinOcultosStepFirst(reorderByIndex(prev, from, to));
+      const n = pinCoreStepsOrder(reorderByIndex(prev, from, to));
       setFields((flds) => fieldsAlignedToSteps(flds, n));
       return n;
     });
@@ -1066,7 +1261,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       if (prev.length <= 1) return prev;
       const removed = prev[i];
       if (!removed) return prev;
-      if (removed.id === FORM_OCULTOS_STEP_ID) return prev;
+      if (removed.id === FORM_OCULTOS_STEP_ID || removed.id === FORM_FIXOS_STEP_ID) return prev;
       const next = prev.filter((_, j) => j !== i);
       const t0 = next[0];
       if (!t0) return prev;
@@ -1232,6 +1427,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogPreview.sourceListLookupFieldInternalName ||
       actionLogPreview.descriptionsHtmlByButtonId
     );
+    const attachmentLibStashedPreview = attachmentLibraryFromPanelState(
+      attachmentLibLibraryTitle,
+      attachmentLibLookupField,
+      attachmentLibFolderTree
+    );
     const attachmentLibPreview =
       attachmentStorageKind === 'documentLibrary'
         ? {
@@ -1262,7 +1462,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
       ...(attachmentStorageKind === 'documentLibrary' && attachmentLibPreview
         ? { attachmentStorageKind, attachmentLibrary: attachmentLibPreview }
-        : {}),
+        : attachmentLibStashedPreview
+          ? { attachmentLibrary: attachmentLibStashedPreview }
+          : {}),
       ...(hasActionLogPreview ? { actionLog: actionLogPreview } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
       ...(historyEnabled
@@ -1320,6 +1522,31 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     historyPanelSubtitle,
     historyGroupTitles,
   ]);
+
+  const previewConfigJsonRef = useRef(previewConfigJson);
+  previewConfigJsonRef.current = previewConfigJson;
+  useEffect(() => {
+    if (jsonOpen) {
+      setJsonPanelText(previewConfigJsonRef.current);
+      setJsonPanelErr(undefined);
+    }
+  }, [jsonOpen]);
+
+  const applyJsonFromPanel = useCallback(() => {
+    setJsonPanelErr(undefined);
+    try {
+      const parsed = JSON.parse(jsonPanelText) as unknown;
+      const sanitized = sanitizeFormManagerConfig(parsed);
+      if (!sanitized) {
+        setJsonPanelErr('JSON inválido ou estrutura não reconhecida.');
+        return;
+      }
+      hydrateFromFormManagerConfig(sanitized);
+      setJsonPanelText(JSON.stringify(sanitized, null, 2));
+    } catch (e) {
+      setJsonPanelErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [jsonPanelText, hydrateFromFormManagerConfig]);
 
   const addConditionalCard = (): void => {
     const card: IConditionalRuleCard = {
@@ -1444,7 +1671,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       {loading && <Spinner label="Campos da lista..." />}
       {err && <MessageBar messageBarType={MessageBarType.error}>{err}</MessageBar>}
       <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
-        <Link onClick={() => setJsonOpen(true)}>Ver JSON gerado</Link>
+        <Link onClick={() => setJsonOpen(true)}>JSON (ver / colar)</Link>
       </Stack>
       <Pivot>
         <PivotItem headerText="Estrutura">
@@ -1528,7 +1755,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             </Stack>
             {steps.map((st, si) => {
               const panelOpen =
-                st.id === FORM_OCULTOS_STEP_ID
+                st.id === FORM_OCULTOS_STEP_ID || st.id === FORM_FIXOS_STEP_ID
                   ? stepSectionOpen[st.id] !== false
                   : stepSectionOpen[st.id] === true;
               return (
@@ -1567,19 +1794,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     }}
                   />
                   <span
-                    draggable={st.id !== FORM_OCULTOS_STEP_ID}
+                    draggable={st.id !== FORM_OCULTOS_STEP_ID && st.id !== FORM_FIXOS_STEP_ID}
                     title={
                       st.id === FORM_OCULTOS_STEP_ID
                         ? 'Ocultos permanece sempre na primeira posição'
-                        : 'Arrastar etapa'
+                        : st.id === FORM_FIXOS_STEP_ID
+                          ? 'Fixos permanece após Ocultos'
+                          : 'Arrastar etapa'
                     }
                     onDragStart={(e) => {
-                      if (st.id === FORM_OCULTOS_STEP_ID) return;
+                      if (st.id === FORM_OCULTOS_STEP_ID || st.id === FORM_FIXOS_STEP_ID) return;
                       e.dataTransfer.setData('text/plain', dragPayload(DND_STEP, si));
                       e.dataTransfer.effectAllowed = 'move';
                     }}
                     style={{
-                      cursor: st.id === FORM_OCULTOS_STEP_ID ? 'default' : 'grab',
+                      cursor:
+                        st.id === FORM_OCULTOS_STEP_ID || st.id === FORM_FIXOS_STEP_ID ? 'default' : 'grab',
                       display: 'flex',
                       alignItems: 'center',
                       color: '#605e5c',
@@ -1609,6 +1839,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       tokens={{ childrenGap: 12 }}
                       styles={{ root: { alignItems: 'center' } }}
                     >
+                      {st.id === FORM_FIXOS_STEP_ID && (
+                        <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
+                          Topo ou rodapé fixo ·
+                        </Text>
+                      )}
                       <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
                         Mostrar em:
                       </Text>
@@ -1631,7 +1866,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       })}
                     </Stack>
                   )}
-                  <DefaultButton text="Remover etapa" onClick={() => removeStep(si)} />
+                  {st.id !== FORM_OCULTOS_STEP_ID && st.id !== FORM_FIXOS_STEP_ID && (
+                    <DefaultButton text="Remover etapa" onClick={() => removeStep(si)} />
+                  )}
                 </Stack>
                 {panelOpen && (
                 <Stack tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 4 } }}>
@@ -1643,7 +1880,192 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         break;
                       }
                     }
+                    let fcRow: IFormFieldConfig | undefined;
+                    for (let fi = 0; fi < fields.length; fi++) {
+                      if (fields[fi].internalName === fname) {
+                        fcRow = fields[fi];
+                        break;
+                      }
+                    }
+                    const isBanner = fcRow !== undefined && isFormBannerFieldConfig(fcRow);
                     const reqStyles = requiredFieldRowStyles(mm, steps, fields);
+                    if (isBanner && fcRow) {
+                      return (
+                        <Stack
+                          key={fname}
+                          tokens={{ childrenGap: 8 }}
+                          styles={{
+                            root: {
+                              padding: '8px 10px',
+                              borderRadius: 4,
+                              ...(reqStyles ?? { background: '#faf9f8', border: '1px solid #edebe9' }),
+                            },
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={handleStructureFieldDrop(si, fIdx)}
+                        >
+                          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
+                            <span
+                              draggable
+                              title="Arrastar campo"
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', dragPayloadFieldInStep(si, fIdx, fname));
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                            >
+                              <Icon iconName="GripperBarVertical" />
+                            </span>
+                            <Text styles={{ root: { fontWeight: 600, minWidth: 80 } }}>Banner</Text>
+                            <Text variant="small" styles={{ root: { color: '#605e5c', flex: '1 1 200px' } }}>
+                              {fname} · imagem por URL (não grava na lista)
+                            </Text>
+                            <DefaultButton text="Remover" onClick={() => removeField(fname)} />
+                          </Stack>
+                          <TextField
+                            label="URL da imagem"
+                            value={fcRow.bannerImageUrl ?? ''}
+                            onChange={(_, v) => {
+                              const t = v ?? '';
+                              setFields((prev) =>
+                                prev.map((f) =>
+                                  f.internalName === fname ? { ...f, bannerImageUrl: t.trim() || undefined } : f
+                                )
+                              );
+                            }}
+                          />
+                          <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                            <TextField
+                              label="Largura (%)"
+                              description="Largura da imagem em % da área do formulário (1–100)."
+                              styles={{ root: { minWidth: 140, maxWidth: 200 } }}
+                              value={String(resolveBannerWidthPercent(fcRow))}
+                              onChange={(_, v) => {
+                                const t = (v ?? '').trim().replace(',', '.');
+                                if (t === '') {
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname ? { ...f, bannerWidthPercent: undefined } : f
+                                    )
+                                  );
+                                  return;
+                                }
+                                const n = Number(t);
+                                if (!isFinite(n)) return;
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname
+                                      ? { ...f, bannerWidthPercent: Math.min(100, Math.max(1, n)) }
+                                      : f
+                                  )
+                                );
+                              }}
+                            />
+                            <TextField
+                              label="Altura (%)"
+                              description="Opcional. Altura máxima em % da altura da janela (1–100)."
+                              styles={{ root: { minWidth: 140, maxWidth: 200 } }}
+                              value={
+                                fcRow.bannerHeightPercent != null && isFinite(fcRow.bannerHeightPercent)
+                                  ? String(fcRow.bannerHeightPercent)
+                                  : ''
+                              }
+                              onChange={(_, v) => {
+                                const t = (v ?? '').trim().replace(',', '.');
+                                if (t === '') {
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname ? { ...f, bannerHeightPercent: undefined } : f
+                                    )
+                                  );
+                                  return;
+                                }
+                                const n = Number(t);
+                                if (!isFinite(n)) return;
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname
+                                      ? { ...f, bannerHeightPercent: Math.min(100, Math.max(1, n)) }
+                                      : f
+                                  )
+                                );
+                              }}
+                            />
+                          </Stack>
+                          <Stack tokens={{ childrenGap: 8 }}>
+                            {st.id === FORM_FIXOS_STEP_ID ? (
+                              <>
+                                <Dropdown
+                                  label="Zona fixa"
+                                  options={FIXED_CHROME_PLACEMENT_OPTIONS}
+                                  selectedKey={resolveFixedPlacement(fcRow)}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const k = String(o.key) as TFixedChromePlacement;
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, fixedPlacement: k } : f
+                                      )
+                                    );
+                                  }}
+                                />
+                                <Dropdown
+                                  label="Posicionamento"
+                                  options={CHROME_POSITION_MODE_OPTIONS}
+                                  selectedKey={resolveChromePositionMode(fcRow)}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const k = String(o.key) as TChromePositionMode;
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                      )
+                                    );
+                                  }}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <Dropdown
+                                  label="Posição no formulário"
+                                  options={BANNER_PLACEMENT_DROPDOWN_OPTIONS}
+                                  selectedKey={resolveBannerPlacement(fcRow)}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const k = String(o.key) as TFormBannerPlacement;
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, bannerPlacement: k } : f
+                                      )
+                                    );
+                                  }}
+                                />
+                                {resolveBannerPlacement(fcRow) !== 'inStep' && (
+                                  <Dropdown
+                                    label="Posicionamento"
+                                    options={CHROME_POSITION_MODE_OPTIONS}
+                                    selectedKey={resolveChromePositionMode(fcRow)}
+                                    onChange={(_, o) => {
+                                      if (!o) return;
+                                      const k = String(o.key) as TChromePositionMode;
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                        )
+                                      );
+                                    }}
+                                  />
+                                )}
+                              </>
+                            )}
+                          </Stack>
+                        </Stack>
+                      );
+                    }
                     return (
                       <Stack
                         key={fname}
@@ -1688,6 +2110,38 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               : '—'}
                           {mm?.Required ? ' · obrigatório na lista' : ''}
                         </Text>
+                        {st.id === FORM_FIXOS_STEP_ID && fcRow && (
+                          <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                            <Dropdown
+                              label="Zona fixa"
+                              options={FIXED_CHROME_PLACEMENT_OPTIONS}
+                              selectedKey={resolveFixedPlacement(fcRow)}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                const k = String(o.key) as TFixedChromePlacement;
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, fixedPlacement: k } : f
+                                  )
+                                );
+                              }}
+                            />
+                            <Dropdown
+                              label="Posicionamento"
+                              options={CHROME_POSITION_MODE_OPTIONS}
+                              selectedKey={resolveChromePositionMode(fcRow)}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                const k = String(o.key) as TChromePositionMode;
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                  )
+                                );
+                              }}
+                            />
+                          </Stack>
+                        )}
                         {fname !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
                           <DefaultButton text="Regras…" onClick={() => setFieldPanelName(fname)} />
                         )}
@@ -1784,6 +2238,18 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                           </Stack>
                         );
                       })()}
+                      <Stack
+                        horizontal
+                        verticalAlign="center"
+                        tokens={{ childrenGap: 8 }}
+                        wrap
+                        styles={{ root: { marginTop: 4 } }}
+                      >
+                        <DefaultButton text="Adicionar banner" onClick={addBannerField} />
+                        <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '1 1 240px' } }}>
+                          URL da imagem; arraste para a etapa. Não grava na lista.
+                        </Text>
+                      </Stack>
                       {metaSortedForPool.map((m) => {
                         let inForm = false;
                         for (let i = 0; i < fields.length; i++) {
@@ -1837,6 +2303,79 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       })}
                     </>
                   )}
+                  {st.id === FORM_FIXOS_STEP_ID && (
+                    <>
+                      <Text variant="medium" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
+                        Incluir em Fixos
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Marque para colocar em Fixos; em cada linha defina se fica fixo no topo ou em baixo.
+                      </Text>
+                      <Stack
+                        horizontal
+                        verticalAlign="center"
+                        tokens={{ childrenGap: 8 }}
+                        wrap
+                        styles={{ root: { marginTop: 4 } }}
+                      >
+                        <DefaultButton text="Adicionar banner" onClick={addBannerFieldToFixos} />
+                        <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '1 1 240px' } }}>
+                          Banner por URL; depois escolha topo ou rodapé na linha do item.
+                        </Text>
+                      </Stack>
+                      {metaSortedForPool.map((m) => {
+                        let inForm = false;
+                        for (let i = 0; i < fields.length; i++) {
+                          if (fields[i].internalName === m.InternalName) {
+                            inForm = true;
+                            break;
+                          }
+                        }
+                        if (inForm) return null;
+                        const poolReqStyles = requiredFieldRowStyles(m, steps, fields);
+                        return (
+                          <Stack
+                            key={`fixos-${m.InternalName}`}
+                            horizontal
+                            verticalAlign="center"
+                            tokens={{ childrenGap: 8 }}
+                            wrap
+                            styles={{
+                              root: poolReqStyles
+                                ? { padding: '8px 10px', borderRadius: 4, ...poolReqStyles }
+                                : undefined,
+                            }}
+                          >
+                            <span
+                              draggable
+                              title="Arrastar para uma etapa"
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', dragPayloadPool(m.InternalName));
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              style={{
+                                cursor: 'grab',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#605e5c',
+                              }}
+                            >
+                              <Icon iconName="GripperBarVertical" />
+                            </span>
+                            <Checkbox
+                              label={`${m.Title} (${m.InternalName})${m.Required ? ' *' : ''}`}
+                              checked={false}
+                              onChange={(_, c) => (c ? addFieldToFixos(m.InternalName) : undefined)}
+                            />
+                            <Text variant="small" styles={{ root: { minWidth: 80 } }}>
+                              {m.MappedType}
+                              {m.Required ? ' · obrig. lista' : ''}
+                            </Text>
+                          </Stack>
+                        );
+                      })}
+                    </>
+                  )}
                 </Stack>
                 )}
               </Stack>
@@ -1862,7 +2401,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           </Stack>
         </PivotItem>
         <PivotItem headerText="Anexos">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12, width: '100%', maxWidth: '100%' } }}>
             <FormManagerAttachmentsTabContent
               loading={loading}
               primaryListTitle={listTitle}
@@ -2534,11 +3073,29 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       <Panel
         isOpen={jsonOpen}
         type={PanelType.medium}
-        headerText="JSON gerado (somente leitura)"
+        headerText="Configuração em JSON"
         onDismiss={() => setJsonOpen(false)}
       >
-        <TextField multiline readOnly rows={22} value={previewConfigJson} />
-        <DefaultButton styles={{ root: { marginTop: 12 } }} text="Fechar" onClick={() => setJsonOpen(false)} />
+        <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+          Cole um JSON completo do gestor de formulário e clique em Aplicar para carregar no painel. A gravação final
+          continua a ser no botão Gravar do formulário.
+        </Text>
+        {jsonPanelErr && (
+          <MessageBar messageBarType={MessageBarType.error} styles={{ root: { marginBottom: 8 } }}>
+            {jsonPanelErr}
+          </MessageBar>
+        )}
+        <TextField
+          multiline
+          rows={22}
+          value={jsonPanelText}
+          onChange={(_, v) => setJsonPanelText(v ?? '')}
+          styles={{ root: { fontFamily: 'monospace', fontSize: 12 } }}
+        />
+        <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 12 } }}>
+          <PrimaryButton text="Aplicar JSON" onClick={() => applyJsonFromPanel()} />
+          <DefaultButton text="Fechar" onClick={() => setJsonOpen(false)} />
+        </Stack>
       </Panel>
       {fieldPanelName && fieldPanelConfig && (
         <FormFieldRulesPanel

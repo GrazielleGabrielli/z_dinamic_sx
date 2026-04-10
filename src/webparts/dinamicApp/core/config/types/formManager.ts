@@ -222,8 +222,25 @@ export type TFormRule =
 /** Nome interno reservado para anexos ao item (não é coluna SharePoint). */
 export const FORM_ATTACHMENTS_FIELD_INTERNAL = '__formAttachments';
 
+/** Prefixo de nomes sintéticos de banner (imagem por URL; não é coluna SharePoint). */
+export const FORM_BANNER_INTERNAL_PREFIX = '__formBanner_';
+
+export type TFormFieldConfigKind = 'field' | 'banner';
+
+/** Onde o banner aparece: na sequência da etapa, ou fixo (sticky) no topo/rodapé do formulário. */
+export type TFormBannerPlacement = 'inStep' | 'topFixed' | 'bottomFixed';
+
 /** Id fixo da etapa «Ocultos»: campos só no payload / metadados, sem UI no formulário. */
 export const FORM_OCULTOS_STEP_ID = 'ocultos';
+
+/** Id fixo da etapa «Fixos»: campos fixos no topo ou rodapé (fora do passador). */
+export const FORM_FIXOS_STEP_ID = 'fixos';
+
+/** Onde um campo da etapa Fixos aparece no formulário. */
+export type TFixedChromePlacement = 'top' | 'bottom';
+
+/** Como o bloco se posiciona na zona fixa (Fixos ou banner top/bottom fixo). */
+export type TChromePositionMode = 'sticky' | 'absolute' | 'flow';
 
 /** Id sintético do botão de histórico integrado (config na aba Lista de logs). */
 export const FORM_BUILTIN_HISTORY_BUTTON_ID = '__builtin_history';
@@ -233,6 +250,20 @@ export type TFormHistoryButtonKind = 'text' | 'icon' | 'iconAndText';
 
 export interface IFormFieldConfig {
   internalName: string;
+  /** `banner` = imagem só por URL no formulário; não corresponde a coluna na lista. */
+  fieldKind?: TFormFieldConfigKind;
+  /** URL da imagem quando `fieldKind === 'banner'`. */
+  bannerImageUrl?: string;
+  /** Só para `fieldKind === 'banner'`. Omitido = `inStep`. */
+  bannerPlacement?: TFormBannerPlacement;
+  /** Largura da imagem em % do contentor do formulário (1–100). Omitido = 100. */
+  bannerWidthPercent?: number;
+  /** Altura máxima em % da altura da janela — aplicado como `vh` (1–100). */
+  bannerHeightPercent?: number;
+  /** Só na etapa «Fixos»: fixar no topo ou rodapé do formulário. */
+  fixedPlacement?: TFixedChromePlacement;
+  /** Fixos ou banner fixo no topo/rodapé: sticky, absoluto ao contentor, ou fluxo normal na zona. */
+  chromePositionMode?: TChromePositionMode;
   label?: string;
   helpText?: string;
   placeholder?: string;
@@ -246,6 +277,40 @@ export interface IFormFieldConfig {
   modalGroupId?: string;
   /** Seção efetiva quando condição (avaliada no motor com prefixo de regra dedicada) */
   effectiveSectionId?: string;
+}
+
+export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName' | 'fieldKind'>): boolean {
+  return fc.fieldKind === 'banner' || fc.internalName.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0;
+}
+
+export function resolveBannerPlacement(fc: IFormFieldConfig): TFormBannerPlacement {
+  const p = fc.bannerPlacement;
+  if (p === 'topFixed' || p === 'bottomFixed' || p === 'inStep') return p;
+  return 'inStep';
+}
+
+export function resolveBannerWidthPercent(fc: IFormFieldConfig): number {
+  const n = fc.bannerWidthPercent;
+  if (typeof n !== 'number' || !isFinite(n)) return 100;
+  return Math.min(100, Math.max(1, n));
+}
+
+export function resolveBannerHeightPercent(fc: IFormFieldConfig): number | undefined {
+  const n = fc.bannerHeightPercent;
+  if (typeof n !== 'number' || !isFinite(n)) return undefined;
+  return Math.min(100, Math.max(1, n));
+}
+
+export function resolveFixedPlacement(fc: IFormFieldConfig): TFixedChromePlacement {
+  const p = fc.fixedPlacement;
+  if (p === 'top' || p === 'bottom') return p;
+  return 'top';
+}
+
+export function resolveChromePositionMode(fc: IFormFieldConfig): TChromePositionMode {
+  const m = fc.chromePositionMode;
+  if (m === 'sticky' || m === 'absolute' || m === 'flow') return m;
+  return 'sticky';
 }
 
 export interface IFormSectionConfig {
@@ -344,7 +409,7 @@ export interface IFormManagerAttachmentLibraryConfig {
    */
   sourceListLookupFieldInternalName?: string;
   /**
-   * Pastas **abaixo** da pasta de nível 1 (nome = ID do item): pode haver várias ao mesmo nível;
+   * Pastas **abaixo** da pasta com nome = ID do item: pode haver várias ao mesmo nível;
    * cada uma pode ter filhos e irmãos. `uploadTarget` define onde o upload grava.
    */
   folderTree?: IAttachmentLibraryFolderTreeNode[];
@@ -561,7 +626,7 @@ export interface IFormManagerConfig {
    * Onde gravar os ficheiros do controlo «Anexos ao item». Omitido = anexos nativos do item na lista principal.
    */
   attachmentStorageKind?: TFormAttachmentStorageKind;
-  /** Só com `attachmentStorageKind === 'documentLibrary'`. Biblioteca e lookup à lista principal. */
+  /** Biblioteca ativa em modo documentLibrary; em anexos ao item pode persistir a última config para reativar sem perder a árvore. */
   attachmentLibrary?: IFormManagerAttachmentLibraryConfig;
   /** Layout visual do campo de ficheiros anexos (aba Componentes). Omitido = default. */
   attachmentUploadLayout?: TFormAttachmentUploadLayoutKind;

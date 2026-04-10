@@ -14,7 +14,11 @@ import type {
   TFormConditionOp,
   TFormCustomButtonOperation,
 } from '../config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../config/types/formManager';
+import {
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_BANNER_INTERNAL_PREFIX,
+  isFormBannerFieldConfig,
+} from '../config/types/formManager';
 import type { IFieldMetadata } from '../../../../services';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 
@@ -243,6 +247,8 @@ export function areAllRequiredFieldsFilled(
     const fc = fieldConfigs[i];
     const name = fc.internalName;
     if (!fv(name)) continue;
+
+    if (isFormBannerFieldConfig(fc)) continue;
 
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) {
       const attReq = derived.fieldRequired[name] === true;
@@ -727,6 +733,7 @@ export function collectFormValidationErrors(
       const fc = fieldConfigs[i];
       const name = fc.internalName;
       if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
+      if (isFormBannerFieldConfig(fc)) continue;
       if (!fieldVisible(name)) continue;
       const req = derived.fieldRequired[name] === true;
       if (req && isEmptyish(values[name])) errors[name] = 'Obrigatório.';
@@ -786,6 +793,7 @@ export function collectFormValidationErrors(
         if (isDraft) break;
         if (!whenOk) break;
         if (rule.field === FORM_ATTACHMENTS_FIELD_INTERNAL) break;
+        if (rule.field.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0) break;
         if (!fieldVisible(rule.field)) break;
         if (rule.required && isEmptyish(values[rule.field])) errors[rule.field] = 'Obrigatório.';
         break;
@@ -856,7 +864,9 @@ export function buildFormFieldLabelMap(
     const fc = fieldConfigs[i];
     const name = fc.internalName;
     const meta = metaByName.get(name);
-    const label = (fc.label?.trim() || meta?.Title?.trim() || name).trim() || name;
+    const label = isFormBannerFieldConfig(fc)
+      ? (fc.label?.trim() || 'Banner')
+      : (fc.label?.trim() || meta?.Title?.trim() || name).trim() || name;
     m.set(name, label);
   }
   metaByName.forEach((meta, name) => {

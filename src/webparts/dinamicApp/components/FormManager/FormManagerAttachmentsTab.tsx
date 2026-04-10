@@ -218,7 +218,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
   }
 
   return (
-    <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12 } }}>
+    <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12, width: '100%', maxWidth: '100%' } }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
         Aqui define-se <span style={{ fontWeight: 600 }}>onde</span> os ficheiros são gravados (anexos do item na lista
         principal ou biblioteca com lookup) e o aspeto do controlo. <span style={{ fontWeight: 600 }}>Em que etapa</span>{' '}
@@ -239,7 +239,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
           }
         />
         {attachmentStorageKind === 'documentLibrary' && (
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { maxWidth: 520, marginTop: 8 } }}>
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { width: '100%', marginTop: 8 } }}>
             {libsLoading && <Spinner label="A carregar bibliotecas…" />}
             {libsErr && <MessageBar messageBarType={MessageBarType.error}>{libsErr}</MessageBar>}
             <Dropdown
@@ -250,7 +250,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                 const t = o ? String(o.key) : '';
                 onAttachmentLibraryTitleChange(t);
               }}
-              styles={{ root: { maxWidth: 480 } }}
+              styles={{ root: { width: '100%', maxWidth: '100%' } }}
               disabled={libsLoading}
             />
             {attachmentLibraryTitle.trim() ? (
@@ -277,7 +277,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                     const k = o ? String(o.key) : '';
                     onAttachmentLibraryLookupFieldChange(k);
                   }}
-                  styles={{ root: { maxWidth: 480 } }}
+                  styles={{ root: { width: '100%', maxWidth: '100%' } }}
                   disabled={
                     libFieldsLoading || !!libFieldsErr || primaryListLoading || !primaryListId
                   }
@@ -314,7 +314,8 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
                           borderRadius: 4,
                           border: '1px solid #edebe9',
                           background: '#faf9f8',
-                          maxWidth: 520,
+                          width: '100%',
+                          boxSizing: 'border-box',
                           flexWrap: 'wrap',
                         },
                       }}

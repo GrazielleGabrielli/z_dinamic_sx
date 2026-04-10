@@ -19,7 +19,7 @@ import type {
   TFormConditionOp,
   TFormRule,
 } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../../core/config/types/formManager';
+import { FORM_ATTACHMENTS_FIELD_INTERNAL, isFormBannerFieldConfig } from '../../core/config/types/formManager';
 import {
   buildFieldUiRules,
   CONDITION_OP_OPTIONS,
@@ -159,7 +159,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
           value={ed.defaultValue}
           onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
         />
-        {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
+        {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
           <Stack tokens={{ childrenGap: 8 }} styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 12 } }}>
             <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
               Valor calculado (setComputed)

@@ -12,6 +12,7 @@ import { DynamicListForm } from './DynamicListForm';
 import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
+  isFormBannerFieldConfig,
   type IFormManagerConfig,
   type TFormManagerFormMode,
   type TFormSubmitKind,
@@ -84,12 +85,15 @@ async function uploadAttachments(
 }
 
 function formFieldInternalNames(fm: IFormManagerConfig, fieldMeta: IFieldMetadata[]): string[] {
-  const skipVirtual = (internalName: string): boolean => internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL;
-  if (fm.fields.length > 0) return fm.fields.map((f) => f.internalName).filter(skipVirtual);
+  if (fm.fields.length > 0) {
+    return fm.fields
+      .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
+      .map((f) => f.internalName);
+  }
   return fieldMeta
     .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
     .map((f) => f.InternalName)
-    .filter(skipVirtual);
+    .filter((n) => n !== FORM_ATTACHMENTS_FIELD_INTERNAL);
 }
 
 function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetadata[]): { select: string[]; expand: string[] } {

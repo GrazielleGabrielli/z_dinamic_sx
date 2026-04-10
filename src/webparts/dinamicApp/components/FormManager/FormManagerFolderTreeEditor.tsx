@@ -123,7 +123,7 @@ function FolderStepSelect(props: {
         const key = String(o.key);
         onPatchStepIds(node.id, key ? [key] : []);
       }}
-      styles={{ root: { maxWidth: 320 } }}
+      styles={{ root: { width: '100%', maxWidth: '100%', minWidth: 160 } }}
     />
   );
 }
@@ -183,7 +183,7 @@ function FolderVisibilityRules(props: {
   };
 
   return (
-    <Stack tokens={{ childrenGap: 8 }} styles={{ root: { maxWidth: 520 } }}>
+    <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', maxWidth: '100%' } }}>
       <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
         <Text variant="small" styles={{ root: { color: '#605e5c', minWidth: 44 } }}>
           Modos
@@ -385,7 +385,7 @@ function FolderStructureRow(props: {
           title="Destino do upload"
           ariaLabel="Destino do upload"
         />
-        <Stack styles={{ root: { flex: '1 1 220px', maxWidth: 420, minWidth: 160 } }}>
+        <Stack styles={{ root: { flex: '1 1 220px', minWidth: 160, maxWidth: '100%' } }}>
           <TextField
             value={node.nameTemplate}
             onChange={(_, v) => onPatchName(node.id, v ?? '')}
@@ -464,17 +464,25 @@ function FolderConfigAccordionItem(props: {
       isOpen={isOpen}
       onToggle={onToggle}
     >
-      <Stack tokens={{ childrenGap: 8 }}>
-        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 10 }} wrap>
-          <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
+      <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', maxWidth: '100%' } }}>
+        <Stack
+          horizontal
+          verticalAlign="center"
+          tokens={{ childrenGap: 10 }}
+          wrap
+          styles={{ root: { width: '100%', alignItems: 'flex-start' } }}
+        >
+          <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600, paddingTop: 6 } }}>
             Etapa
           </Text>
-          <FolderStepSelect
-            node={node}
-            disabled={disabled}
-            folderStepOptions={folderStepOptions}
-            onPatchStepIds={onPatchStepIds}
-          />
+          <Stack styles={{ root: { flex: 1, minWidth: 160, maxWidth: '100%' } }}>
+            <FolderStepSelect
+              node={node}
+              disabled={disabled}
+              folderStepOptions={folderStepOptions}
+              onPatchStepIds={onPatchStepIds}
+            />
+          </Stack>
         </Stack>
         <Text variant="tiny" styles={{ root: { color: '#605e5c' } }}>
           Quantidade (biblioteca + novos). Vazio = sem limite.
@@ -599,8 +607,8 @@ export function FormManagerFolderTreeEditor(props: IFormManagerFolderTreeEditorP
   const showConfigSection = showFolderStepPicker && folderStepOptions.length > 0;
 
   return (
-    <Stack tokens={{ childrenGap: 20 }}>
-      <Stack tokens={{ childrenGap: 8 }}>
+    <Stack tokens={{ childrenGap: 20 }} styles={{ root: { width: '100%', maxWidth: '100%' } }}>
+      <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', maxWidth: '100%' } }}>
         <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
           Estrutura de pastas
         </Text>
@@ -628,7 +636,7 @@ export function FormManagerFolderTreeEditor(props: IFormManagerFolderTreeEditorP
       </Stack>
 
       {showConfigSection && (
-        <Stack tokens={{ childrenGap: 8 }}>
+        <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: '100%', maxWidth: '100%' } }}>
           <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
             Configurar cada pasta
           </Text>

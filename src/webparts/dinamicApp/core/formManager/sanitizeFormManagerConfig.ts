@@ -24,8 +24,14 @@ import type {
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
   TFormAttachmentStorageKind,
+  TFormBannerPlacement,
+  TChromePositionMode,
 } from '../config/types/formManager';
-import { FORM_OCULTOS_STEP_ID } from '../config/types/formManager';
+import {
+  FORM_BANNER_INTERNAL_PREFIX,
+  FORM_FIXOS_STEP_ID,
+  FORM_OCULTOS_STEP_ID,
+} from '../config/types/formManager';
 import { migrateFolderPathSegmentsToTree, sanitizeFolderTreeInput } from './attachmentFolderTree';
 import { sanitizeConditionNode } from './formConditionSanitize';
 
@@ -39,12 +45,34 @@ function pinOcultosFirstSections(sections: IFormSectionConfig[]): void {
   }
 }
 
+function pinFixosAfterOcultosSections(sections: IFormSectionConfig[]): void {
+  const fi = sections.findIndex((s) => s.id === FORM_FIXOS_STEP_ID);
+  if (fi < 0) return;
+  const oi = sections.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+  const wantIdx = oi >= 0 ? oi + 1 : 0;
+  if (fi === wantIdx) return;
+  const [fx] = sections.splice(fi, 1);
+  const insertAt = fi < wantIdx ? wantIdx - 1 : wantIdx;
+  sections.splice(insertAt, 0, fx);
+}
+
 function pinOcultosFirstSteps(steps: IFormStepConfig[]): void {
   const oi = steps.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
   if (oi > 0) {
     const [oc] = steps.splice(oi, 1);
     steps.unshift(oc);
   }
+}
+
+function pinFixosAfterOcultosSteps(steps: IFormStepConfig[]): void {
+  const fi = steps.findIndex((s) => s.id === FORM_FIXOS_STEP_ID);
+  if (fi < 0) return;
+  const oi = steps.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+  const wantIdx = oi >= 0 ? oi + 1 : 0;
+  if (fi === wantIdx) return;
+  const [fx] = steps.splice(fi, 1);
+  const insertAt = fi < wantIdx ? wantIdx - 1 : wantIdx;
+  steps.splice(insertAt, 0, fx);
 }
 
 const STEP_LAYOUT_SET = new Set<string>([
@@ -303,8 +331,19 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
   const f = raw as Record<string, unknown>;
   const internalName = typeof f.internalName === 'string' ? f.internalName.trim() : '';
   if (!internalName) return undefined;
-  return {
+  const fpRaw = f.fixedPlacement;
+  const fixedPl = fpRaw === 'top' || fpRaw === 'bottom' ? fpRaw : undefined;
+  const cmRaw = f.chromePositionMode;
+  const chromeMode: TChromePositionMode | undefined =
+    cmRaw === 'sticky' || cmRaw === 'absolute' || cmRaw === 'flow' ? cmRaw : undefined;
+  const isBanner =
+    f.fieldKind === 'banner' || internalName.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0;
+  const bannerUrlRaw = typeof f.bannerImageUrl === 'string' ? f.bannerImageUrl.trim() : '';
+  const bannerImageUrl = bannerUrlRaw ? bannerUrlRaw.slice(0, 4000) : undefined;
+  const common: IFormFieldConfig = {
     internalName,
+    ...(fixedPl ? { fixedPlacement: fixedPl } : {}),
+    ...(chromeMode ? { chromePositionMode: chromeMode } : {}),
     ...(typeof f.label === 'string' ? { label: f.label } : {}),
     ...(typeof f.helpText === 'string' ? { helpText: f.helpText } : {}),
     ...(typeof f.placeholder === 'string' ? { placeholder: f.placeholder } : {}),
@@ -317,6 +356,26 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(typeof f.modalGroupId === 'string' ? { modalGroupId: f.modalGroupId.trim() } : {}),
     ...(typeof f.effectiveSectionId === 'string' ? { effectiveSectionId: f.effectiveSectionId.trim() } : {}),
   };
+  if (isBanner) {
+    const bp = f.bannerPlacement;
+    const placement: TFormBannerPlacement | undefined =
+      bp === 'topFixed' || bp === 'bottomFixed' || bp === 'inStep' ? bp : undefined;
+    const bw = typeof f.bannerWidthPercent === 'number' && isFinite(f.bannerWidthPercent)
+      ? Math.min(100, Math.max(1, f.bannerWidthPercent))
+      : undefined;
+    const bh = typeof f.bannerHeightPercent === 'number' && isFinite(f.bannerHeightPercent)
+      ? Math.min(100, Math.max(1, f.bannerHeightPercent))
+      : undefined;
+    return {
+      ...common,
+      fieldKind: 'banner',
+      ...(bannerImageUrl ? { bannerImageUrl } : {}),
+      ...(placement ? { bannerPlacement: placement } : {}),
+      ...(bw !== undefined ? { bannerWidthPercent: bw } : {}),
+      ...(bh !== undefined ? { bannerHeightPercent: bh } : {}),
+    };
+  }
+  return common;
 }
 
 function sanitizeSection(raw: unknown): IFormSectionConfig | undefined {
@@ -617,6 +676,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     sections.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', visible: true });
   }
   pinOcultosFirstSections(sections);
+  if (!sections.some((s) => s.id === FORM_FIXOS_STEP_ID)) {
+    const oi = sections.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+    sections.splice(oi >= 0 ? oi + 1 : 0, 0, { id: FORM_FIXOS_STEP_ID, title: 'Fixos', visible: true });
+  } else {
+    pinFixosAfterOcultosSections(sections);
+  }
   const fields: IFormFieldConfig[] = [];
   for (let i = 0; i < fieldsRaw.length; i++) {
     const fc = sanitizeField(fieldsRaw[i]);
@@ -637,6 +702,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   }
   if (steps.length > 0) {
     pinOcultosFirstSteps(steps);
+  }
+  if (steps.length > 0 && !steps.some((s) => s.id === FORM_FIXOS_STEP_ID)) {
+    const oi = steps.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+    steps.splice(oi >= 0 ? oi + 1 : 0, 0, { id: FORM_FIXOS_STEP_ID, title: 'Fixos', fieldNames: [] });
+  } else if (steps.length > 0) {
+    pinFixosAfterOcultosSteps(steps);
   }
   const managerColumnFields = Array.isArray(o.managerColumnFields)
     ? (o.managerColumnFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
@@ -701,13 +772,13 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   let attachmentStorageKind: TFormAttachmentStorageKind | undefined =
     skRaw === 'documentLibrary' ? 'documentLibrary' : undefined;
   const attachmentLibraryRaw = sanitizeAttachmentLibrary(o.attachmentLibrary);
-  let attachmentLibrary: IFormManagerAttachmentLibraryConfig | undefined = attachmentLibraryRaw;
+  let attachmentLibrary: IFormManagerAttachmentLibraryConfig | undefined;
   if (attachmentStorageKind === 'documentLibrary') {
-    const lt = attachmentLibrary?.libraryTitle?.trim() ?? '';
-    const lk = attachmentLibrary?.sourceListLookupFieldInternalName?.trim() ?? '';
+    const lt = attachmentLibraryRaw?.libraryTitle?.trim() ?? '';
+    const lk = attachmentLibraryRaw?.sourceListLookupFieldInternalName?.trim() ?? '';
     if (!lt || !lk) {
       attachmentStorageKind = undefined;
-      attachmentLibrary = undefined;
+      attachmentLibrary = attachmentLibraryRaw;
     } else {
       attachmentLibrary = {
         libraryTitle: lt,
@@ -717,7 +788,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     }
   } else {
     attachmentStorageKind = undefined;
-    attachmentLibrary = undefined;
+    attachmentLibrary = attachmentLibraryRaw;
   }
   const historyEnabled = o.historyEnabled === true;
   const hkRaw = o.historyPresentationKind;
@@ -780,6 +851,8 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
     ...(attachmentStorageKind === 'documentLibrary' && attachmentLibrary
       ? { attachmentStorageKind, attachmentLibrary }
+      : attachmentLibrary
+      ? { attachmentLibrary }
       : {}),
     ...(actionLog ? { actionLog } : {}),
     ...(historyEnabled ? { historyEnabled: true } : {}),

@@ -277,11 +277,12 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <Stack styles={{ root: { padding: '20px 24px 0' } }}>
         <Stack
           horizontal
-          horizontalAlign="space-between"
+          horizontalAlign={config.mode === 'formManager' ? 'end' : 'space-between'}
           verticalAlign="center"
           tokens={{ childrenGap: 8 }}
           styles={{ root: { padding: '16px 0 8px' } }}
         >
+          {config.mode !== 'formManager' && (
           <Stack tokens={{ childrenGap: 6 }}>
             <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
               {config.dataSource.title}
@@ -290,6 +291,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
               Modo: {config.mode} · Origem: {config.dataSource.kind}
             </Text>
           </Stack>
+          )}
           <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
             {config.mode === 'list' && (
               <ActionButton

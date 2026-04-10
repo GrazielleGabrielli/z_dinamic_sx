@@ -402,6 +402,7 @@ export type {
   TFormRootHorizontalAlign,
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_OCULTOS_STEP_ID,
+  FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
 } from './formManager';
 export type {

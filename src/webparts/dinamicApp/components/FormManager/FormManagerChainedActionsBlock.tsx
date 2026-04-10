@@ -18,7 +18,7 @@ import type {
   TFormConditionNode,
   TFormConditionOp,
 } from '../../core/config/types/formManager';
-import { FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
+import { FORM_FIXOS_STEP_ID, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
 import {
   CONDITION_OP_OPTIONS,
   whenUiToNode,
@@ -203,7 +203,8 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
               </Stack>
             </Stack>
           )}
-          {act.kind === 'showFields' && steps.filter((s) => s.id !== FORM_OCULTOS_STEP_ID).length > 1 && (
+          {act.kind === 'showFields' &&
+            steps.filter((s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID).length > 1 && (
             <Stack tokens={{ childrenGap: 6 }}>
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                 Campos só na aba Ocultos: escolha em que etapa devem surgir ao executar esta ação.
@@ -212,7 +213,9 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                 label="Etapa onde mostrar"
                 options={[
                   { key: '', text: '— escolher —' },
-                  ...steps.filter((s) => s.id !== FORM_OCULTOS_STEP_ID).map((s) => ({ key: s.id, text: s.title })),
+                  ...steps
+                    .filter((s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID)
+                    .map((s) => ({ key: s.id, text: s.title })),
                 ]}
                 selectedKey={act.displayOnStepId ?? ''}
                 onChange={(_, o) => {

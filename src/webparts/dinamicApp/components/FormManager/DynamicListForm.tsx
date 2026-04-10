@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
   Stack,
@@ -33,8 +33,16 @@ import type {
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_BANNER_INTERNAL_PREFIX,
   FORM_OCULTOS_STEP_ID,
+  FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
+  isFormBannerFieldConfig,
+  resolveBannerPlacement,
+  resolveBannerWidthPercent,
+  resolveBannerHeightPercent,
+  resolveFixedPlacement,
+  resolveChromePositionMode,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { isDynamicToken } from '../../core/dynamicTokens';
@@ -336,6 +344,7 @@ function listRequiredEmptyErrorsInStep(
   const out: Record<string, string> = {};
   stepFieldList.forEach((name) => {
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) return;
+    if (name.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0) return;
     if (!fieldVisible(name)) return;
     const m = metaByName.get(name);
     if (!m?.Required) return;
@@ -427,6 +436,110 @@ function dropdownReqStyles(showReq: boolean | undefined) {
     : undefined;
 }
 
+interface IFormChromeZoneProps {
+  zone: 'top' | 'bottom';
+  fields: IFormFieldConfig[];
+  renderField: (fc: IFormFieldConfig) => React.ReactNode;
+  layoutDeps: unknown;
+}
+
+const FormChromeZone: React.FC<IFormChromeZoneProps> = ({ zone, fields, renderField, layoutDeps }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [edgeOffsets, setEdgeOffsets] = useState<number[]>(() => fields.map(() => 0));
+  const [minH, setMinH] = useState(0);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const children = Array.from(root.children) as HTMLElement[];
+    const next: number[] = fields.map(() => 0);
+    let total = 0;
+    if (zone === 'top') {
+      let acc = 0;
+      for (let i = 0; i < fields.length; i++) {
+        const h = children[i]?.offsetHeight ?? 0;
+        if (resolveChromePositionMode(fields[i]) === 'absolute') next[i] = acc;
+        acc += h;
+      }
+      total = acc;
+    } else {
+      let acc = 0;
+      for (let i = fields.length - 1; i >= 0; i--) {
+        const h = children[i]?.offsetHeight ?? 0;
+        if (resolveChromePositionMode(fields[i]) === 'absolute') next[i] = acc;
+        acc += h;
+      }
+      total = children.reduce((s, el) => s + (el?.offsetHeight ?? 0), 0);
+    }
+    setEdgeOffsets((prev) => {
+      if (prev.length === next.length && next.every((v, idx) => v === next[idx])) return prev;
+      return next;
+    });
+    setMinH(total);
+  }, [fields, zone, layoutDeps]);
+
+  if (!fields.length) return null;
+
+  return (
+    <Stack
+      tokens={{ childrenGap: 0 }}
+      styles={{
+        root: {
+          position: 'relative',
+          width: '100%',
+          minHeight: minH || undefined,
+          marginBottom: zone === 'top' ? 8 : 0,
+          marginTop: zone === 'bottom' ? 8 : 0,
+          borderBottom: zone === 'top' ? '1px solid #edebe9' : undefined,
+          borderTop: zone === 'bottom' ? '1px solid #edebe9' : undefined,
+        },
+      }}
+    >
+      <div ref={rootRef}>
+        {fields.map((fc, i) => {
+          const mode = resolveChromePositionMode(fc);
+          const base: React.CSSProperties = {
+            width: '100%',
+            boxSizing: 'border-box',
+          };
+          let style: React.CSSProperties = { ...base };
+          if (mode === 'flow') {
+            style = {
+              ...base,
+              position: 'relative',
+              paddingBottom: zone === 'top' ? 8 : 0,
+              paddingTop: zone === 'bottom' ? 8 : 0,
+            };
+          } else if (mode === 'sticky') {
+            style = {
+              ...base,
+              position: 'sticky',
+              ...(zone === 'top' ? { top: 0 } : { bottom: 0 }),
+              zIndex: 6,
+              background: '#ffffff',
+            };
+          } else {
+            style = {
+              ...base,
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              ...(zone === 'top' ? { top: edgeOffsets[i] ?? 0 } : { bottom: edgeOffsets[i] ?? 0 }),
+              zIndex: 5,
+              background: '#ffffff',
+            };
+          }
+          return (
+            <div key={fc.internalName} style={style}>
+              {renderField(fc)}
+            </div>
+          );
+        })}
+      </div>
+    </Stack>
+  );
+};
+
 export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   listTitle,
   formManager,
@@ -448,14 +561,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
           .map((f) => ({ internalName: f.InternalName, sectionId: FORM_OCULTOS_STEP_ID }));
   const names = useMemo(
-    () => fieldConfigs.map((f) => f.internalName).filter((n) => n !== FORM_ATTACHMENTS_FIELD_INTERNAL),
+    () =>
+      fieldConfigs
+        .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
+        .map((f) => f.internalName),
     [fieldConfigs]
   );
   const ocultosNullFieldNames = useMemo(
     () =>
       fieldConfigs
         .filter(
-          (f) => f.sectionId === FORM_OCULTOS_STEP_ID && f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL
+          (f) =>
+            f.sectionId === FORM_OCULTOS_STEP_ID &&
+            f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
+            !isFormBannerFieldConfig(f)
         )
         .map((f) => f.internalName),
     [fieldConfigs]
@@ -941,10 +1060,16 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const stepsAll = formManager.steps?.length ? formManager.steps : null;
   const visibleStepsForUi = useMemo(() => {
     if (!stepsAll) return null;
-    const nonOcultos = stepsAll.filter((s) => s.id !== FORM_OCULTOS_STEP_ID);
-    const forMode = nonOcultos.filter((s) => stepVisibleInFormMode(s, formMode));
-    return forMode.length > 0 ? forMode : nonOcultos;
+    const nonSpecial = stepsAll.filter(
+      (s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID
+    );
+    const forMode = nonSpecial.filter((s) => stepVisibleInFormMode(s, formMode));
+    return forMode.length > 0 ? forMode : nonSpecial;
   }, [stepsAll, formMode]);
+
+  const fixosStepConfig = stepsAll?.find((s) => s.id === FORM_FIXOS_STEP_ID);
+  const fixosChromeActive =
+    fixosStepConfig === undefined || stepVisibleInFormMode(fixosStepConfig, formMode);
   const [stepIndex, setStepIndex] = useState(0);
   const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
   useEffect(() => {
@@ -1487,6 +1612,35 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     );
   };
 
+  const renderBannerVisual = (fc: IFormFieldConfig): React.ReactNode => {
+    const name = fc.internalName;
+    if (derived.fieldVisible[name] === false) return null;
+    const url = (fc.bannerImageUrl ?? '').trim();
+    const bannerLabel = (fc.label ?? 'Banner').trim() || 'Banner';
+    const wPct = resolveBannerWidthPercent(fc);
+    const hPct = resolveBannerHeightPercent(fc);
+    const imgStyle: React.CSSProperties = {
+      width: `${wPct}%`,
+      maxWidth: '100%',
+      height: 'auto',
+      display: 'block',
+      margin: '0 auto',
+      borderRadius: 2,
+      objectFit: 'contain',
+      ...(hPct !== undefined ? { maxHeight: `${hPct}vh` } : {}),
+    };
+    return (
+      <>
+        {url ? <img src={url} alt={bannerLabel} style={imgStyle} /> : null}
+        {fc.helpText && (
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            {fc.helpText}
+          </Text>
+        )}
+      </>
+    );
+  };
+
   const renderFieldControl = (fc: IFormFieldConfig): React.ReactNode => {
     const name = fc.internalName;
     if (derived.fieldVisible[name] === false) return null;
@@ -1648,6 +1802,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
             }
           />
+        </Stack>
+      );
+    }
+    if (isFormBannerFieldConfig(fc)) {
+      if (fc.sectionId === FORM_FIXOS_STEP_ID) {
+        return (
+          <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 12 } }}>
+            {renderBannerVisual(fc)}
+          </Stack>
+        );
+      }
+      if (resolveBannerPlacement(fc) !== 'inStep') return null;
+      return (
+        <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 12 } }}>
+          {renderBannerVisual(fc)}
         </Stack>
       );
     }
@@ -1967,6 +2136,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const inModal = !!fc.modalGroupId;
       if (scope === 'modal' && !inModal) continue;
       if (scope === 'main' && inModal) continue;
+      if (fc.sectionId === FORM_FIXOS_STEP_ID) continue;
+      if (
+        isFormBannerFieldConfig(fc) &&
+        (resolveBannerPlacement(fc) === 'topFixed' || resolveBannerPlacement(fc) === 'bottomFixed')
+      ) {
+        continue;
+      }
       if (scope === 'main' && currentStepFieldSet) {
         const name = fc.internalName;
         if (!currentStepFieldSet.has(name)) {
@@ -2008,7 +2184,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const out: React.ReactNode[] = [];
     for (let s = 0; s < formManager.sections.length; s++) {
       const sec = formManager.sections[s];
-      if (sec.id === FORM_OCULTOS_STEP_ID) continue;
+      if (sec.id === FORM_OCULTOS_STEP_ID || sec.id === FORM_FIXOS_STEP_ID) continue;
       if (derived.sectionVisible[sec.id] === false) continue;
       const fields = bySection.get(sec.id);
       if (!fields?.length) continue;
@@ -2021,6 +2197,23 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
     return <>{out}</>;
   };
+
+  const topChromeFields = fieldConfigs.filter((fc) => {
+    if (derived.fieldVisible[fc.internalName] === false) return false;
+    if (fc.sectionId === FORM_FIXOS_STEP_ID) {
+      if (!fixosChromeActive) return false;
+      return resolveFixedPlacement(fc) === 'top';
+    }
+    return isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'topFixed';
+  });
+  const bottomChromeFields = fieldConfigs.filter((fc) => {
+    if (derived.fieldVisible[fc.internalName] === false) return false;
+    if (fc.sectionId === FORM_FIXOS_STEP_ID) {
+      if (!fixosChromeActive) return false;
+      return resolveFixedPlacement(fc) === 'bottom';
+    }
+    return isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'bottomFixed';
+  });
 
   const submitMsg = 'A gravar…';
 
@@ -2060,6 +2253,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             {m.text}
           </MessageBar>
         ))}
+        {topChromeFields.length > 0 && (
+          <FormChromeZone
+            zone="top"
+            fields={topChromeFields}
+            renderField={(fc) => renderFieldControl(fc)}
+            layoutDeps={values}
+          />
+        )}
         {visibleStepsForUi && visibleStepsForUi.length > 1 && (
           <FormStepNavigation
             steps={visibleStepsForUi}
@@ -2093,6 +2294,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               disabled={submitting}
             />
           </Stack>
+        )}
+        {bottomChromeFields.length > 0 && (
+          <FormChromeZone
+            zone="bottom"
+            fields={bottomChromeFields}
+            renderField={(fc) => renderFieldControl(fc)}
+            layoutDeps={values}
+          />
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
           {(formManager.customButtons ?? [])
