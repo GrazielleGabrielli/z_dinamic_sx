@@ -23,6 +23,7 @@ import type {
   IFormManagerConfig,
   IFormFieldConfig,
   IFormCustomButtonConfig,
+  IFormLinkedChildFormConfig,
   TFormButtonAction,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
@@ -100,6 +101,11 @@ import {
   syncAllLinkedChildLists,
   type ILinkedChildRowState,
 } from '../../core/formManager/formLinkedChildSync';
+import { linkedChildAttPendingKey } from '../../core/formManager/linkedChildAttachmentPendingKeys';
+import {
+  buildMinimalFormManagerForLinkedLibraryUpload,
+  resolveLinkedChildAttachmentRuntime,
+} from '../../core/formManager/linkedChildAttachmentRuntime';
 import { FieldsService } from '../../../../services';
 
 export interface IDynamicListFormProps {
@@ -171,6 +177,66 @@ async function uploadListItemAttachments(
     const buf = await files[i].arrayBuffer();
     await item.attachmentFiles.add(files[i].name, buf);
   }
+}
+
+async function uploadLinkedChildPendingAfterSync(
+  configs: IFormLinkedChildFormConfig[],
+  formManager: IFormManagerConfig,
+  syncedRowsByConfigId: Record<string, ILinkedChildRowState[]>,
+  pendingByKey: Record<string, File[]>
+): Promise<string[]> {
+  const keysToClear: string[] = [];
+  for (let ci = 0; ci < configs.length; ci++) {
+    const cfg = configs[ci];
+    const resolved = resolveLinkedChildAttachmentRuntime(cfg, formManager);
+    if (resolved.kind === 'none') continue;
+    const listTitle = cfg.listTitle.trim();
+    if (!listTitle) continue;
+    const rows = syncedRowsByConfigId[cfg.id] ?? [];
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri];
+      const sid = row.sharePointId;
+      if (sid === undefined || !isFinite(sid)) continue;
+      const iv = { ...row.values, Id: sid };
+      if (resolved.kind === 'itemAttachments') {
+        const key = linkedChildAttPendingKey(cfg.id, row.localKey, '');
+        const files = pendingByKey[key] ?? [];
+        if (!files.length) continue;
+        await uploadListItemAttachments(
+          listTitle,
+          sid,
+          files,
+          linkedChildFormAsManagerConfig(cfg),
+          iv
+        );
+        keysToClear.push(key);
+        continue;
+      }
+      const minimal = buildMinimalFormManagerForLinkedLibraryUpload(resolved);
+      const tree = resolved.folderTree;
+      const multi = !!(tree?.length && treeHasPerStepFolderUploaders(tree));
+      if (multi && tree) {
+        const byFolder: Record<string, File[]> = {};
+        for (const node of flattenFolderTreeNodes(tree)) {
+          const key = linkedChildAttPendingKey(cfg.id, row.localKey, node.id);
+          const files = pendingByKey[key] ?? [];
+          if (files.length) byFolder[node.id] = files;
+        }
+        if (!Object.keys(byFolder).some((k) => byFolder[k].length)) continue;
+        await uploadListItemAttachments(listTitle, sid, [], minimal, iv, byFolder);
+        for (const nid of Object.keys(byFolder)) {
+          if (byFolder[nid].length) keysToClear.push(linkedChildAttPendingKey(cfg.id, row.localKey, nid));
+        }
+      } else {
+        const key = linkedChildAttPendingKey(cfg.id, row.localKey, '');
+        const files = pendingByKey[key] ?? [];
+        if (!files.length) continue;
+        await uploadListItemAttachments(listTitle, sid, files, minimal, iv);
+        keysToClear.push(key);
+      }
+    }
+  }
+  return keysToClear;
 }
 
 type IServerAttachmentRow = { fileName: string; fileUrl: string; fileRef?: string };
@@ -657,6 +723,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [linkedLoadErrById, setLinkedLoadErrById] = useState<Record<string, string>>({});
   const [linkedLoadingById, setLinkedLoadingById] = useState<Record<string, boolean>>({});
   const [linkedRowErrorsById, setLinkedRowErrorsById] = useState<Record<string, Record<string, string>[]>>({});
+  const [linkedPendingByKey, setLinkedPendingByKey] = useState<Record<string, File[]>>({});
 
   const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
     const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
@@ -1148,7 +1215,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const performLinkedSync = useCallback(
     async (parentId: number) => {
       if (!linkedConfigsSorted.length) return;
-      await syncAllLinkedChildLists(
+      const syncedRows = await syncAllLinkedChildLists(
         itemsService,
         linkedConfigsSorted,
         parentId,
@@ -1156,6 +1223,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         linkedMetaById,
         linkedBaselineById
       );
+      const toClear = await uploadLinkedChildPendingAfterSync(
+        linkedConfigsSorted,
+        formManager,
+        syncedRows,
+        linkedPendingByKey
+      );
+      if (toClear.length) {
+        setLinkedPendingByKey((prev) => {
+          const next = { ...prev };
+          for (let i = 0; i < toClear.length; i++) delete next[toClear[i]];
+          return next;
+        });
+      }
       await reloadLinkedRowsForParent(parentId);
       setLinkedRowErrorsById({});
     },
@@ -1166,6 +1246,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       linkedMetaById,
       linkedBaselineById,
       reloadLinkedRowsForParent,
+      formManager,
+      linkedPendingByKey,
     ]
   );
 
@@ -2643,6 +2725,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             authorId={authorId}
             dynamicContext={dynamicContext}
             rowErrorsByConfigId={linkedRowErrorsById}
+            formManager={formManager}
+            linkedPendingFilesByKey={linkedPendingByKey}
+            onLinkedPendingFilesChange={(key, files) =>
+              setLinkedPendingByKey((prev) => ({ ...prev, [key]: files }))
+            }
+            currentParentStepId={visibleStepsForUi?.[stepIndex]?.id ?? 'main'}
+            attachmentUploadLayout={formManager.attachmentUploadLayout}
+            attachmentFilePreview={attachmentPreviewKind}
+            attachmentAllowedExtensions={
+              attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
+            }
           />
         )}
         {visibleStepsForUi && visibleStepsForUi.length > 1 && (

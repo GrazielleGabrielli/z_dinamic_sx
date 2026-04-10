@@ -140,12 +140,21 @@ function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
 }
 
 function cloneLinkedChildFormConfig(c: IFormLinkedChildFormConfig): IFormLinkedChildFormConfig {
+  const lib = c.childAttachmentLibrary;
   return {
     ...c,
     sections: c.sections.map((s) => ({ ...s })),
     fields: c.fields.map((f) => ({ ...f })),
     rules: c.rules.map((r) => JSON.parse(JSON.stringify(r)) as TFormRule),
     steps: (c.steps ?? []).map((s) => ({ ...s, fieldNames: [...s.fieldNames] })),
+    ...(lib
+      ? {
+          childAttachmentLibrary: {
+            ...lib,
+            folderTree: loadFolderTreeFromAttachmentLibrary(lib),
+          },
+        }
+      : {}),
   };
 }
 
@@ -3065,6 +3074,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             primaryListTitle={listTitle.trim()}
             linkedChildForms={linkedChildForms}
             onLinkedChildFormsChange={setLinkedChildForms}
+            mainAttachmentStorageKind={attachmentStorageKind}
+            mainAttachmentLibraryFromPanel={attachmentLibraryFromPanelState(
+              attachmentLibLibraryTitle,
+              attachmentLibLookupField,
+              attachmentLibFolderTree
+            )}
           />
         </PivotItem>
         <PivotItem headerText="Regras condicionais">

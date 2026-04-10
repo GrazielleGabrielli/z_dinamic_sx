@@ -575,6 +575,13 @@ export interface IFormBodyConfig {
   steps?: IFormStepConfig[];
 }
 
+/** Onde gravar ficheiros por linha da lista vinculada (além dos campos do mini-formulário). */
+export type TLinkedChildAttachmentStorageKind =
+  | 'none'
+  | 'itemAttachments'
+  | 'documentLibraryInheritMain'
+  | 'documentLibraryCustom';
+
 /** Lista secundária com mini-formulário e Lookup para o item da lista principal. */
 export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
   id: string;
@@ -594,6 +601,21 @@ export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
    * Omitido = primeira etapa do passador (excl. Ocultos/Fixos).
    */
   mainFormStepId?: string;
+  /**
+   * Anexos por linha: nenhum, anexos nativos do item na lista filha, ou biblioteca (pastas da aba Anexos ou própria).
+   * Omitido / `none` = sem bloco de ficheiros extra por linha.
+   */
+  childAttachmentStorageKind?: TLinkedChildAttachmentStorageKind;
+  /**
+   * Com `documentLibraryInheritMain`: nome interno do campo Lookup **na biblioteca da aba Anexos**
+   * que aponta para a **lista filha** (`listTitle`). Obrigatório nesse modo.
+   */
+  childAttachmentLibraryLookupToChildListField?: string;
+  /**
+   * Com `documentLibraryCustom`: biblioteca + árvore; `sourceListLookupFieldInternalName` deve ser o Lookup
+   * na biblioteca que aponta para a lista filha.
+   */
+  childAttachmentLibrary?: IFormManagerAttachmentLibraryConfig;
 }
 
 export interface IFormManagerConfig {

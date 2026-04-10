@@ -15,11 +15,36 @@ import {
 } from '@fluentui/react';
 import { FieldsService, ListsService } from '../../../../services';
 import type { IFieldMetadata, IListSummary } from '../../../../services';
-import type { IFormFieldConfig, IFormLinkedChildFormConfig } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL } from '../../core/config/types/formManager';
+import type {
+  IFormFieldConfig,
+  IFormLinkedChildFormConfig,
+  IFormManagerAttachmentLibraryConfig,
+  TFormAttachmentStorageKind,
+  TLinkedChildAttachmentStorageKind,
+} from '../../core/config/types/formManager';
+import {
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_FIXOS_STEP_ID,
+  FORM_OCULTOS_STEP_ID,
+} from '../../core/config/types/formManager';
 import { newLinkedChildFormConfig } from '../../core/config/utils';
+import {
+  addRootSibling,
+  loadFolderTreeFromAttachmentLibrary,
+} from '../../core/formManager/attachmentFolderTree';
+import { FormManagerFolderTreeEditor } from './FormManagerFolderTreeEditor';
 
 const MAX_LINKED = 10;
+
+const LINKED_CHILD_STORAGE_OPTIONS: { key: TLinkedChildAttachmentStorageKind; text: string }[] = [
+  { key: 'none', text: 'Sem anexos neste bloco' },
+  { key: 'itemAttachments', text: 'Anexos nativos (lista filha)' },
+  {
+    key: 'documentLibraryInheritMain',
+    text: 'Biblioteca da aba Anexos (pastas herdadas; Lookup à lista filha)',
+  },
+  { key: 'documentLibraryCustom', text: 'Outra biblioteca (estrutura própria)' },
+];
 
 const EXCLUDE_INTERNALS = new Set(['Attachments', 'ContentType', 'ContentTypeId']);
 
@@ -103,16 +128,34 @@ export interface IFormManagerLinkedChildFormsTabProps {
   primaryListTitle: string;
   linkedChildForms: IFormLinkedChildFormConfig[];
   onLinkedChildFormsChange: (next: IFormLinkedChildFormConfig[]) => void;
+  mainAttachmentStorageKind: TFormAttachmentStorageKind | undefined;
+  mainAttachmentLibraryFromPanel: IFormManagerAttachmentLibraryConfig | undefined;
+}
+
+function childFolderStepOptions(cfg: IFormLinkedChildFormConfig): { id: string; title: string }[] {
+  return (cfg.steps ?? [])
+    .filter((s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID)
+    .map((s) => ({ id: s.id, title: s.title }));
 }
 
 export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedChildFormsTabProps): JSX.Element {
-  const { primaryListTitle, linkedChildForms, onLinkedChildFormsChange } = props;
+  const {
+    primaryListTitle,
+    linkedChildForms,
+    onLinkedChildFormsChange,
+    mainAttachmentStorageKind,
+    mainAttachmentLibraryFromPanel,
+  } = props;
   const fieldsService = useMemo(() => new FieldsService(), []);
   const listsService = useMemo(() => new ListsService(), []);
   const [siteLists, setSiteLists] = useState<IListSummary[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
   const [childMetaById, setChildMetaById] = useState<Record<string, IFieldMetadata[]>>({});
   const [childMetaLoading, setChildMetaLoading] = useState<Record<string, boolean>>({});
+  const [inheritLibFieldOpts, setInheritLibFieldOpts] = useState<Record<string, IDropdownOption[]>>({});
+  const [inheritLibLoading, setInheritLibLoading] = useState<Record<string, boolean>>({});
+  const [customLibFieldOpts, setCustomLibFieldOpts] = useState<Record<string, IDropdownOption[]>>({});
+  const [customLibLoading, setCustomLibLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setListsLoading(true);
@@ -142,6 +185,25 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
     }
     return opts;
   }, [childListsForDropdown]);
+
+  const siteLibrariesSorted = useMemo(() => {
+    return siteLists
+      .filter((l) => l.IsLibrary)
+      .slice()
+      .sort((a, b) => a.Title.localeCompare(b.Title, 'pt', { sensitivity: 'base' }));
+  }, [siteLists]);
+
+  const attachmentLibraryDropdownOptions = useMemo((): IDropdownOption[] => {
+    const opts: IDropdownOption[] = [{ key: '', text: '— Selecione uma biblioteca —' }];
+    for (let i = 0; i < siteLibrariesSorted.length; i++) {
+      const l = siteLibrariesSorted[i];
+      opts.push({
+        key: l.Title,
+        text: `${l.Title}${typeof l.ItemCount === 'number' ? ` (${l.ItemCount})` : ''}`,
+      });
+    }
+    return opts;
+  }, [siteLibrariesSorted]);
 
   const primaryListId = useMemo(() => {
     const t = primaryListTitle.trim();
@@ -178,6 +240,124 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
     [fieldsService]
   );
 
+  useEffect(() => {
+    let cancel = false;
+    void (async () => {
+      for (let i = 0; i < linkedChildForms.length; i++) {
+        const cfg = linkedChildForms[i];
+        if (cfg.childAttachmentStorageKind !== 'documentLibraryInheritMain') continue;
+        const mainLibTitle = (mainAttachmentLibraryFromPanel?.libraryTitle ?? '').trim();
+        const childTitle = cfg.listTitle.trim();
+        if (!mainLibTitle || !childTitle) {
+          if (!cancel) {
+            setInheritLibFieldOpts((o) => ({ ...o, [cfg.id]: [{ key: '', text: '—' }] }));
+          }
+          continue;
+        }
+        const childList = siteLists.find((l) => l.Title.trim().toLowerCase() === childTitle.toLowerCase());
+        const childGuid = childList?.Id ? normListGuid(String(childList.Id)) : '';
+        if (!childGuid) {
+          if (!cancel) {
+            setInheritLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '— lista filha não encontrada —' }],
+            }));
+          }
+          continue;
+        }
+        if (!cancel) setInheritLibLoading((x) => ({ ...x, [cfg.id]: true }));
+        try {
+          const meta = await fieldsService.getVisibleFields(mainLibTitle);
+          if (cancel) return;
+          const opts = meta
+            .filter((m) => m.MappedType === 'lookup' && m.LookupList && normListGuid(m.LookupList) === childGuid)
+            .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+          if (!opts.length) {
+            setInheritLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '— sem Lookup à lista filha nesta biblioteca —' }],
+            }));
+          } else {
+            setInheritLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '—' }, ...opts],
+            }));
+          }
+        } catch {
+          if (!cancel) {
+            setInheritLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '— erro ao carregar campos —' }],
+            }));
+          }
+        } finally {
+          if (!cancel) setInheritLibLoading((x) => ({ ...x, [cfg.id]: false }));
+        }
+      }
+    })();
+    return (): void => {
+      cancel = true;
+    };
+  }, [linkedChildForms, mainAttachmentLibraryFromPanel, siteLists, fieldsService]);
+
+  useEffect(() => {
+    let cancel = false;
+    void (async () => {
+      for (let i = 0; i < linkedChildForms.length; i++) {
+        const cfg = linkedChildForms[i];
+        if (cfg.childAttachmentStorageKind !== 'documentLibraryCustom') continue;
+        const libT = (cfg.childAttachmentLibrary?.libraryTitle ?? '').trim();
+        const childTitle = cfg.listTitle.trim();
+        if (!libT || !childTitle) {
+          if (!cancel) setCustomLibFieldOpts((o) => ({ ...o, [cfg.id]: [{ key: '', text: '—' }] }));
+          continue;
+        }
+        const childList = siteLists.find((l) => l.Title.trim().toLowerCase() === childTitle.toLowerCase());
+        const childGuid = childList?.Id ? normListGuid(String(childList.Id)) : '';
+        if (!childGuid) {
+          if (!cancel) {
+            setCustomLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '— lista filha não encontrada —' }],
+            }));
+          }
+          continue;
+        }
+        if (!cancel) setCustomLibLoading((x) => ({ ...x, [cfg.id]: true }));
+        try {
+          const meta = await fieldsService.getVisibleFields(libT);
+          if (cancel) return;
+          const opts = meta
+            .filter((m) => m.MappedType === 'lookup' && m.LookupList && normListGuid(m.LookupList) === childGuid)
+            .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+          if (!opts.length) {
+            setCustomLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '— sem Lookup à lista filha —' }],
+            }));
+          } else {
+            setCustomLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '—' }, ...opts],
+            }));
+          }
+        } catch {
+          if (!cancel) {
+            setCustomLibFieldOpts((o) => ({
+              ...o,
+              [cfg.id]: [{ key: '', text: '— erro ao carregar campos —' }],
+            }));
+          }
+        } finally {
+          if (!cancel) setCustomLibLoading((x) => ({ ...x, [cfg.id]: false }));
+        }
+      }
+    })();
+    return (): void => {
+      cancel = true;
+    };
+  }, [linkedChildForms, siteLists, fieldsService]);
+
   const addLinked = (): void => {
     if (linkedChildForms.length >= MAX_LINKED) return;
     onLinkedChildFormsChange([...linkedChildForms, newLinkedChildFormConfig(newId())]);
@@ -186,6 +366,26 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
   const removeLinked = (id: string): void => {
     onLinkedChildFormsChange(linkedChildForms.filter((c) => c.id !== id));
     setChildMetaById((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setInheritLibFieldOpts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setInheritLibLoading((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setCustomLibFieldOpts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setCustomLibLoading((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
@@ -388,6 +588,181 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                 )
               }
             />
+            {(() => {
+              const mainCanInherit =
+                mainAttachmentStorageKind === 'documentLibrary' &&
+                !!(mainAttachmentLibraryFromPanel?.libraryTitle ?? '').trim() &&
+                !!(mainAttachmentLibraryFromPanel?.sourceListLookupFieldInternalName ?? '').trim();
+              const storageOpts: IDropdownOption[] = LINKED_CHILD_STORAGE_OPTIONS.filter(
+                (o) => o.key !== 'documentLibraryInheritMain' || mainCanInherit
+              ).map((o) => ({ key: o.key, text: o.text }));
+              const sk: TLinkedChildAttachmentStorageKind = cfg.childAttachmentStorageKind ?? 'none';
+              const stepOpts = childFolderStepOptions(cfg);
+              const libBase = cfg.childAttachmentLibrary ?? {
+                libraryTitle: '',
+                sourceListLookupFieldInternalName: '',
+                folderTree: addRootSibling([]),
+              };
+              return (
+                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 4 } }}>
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Anexos / biblioteca (por linha da lista filha)
+                  </Text>
+                  <Dropdown
+                    label="Modo"
+                    options={storageOpts}
+                    selectedKey={sk}
+                    onChange={(_, o) => {
+                      if (!o) return;
+                      const k = String(o.key) as TLinkedChildAttachmentStorageKind;
+                      if (k === 'none') {
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            childAttachmentStorageKind: 'none',
+                            childAttachmentLibraryLookupToChildListField: undefined,
+                            childAttachmentLibrary: undefined,
+                          })
+                        );
+                      } else if (k === 'itemAttachments') {
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            childAttachmentStorageKind: 'itemAttachments',
+                            childAttachmentLibraryLookupToChildListField: undefined,
+                            childAttachmentLibrary: undefined,
+                          })
+                        );
+                      } else if (k === 'documentLibraryInheritMain') {
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            childAttachmentStorageKind: 'documentLibraryInheritMain',
+                            childAttachmentLibrary: undefined,
+                            childAttachmentLibraryLookupToChildListField: '',
+                          })
+                        );
+                      } else if (k === 'documentLibraryCustom') {
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            childAttachmentStorageKind: 'documentLibraryCustom',
+                            childAttachmentLibrary: {
+                              libraryTitle: libBase.libraryTitle ?? '',
+                              sourceListLookupFieldInternalName: '',
+                              folderTree: libBase.folderTree?.length
+                                ? libBase.folderTree
+                                : addRootSibling([]),
+                            },
+                            childAttachmentLibraryLookupToChildListField: undefined,
+                          })
+                        );
+                      }
+                    }}
+                  />
+                  {sk === 'documentLibraryInheritMain' && !mainCanInherit && (
+                    <MessageBar messageBarType={MessageBarType.warning}>
+                      Para herdar a biblioteca da aba Anexos, configure lá «Biblioteca de documentos» com título da
+                      biblioteca e Lookup para a lista principal.
+                    </MessageBar>
+                  )}
+                  {sk === 'documentLibraryInheritMain' && mainCanInherit && (
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      {inheritLibLoading[cfg.id] === true && <Spinner label="A carregar campos da biblioteca…" />}
+                      <Dropdown
+                        label="Campo Lookup na biblioteca de Anexos (referência à lista filha)"
+                        options={
+                          inheritLibFieldOpts[cfg.id] ?? [
+                            {
+                              key: '',
+                              text:
+                                inheritLibLoading[cfg.id] === true
+                                  ? 'A carregar…'
+                                  : '— defina lista filha e título da biblioteca em Anexos —',
+                            },
+                          ]
+                        }
+                        selectedKey={(cfg.childAttachmentLibraryLookupToChildListField ?? '').trim()}
+                        onChange={(_, o) =>
+                          o &&
+                          onLinkedChildFormsChange(
+                            patchChildById(linkedChildForms, cfg.id, {
+                              childAttachmentLibraryLookupToChildListField: String(o.key),
+                            })
+                          )
+                        }
+                        disabled={inheritLibLoading[cfg.id] === true}
+                      />
+                    </Stack>
+                  )}
+                  {sk === 'documentLibraryCustom' && (
+                    <Stack tokens={{ childrenGap: 10 }}>
+                      <Dropdown
+                        label="Biblioteca de documentos"
+                        options={listDropdownOptionsWithLegacy(
+                          attachmentLibraryDropdownOptions,
+                          libBase.libraryTitle ?? ''
+                        )}
+                        selectedKey={(libBase.libraryTitle ?? '').trim() || ''}
+                        onChange={(_, o) => {
+                          if (!o) return;
+                          onLinkedChildFormsChange(
+                            patchChildById(linkedChildForms, cfg.id, {
+                              childAttachmentLibrary: {
+                                ...libBase,
+                                libraryTitle: String(o.key),
+                                sourceListLookupFieldInternalName: '',
+                              },
+                            })
+                          );
+                        }}
+                        disabled={listsLoading}
+                      />
+                      {customLibLoading[cfg.id] === true && <Spinner label="A carregar campos da biblioteca…" />}
+                      <Dropdown
+                        label="Campo Lookup na biblioteca (referência à lista filha)"
+                        options={
+                          customLibFieldOpts[cfg.id] ?? [
+                            {
+                              key: '',
+                              text:
+                                customLibLoading[cfg.id] === true
+                                  ? 'A carregar…'
+                                  : '— selecione a biblioteca e a lista filha —',
+                            },
+                          ]
+                        }
+                        selectedKey={(libBase.sourceListLookupFieldInternalName ?? '').trim()}
+                        onChange={(_, o) =>
+                          o &&
+                          onLinkedChildFormsChange(
+                            patchChildById(linkedChildForms, cfg.id, {
+                              childAttachmentLibrary: {
+                                ...libBase,
+                                sourceListLookupFieldInternalName: String(o.key),
+                              },
+                            })
+                          )
+                        }
+                        disabled={customLibLoading[cfg.id] === true}
+                      />
+                      <FormManagerFolderTreeEditor
+                        nodes={loadFolderTreeFromAttachmentLibrary(cfg.childAttachmentLibrary)}
+                        onChange={(next) =>
+                          onLinkedChildFormsChange(
+                            patchChildById(linkedChildForms, cfg.id, {
+                              childAttachmentLibrary: {
+                                ...libBase,
+                                folderTree: next,
+                              },
+                            })
+                          )
+                        }
+                        disabled={listsLoading}
+                        folderStepOptions={stepOpts}
+                        showFolderStepPicker={stepOpts.length > 1}
+                      />
+                    </Stack>
+                  )}
+                </Stack>
+              );
+            })()}
             <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
               Campos na etapa «Geral» (ordem)
             </Text>

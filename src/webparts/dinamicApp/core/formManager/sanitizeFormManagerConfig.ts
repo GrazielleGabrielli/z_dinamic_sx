@@ -25,6 +25,7 @@ import type {
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
   TFormAttachmentStorageKind,
+  TLinkedChildAttachmentStorageKind,
   TFormBannerPlacement,
   TChromePositionMode,
 } from '../config/types/formManager';
@@ -577,6 +578,19 @@ const MAX_ATTACHMENT_FOLDER_SEGMENTS = 10;
 const MAX_ATTACHMENT_FOLDER_TEMPLATE_CHARS = 200;
 const MAX_LINKED_CHILD_FORMS = 10;
 
+const LINKED_CHILD_ATTACH_KIND_SET = new Set<string>([
+  'none',
+  'itemAttachments',
+  'documentLibraryInheritMain',
+  'documentLibraryCustom',
+]);
+
+function sanitizeLinkedChildAttachmentStorageKind(raw: unknown): TLinkedChildAttachmentStorageKind | undefined {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s || !LINKED_CHILD_ATTACH_KIND_SET.has(s)) return undefined;
+  return s as TLinkedChildAttachmentStorageKind;
+}
+
 function sanitizeFormBodySubset(o: Record<string, unknown>): Pick<
   IFormLinkedChildFormConfig,
   'sections' | 'fields' | 'rules' | 'steps'
@@ -692,6 +706,21 @@ function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig
     const t = o.mainFormStepId.trim();
     if (t) mainFormStepId = t.slice(0, 120);
   }
+  let childAttachmentStorageKind = sanitizeLinkedChildAttachmentStorageKind(o.childAttachmentStorageKind);
+  let childAttachmentLibraryLookupToChildListField: string | undefined;
+  if (typeof o.childAttachmentLibraryLookupToChildListField === 'string') {
+    const t = o.childAttachmentLibraryLookupToChildListField.trim();
+    if (t) childAttachmentLibraryLookupToChildListField = t.slice(0, 255);
+  }
+  const childLibRaw = sanitizeAttachmentLibrary(o.childAttachmentLibrary);
+  if (childAttachmentStorageKind === 'documentLibraryInheritMain' && !childAttachmentLibraryLookupToChildListField) {
+    childAttachmentStorageKind = undefined;
+  }
+  if (childAttachmentStorageKind === 'documentLibraryCustom') {
+    if (!childLibRaw?.libraryTitle || !childLibRaw.sourceListLookupFieldInternalName) {
+      childAttachmentStorageKind = undefined;
+    }
+  }
   return {
     id,
     listTitle,
@@ -703,6 +732,15 @@ function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig
     ...(maxRows !== undefined ? { maxRows } : {}),
     ...(collapsedDefault ? { collapsedDefault: true } : {}),
     ...(mainFormStepId ? { mainFormStepId } : {}),
+    ...(childAttachmentStorageKind && childAttachmentStorageKind !== 'none'
+      ? { childAttachmentStorageKind }
+      : {}),
+    ...(childAttachmentLibraryLookupToChildListField
+      ? { childAttachmentLibraryLookupToChildListField }
+      : {}),
+    ...(childAttachmentStorageKind === 'documentLibraryCustom' && childLibRaw
+      ? { childAttachmentLibrary: childLibRaw }
+      : {}),
   };
 }
 

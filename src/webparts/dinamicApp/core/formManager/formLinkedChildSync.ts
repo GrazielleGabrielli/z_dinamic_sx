@@ -135,31 +135,34 @@ export async function syncLinkedChildList(
   rows: ILinkedChildRowState[],
   fieldMetadata: IFieldMetadata[],
   baselineSharePointIds: number[]
-): Promise<void> {
+): Promise<ILinkedChildRowState[]> {
   const list = cfg.listTitle.trim();
   const lk = cfg.parentLookupFieldInternalName.trim();
-  if (!list || !lk) return;
+  if (!list || !lk) return rows.map((r) => ({ ...r, values: { ...r.values } }));
   const idKey = `${normalizeParentLookupFieldInternalName(lk)}Id`;
   const payloadNames = payloadFieldNamesForLinkedChild(cfg);
+  const rowsNext = rows.map((r) => ({ ...r, values: { ...r.values } }));
   const nextIds = new Set(
-    rows.map((r) => r.sharePointId).filter((x): x is number => typeof x === 'number' && isFinite(x))
+    rowsNext.map((r) => r.sharePointId).filter((x): x is number => typeof x === 'number' && isFinite(x))
   );
   for (let i = 0; i < baselineSharePointIds.length; i++) {
     const id = baselineSharePointIds[i];
     if (nextIds.has(id)) continue;
     await itemsService.deleteItem(list, id);
   }
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+  for (let i = 0; i < rowsNext.length; i++) {
+    const row = rowsNext[i];
     const payloadBase = formValuesToSharePointPayload(fieldMetadata, row.values, payloadNames);
     const payload: Record<string, unknown> = { ...payloadBase, [idKey]: parentItemId };
     if (row.sharePointId !== undefined && isFinite(row.sharePointId)) {
       await itemsService.updateItem(list, row.sharePointId, payload);
     } else {
       if (isLinkedChildRowSkippableForCreate(row.values, fieldMetadata, payloadNames)) continue;
-      await itemsService.addItem(list, payload);
+      const { id } = await itemsService.addItem(list, payload);
+      rowsNext[i] = { ...row, sharePointId: id };
     }
   }
+  return rowsNext;
 }
 
 export async function syncAllLinkedChildLists(
@@ -169,16 +172,18 @@ export async function syncAllLinkedChildLists(
   rowsByConfigId: Record<string, ILinkedChildRowState[]>,
   metaByConfigId: Record<string, IFieldMetadata[]>,
   baselineIdsByConfigId: Record<string, number[]>
-): Promise<void> {
+): Promise<Record<string, ILinkedChildRowState[]>> {
   const sorted = configs
     .filter((c) => c.listTitle.trim() && c.parentLookupFieldInternalName.trim())
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const out: Record<string, ILinkedChildRowState[]> = {};
   for (let i = 0; i < sorted.length; i++) {
     const cfg = sorted[i];
     const meta = metaByConfigId[cfg.id] ?? [];
     const rows = rowsByConfigId[cfg.id] ?? [];
     const baseline = baselineIdsByConfigId[cfg.id] ?? [];
-    await syncLinkedChildList(itemsService, cfg, parentItemId, rows, meta, baseline);
+    out[cfg.id] = await syncLinkedChildList(itemsService, cfg, parentItemId, rows, meta, baseline);
   }
+  return out;
 }
