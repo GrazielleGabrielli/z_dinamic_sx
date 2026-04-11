@@ -419,6 +419,12 @@ const BUTTON_BEHAVIOR_OPTIONS: IDropdownOption[] = [
   { key: 'close', text: 'Ações e depois fechar formulário' },
 ];
 
+const BUTTON_FINISH_AFTER_OPTIONS: IDropdownOption[] = [
+  { key: 'none', text: 'Nada' },
+  { key: 'redirect', text: 'Redirecionar' },
+  { key: 'clearForm', text: 'Limpar o formulário' },
+];
+
 const ESTRUTURA_COLLAPSE_IDS = {
   formLayout: 'estruturaFormLayout',
   stepNav: 'estruturaStepNav',
@@ -622,6 +628,21 @@ function buildStepNavigationForSave(
   return sn;
 }
 
+/**
+ * Persistência (modo formulário): cada aba do Pivot alimenta `handleSave` → `IFormManagerConfig` →
+ * `sanitizeFormManagerConfig` → `configJson` da webpart. Ao recarregar, `parseConfig` volta a sanitizar o JSON.
+ *
+ * | Aba | Chaves principais em `IFormManagerConfig` |
+ * | --- | --- |
+ * | Estrutura | `steps`, `sections`, `fields`, `rules` (merge anexos), `stepNavigation` |
+ * | Componentes | `stepLayout`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview` |
+ * | Anexos | `attachmentStorageKind` (`itemAttachments` \| `documentLibrary`), `attachmentLibrary` |
+ * | Botões | `customButtons` |
+ * | Lista de logs | `actionLog`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
+ * | Listas vinculadas | `linkedChildForms` |
+ * | Regras condicionais | `rules` |
+ * | JSON | mesmo modelo (JSON inválido ou regras com `action` desconhecida são descartadas no sanitize) |
+ */
 export interface IFormManagerConfigPanelProps {
   isOpen: boolean;
   listTitle: string;
@@ -1290,10 +1311,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
       ...(attachmentStorageKind === 'documentLibrary' && attachmentLibPayload
-        ? { attachmentStorageKind, attachmentLibrary: attachmentLibPayload }
-        : attachmentLibStashed
-          ? { attachmentLibrary: attachmentLibStashed }
-          : {}),
+        ? { attachmentStorageKind: 'documentLibrary', attachmentLibrary: attachmentLibPayload }
+        : {
+            ...(attachmentStorageKind === 'itemAttachments' ? { attachmentStorageKind: 'itemAttachments' } : {}),
+            ...(attachmentLibStashed ? { attachmentLibrary: attachmentLibStashed } : {}),
+          }),
       ...(hasActionLog ? { actionLog: actionLogPayload } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
       ...(historyEnabled
@@ -1543,10 +1565,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
       ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
       ...(attachmentStorageKind === 'documentLibrary' && attachmentLibPreview
-        ? { attachmentStorageKind, attachmentLibrary: attachmentLibPreview }
-        : attachmentLibStashedPreview
-          ? { attachmentLibrary: attachmentLibStashedPreview }
-          : {}),
+        ? { attachmentStorageKind: 'documentLibrary', attachmentLibrary: attachmentLibPreview }
+        : {
+            ...(attachmentStorageKind === 'itemAttachments' ? { attachmentStorageKind: 'itemAttachments' } : {}),
+            ...(attachmentLibStashedPreview ? { attachmentLibrary: attachmentLibStashedPreview } : {}),
+          }),
       ...(hasActionLogPreview ? { actionLog: actionLogPreview } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
       ...(historyEnabled
@@ -2916,6 +2939,58 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         description="Obrigatório para o modal aparecer ao utilizar o botão. Se estiver vazio, o gestor não grava a confirmação."
                       />
                     </Stack>
+                  )}
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Último passo (após tudo concluir com sucesso)
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    {`Corre depois das ações, gravar, log, etc. Redirecionar usa o mesmo modelo de URL que a operação «Redirecionar» ({{campo}}, {{FormID}}, {{Form}}).`}
+                  </Text>
+                  <Dropdown
+                    label="Quando o fluxo do botão terminar sem erro"
+                    options={BUTTON_FINISH_AFTER_OPTIONS}
+                    selectedKey={
+                      btn.finishAfterRun?.kind === 'redirect'
+                        ? 'redirect'
+                        : btn.finishAfterRun?.kind === 'clearForm'
+                          ? 'clearForm'
+                          : 'none'
+                    }
+                    onChange={(_, o) => {
+                      if (!o) return;
+                      const k = String(o.key);
+                      if (k === 'none') {
+                        patchCustomButton(bi, { finishAfterRun: undefined });
+                        return;
+                      }
+                      if (k === 'clearForm') {
+                        patchCustomButton(bi, { finishAfterRun: { kind: 'clearForm' } });
+                        return;
+                      }
+                      const prevTpl =
+                        btn.finishAfterRun?.kind === 'redirect'
+                          ? btn.finishAfterRun.redirectUrlTemplate
+                          : '';
+                      patchCustomButton(bi, {
+                        finishAfterRun: { kind: 'redirect', redirectUrlTemplate: prevTpl },
+                      });
+                    }}
+                  />
+                  {btn.finishAfterRun?.kind === 'redirect' && (
+                    <TextField
+                      label="URL de redirecionamento"
+                      value={btn.finishAfterRun.redirectUrlTemplate}
+                      onChange={(_, v) =>
+                        patchCustomButton(bi, {
+                          finishAfterRun: {
+                            kind: 'redirect',
+                            redirectUrlTemplate: v ?? '',
+                          },
+                        })
+                      }
+                      multiline
+                      rows={2}
+                    />
                   )}
                   <Checkbox
                     label="Só mostrar se todos os campos obrigatórios estiverem preenchidos"

@@ -280,28 +280,42 @@ const SECTION_IDS = {
   historyAudit: 'historyAudit',
 } as const;
 
-/** Mesmo collapse usado na aba Componentes e na aba Lista de logs. */
+/** Mesmo padrão visual do painel «Layout da página (modo lista)». */
 export function FormManagerCollapseSection(props: {
   title: string;
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;
+  trailing?: React.ReactNode;
 }): JSX.Element {
   return (
     <Stack
       styles={{
         root: {
           border: '1px solid #edebe9',
-          borderRadius: 4,
+          borderRadius: 10,
           background: '#ffffff',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          overflow: 'hidden',
+          maxWidth: '100%',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
         },
       }}
     >
       <Stack
         horizontal
         verticalAlign="center"
-        tokens={{ childrenGap: 4 }}
-        styles={{ root: { padding: '8px 10px', userSelect: 'none' } }}
+        tokens={{ childrenGap: 2 }}
+        styles={{
+          root: {
+            padding: '10px 12px',
+            background: props.isOpen ? '#faf9f8' : '#ffffff',
+            borderBottom: props.isOpen ? '1px solid #edebe9' : undefined,
+            userSelect: 'none',
+          },
+        }}
       >
         <IconButton
           iconProps={{ iconName: props.isOpen ? 'ChevronDown' : 'ChevronRight' }}
@@ -311,20 +325,33 @@ export function FormManagerCollapseSection(props: {
             e.preventDefault();
             props.onToggle();
           }}
+          styles={{ root: { width: 32, height: 32 } }}
         />
         <Text
           variant="smallPlus"
-          styles={{ root: { fontWeight: 600, cursor: 'pointer', flex: 1 } }}
+          styles={{ root: { fontWeight: 600, cursor: 'pointer', flex: 1, color: '#323130' } }}
           onClick={props.onToggle}
         >
           {props.title}
         </Text>
+        {props.trailing ?? null}
       </Stack>
-      {props.isOpen && (
-        <Stack tokens={{ childrenGap: 12 }} styles={{ root: { padding: '4px 12px 14px 44px' } }}>
+      {props.isOpen ? (
+        <div
+          style={{
+            padding: '14px 14px 16px 18px',
+            maxWidth: '100%',
+            minWidth: 0,
+            width: '100%',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
           {props.children}
-        </Stack>
-      )}
+        </div>
+      ) : null}
     </Stack>
   );
 }

@@ -10,6 +10,7 @@ import type {
   IFormCustomButtonConfig,
   IFormCustomButtonConfirmConfig,
   TFormCustomButtonConfirmKind,
+  TFormCustomButtonFinishAfterRun,
   TFormButtonAction,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
@@ -524,6 +525,19 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
       confirmBeforeRun = { enabled: true, kind, message: msg };
     }
   }
+  const finishRaw = b.finishAfterRun;
+  let finishAfterRun: TFormCustomButtonFinishAfterRun | undefined;
+  if (finishRaw && typeof finishRaw === 'object') {
+    const fr = finishRaw as Record<string, unknown>;
+    if (fr.kind === 'clearForm') {
+      finishAfterRun = { kind: 'clearForm' };
+    } else if (fr.kind === 'redirect') {
+      const tpl = typeof fr.redirectUrlTemplate === 'string' ? fr.redirectUrlTemplate.trim() : '';
+      if (tpl.length > 0) {
+        finishAfterRun = { kind: 'redirect', redirectUrlTemplate: tpl };
+      }
+    }
+  }
   return {
     id,
     label,
@@ -541,6 +555,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(showOnlyWhenAllRequiredFilled ? { showOnlyWhenAllRequiredFilled: true } : {}),
     ...(submitLoadingKind ? { submitLoadingKind } : {}),
     ...(confirmBeforeRun ? { confirmBeforeRun } : {}),
+    ...(finishAfterRun ? { finishAfterRun } : {}),
     actions,
   };
 }
@@ -966,8 +981,14 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       : undefined;
   const actionLog = sanitizeActionLog(o.actionLog);
   const skRaw = o.attachmentStorageKind;
-  let attachmentStorageKind: TFormAttachmentStorageKind | undefined =
-    skRaw === 'documentLibrary' ? 'documentLibrary' : undefined;
+  let attachmentStorageKind: TFormAttachmentStorageKind | undefined;
+  if (skRaw === 'documentLibrary') {
+    attachmentStorageKind = 'documentLibrary';
+  } else if (skRaw === 'itemAttachments') {
+    attachmentStorageKind = 'itemAttachments';
+  } else {
+    attachmentStorageKind = undefined;
+  }
   const attachmentLibraryRaw = sanitizeAttachmentLibrary(o.attachmentLibrary);
   let attachmentLibrary: IFormManagerAttachmentLibraryConfig | undefined;
   if (attachmentStorageKind === 'documentLibrary') {
@@ -984,7 +1005,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       };
     }
   } else {
-    attachmentStorageKind = undefined;
     attachmentLibrary = attachmentLibraryRaw;
   }
   const historyEnabled = o.historyEnabled === true;
@@ -1048,10 +1068,23 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(attachmentUploadLayout && attachmentUploadLayout !== 'default' ? { attachmentUploadLayout } : {}),
     ...(attachmentFilePreview && attachmentFilePreview !== 'nameAndSize' ? { attachmentFilePreview } : {}),
     ...(attachmentStorageKind === 'documentLibrary' && attachmentLibrary
-      ? { attachmentStorageKind, attachmentLibrary }
-      : attachmentLibrary
-      ? { attachmentLibrary }
-      : {}),
+      ? { attachmentStorageKind: 'documentLibrary', attachmentLibrary }
+      : attachmentStorageKind === 'itemAttachments'
+        ? {
+            attachmentStorageKind: 'itemAttachments',
+            ...(attachmentLibrary &&
+            ((attachmentLibrary.libraryTitle ?? '').trim() ||
+              (attachmentLibrary.sourceListLookupFieldInternalName ?? '').trim() ||
+              (attachmentLibrary.folderTree?.length ?? 0) > 0)
+              ? { attachmentLibrary }
+              : {}),
+          }
+        : attachmentLibrary &&
+            ((attachmentLibrary.libraryTitle ?? '').trim() ||
+              (attachmentLibrary.sourceListLookupFieldInternalName ?? '').trim() ||
+              (attachmentLibrary.folderTree?.length ?? 0) > 0)
+          ? { attachmentLibrary }
+          : {}),
     ...(actionLog ? { actionLog } : {}),
     ...(historyEnabled ? { historyEnabled: true } : {}),
     ...(historyPresentationKind && historyPresentationKind !== 'panel'

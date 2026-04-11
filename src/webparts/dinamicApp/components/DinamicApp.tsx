@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Text, Stack, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
-import { parseConfig } from '../core/config/validators';
+import { coerceDashboardShape, parseConfig } from '../core/config/validators';
 import {
   IDashboardCardConfig,
   IDashboardConfig,
@@ -129,7 +129,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       chartSeries,
       chartType: dash.chartType ?? 'bar',
     };
-    saveConfig(saveDashboardForListBlock(config, blockId, next));
+    saveConfig(saveDashboardForListBlock(config, blockId, coerceDashboardShape(next)));
   }, [config, saveConfig]);
 
   const handleSaveCards = (
@@ -156,7 +156,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
           }
         : baseDash;
     if (nextType === 'charts') setDashboardListSelection(null);
-    saveConfig(saveDashboardForListBlock(config, bid, dashboard));
+    saveConfig(saveDashboardForListBlock(config, bid, coerceDashboardShape(dashboard)));
     setIsEditingCards(false);
     setEditingDashboardBlockId(null);
   };
@@ -183,7 +183,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             cardsCount: chartSeries.length,
           }
         : baseDash;
-    saveConfig(saveDashboardForListBlock(config, bid, dashboard));
+    saveConfig(saveDashboardForListBlock(config, bid, coerceDashboardShape(dashboard)));
     setIsEditingSeries(false);
     setEditingDashboardBlockId(null);
   };
@@ -238,7 +238,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     (editingListContentBlock.type === 'banner' ||
       editingListContentBlock.type === 'editor' ||
       editingListContentBlock.type === 'sectionTitle' ||
-      editingListContentBlock.type === 'alert');
+      editingListContentBlock.type === 'alert' ||
+      editingListContentBlock.type === 'buttons');
 
   if (config === undefined || isEditingWebPart) {
     return (
@@ -302,15 +303,6 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
                 Layout da página
               </ActionButton>
             )}
-            {config.mode !== 'formManager' && (
-            <ActionButton
-              iconProps={{ iconName: 'ColumnOptions' }}
-              onClick={() => setIsEditingTableColumns(true)}
-              styles={{ root: { height: 28, color: '#0078d4' } }}
-            >
-              {config.mode === 'projectManagement' ? 'Editar quadro' : 'Editar colunas'}
-            </ActionButton>
-            )}
             {config.mode === 'formManager' && (
               <ActionButton
                 iconProps={{ iconName: 'FormLibrary' }}
@@ -330,6 +322,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             config={config}
             dashboardListFilters={dashboardListSelection?.filters}
             onItemUpdated={triggerDashboardRefresh}
+            onEditTableColumns={() => setIsEditingTableColumns(true)}
           />
         ) : (
           <ListPageRenderer
@@ -338,6 +331,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             instanceScopeId={instanceScopeId}
             dashboardRefreshKey={dashboardRefreshKey}
             dashboardListSelection={dashboardListSelection}
+            contentPadding={config.listPageLayout?.contentPadding}
+            onEditTableColumns={() => setIsEditingTableColumns(true)}
             onEditCards={(blockId) => {
               setEditingDashboardBlockId(blockId);
               setIsEditingCards(true);

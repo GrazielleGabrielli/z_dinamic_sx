@@ -1506,6 +1506,60 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     });
   }, []);
 
+  const runFinishAfterSuccess = useCallback(
+    async (
+      btn: IFormCustomButtonConfig,
+      valuesForUrl: Record<string, unknown>,
+      itemIdForUrl?: number
+    ): Promise<'none' | 'redirect' | 'cleared'> => {
+      const f = btn.finishAfterRun;
+      if (!f) return 'none';
+      const id = itemIdForUrl !== undefined && itemIdForUrl !== null ? itemIdForUrl : itemId;
+      if (f.kind === 'redirect') {
+        const tpl = (f.redirectUrlTemplate ?? '').trim();
+        if (!tpl) {
+          setFormError('Configure o URL em «Último passo» (redirecionar).');
+          return 'none';
+        }
+        const url = interpolateFormButtonRedirectUrl(tpl, valuesForUrl, { itemId: id, formMode });
+        window.location.assign(url);
+        return 'redirect';
+      }
+      if (f.kind === 'clearForm') {
+        setFormError(undefined);
+        flushSync(() => {
+          const empty = itemToFormValues(undefined, names);
+          setValues(getDefaultValuesFromRules(formManager, empty, dynamicContext));
+          setButtonOverlay({ show: new Set<string>(), hide: new Set<string>() });
+          setPendingFiles([]);
+          setPendingFilesByFolder({});
+          setLocalErrors({});
+          setLinkedPendingByKey({});
+          setLinkedRowErrorsById({});
+        });
+        setStepIndex(0);
+        if (formMode === 'create' && linkedConfigsSorted.length > 0) {
+          setLinkedRowsById((prev) => {
+            const next: Record<string, ILinkedChildRowState[]> = { ...prev };
+            for (let i = 0; i < linkedConfigsSorted.length; i++) {
+              const c = linkedConfigsSorted[i];
+              const min = c.minRows ?? 0;
+              const count = Math.max(min, 1);
+              next[c.id] = Array.from({ length: count }, (_, j) => ({
+                localKey: `new_${c.id}_${j}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                values: {},
+              }));
+            }
+            return next;
+          });
+        }
+        return 'cleared';
+      }
+      return 'none';
+    },
+    [names, formManager, dynamicContext, itemId, formMode, linkedConfigsSorted]
+  );
+
   useEffect(() => {
     if (!visibleStepsForUi?.length) return;
     setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
@@ -1646,7 +1700,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             `Item criado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
           );
         }
-        onDismiss();
+        const fin = await runFinishAfterSuccess(btn, { ...mergedValues, Id: newId }, newId);
+        if (fin !== 'redirect' && fin !== 'cleared') {
+          onDismiss();
+        }
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -1667,6 +1724,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         return;
       }
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
+      let updateBusinessOk = false;
       try {
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
@@ -1704,10 +1762,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             `Gravado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
           );
         }
+        updateBusinessOk = true;
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
         setSubmitUi(null);
+      }
+      if (updateBusinessOk) {
+        await runFinishAfterSuccess(btn, { ...mergedValues, Id: itemId }, itemId);
       }
       return;
     }
@@ -1735,7 +1797,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             `Eliminado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
           );
         }
-        onDismiss();
+        const finDel = await runFinishAfterSuccess(btn, mergedValues, itemId);
+        if (finDel !== 'redirect') {
+          onDismiss();
+        }
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -1756,7 +1821,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setFormError(e instanceof Error ? e.message : String(e));
         return;
       }
-      onDismiss();
+      const finClose = await runFinishAfterSuccess(btn, mergedValues, itemId);
+      if (finClose !== 'redirect') {
+        onDismiss();
+      }
       return;
     }
     if (behavior === 'draft') {
@@ -1772,6 +1840,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             sourceItemId: itemId,
             formMode,
           });
+          await runFinishAfterSuccess(btn, mergedValues, itemId);
         } catch (e) {
           setFormError(e instanceof Error ? e.message : String(e));
         }
@@ -1789,6 +1858,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             sourceItemId: itemId,
             formMode,
           });
+          await runFinishAfterSuccess(btn, mergedValues, itemId);
         } catch (e) {
           setFormError(e instanceof Error ? e.message : String(e));
         }
@@ -1800,6 +1870,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           sourceItemId: itemId,
           formMode,
         });
+        await runFinishAfterSuccess(btn, mergedValues, itemId);
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
       }

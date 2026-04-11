@@ -82,12 +82,32 @@ function isValidCard(card: unknown): card is IDashboardCardConfig {
 function isValidDashboard(db: unknown): db is IDashboardConfig {
   if (!db || typeof db !== 'object') return false;
   const d = db as Record<string, unknown>;
-  return (
-    typeof d.enabled === 'boolean' &&
-    typeof d.cardsCount === 'number' &&
-    Array.isArray(d.cards) &&
-    (d.cards as unknown[]).every(isValidCard)
-  );
+  if (typeof d.enabled !== 'boolean') return false;
+  const cards = Array.isArray(d.cards) ? (d.cards as unknown[]) : [];
+  if (!cards.every(isValidCard)) return false;
+  const cnt =
+    typeof d.cardsCount === 'number' && !Number.isNaN(d.cardsCount as number)
+      ? (d.cardsCount as number)
+      : cards.length;
+  if (cnt < 0) return false;
+  return true;
+}
+
+/** Garante `cards`/`cardsCount` e cópia de `chartSeries` para JSON válido e runtime seguro. */
+export function coerceDashboardShape(d: IDashboardConfig): IDashboardConfig {
+  const defaults = getDefaultConfig().dashboard;
+  const cards = Array.isArray(d.cards) ? d.cards : [];
+  const out: IDashboardConfig = {
+    ...defaults,
+    ...d,
+    cards,
+    cardsCount:
+      typeof d.cardsCount === 'number' && !Number.isNaN(d.cardsCount) ? d.cardsCount : cards.length,
+  };
+  if (Array.isArray(d.chartSeries)) {
+    out.chartSeries = d.chartSeries.map((s) => ({ ...s }));
+  }
+  return out;
 }
 
 function isValidPagination(pg: unknown): pg is IPaginationConfig {
@@ -302,13 +322,38 @@ export function isValidConfig(config: unknown): config is IDynamicViewConfig {
   return true;
 }
 
+/**
+ * Se o JSON falhar validação mas for modo formulário com fonte de dados válida,
+ * repõe partes legadas (dashboard, paginação, listView) com defaults para não perder `formManager`.
+ */
+function repairParsedConfigForFormManagerIfNeeded(parsed: unknown): unknown {
+  if (isValidConfig(parsed)) return parsed;
+  if (!parsed || typeof parsed !== 'object') return parsed;
+  const o = parsed as Record<string, unknown>;
+  if (o.mode !== 'formManager') return parsed;
+  if (!isValidDataSource(o.dataSource)) return parsed;
+  const defaults = getDefaultConfig();
+  let next: Record<string, unknown> = { ...o };
+  if (!isValidDashboard(next.dashboard)) {
+    next = { ...next, dashboard: defaults.dashboard };
+  }
+  if (!isValidPagination(next.pagination)) {
+    next = { ...next, pagination: defaults.pagination };
+  }
+  if (next.listView !== undefined && !isValidListView(next.listView)) {
+    next = { ...next, listView: defaults.listView };
+  }
+  return next;
+}
+
 export function parseConfig(raw: string | undefined): IDynamicViewConfig | undefined {
   if (!raw) return undefined;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!isValidConfig(parsed)) return undefined;
+    const candidate = repairParsedConfigForFormManagerIfNeeded(parsed);
+    if (!isValidConfig(candidate)) return undefined;
     const defaults = getDefaultConfig();
-    const c = parsed as IDynamicViewConfig;
+    const c = candidate as IDynamicViewConfig;
     const projectManagement = sanitizeProjectManagementConfig(c.projectManagement);
     const formManager = sanitizeFormManagerConfig((c as unknown as Record<string, unknown>).formManager);
     if (c.listView === undefined) {
@@ -321,6 +366,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
           : undefined;
       return {
         ...c,
+        dashboard: coerceDashboardShape(c.dashboard),
         listView: defaults.listView,
         projectManagement: projectManagement ?? defaults.projectManagement,
         ...(formManager ? { formManager } : {}),
@@ -336,6 +382,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         : undefined;
     return {
       ...c,
+      dashboard: coerceDashboardShape(c.dashboard),
       ...(formManager ? { formManager } : {}),
       listView: sanitizedListView,
       projectManagement: projectManagement ?? defaults.projectManagement,

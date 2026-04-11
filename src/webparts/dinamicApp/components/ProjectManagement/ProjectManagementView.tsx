@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { MessageBar, MessageBarType, Spinner, Stack, Text } from '@fluentui/react';
+import { ActionButton, MessageBar, MessageBarType, Spinner, Stack, Text } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type {
   IDynamicViewConfig,
@@ -17,6 +17,7 @@ export interface IProjectManagementViewProps {
   config: IDynamicViewConfig;
   dashboardListFilters?: IListViewFilterConfig[];
   onItemUpdated?: () => void;
+  onEditTableColumns?: () => void;
 }
 
 function valueToText(value: unknown, expandField?: string): string {
@@ -80,7 +81,12 @@ function coerceRuleValue(value: string, fieldMeta: IFieldMetadata | undefined): 
   return value;
 }
 
-export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ config, dashboardListFilters, onItemUpdated }) => {
+export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
+  config,
+  dashboardListFilters,
+  onItemUpdated,
+  onEditTableColumns,
+}) => {
   const { dataSource, listView } = config;
   const pm = config.projectManagement;
   const listTitle = dataSource.title;
@@ -222,7 +228,22 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ c
   };
 
   if (columns.length === 0) {
-    return <MessageBar messageBarType={MessageBarType.warning}>Adicione pelo menos uma coluna no quadro.</MessageBar>;
+    return (
+      <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 8 } }}>
+        {onEditTableColumns !== undefined ? (
+          <Stack horizontal horizontalAlign="end" styles={{ root: { width: '100%' } }}>
+            <ActionButton
+              iconProps={{ iconName: 'ColumnOptions' }}
+              onClick={onEditTableColumns}
+              styles={{ root: { height: 30, color: '#0078d4' } }}
+            >
+              Editar quadro
+            </ActionButton>
+          </Stack>
+        ) : null}
+        <MessageBar messageBarType={MessageBarType.warning}>Adicione pelo menos uma coluna no quadro.</MessageBar>
+      </Stack>
+    );
   }
   if (loading) {
     return (
@@ -235,6 +256,17 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({ c
   return (
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 8 } }}>
       {error && <MessageBar messageBarType={MessageBarType.error}>{error}</MessageBar>}
+      {onEditTableColumns !== undefined ? (
+        <Stack horizontal horizontalAlign="end" styles={{ root: { width: '100%' } }}>
+          <ActionButton
+            iconProps={{ iconName: 'ColumnOptions' }}
+            onClick={onEditTableColumns}
+            styles={{ root: { height: 30, color: '#0078d4' } }}
+          >
+            Editar quadro
+          </ActionButton>
+        </Stack>
+      ) : null}
       <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="start" styles={{ root: { overflowX: 'auto', paddingBottom: 8 } }}>
         {columns.map((col) => (
           <Stack

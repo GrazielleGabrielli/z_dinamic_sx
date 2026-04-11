@@ -294,7 +294,24 @@ export type TListPageBlockType =
   | 'banner'
   | 'editor'
   | 'sectionTitle'
-  | 'alert';
+  | 'alert'
+  | 'buttons';
+
+/** Ação de um botão no bloco «Botões» (modo lista). */
+export type TListPageButtonActionKind = 'redirect' | 'reload';
+
+export interface IListPageButtonItemConfig {
+  id: string;
+  label: string;
+  actionKind: TListPageButtonActionKind;
+  /** Obrigatório quando `actionKind` é `redirect`. */
+  url?: string;
+  openInNewTab?: boolean;
+}
+
+export interface IListPageButtonsBlockConfig {
+  items: IListPageButtonItemConfig[];
+}
 
 export type TListPageBannerContentAlign = 'left' | 'center' | 'right';
 
@@ -388,6 +405,7 @@ export interface IListPageBlock {
   editor?: IListPageRichEditorBlockConfig;
   sectionTitle?: IListPageSectionTitleBlockConfig;
   alert?: IListPageAlertBlockConfig;
+  buttons?: IListPageButtonsBlockConfig;
 }
 
 export interface IListPageSection {
@@ -399,6 +417,11 @@ export interface IListPageSection {
 
 export interface IListPageLayoutConfig {
   sections: IListPageSection[];
+  /**
+   * Espaçamento interno da área do layout (CSS padding), ex.: «16px 24px» (vertical horizontal).
+   * Apenas valores «Npx» separados por espaços (1 a 4 valores).
+   */
+  contentPadding?: string;
 }
 
 export type {
@@ -406,6 +429,7 @@ export type {
   IFormManagerActionLogConfig,
   IFormStepNavigationConfig,
   IFormCustomButtonConfig,
+  TFormCustomButtonFinishAfterRun,
   TFormButtonAction,
   TFormCustomButtonBehavior,
   TFormCustomButtonOperation,

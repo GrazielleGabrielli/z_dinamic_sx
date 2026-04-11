@@ -12,6 +12,7 @@ import type {
 import {
   sanitizeAlertConfig,
   sanitizeBannerConfig,
+  sanitizeButtonsConfig,
   sanitizeRichEditorConfig,
   sanitizeSectionTitleConfig,
 } from './listPageBlockConfigUtils';
@@ -136,6 +137,7 @@ export function normalizeListPageLayoutDashboards(
   const n = countDashboardBlocksInSections(layout.sections);
   if (n < 2) return layout;
   return {
+    ...layout,
     sections: layout.sections.map((sec) => ({
       ...sec,
       columns: sec.columns.map((col) =>
@@ -208,6 +210,7 @@ export function replaceBlockInListPageLayout(
   next: IListPageBlock
 ): IListPageLayoutConfig {
   return {
+    ...layout,
     sections: layout.sections.map((sec) => ({
       ...sec,
       columns: sec.columns.map((col) => col.map((b) => (b.id === blockId ? next : b))),
@@ -221,6 +224,7 @@ export function updateDashboardBlockInLayout(
   next: IDashboardConfig
 ): IListPageLayoutConfig {
   return {
+    ...layout,
     sections: layout.sections.map((sec) => ({
       ...sec,
       columns: sec.columns.map((col) =>
@@ -279,6 +283,18 @@ export function getEffectiveListPageSections(config: IDynamicViewConfig): IListP
   return buildLegacyListPageSections(config);
 }
 
+export function sanitizeListPageContentPadding(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const t = raw.trim();
+  if (!t) return undefined;
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 4) return undefined;
+  for (let i = 0; i < parts.length; i++) {
+    if (!/^(0|[1-9]\d{0,3})px$/i.test(parts[i])) return undefined;
+  }
+  return parts.map((p) => p.toLowerCase()).join(' ');
+}
+
 const VALID_LAYOUTS = new Set<string>(['one', 'two', 'three', 'oneThirdLeft', 'oneThirdRight']);
 const VALID_BLOCK_TYPES = new Set<string>([
   'dashboard',
@@ -287,6 +303,7 @@ const VALID_BLOCK_TYPES = new Set<string>([
   'editor',
   'sectionTitle',
   'alert',
+  'buttons',
 ]);
 
 export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | undefined {
@@ -349,6 +366,14 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
             });
             continue;
           }
+          if (type === 'buttons') {
+            blocks.push({
+              id: bid,
+              type,
+              buttons: sanitizeButtonsConfig(bb.buttons),
+            });
+            continue;
+          }
           blocks.push({
             id: bid,
             type,
@@ -360,7 +385,11 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
     }
     sections.push({ id, layout, columns });
   }
-  return sections.length > 0 ? { sections } : undefined;
+  if (sections.length === 0) return undefined;
+  const out: IListPageLayoutConfig = { sections };
+  const pad = sanitizeListPageContentPadding(r.contentPadding);
+  if (pad) out.contentPadding = pad;
+  return out;
 }
 
 export function defaultListPageLayoutFromLegacy(config: IDynamicViewConfig): IListPageLayoutConfig {

@@ -2,11 +2,14 @@ import type {
   IListPageAlertBlockConfig,
   IListPageAlertCountRule,
   IListPageBannerBlockConfig,
+  IListPageButtonItemConfig,
+  IListPageButtonsBlockConfig,
   IListPageRichEditorBlockConfig,
   IListPageSectionTitleBlockConfig,
   TListPageAlertCountOp,
   TListPageAlertVariant,
   TListPageBannerContentAlign,
+  TListPageButtonActionKind,
   TListPageSectionTitleSize,
 } from '../config/types';
 
@@ -66,6 +69,31 @@ export function defaultAlertConfig(): IListPageAlertBlockConfig {
     linkUrl: '',
     linkText: '',
   };
+}
+
+export const MAX_LIST_PAGE_BUTTONS = 20;
+
+function newListPageButtonItemId(): string {
+  return `lpbtn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function defaultButtonsConfig(): IListPageButtonsBlockConfig {
+  return {
+    items: [
+      {
+        id: newListPageButtonItemId(),
+        label: 'Recarregar',
+        actionKind: 'reload',
+      },
+    ],
+  };
+}
+
+function safeListPageButtonRedirectUrl(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  if (/^javascript:/i.test(t)) return '';
+  return t;
 }
 
 const ALIGN: TListPageBannerContentAlign[] = ['left', 'center', 'right'];
@@ -201,6 +229,40 @@ function sanitizeAlertCountRule(raw: unknown): IListPageAlertCountRule | undefin
   if (typeof r.linkUrl === 'string') out.linkUrl = r.linkUrl.trim();
   if (typeof r.linkText === 'string') out.linkText = r.linkText;
   return out;
+}
+
+export function sanitizeButtonsConfig(raw: unknown): IListPageButtonsBlockConfig {
+  const fallback = defaultButtonsConfig();
+  if (!raw || typeof raw !== 'object') return fallback;
+  const o = raw as Record<string, unknown>;
+  const itemsRaw = Array.isArray(o.items) ? o.items : [];
+  const items: IListPageButtonItemConfig[] = [];
+  for (let i = 0; i < itemsRaw.length && items.length < MAX_LIST_PAGE_BUTTONS; i++) {
+    const e = itemsRaw[i];
+    if (!e || typeof e !== 'object') continue;
+    const r = e as Record<string, unknown>;
+    const id = typeof r.id === 'string' && r.id.trim() ? r.id.trim() : newListPageButtonItemId();
+    const label = typeof r.label === 'string' ? r.label.trim() : '';
+    if (!label) continue;
+    const akRaw = r.actionKind === 'reload' ? 'reload' : r.actionKind === 'redirect' ? 'redirect' : '';
+    const actionKind: TListPageButtonActionKind =
+      akRaw === 'reload' || akRaw === 'redirect' ? akRaw : 'redirect';
+    if (actionKind === 'reload') {
+      items.push({ id, label, actionKind: 'reload' });
+      continue;
+    }
+    const url = typeof r.url === 'string' ? safeListPageButtonRedirectUrl(r.url) : '';
+    if (!url) continue;
+    items.push({
+      id,
+      label,
+      actionKind: 'redirect',
+      url,
+      openInNewTab: r.openInNewTab === true,
+    });
+  }
+  if (items.length === 0) return fallback;
+  return { items };
 }
 
 export function sanitizeAlertConfig(raw: unknown): IListPageAlertBlockConfig {

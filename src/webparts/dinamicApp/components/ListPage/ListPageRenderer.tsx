@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Separator } from '@fluentui/react';
+import { ActionButton, Separator, Stack } from '@fluentui/react';
 import type {
   IDashboardCardConfig,
   IDashboardConfig,
@@ -10,11 +10,15 @@ import type {
   IListViewFilterConfig,
   TListPageSectionLayout,
 } from '../../core/config/types';
-import { resolveDashboardForListBlock } from '../../core/listPage/listPageLayoutUtils';
+import {
+  resolveDashboardForListBlock,
+  sanitizeListPageContentPadding,
+} from '../../core/listPage/listPageLayoutUtils';
 import { DashboardView } from '../Dashboard/DashboardView';
 import { TableView } from '../DataTable/TableView';
 import { ListPageAlertBlock } from './ListPageAlertBlock';
 import { ListPageBannerBlock } from './ListPageBannerBlock';
+import { ListPageButtonsBlock } from './ListPageButtonsBlock';
 import { ListPageRichEditorBlock } from './ListPageRichEditorBlock';
 import { ListPageSectionTitleBlock } from './ListPageSectionTitleBlock';
 
@@ -39,6 +43,11 @@ export interface IListPageRendererProps {
   dashboardAppliesListFilter: boolean;
   /** Abre o painel de configuração do bloco (banner / editor) na página. */
   onConfigureListContentBlock?: (blockId: string) => void;
+  /** Exposto acima de cada bloco de tabela (modo lista). */
+  onEditTableColumns?: () => void;
+  editTableColumnsLabel?: string;
+  /** Padding CSS da área do layout (ex. 16px 24px), já validado ao gravar. */
+  contentPadding?: string;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -70,8 +79,15 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   onSeriesClick,
   dashboardAppliesListFilter,
   onConfigureListContentBlock,
+  onEditTableColumns,
+  editTableColumnsLabel = 'Editar colunas',
+  contentPadding,
 }) => {
   const rootDash = config.dashboard;
+  const layoutPadding = React.useMemo(
+    () => sanitizeListPageContentPadding(contentPadding ?? ''),
+    [contentPadding]
+  );
 
   const renderBlock = (block: IListPageBlock): React.ReactNode => {
     if (block.type === 'dashboard') {
@@ -101,12 +117,24 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
     }
     if (block.type === 'list') {
       return (
-        <TableView
-          key={block.id}
-          config={config}
-          dashboardListFilters={dashboardListSelection?.filters}
-          instanceScopeId={`${instanceScopeId}_${block.id}`}
-        />
+        <Stack key={block.id} tokens={{ childrenGap: 8 }}>
+          {onEditTableColumns !== undefined ? (
+            <Stack horizontal horizontalAlign="end" styles={{ root: { width: '100%' } }}>
+              <ActionButton
+                iconProps={{ iconName: 'ColumnOptions' }}
+                onClick={onEditTableColumns}
+                styles={{ root: { height: 30, color: '#0078d4' } }}
+              >
+                {editTableColumnsLabel}
+              </ActionButton>
+            </Stack>
+          ) : null}
+          <TableView
+            config={config}
+            dashboardListFilters={dashboardListSelection?.filters}
+            instanceScopeId={`${instanceScopeId}_${block.id}`}
+          />
+        </Stack>
       );
     }
     if (block.type === 'banner') {
@@ -162,10 +190,23 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
         />
       );
     }
+    if (block.type === 'buttons') {
+      return (
+        <ListPageButtonsBlock
+          key={block.id}
+          buttons={block.buttons}
+          onConfigure={
+            onConfigureListContentBlock !== undefined
+              ? () => onConfigureListContentBlock(block.id)
+              : undefined
+          }
+        />
+      );
+    }
     return null;
   };
 
-  return (
+  const inner = (
     <>
       {sections.map((section, si) => (
         <React.Fragment key={section.id}>
@@ -202,4 +243,14 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
       ))}
     </>
   );
+
+  if (layoutPadding) {
+    return (
+      <div style={{ padding: layoutPadding, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+        {inner}
+      </div>
+    );
+  }
+
+  return inner;
 };

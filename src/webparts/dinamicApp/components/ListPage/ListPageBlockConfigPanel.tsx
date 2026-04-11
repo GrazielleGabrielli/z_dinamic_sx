@@ -20,19 +20,25 @@ import type {
   IListPageAlertCountRule,
   IListPageBannerBlockConfig,
   IListPageBlock,
+  IListPageButtonItemConfig,
+  IListPageButtonsBlockConfig,
   IListPageRichEditorBlockConfig,
   IListPageSectionTitleBlockConfig,
   TListPageAlertCountOp,
   TListPageAlertVariant,
   TListPageBannerContentAlign,
+  TListPageButtonActionKind,
   TListPageSectionTitleSize,
 } from '../../core/config/types';
 import {
   defaultAlertConfig,
   defaultBannerConfig,
+  defaultButtonsConfig,
   defaultRichEditorConfig,
   defaultSectionTitleConfig,
   MAX_ALERT_COUNT_RULES,
+  MAX_LIST_PAGE_BUTTONS,
+  sanitizeButtonsConfig,
 } from '../../core/listPage/listPageBlockConfigUtils';
 import { ListPageRichQuillEditor } from './ListPageRichQuillEditor';
 
@@ -88,17 +94,34 @@ function newAlertCountRule(): IListPageAlertCountRule {
   };
 }
 
+function newListPageButtonDraft(): IListPageButtonItemConfig {
+  return {
+    id: `lpbtn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    label: '',
+    actionKind: 'redirect',
+    url: '',
+    openInNewTab: false,
+  };
+}
+
+const BUTTON_ACTION_OPTIONS: IDropdownOption[] = [
+  { key: 'redirect', text: 'Redirecionar (URL)' },
+  { key: 'reload', text: 'Recarregar página' },
+];
+
 function panelHeaderForBlockType(t: IListPageBlock['type']): string {
   if (t === 'banner') return 'Banner';
   if (t === 'editor') return 'Editor de conteúdo';
   if (t === 'sectionTitle') return 'Título de seção';
   if (t === 'alert') return 'Alerta / aviso';
+  if (t === 'buttons') return 'Botões';
   return '';
 }
 
 function panelWidthForBlockType(t: IListPageBlock['type']): string {
   if (t === 'editor') return '620px';
   if (t === 'alert') return '560px';
+  if (t === 'buttons') return '520px';
   return '480px';
 }
 
@@ -114,6 +137,7 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
   const [editorHtmlSourceMode, setEditorHtmlSourceMode] = useState(false);
   const [sectionTitle, setSectionTitle] = useState<IListPageSectionTitleBlockConfig>(defaultSectionTitleConfig);
   const [alertCfg, setAlertCfg] = useState<IListPageAlertBlockConfig>(defaultAlertConfig);
+  const [buttonsCfg, setButtonsCfg] = useState<IListPageButtonsBlockConfig>(() => defaultButtonsConfig());
 
   useEffect(() => {
     if (!isOpen || !block) return;
@@ -134,6 +158,12 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
         : [];
       setAlertCfg(src);
     }
+    if (block.type === 'buttons') {
+      const items = block.buttons?.items?.length
+        ? block.buttons.items.map((it) => ({ ...it }))
+        : defaultButtonsConfig().items.map((it) => ({ ...it }));
+      setButtonsCfg({ items });
+    }
   }, [isOpen, block]);
 
   if (
@@ -141,7 +171,8 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
     (block.type !== 'banner' &&
       block.type !== 'editor' &&
       block.type !== 'sectionTitle' &&
-      block.type !== 'alert')
+      block.type !== 'alert' &&
+      block.type !== 'buttons')
   ) {
     return null;
   }
@@ -153,6 +184,8 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
       onApply({ ...block, editor: { ...editor, html: editor.html } });
     } else if (block.type === 'sectionTitle') {
       onApply({ ...block, sectionTitle });
+    } else if (block.type === 'buttons') {
+      onApply({ ...block, buttons: sanitizeButtonsConfig({ items: buttonsCfg.items }) });
     } else {
       const rules = alertCfg.countRules ?? [];
       const alert: IListPageAlertBlockConfig = {
@@ -745,6 +778,152 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
                     });
                   }}
                 />
+              </Stack>
+            ))}
+          </>
+        ) : null}
+        {block.type === 'buttons' ? (
+          <>
+            <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+              Tipos: abrir uma URL (mesma aba ou nova) ou recarregar a página atual. Ao aplicar, linhas sem texto ou
+              redirecionamento sem URL válida são ignoradas (máximo {MAX_LIST_PAGE_BUTTONS} botões).
+            </Text>
+            <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+              <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                Botões
+              </Text>
+              <IconButton
+                iconProps={{ iconName: 'Add' }}
+                title="Adicionar botão"
+                ariaLabel="Adicionar botão"
+                disabled={buttonsCfg.items.length >= MAX_LIST_PAGE_BUTTONS}
+                onClick={() =>
+                  setButtonsCfg((b) => ({ ...b, items: [...b.items, newListPageButtonDraft()] }))
+                }
+              />
+            </Stack>
+            {buttonsCfg.items.map((item, idx) => (
+              <Stack
+                key={item.id}
+                tokens={{ childrenGap: 8 }}
+                styles={{
+                  root: {
+                    border: '1px solid #edebe9',
+                    borderRadius: 4,
+                    padding: 10,
+                    background: '#faf9f8',
+                  },
+                }}
+              >
+                <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Botão {idx + 1}
+                  </Text>
+                  <Stack horizontal verticalAlign="center">
+                    <IconButton
+                      iconProps={{ iconName: 'ChevronUpSmall' }}
+                      title="Subir"
+                      ariaLabel="Subir botão"
+                      disabled={idx === 0}
+                      onClick={() =>
+                        setButtonsCfg((b) => {
+                          const items = [...b.items];
+                          if (idx <= 0) return b;
+                          [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
+                          return { ...b, items };
+                        })
+                      }
+                    />
+                    <IconButton
+                      iconProps={{ iconName: 'ChevronDownSmall' }}
+                      title="Descer"
+                      ariaLabel="Descer botão"
+                      disabled={idx >= buttonsCfg.items.length - 1}
+                      onClick={() =>
+                        setButtonsCfg((b) => {
+                          const items = [...b.items];
+                          if (idx >= items.length - 1) return b;
+                          [items[idx + 1], items[idx]] = [items[idx], items[idx + 1]];
+                          return { ...b, items };
+                        })
+                      }
+                    />
+                    <IconButton
+                      iconProps={{ iconName: 'Delete' }}
+                      title="Remover"
+                      ariaLabel="Remover botão"
+                      disabled={buttonsCfg.items.length <= 1}
+                      onClick={() =>
+                        setButtonsCfg((b) => ({
+                          ...b,
+                          items: b.items.filter((_, i) => i !== idx),
+                        }))
+                      }
+                    />
+                  </Stack>
+                </Stack>
+                <TextField
+                  label="Texto do botão"
+                  value={item.label}
+                  onChange={(_, v) => {
+                    const s = v ?? '';
+                    setButtonsCfg((b) => {
+                      const items = [...b.items];
+                      items[idx] = { ...items[idx], label: s };
+                      return { ...b, items };
+                    });
+                  }}
+                />
+                <Dropdown
+                  label="Tipo"
+                  selectedKey={item.actionKind}
+                  options={BUTTON_ACTION_OPTIONS}
+                  onChange={(_, opt) => {
+                    const k = opt?.key as TListPageButtonActionKind | undefined;
+                    if (k !== 'redirect' && k !== 'reload') return;
+                    setButtonsCfg((b) => {
+                      const items = [...b.items];
+                      const cur = { ...items[idx], actionKind: k };
+                      if (k === 'reload') {
+                        delete cur.url;
+                        delete cur.openInNewTab;
+                      } else {
+                        cur.url = cur.url ?? '';
+                        cur.openInNewTab = Boolean(cur.openInNewTab);
+                      }
+                      items[idx] = cur as IListPageButtonItemConfig;
+                      return { ...b, items };
+                    });
+                  }}
+                />
+                {item.actionKind === 'redirect' ? (
+                  <>
+                    <TextField
+                      label="URL de destino"
+                      value={item.url ?? ''}
+                      onChange={(_, v) => {
+                        const s = v ?? '';
+                        setButtonsCfg((b) => {
+                          const items = [...b.items];
+                          items[idx] = { ...items[idx], url: s };
+                          return { ...b, items };
+                        });
+                      }}
+                      description="Caminho relativo ou endereço completo (https://…)."
+                    />
+                    <Toggle
+                      label="Abrir em nova aba"
+                      checked={item.openInNewTab === true}
+                      onChange={(_, c) =>
+                        setButtonsCfg((b) => {
+                          const items = [...b.items];
+                          items[idx] = { ...items[idx], openInNewTab: Boolean(c) };
+                          return { ...b, items };
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
               </Stack>
             ))}
           </>

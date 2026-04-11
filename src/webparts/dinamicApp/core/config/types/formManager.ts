@@ -519,6 +519,11 @@ export interface IFormCustomButtonConfirmConfig {
   message?: string;
 }
 
+/** Último efeito do botão após ações e o resto do fluxo (gravar, log, etc.), se não houve erro bloqueante. */
+export type TFormCustomButtonFinishAfterRun =
+  | { kind: 'redirect'; redirectUrlTemplate: string }
+  | { kind: 'clearForm' };
+
 export interface IFormCustomButtonConfig {
   id: string;
   label: string;
@@ -553,6 +558,8 @@ export interface IFormCustomButtonConfig {
    * «Cancelar» não executa nada; «Confirmar» segue o fluxo normal.
    */
   confirmBeforeRun?: IFormCustomButtonConfirmConfig;
+  /** Redirecionar ou limpar o formulário após todo o fluxo do botão concluir com sucesso. */
+  finishAfterRun?: TFormCustomButtonFinishAfterRun;
   actions: TFormButtonAction[];
 }
 
