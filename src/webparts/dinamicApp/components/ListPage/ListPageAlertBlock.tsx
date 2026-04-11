@@ -1,11 +1,18 @@
 import * as React from 'react';
-import { useState } from 'react';
-import { Link, MessageBar, MessageBarType, Stack, Text, ActionButton } from '@fluentui/react';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, MessageBar, MessageBarType, Stack, Text, ActionButton, Spinner } from '@fluentui/react';
 import type { IListPageAlertBlockConfig, TListPageAlertVariant } from '../../core/config/types';
-import { defaultAlertConfig } from '../../core/listPage/listPageBlockConfigUtils';
+import {
+  defaultAlertConfig,
+  listAlertCountMatches,
+  mergeAlertWithCountRule,
+} from '../../core/listPage/listPageBlockConfigUtils';
+import { ItemsService } from '../../../../services';
 
 export interface IListPageAlertBlockProps {
   alert?: IListPageAlertBlockConfig;
+  /** Lista da vista (contagem OData). */
+  listTitle?: string;
   onConfigure?: () => void;
 }
 
@@ -23,9 +30,84 @@ const DEFAULT_ICON: Record<TListPageAlertVariant, string> = {
   error: 'ErrorBadge',
 };
 
-export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({ alert: raw, onConfigure }) => {
-  const c = raw ?? defaultAlertConfig();
+export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
+  alert: raw,
+  listTitle = '',
+  onConfigure,
+}) => {
+  const base = useMemo(() => {
+    if (!raw) return defaultAlertConfig();
+    return {
+      ...raw,
+      countRules: raw.countRules?.map((r) => ({ ...r })),
+    };
+  }, [
+    raw?.title,
+    raw?.message,
+    raw?.variant,
+    raw?.iconName,
+    raw?.dismissible,
+    raw?.emphasized,
+    raw?.linkUrl,
+    raw?.linkText,
+    JSON.stringify(raw?.countRules ?? null),
+  ]);
+  const itemsService = useMemo(() => new ItemsService(), []);
+  const [effective, setEffective] = useState<IListPageAlertBlockConfig>(base);
+  const [countLoading, setCountLoading] = useState(false);
+  const [countErr, setCountErr] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const rules = base.countRules ?? [];
+    if (!rules.length) {
+      setEffective(base);
+      setCountLoading(false);
+      setCountErr(undefined);
+      return;
+    }
+    const lt = listTitle.trim();
+    if (!lt) {
+      setEffective(base);
+      setCountLoading(false);
+      setCountErr(undefined);
+      return;
+    }
+    let cancel = false;
+    setCountLoading(true);
+    setCountErr(undefined);
+    void (async () => {
+      try {
+        for (let i = 0; i < rules.length; i++) {
+          const rule = rules[i];
+          const cnt = await itemsService.countItems(lt, rule.odataFilter);
+          if (cancel) return;
+          if (listAlertCountMatches(cnt, rule.countOp, rule.count)) {
+            if (!cancel) setEffective(mergeAlertWithCountRule(base, rule));
+            if (!cancel) setCountLoading(false);
+            return;
+          }
+        }
+        if (!cancel) setEffective(base);
+      } catch (e) {
+        if (!cancel) {
+          setEffective(base);
+          setCountErr(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        if (!cancel) setCountLoading(false);
+      }
+    })();
+    return (): void => {
+      cancel = true;
+    };
+  }, [base, itemsService, listTitle]);
+
+  const c = effective;
   const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    setDismissed(false);
+  }, [c.title, c.message, c.variant, c.iconName]);
+
   const iconOverride = c.iconName.trim();
   const hasLink = Boolean(c.linkUrl.trim() && c.linkText.trim());
   const hasBody = Boolean(c.title.trim() || c.message.trim() || hasLink);
@@ -55,7 +137,12 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({ alert: 
     ) : null;
 
   if (dismissed && c.dismissible) {
-    return toolbar;
+    return (
+      <Stack tokens={{ childrenGap: 6 }}>
+        {toolbar}
+        {countLoading && <Spinner label="A avaliar regras de contagem…" />}
+      </Stack>
+    );
   }
 
   const emphasizedStyles = c.emphasized
@@ -71,6 +158,11 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({ alert: 
 
   const inner = (
     <Stack tokens={{ childrenGap: 8 }}>
+      {countErr && (
+        <Text variant="small" styles={{ root: { color: '#a4262c' } }}>
+          Contagem: {countErr}
+        </Text>
+      )}
       {c.title.trim() ? (
         <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
           {c.title}
@@ -98,6 +190,9 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({ alert: 
   return (
     <>
       {toolbar}
+      {countLoading && !dismissed ? (
+        <Spinner label="A avaliar regras de contagem…" styles={{ root: { marginBottom: 8 } }} />
+      ) : null}
       <MessageBar
         messageBarType={messageBarTypeForVariant(c.variant)}
         isMultiline

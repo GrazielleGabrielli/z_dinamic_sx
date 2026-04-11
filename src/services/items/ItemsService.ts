@@ -309,9 +309,14 @@ export class ItemsService {
     }
   }
 
-  async countItems(listTitleOrId: string, filter: string): Promise<number> {
+  async countItems(listTitleOrId: string, filter?: string): Promise<number> {
     try {
-      const items = await listRef(this.sp, listTitleOrId).items.filter(filter).select('Id').top(5000)();
+      const f = (filter ?? '').trim();
+      let query = listRef(this.sp, listTitleOrId).items.select('Id').top(5000);
+      if (f) {
+        query = query.filter(f);
+      }
+      const items = await query();
       return Array.isArray(items) ? items.length : 0;
     } catch (e) {
       throw new Error(`ItemsService.countItems("${listTitleOrId}"): ${e}`);

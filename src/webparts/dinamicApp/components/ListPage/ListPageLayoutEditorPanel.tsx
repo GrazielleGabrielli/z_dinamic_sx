@@ -1,10 +1,14 @@
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Panel,
   PanelType,
   Stack,
   Text,
+  TextField,
+  Link,
+  MessageBar,
+  MessageBarType,
   PrimaryButton,
   DefaultButton,
   IconButton,
@@ -32,6 +36,7 @@ import {
   countDashboardBlocksInSections,
   normalizeListPageLayoutDashboards,
   reshapeSectionColumns,
+  sanitizeListPageLayout,
 } from '../../core/listPage/listPageLayoutUtils';
 import { ListPageBlockConfigPanel } from './ListPageBlockConfigPanel';
 
@@ -39,6 +44,8 @@ export interface IListPageLayoutEditorPanelProps {
   isOpen: boolean;
   value: IListPageLayoutConfig;
   rootDashboard: IDashboardConfig;
+  /** Título da lista da vista (regras de contagem no alerta). */
+  sourceListTitle?: string;
   onSave: (next: IListPageLayoutConfig) => void;
   onDismiss: () => void;
 }
@@ -82,6 +89,49 @@ function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function finalizeListPageLayoutForSave(
+  sections: IListPageSection[],
+  rootDashboard: IDashboardConfig
+): IListPageLayoutConfig {
+  const cleaned: IListPageSection[] = [];
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i];
+    const nc = columnCountForLayout(s.layout);
+    const cols: IListPageBlock[][] = [];
+    for (let c = 0; c < nc; c++) {
+      cols.push(
+        (s.columns[c] ?? []).filter((b) => b.id && VALID_SAVE_BLOCK_TYPES.indexOf(b.type) !== -1)
+      );
+    }
+    cleaned.push({
+      id: s.id.trim() || newId('sec'),
+      layout: s.layout,
+      columns: cols,
+    });
+  }
+  if (cleaned.length === 0) {
+    cleaned.push({ id: newId('sec'), layout: 'one', columns: [[{ id: newId('blk'), type: 'list' }]] });
+  }
+  let hasList = false;
+  for (let si = 0; si < cleaned.length && !hasList; si++) {
+    const cols = cleaned[si].columns;
+    for (let ci = 0; ci < cols.length && !hasList; ci++) {
+      const blocks = cols[ci];
+      for (let bi = 0; bi < blocks.length; bi++) {
+        if (blocks[bi].type === 'list') {
+          hasList = true;
+          break;
+        }
+      }
+    }
+  }
+  if (!hasList) {
+    cleaned.push({ id: newId('sec'), layout: 'one', columns: [[{ id: newId('blk'), type: 'list' }]] });
+  }
+  const normalized = normalizeListPageLayoutDashboards({ sections: cleaned }, rootDashboard).sections;
+  return { sections: normalized };
+}
+
 function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
   return {
     sections: v.sections.map((s) => ({
@@ -94,7 +144,12 @@ function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
           if (b.banner) x.banner = { ...b.banner };
           if (b.editor) x.editor = { ...b.editor };
           if (b.sectionTitle) x.sectionTitle = { ...b.sectionTitle };
-          if (b.alert) x.alert = { ...b.alert };
+          if (b.alert) {
+            x.alert = { ...b.alert };
+            if (b.alert.countRules?.length) {
+              x.alert.countRules = b.alert.countRules.map((r) => ({ ...r }));
+            }
+          }
           return x;
         })
       ),
@@ -106,10 +161,14 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   isOpen,
   value,
   rootDashboard,
+  sourceListTitle,
   onSave,
   onDismiss,
 }) => {
   const [sections, setSections] = useState<IListPageSection[]>(() => value.sections.slice());
+  const [jsonOpen, setJsonOpen] = useState(false);
+  const [jsonPanelText, setJsonPanelText] = useState('');
+  const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
   const [blockConfigPath, setBlockConfigPath] = useState<{
     si: number;
     ci: number;
@@ -127,6 +186,36 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       setSections(cloneLayout(value).sections);
     }
   }, [isOpen, value]);
+
+  const layoutJsonPreview = useMemo(
+    () => JSON.stringify(finalizeListPageLayoutForSave(sections, rootDashboard), null, 2),
+    [sections, rootDashboard]
+  );
+  const layoutJsonPreviewRef = useRef(layoutJsonPreview);
+  layoutJsonPreviewRef.current = layoutJsonPreview;
+  useEffect(() => {
+    if (jsonOpen) {
+      setJsonPanelText(layoutJsonPreviewRef.current);
+      setJsonPanelErr(undefined);
+    }
+  }, [jsonOpen]);
+
+  const applyLayoutJsonFromPanel = useCallback(() => {
+    setJsonPanelErr(undefined);
+    try {
+      const parsed: unknown = JSON.parse(jsonPanelText);
+      const sanitized = sanitizeListPageLayout(parsed);
+      if (!sanitized) {
+        setJsonPanelErr('JSON inválido ou estrutura não reconhecida.');
+        return;
+      }
+      const next = finalizeListPageLayoutForSave(sanitized.sections, rootDashboard);
+      setSections(next.sections);
+      setJsonPanelText(JSON.stringify(next, null, 2));
+    } catch (e) {
+      setJsonPanelErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [jsonPanelText, rootDashboard]);
 
   const addSection = (): void => {
     setSections((prev) => [
@@ -194,43 +283,7 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   };
 
   const handleSave = (): void => {
-    const cleaned: IListPageSection[] = [];
-    for (let i = 0; i < sections.length; i++) {
-      const s = sections[i];
-      const nc = columnCountForLayout(s.layout);
-      const cols: IListPageBlock[][] = [];
-      for (let c = 0; c < nc; c++) {
-        cols.push(
-          (s.columns[c] ?? []).filter((b) => b.id && VALID_SAVE_BLOCK_TYPES.indexOf(b.type) !== -1)
-        );
-      }
-      cleaned.push({
-        id: s.id.trim() || newId('sec'),
-        layout: s.layout,
-        columns: cols,
-      });
-    }
-    if (cleaned.length === 0) {
-      cleaned.push({ id: newId('sec'), layout: 'one', columns: [[{ id: newId('blk'), type: 'list' }]] });
-    }
-    let hasList = false;
-    for (let si = 0; si < cleaned.length && !hasList; si++) {
-      const cols = cleaned[si].columns;
-      for (let ci = 0; ci < cols.length && !hasList; ci++) {
-        const blocks = cols[ci];
-        for (let bi = 0; bi < blocks.length; bi++) {
-          if (blocks[bi].type === 'list') {
-            hasList = true;
-            break;
-          }
-        }
-      }
-    }
-    if (!hasList) {
-      cleaned.push({ id: newId('sec'), layout: 'one', columns: [[{ id: newId('blk'), type: 'list' }]] });
-    }
-    const normalized = normalizeListPageLayoutDashboards({ sections: cleaned }, rootDashboard).sections;
-    onSave({ sections: normalized });
+    onSave(finalizeListPageLayoutForSave(sections, rootDashboard));
     onDismiss();
   };
 
@@ -276,6 +329,9 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       )}
     >
       <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 12, maxWidth: '100%' } }}>
+        <Stack horizontal horizontalAlign="end">
+          <Link onClick={() => setJsonOpen(true)}>JSON (ver / colar)</Link>
+        </Stack>
         <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
           Monte seções como em páginas modernas: colunas por seção e blocos (dashboard, tabela, banner, editor,
           título de seção ou alerta). Use a engrenagem para configurar esses blocos de conteúdo. Lista e
@@ -385,9 +441,36 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     <ListPageBlockConfigPanel
       isOpen={blockConfigPath !== null && editingBlock !== null}
       block={editingBlock}
+      listTitle={sourceListTitle ?? ''}
       onDismiss={() => setBlockConfigPath(null)}
       onApply={applyBlockConfig}
     />
+    <Panel
+      isOpen={jsonOpen}
+      type={PanelType.medium}
+      headerText="Layout da página (JSON)"
+      onDismiss={() => setJsonOpen(false)}
+    >
+      <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+        Objeto com «sections» (listPageLayout). Aplicar carrega no editor; Salvar na janela principal grava na vista.
+      </Text>
+      {jsonPanelErr && (
+        <MessageBar messageBarType={MessageBarType.error} styles={{ root: { marginBottom: 8 } }}>
+          {jsonPanelErr}
+        </MessageBar>
+      )}
+      <TextField
+        multiline
+        rows={22}
+        value={jsonPanelText}
+        onChange={(_, v) => setJsonPanelText(v ?? '')}
+        styles={{ root: { fontFamily: 'monospace', fontSize: 12 } }}
+      />
+      <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 12 } }}>
+        <PrimaryButton text="Aplicar JSON" onClick={() => applyLayoutJsonFromPanel()} />
+        <DefaultButton text="Fechar" onClick={() => setJsonOpen(false)} />
+      </Stack>
+    </Panel>
     </>
   );
 };

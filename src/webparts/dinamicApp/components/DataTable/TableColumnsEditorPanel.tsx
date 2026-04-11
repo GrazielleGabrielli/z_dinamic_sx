@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Panel,
   PanelType,
@@ -23,6 +23,8 @@ import {
   Icon,
   Pivot,
   PivotItem,
+  MessageBar,
+  MessageBarType,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
@@ -54,6 +56,7 @@ import {
 import { isNoteFieldMeta } from '../../core/listView';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
+import { sanitizeListTableEditorBundle } from '../../core/config/validators';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
@@ -102,6 +105,25 @@ function toFieldOption(meta: IFieldMetadata, existing?: IListViewColumnConfig): 
     label: existing?.label ?? meta.Title,
     expandField,
   };
+}
+
+function applyColumnsToOptions(opts: IFieldOption[], cols: IListViewColumnConfig[]): IFieldOption[] {
+  const map = new Map(opts.map((o) => [o.meta.InternalName, o]));
+  const ordered: IFieldOption[] = [];
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    const o = map.get(c.field);
+    if (!o) continue;
+    ordered.push({
+      ...o,
+      selected: true,
+      label: c.label && c.label.trim() ? c.label : o.meta.Title,
+      expandField: c.expandField ?? o.expandField,
+    });
+    map.delete(c.field);
+  }
+  map.forEach((o) => ordered.push({ ...o, selected: false }));
+  return ordered;
 }
 
 function buildOptions(
@@ -277,6 +299,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [formulasFilterIndex, setFormulasFilterIndex] = useState<number | null>(null);
   const [formulasTarget, setFormulasTarget] = useState<HTMLElement | null>(null);
   const panelWasOpenRef = useRef(false);
+  const [carryListView, setCarryListView] = useState<IListViewConfig>(listView);
+  const [jsonOpen, setJsonOpen] = useState(false);
+  const [jsonPanelText, setJsonPanelText] = useState('');
+  const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
 
   const fieldsService = useMemo(() => new FieldsService(), []);
 
@@ -320,6 +346,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       return;
     }
     panelWasOpenRef.current = true;
+    setCarryListView(listView);
     setPaginationEnabled(pagination.enabled);
     setPageSize(pagination.pageSize);
     setPaginationLayout(pagination.layout ?? 'buttons');
@@ -550,7 +577,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     });
   };
 
-  const handleSave = (): void => {
+  const buildSavePayload = useCallback(() => {
     const columns: IListViewColumnConfig[] = options
       .filter((o) => o.selected)
       .map((o) => {
@@ -633,23 +660,120 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         scope: a.scope === 'wholeRow' ? 'wholeRow' : 'icon',
       });
     }
-    onSave(
-      {
-        ...listView,
-        columns,
-        viewModes,
-        activeViewModeId,
-        pdfExportEnabled,
-        listCardViewEnabled,
-        customTableCssSlots: undefined,
-        ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
-        ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
-        ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
-      },
-      nextPagination,
-      localPdfTemplate,
-      nextProjectManagement
-    );
+    const listViewOut: IListViewConfig = {
+      ...carryListView,
+      columns,
+      viewModes,
+      activeViewModeId,
+      pdfExportEnabled,
+      listCardViewEnabled,
+      customTableCssSlots: undefined,
+      ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
+      ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
+      ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
+    };
+    return {
+      listView: listViewOut,
+      pagination: nextPagination,
+      pdfTemplate: localPdfTemplate,
+      projectManagement: nextProjectManagement,
+    };
+  }, [
+    options,
+    pagination,
+    paginationEnabled,
+    pageSize,
+    paginationLayout,
+    layoutCssText,
+    projectColumns,
+    mode,
+    projectManagement,
+    rowStyleRules,
+    rowActions,
+    carryListView,
+    viewModes,
+    activeViewModeId,
+    pdfExportEnabled,
+    listCardViewEnabled,
+    localPdfTemplate,
+  ]);
+
+  const tableJsonPreviewRef = useRef(buildSavePayload());
+  tableJsonPreviewRef.current = buildSavePayload();
+  useEffect(() => {
+    if (jsonOpen) {
+      setJsonPanelText(JSON.stringify(tableJsonPreviewRef.current, null, 2));
+      setJsonPanelErr(undefined);
+    }
+  }, [jsonOpen]);
+
+  const applyJsonFromPanel = useCallback(() => {
+    setJsonPanelErr(undefined);
+    try {
+      const parsed: unknown = JSON.parse(jsonPanelText);
+      const fallbackPagination: IPaginationConfig = {
+        ...pagination,
+        enabled: paginationEnabled,
+        pageSize,
+        layout: paginationLayout,
+        pageSizeOptions: pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS,
+      };
+      const bundle = sanitizeListTableEditorBundle(
+        parsed,
+        {
+          listView: carryListView,
+          pagination: fallbackPagination,
+          pdfTemplate: localPdfTemplate,
+          projectManagement,
+        },
+        mode
+      );
+      if (!bundle) {
+        setJsonPanelErr('JSON inválido ou estrutura não reconhecida.');
+        return;
+      }
+      if (options.length === 0 && bundle.listView.columns.length > 0) {
+        setJsonPanelErr('Aguarde o carregamento dos campos da lista antes de aplicar colunas.');
+        return;
+      }
+      setCarryListView(bundle.listView);
+      setPaginationEnabled(bundle.pagination.enabled);
+      setPageSize(bundle.pagination.pageSize);
+      setPaginationLayout(bundle.pagination.layout ?? 'buttons');
+      setLocalPdfTemplate(bundle.pdfTemplate);
+      if (mode === 'projectManagement' && bundle.projectManagement) {
+        setProjectColumns(
+          bundle.projectManagement.columns?.length ? bundle.projectManagement.columns : DEFAULT_PROJECT_COLUMNS
+        );
+      }
+      setPdfExportEnabled(bundle.listView.pdfExportEnabled ?? false);
+      setListCardViewEnabled(bundle.listView.listCardViewEnabled ?? false);
+      setLayoutCssText(mergeCustomTableCss(bundle.listView.customTableCssSlots, bundle.listView.customTableCss));
+      setViewModes(bundle.listView.viewModes?.length ? bundle.listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
+      setActiveViewModeId(bundle.listView.activeViewModeId ?? 'all');
+      setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
+      setRowActions([...(bundle.listView.listRowActions ?? [])]);
+      setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
+      setJsonPanelText(JSON.stringify(bundle, null, 2));
+    } catch (e) {
+      setJsonPanelErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [
+    jsonPanelText,
+    carryListView,
+    pagination,
+    paginationEnabled,
+    pageSize,
+    paginationLayout,
+    localPdfTemplate,
+    projectManagement,
+    mode,
+    options.length,
+  ]);
+
+  const handleSave = (): void => {
+    const p = buildSavePayload();
+    onSave(p.listView, p.pagination, p.pdfTemplate, p.projectManagement);
     onDismiss();
   };
 
@@ -712,6 +836,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   );
 
   return (
+    <>
     <Panel
       isOpen={isOpen}
       onDismiss={onDismiss}
@@ -739,6 +864,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       )}
     >
       <div style={{ paddingTop: 16, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
+        {(mode === 'list' || mode === 'projectManagement') && (
+          <Stack horizontal horizontalAlign="end" styles={{ root: { marginBottom: 8 } }}>
+            <Link onClick={() => setJsonOpen(true)}>JSON (ver / colar)</Link>
+          </Stack>
+        )}
         {loading ? (
           <Stack horizontalAlign="center" tokens={{ childrenGap: 12 }} style={{ padding: 24 }}>
             <Spinner size={SpinnerSize.medium} />
@@ -1343,5 +1473,33 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         )}
       </div>
     </Panel>
+    <Panel
+      isOpen={jsonOpen}
+      type={PanelType.medium}
+      headerText="Lista / tabela (JSON)"
+      onDismiss={() => setJsonOpen(false)}
+    >
+      <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+        Objeto com «listView», «pagination» e opcionalmente «pdfTemplate» e «projectManagement». Aplicar carrega no
+        painel; Salvar grava na vista.
+      </Text>
+      {jsonPanelErr && (
+        <MessageBar messageBarType={MessageBarType.error} styles={{ root: { marginBottom: 8 } }}>
+          {jsonPanelErr}
+        </MessageBar>
+      )}
+      <TextField
+        multiline
+        rows={22}
+        value={jsonPanelText}
+        onChange={(_, v) => setJsonPanelText(v ?? '')}
+        styles={{ root: { fontFamily: 'monospace', fontSize: 12 } }}
+      />
+      <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 12 } }}>
+        <PrimaryButton text="Aplicar JSON" onClick={() => applyJsonFromPanel()} />
+        <DefaultButton text="Fechar" onClick={() => setJsonOpen(false)} />
+      </Stack>
+    </Panel>
+    </>
   );
 };

@@ -17,6 +17,9 @@ import {
   Label,
   Link,
   Icon,
+  Dialog,
+  DialogFooter,
+  DialogType,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type {
@@ -24,6 +27,7 @@ import type {
   IFormFieldConfig,
   IFormCustomButtonConfig,
   IFormLinkedChildFormConfig,
+  TFormCustomButtonConfirmKind,
   TFormButtonAction,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
@@ -373,6 +377,22 @@ function cloneStringSet(s: Set<string>): Set<string> {
     n.add(x);
   });
   return n;
+}
+
+function confirmKindToIconSpec(kind: TFormCustomButtonConfirmKind | undefined): { iconName: string; color: string } {
+  switch (kind) {
+    case 'success':
+      return { iconName: 'CompletedSolid', color: '#107c10' };
+    case 'warning':
+      return { iconName: 'WarningSolid', color: '#d83b01' };
+    case 'error':
+      return { iconName: 'StatusErrorFull', color: '#a4262c' };
+    case 'blocked':
+      return { iconName: 'Blocked2Solid', color: '#605e5c' };
+    case 'info':
+    default:
+      return { iconName: 'InfoSolid', color: '#0078d4' };
+  }
 }
 
 const REQ_EMPTY_BORDER = '#a4262c';
@@ -1455,6 +1475,37 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     fixosStepConfig === undefined || stepVisibleInFormMode(fixosStepConfig, formMode);
   const [stepIndex, setStepIndex] = useState(0);
   const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
+  const confirmRunResolveRef = useRef<((ok: boolean) => void) | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmDialogView, setConfirmDialogView] = useState<{
+    kind: TFormCustomButtonConfirmKind;
+    message: string;
+    title: string;
+  } | null>(null);
+
+  const closeButtonConfirmDialog = useCallback((ok: boolean) => {
+    setConfirmDialogOpen(false);
+    setConfirmDialogView(null);
+    const r = confirmRunResolveRef.current;
+    confirmRunResolveRef.current = null;
+    r?.(ok);
+  }, []);
+
+  const confirmBeforeRunIfNeeded = useCallback((btn: IFormCustomButtonConfig): Promise<boolean> => {
+    const c = btn.confirmBeforeRun;
+    const msg = (c?.message ?? '').trim();
+    if (c?.enabled !== true || !msg) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      confirmRunResolveRef.current = resolve;
+      setConfirmDialogView({
+        kind: c.kind ?? 'info',
+        message: msg,
+        title: (btn.label || btn.id).trim() || 'Confirmar',
+      });
+      setConfirmDialogOpen(true);
+    });
+  }, []);
+
   useEffect(() => {
     if (!visibleStepsForUi?.length) return;
     setStepIndex((i) => Math.min(i, visibleStepsForUi.length - 1));
@@ -1476,6 +1527,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [linkedConfigsSorted, visibleStepsForUi, stepIndex]);
 
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
+    const proceed = await confirmBeforeRunIfNeeded(btn);
+    if (!proceed) return;
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
     if (op === 'history') {
       if (formManager.historyEnabled !== true) {
@@ -1664,7 +1717,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setFormError('Eliminar só está disponível ao editar ou ver um item existente.');
         return;
       }
-      if (!window.confirm('Eliminar este item permanentemente?')) return;
+      const skipNativeDeleteConfirm =
+        btn.confirmBeforeRun?.enabled === true && (btn.confirmBeforeRun?.message ?? '').trim().length > 0;
+      if (!skipNativeDeleteConfirm && !window.confirm('Eliminar este item permanentemente?')) return;
       setFormError(undefined);
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
@@ -2870,6 +2925,39 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <DefaultButton text="Fechar modal" onClick={() => setModalOpen(false)} />
           </Stack>
         )}
+        <Dialog
+          hidden={!confirmDialogOpen}
+          onDismiss={() => closeButtonConfirmDialog(false)}
+          dialogContentProps={{
+            type: DialogType.normal,
+            title: confirmDialogView?.title ?? 'Confirmar',
+            showCloseButton: false,
+          }}
+          modalProps={{ isBlocking: true }}
+        >
+          {confirmDialogView ? (
+            <>
+              <Stack horizontal tokens={{ childrenGap: 16 }} verticalAlign="start" styles={{ root: { marginBottom: 8 } }}>
+                <Icon
+                  iconName={confirmKindToIconSpec(confirmDialogView.kind).iconName}
+                  styles={{
+                    root: {
+                      fontSize: 36,
+                      lineHeight: 1,
+                      color: confirmKindToIconSpec(confirmDialogView.kind).color,
+                      flexShrink: 0,
+                    },
+                  }}
+                />
+                <Text styles={{ root: { whiteSpace: 'pre-wrap', flex: 1 } }}>{confirmDialogView.message}</Text>
+              </Stack>
+              <DialogFooter>
+                <PrimaryButton text="Confirmar" onClick={() => closeButtonConfirmDialog(true)} />
+                <DefaultButton text="Cancelar" onClick={() => closeButtonConfirmDialog(false)} />
+              </DialogFooter>
+            </>
+          ) : null}
+        </Dialog>
       </Stack>
     </Stack>
   );

@@ -32,7 +32,9 @@ import type {
   IFormSectionConfig,
   IFormStepConfig,
   IFormCustomButtonConfig,
+  TFormCustomButtonConfirmKind,
   TFormButtonAction,
+  TFormConditionNode,
   TFormConditionOp,
   TFormCustomButtonBehavior,
   TFormCustomButtonOperation,
@@ -1392,16 +1394,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     );
   };
 
-  const patchButtonActionWhenUi = (bi: number, ai: number, partial: Partial<IWhenUi>): void => {
+  const patchButtonActionCondition = (bi: number, ai: number, when: TFormConditionNode | undefined): void => {
     setCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const acts = b.actions.map((a, k) => {
           if (k !== ai) return a;
-          const baseLeaf = a.when ? whenNodeToUi(a.when) : undefined;
-          const base: IWhenUi = baseLeaf ?? defaultWhenUi(meta);
-          const merged: IWhenUi = { ...base, ...partial };
-          return { ...a, when: whenUiToNode(merged) } as TFormButtonAction;
+          if (!when) {
+            const { when: _rm, ...rest } = a as TFormButtonAction & { when?: TFormConditionNode };
+            return rest as TFormButtonAction;
+          }
+          return { ...a, when } as TFormButtonAction;
         });
         return { ...b, actions: acts };
       })
@@ -2853,6 +2856,67 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     checked={btn.enabled !== false}
                     onChange={(_, c) => patchCustomButton(bi, { enabled: c ? undefined : false })}
                   />
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Modal de confirmação
+                  </Text>
+                  <Toggle
+                    label="Pedir confirmação antes de executar (primeiro passo; cancelar não executa ações nem o resto do botão)"
+                    checked={btn.confirmBeforeRun?.enabled === true}
+                    onChange={(_, c) => {
+                      if (c) {
+                        patchCustomButton(bi, {
+                          confirmBeforeRun: {
+                            enabled: true,
+                            kind: btn.confirmBeforeRun?.kind ?? 'info',
+                            message: btn.confirmBeforeRun?.message ?? '',
+                          },
+                        });
+                      } else {
+                        patchCustomButton(bi, { confirmBeforeRun: undefined });
+                      }
+                    }}
+                  />
+                  {btn.confirmBeforeRun?.enabled === true && (
+                    <Stack tokens={{ childrenGap: 10 }} styles={{ root: { paddingLeft: 4 } }}>
+                      <Dropdown
+                        label="Ícone / tipo"
+                        options={[
+                          { key: 'info', text: 'Informação' },
+                          { key: 'success', text: 'Sucesso' },
+                          { key: 'warning', text: 'Aviso' },
+                          { key: 'error', text: 'Erro / crítico' },
+                          { key: 'blocked', text: 'Bloqueado' },
+                        ]}
+                        selectedKey={btn.confirmBeforeRun?.kind ?? 'info'}
+                        onChange={(_, o) => {
+                          if (!o) return;
+                          patchCustomButton(bi, {
+                            confirmBeforeRun: {
+                              enabled: true,
+                              kind: String(o.key) as TFormCustomButtonConfirmKind,
+                              message: btn.confirmBeforeRun?.message ?? '',
+                            },
+                          });
+                        }}
+                      />
+                      <TextField
+                        label="Mensagem"
+                        multiline
+                        rows={4}
+                        value={btn.confirmBeforeRun?.message ?? ''}
+                        onChange={(_, v) =>
+                          patchCustomButton(bi, {
+                            confirmBeforeRun: {
+                              enabled: true,
+                              kind: btn.confirmBeforeRun?.kind ?? 'info',
+                              message: v ?? '',
+                            },
+                          })
+                        }
+                        description="Obrigatório para o modal aparecer ao utilizar o botão. Se estiver vazio, o gestor não grava a confirmação."
+                      />
+                    </Stack>
+                  )}
                   <Checkbox
                     label="Só mostrar se todos os campos obrigatórios estiverem preenchidos"
                     checked={btn.showOnlyWhenAllRequiredFilled === true}
@@ -3003,7 +3067,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       patchAction={(ai, next) => patchButtonAction(bi, ai, next)}
                       removeAction={(ai) => removeButtonAction(bi, ai)}
                       addAction={() => addButtonAction(bi)}
-                      patchActionWhenUi={(ai, partial) => patchButtonActionWhenUi(bi, ai, partial)}
+                      patchActionCondition={(ai, when) => patchButtonActionCondition(bi, ai, when)}
                       reactKeysPrefix={`btn-${btn.id}`}
                       meta={meta}
                       metaSortedForPool={metaSortedForPool}

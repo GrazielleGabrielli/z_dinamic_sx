@@ -153,6 +153,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
         <ListPageAlertBlock
           key={block.id}
           alert={block.alert}
+          listTitle={config.dataSource.title ?? ''}
           onConfigure={
             onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)

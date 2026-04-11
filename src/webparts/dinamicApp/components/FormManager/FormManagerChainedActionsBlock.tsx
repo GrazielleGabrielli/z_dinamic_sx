@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Stack,
   Text,
@@ -25,6 +26,7 @@ import {
   whenNodeToUi,
   type IWhenUi,
 } from '../../core/formManager/formManagerVisualModel';
+import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 
 const BUTTON_ACTION_KIND_OPTIONS: IDropdownOption[] = [
   { key: 'showFields', text: 'Mostrar campos' },
@@ -42,6 +44,11 @@ function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
   return next;
 }
 
+function actionKindLabel(kind: TFormButtonAction['kind']): string {
+  const hit = BUTTON_ACTION_KIND_OPTIONS.find((o) => o.key === kind);
+  return hit ? String(hit.text) : kind;
+}
+
 function defaultActionForKind(kind: TFormButtonAction['kind']): TFormButtonAction {
   switch (kind) {
     case 'hideFields':
@@ -53,6 +60,39 @@ function defaultActionForKind(kind: TFormButtonAction['kind']): TFormButtonActio
     default:
       return { kind: 'showFields', fields: [] };
   }
+}
+
+type TWhenEditorParsed =
+  | { kind: 'nested' }
+  | { kind: 'single'; row: IWhenUi }
+  | { kind: 'composite'; combiner: 'all' | 'any'; rows: IWhenUi[] };
+
+function parseActionWhen(when: TFormConditionNode | undefined, defaultRow: IWhenUi): TWhenEditorParsed {
+  if (!when) return { kind: 'single', row: defaultRow };
+  if (when.kind === 'leaf') {
+    return { kind: 'single', row: whenNodeToUi(when) ?? defaultRow };
+  }
+  if (when.kind === 'all' || when.kind === 'any') {
+    const rows: IWhenUi[] = [];
+    for (let ci = 0; ci < when.children.length; ci++) {
+      const ch = when.children[ci];
+      if (ch.kind !== 'leaf') return { kind: 'nested' };
+      rows.push(whenNodeToUi(ch) ?? defaultRow);
+    }
+    if (!rows.length) return { kind: 'composite', combiner: when.kind, rows: [defaultRow] };
+    return { kind: 'composite', combiner: when.kind, rows };
+  }
+  return { kind: 'nested' };
+}
+
+function buildWhenFromEditor(parsed: Exclude<TWhenEditorParsed, { kind: 'nested' }>): TFormConditionNode {
+  if (parsed.kind === 'single') {
+    return whenUiToNode(parsed.row);
+  }
+  return {
+    kind: parsed.combiner,
+    children: parsed.rows.map((r) => whenUiToNode(r)),
+  };
 }
 
 function buttonSetFieldValueChoiceDropdown(
@@ -93,7 +133,7 @@ export interface IFormManagerChainedActionsBlockProps {
   patchAction: (actionIndex: number, next: TFormButtonAction) => void;
   removeAction: (actionIndex: number) => void;
   addAction: () => void;
-  patchActionWhenUi: (actionIndex: number, partial: Partial<IWhenUi>) => void;
+  patchActionCondition: (actionIndex: number, when: TFormConditionNode | undefined) => void;
   reactKeysPrefix: string;
   meta: IFieldMetadata[];
   metaSortedForPool: IFieldMetadata[];
@@ -109,7 +149,7 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
     patchAction,
     removeAction,
     addAction,
-    patchActionWhenUi,
+    patchActionCondition,
     reactKeysPrefix,
     meta,
     metaSortedForPool,
@@ -119,17 +159,33 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
     getDefaultWhenUi,
   } = props;
 
+  const [actionOpen, setActionOpen] = useState<Record<number, boolean>>({});
+  const prevActionLenRef = useRef(actions.length);
+  useEffect(() => {
+    if (actions.length < prevActionLenRef.current) {
+      setActionOpen({});
+    }
+    prevActionLenRef.current = actions.length;
+  }, [actions.length]);
+
   return (
     <>
       <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
         Ações (por ordem)
       </Text>
       {actions.map((act, ai) => (
-        <Stack
+        <FormManagerCollapseSection
           key={`${reactKeysPrefix}-act-${ai}`}
-          styles={{ root: { background: '#faf9f8', padding: 8, borderRadius: 4 } }}
-          tokens={{ childrenGap: 8 }}
+          title={`Ação ${ai + 1} · ${actionKindLabel(act.kind)}`}
+          isOpen={actionOpen[ai] === true}
+          onToggle={() =>
+            setActionOpen((prev) => ({
+              ...prev,
+              [ai]: !(prev[ai] === true),
+            }))
+          }
         >
+          <Stack tokens={{ childrenGap: 8 }}>
           <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
             <Dropdown
               label="Tipo"
@@ -402,54 +458,143 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
           />
           {act.when &&
             (() => {
-              const leafActWhen = whenNodeToUi(act.when);
-              return !leafActWhen ? (
-                <MessageBar messageBarType={MessageBarType.warning}>
-                  Condição composta nesta ação: use o JSON do gestor ou uma única condição simples.
-                </MessageBar>
-              ) : (
-                <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 4 } }}>
-                  <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                    <Dropdown
-                      label="Campo"
-                      options={fieldOptions}
-                      selectedKey={leafActWhen.field}
-                      onChange={(_, o) => o && patchActionWhenUi(ai, { field: String(o.key) })}
-                    />
-                    <Dropdown
-                      label="Operador"
-                      options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                      selectedKey={leafActWhen.op}
-                      onChange={(_, o) => o && patchActionWhenUi(ai, { op: o.key as TFormConditionOp })}
-                    />
-                    <Dropdown
-                      label="Comparar com"
-                      options={[
-                        { key: 'literal', text: 'Texto fixo' },
-                        { key: 'field', text: 'Outro campo' },
-                        { key: 'token', text: 'Token' },
-                      ]}
-                      selectedKey={leafActWhen.compareKind}
-                      onChange={(_, o) =>
-                        o && patchActionWhenUi(ai, { compareKind: o.key as IWhenUi['compareKind'] })
+              const defaultRow = getDefaultWhenUi();
+              const parsed = parseActionWhen(act.when, defaultRow);
+              if (parsed.kind === 'nested') {
+                return (
+                  <MessageBar messageBarType={MessageBarType.warning}>
+                    Condição com agrupamentos aninhados (E dentro de OU, etc.): edite no JSON avançado ou use só um
+                    nível — várias linhas combinadas apenas com «Todas (E)» ou «Pelo menos uma (OU)».
+                  </MessageBar>
+                );
+              }
+              const modeKey: 'single' | 'all' | 'any' =
+                parsed.kind === 'single' ? 'single' : parsed.combiner;
+              const rows: IWhenUi[] = parsed.kind === 'single' ? [parsed.row] : parsed.rows;
+              const write = (next: Exclude<TWhenEditorParsed, { kind: 'nested' }>): void => {
+                patchActionCondition(ai, buildWhenFromEditor(next));
+              };
+              const patchRow = (ri: number, partial: Partial<IWhenUi>): void => {
+                const nextRows = rows.map((r, i) => (i === ri ? { ...r, ...partial } : r));
+                if (modeKey === 'single') {
+                  write({ kind: 'single', row: nextRows[0] ?? defaultRow });
+                } else {
+                  write({ kind: 'composite', combiner: modeKey, rows: nextRows });
+                }
+              };
+              return (
+                <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 4 } }}>
+                  <Dropdown
+                    label="Como combinar as condições"
+                    options={[
+                      { key: 'single', text: 'Uma condição' },
+                      { key: 'all', text: 'Todas têm de ser verdade (E)' },
+                      { key: 'any', text: 'Pelo menos uma verdadeira (OU)' },
+                    ]}
+                    selectedKey={modeKey}
+                    onChange={(_, o) => {
+                      if (!o) return;
+                      const k = String(o.key) as 'single' | 'all' | 'any';
+                      const cur = rows.slice();
+                      if (k === 'single') {
+                        write({ kind: 'single', row: cur[0] ?? defaultRow });
+                        return;
                       }
+                      const nextRows = cur.length >= 2 ? cur : [cur[0] ?? defaultRow, { ...defaultRow }];
+                      write({ kind: 'composite', combiner: k, rows: nextRows });
+                    }}
+                  />
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Cada linha é uma condição (campo, operador, valor). Em modo E, todas têm de ser verdadeiras; em
+                    modo OU, basta uma.
+                  </Text>
+                  {rows.map((row, ri) => (
+                    <Stack
+                      key={`${reactKeysPrefix}-when-${ai}-${ri}`}
+                      tokens={{ childrenGap: 8 }}
+                      styles={{
+                        root: {
+                          border: '1px solid #edebe9',
+                          borderRadius: 4,
+                          padding: 10,
+                          background: '#faf9f8',
+                        },
+                      }}
+                    >
+                      <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                        <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                          Condição {ri + 1}
+                        </Text>
+                        {modeKey !== 'single' && rows.length > 1 && (
+                          <DefaultButton
+                            text="Remover linha"
+                            onClick={() => {
+                              const nextRows = rows.filter((_, i) => i !== ri);
+                              if (nextRows.length === 1) {
+                                write({ kind: 'single', row: nextRows[0] ?? defaultRow });
+                              } else {
+                                write({ kind: 'composite', combiner: modeKey, rows: nextRows });
+                              }
+                            }}
+                          />
+                        )}
+                      </Stack>
+                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                        <Dropdown
+                          label="Campo"
+                          options={fieldOptions}
+                          selectedKey={row.field}
+                          onChange={(_, o) => o && patchRow(ri, { field: String(o.key) })}
+                        />
+                        <Dropdown
+                          label="Operador"
+                          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                          selectedKey={row.op}
+                          onChange={(_, o) => o && patchRow(ri, { op: o.key as TFormConditionOp })}
+                        />
+                        <Dropdown
+                          label="Comparar com"
+                          options={[
+                            { key: 'literal', text: 'Texto fixo' },
+                            { key: 'field', text: 'Outro campo' },
+                            { key: 'token', text: 'Token' },
+                          ]}
+                          selectedKey={row.compareKind}
+                          onChange={(_, o) =>
+                            o && patchRow(ri, { compareKind: o.key as IWhenUi['compareKind'] })
+                          }
+                        />
+                        <TextField
+                          label="Valor"
+                          value={row.compareValue}
+                          onChange={(_, v) => patchRow(ri, { compareValue: v ?? '' })}
+                          disabled={
+                            row.op === 'isEmpty' ||
+                            row.op === 'isFilled' ||
+                            row.op === 'isTrue' ||
+                            row.op === 'isFalse'
+                          }
+                        />
+                      </Stack>
+                    </Stack>
+                  ))}
+                  {modeKey !== 'single' && (
+                    <DefaultButton
+                      text="Adicionar condição"
+                      onClick={() => {
+                        write({
+                          kind: 'composite',
+                          combiner: modeKey,
+                          rows: rows.concat([{ ...defaultRow }]),
+                        });
+                      }}
                     />
-                    <TextField
-                      label="Valor"
-                      value={leafActWhen.compareValue}
-                      onChange={(_, v) => patchActionWhenUi(ai, { compareValue: v ?? '' })}
-                      disabled={
-                        leafActWhen.op === 'isEmpty' ||
-                        leafActWhen.op === 'isFilled' ||
-                        leafActWhen.op === 'isTrue' ||
-                        leafActWhen.op === 'isFalse'
-                      }
-                    />
-                  </Stack>
+                  )}
                 </Stack>
               );
             })()}
-        </Stack>
+          </Stack>
+        </FormManagerCollapseSection>
       ))}
       <DefaultButton text="Adicionar ação" onClick={addAction} />
     </>

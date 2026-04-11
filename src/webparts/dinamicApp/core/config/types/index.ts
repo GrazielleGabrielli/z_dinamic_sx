@@ -313,6 +313,29 @@ export interface IListPageSectionTitleBlockConfig {
 
 export type TListPageAlertVariant = 'info' | 'success' | 'warning' | 'error';
 
+/** Comparar o número de itens da lista (com filtro OData) com um valor. */
+export type TListPageAlertCountOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le';
+
+/**
+ * Regra por contagem na lista da vista. A primeira regra cuja contagem corresponder define o aspeto
+ * (sobrepondo título, mensagem, tipo, ícone, etc. ao «padrão»).
+ */
+export interface IListPageAlertCountRule {
+  id: string;
+  /** Filtro OData (ex.: `Status eq 'Aberto'`). Vazio = contar todos os itens (até 5000). */
+  odataFilter?: string;
+  countOp: TListPageAlertCountOp;
+  count: number;
+  title?: string;
+  message?: string;
+  variant?: TListPageAlertVariant;
+  iconName?: string;
+  dismissible?: boolean;
+  emphasized?: boolean;
+  linkUrl?: string;
+  linkText?: string;
+}
+
 export interface IListPageAlertBlockConfig {
   title: string;
   message: string;
@@ -322,6 +345,8 @@ export interface IListPageAlertBlockConfig {
   emphasized: boolean;
   linkUrl: string;
   linkText: string;
+  /** Avaliadas por ordem; a primeira que coincidir substitui o aspeto padrão acima. */
+  countRules?: IListPageAlertCountRule[];
 }
 
 export interface IListPageBannerBlockConfig {

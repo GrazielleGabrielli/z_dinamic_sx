@@ -10,6 +10,7 @@ import {
   IListRowActionConfig,
   IPdfTemplateConfig,
   IPdfTemplateElement,
+  TViewMode,
 } from '../types';
 import { getDefaultConfig } from '../utils';
 import { isValidPdfPageFormat } from '../../pdf/pdfPageFormats';
@@ -103,7 +104,7 @@ function isValidListView(lv: unknown): lv is IListViewConfig {
   if (!lv || typeof lv !== 'object') return false;
   const l = lv as Record<string, unknown>;
   if (!Array.isArray(l.columns) || !Array.isArray(l.filters)) return false;
-  if (l.sort !== null && (typeof l.sort !== 'object' || !('field' in (l.sort as object)) || !('ascending' in (l.sort as object)))) return false;
+  if (l.sort != null && (typeof l.sort !== 'object' || !('field' in (l.sort as object)) || !('ascending' in (l.sort as object)))) return false;
   return true;
 }
 
@@ -189,7 +190,7 @@ function isValidPdfSection(s: unknown): boolean {
   return (sec.elements as unknown[]).every(isValidPdfElement);
 }
 
-function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
+export function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
   if (!t || typeof t !== 'object') return false;
   const c = t as Record<string, unknown>;
   if (!isValidPdfPageFormat(c.pageFormat)) return false;
@@ -198,6 +199,92 @@ function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
   if (c.footer !== undefined && !isValidPdfSection(c.footer)) return false;
   if (!c.body || !isValidPdfSection(c.body)) return false;
   return true;
+}
+
+const VALID_PAGINATION_LAYOUTS = new Set(['buttons', 'numbered', 'compact', 'paged']);
+
+export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined {
+  if (!lv || typeof lv !== 'object' || !isValidListView(lv)) return undefined;
+  const defaults = getDefaultConfig().listView;
+  const lvo = lv as IListViewConfig;
+  const cssSlots = sanitizeTableCssSlots(lvo.customTableCssSlots);
+  const rowRules = sanitizeTableRowStyleRules(lvo.tableRowStyleRules);
+  const listRowActions = sanitizeListRowActions(lvo.listRowActions);
+  return {
+    columns: lvo.columns ?? defaults.columns,
+    filters: lvo.filters ?? defaults.filters,
+    sort: lvo.sort ?? defaults.sort,
+    viewModes: lvo.viewModes ?? defaults.viewModes,
+    activeViewModeId: lvo.activeViewModeId ?? defaults.activeViewModeId,
+    pdfExportEnabled: lvo.pdfExportEnabled ?? false,
+    ...(lvo.listCardViewEnabled === true ? { listCardViewEnabled: true } : {}),
+    ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
+    ...(typeof lvo.customTableCss === 'string' ? { customTableCss: lvo.customTableCss } : {}),
+    ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
+    ...(listRowActions ? { listRowActions } : {}),
+  };
+}
+
+export interface IListTableEditorBundle {
+  listView: IListViewConfig;
+  pagination: IPaginationConfig;
+  pdfTemplate?: IPdfTemplateConfig;
+  projectManagement?: IProjectManagementConfig;
+}
+
+export function sanitizeListTableEditorBundle(
+  raw: unknown,
+  fallback: IListTableEditorBundle,
+  mode: TViewMode
+): IListTableEditorBundle | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  let listView = fallback.listView;
+  if (o.listView !== undefined) {
+    const s = sanitizeListViewConfig(o.listView);
+    if (!s) return undefined;
+    listView = s;
+  }
+  let pagination = fallback.pagination;
+  if (o.pagination !== undefined) {
+    if (!o.pagination || typeof o.pagination !== 'object') return undefined;
+    const p = o.pagination as Record<string, unknown>;
+    const layoutRaw = typeof p.layout === 'string' ? p.layout : '';
+    const layout =
+      VALID_PAGINATION_LAYOUTS.has(layoutRaw) ? (layoutRaw as IPaginationConfig['layout']) : fallback.pagination.layout ?? 'buttons';
+    const pageSizeOptions = Array.isArray(p.pageSizeOptions)
+      ? (p.pageSizeOptions as unknown[])
+          .filter((n): n is number => typeof n === 'number' && n > 0)
+          .slice(0, 12)
+      : fallback.pagination.pageSizeOptions;
+    const pageSize =
+      typeof p.pageSize === 'number'
+        ? Math.min(500, Math.max(1, Math.round(p.pageSize)))
+        : fallback.pagination.pageSize;
+    pagination = {
+      ...fallback.pagination,
+      enabled: typeof p.enabled === 'boolean' ? p.enabled : fallback.pagination.enabled,
+      pageSize,
+      layout,
+      pageSizeOptions: pageSizeOptions.length ? pageSizeOptions : fallback.pagination.pageSizeOptions,
+    };
+  }
+  let pdfTemplate = fallback.pdfTemplate;
+  if (o.pdfTemplate !== undefined) {
+    if (o.pdfTemplate === null) {
+      pdfTemplate = undefined;
+    } else if (isValidPdfTemplate(o.pdfTemplate)) {
+      pdfTemplate = o.pdfTemplate;
+    } else {
+      return undefined;
+    }
+  }
+  let projectManagement = fallback.projectManagement;
+  if (mode === 'projectManagement' && o.projectManagement !== undefined) {
+    const pm = sanitizeProjectManagementConfig(o.projectManagement);
+    projectManagement = pm ?? { columns: [] };
+  }
+  return { listView, pagination, pdfTemplate, projectManagement };
 }
 
 export function isValidConfig(config: unknown): config is IDynamicViewConfig {
@@ -240,10 +327,8 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
         ...(listPageLayoutNorm ? { listPageLayout: listPageLayoutNorm } : {}),
       };
     }
-    const lv = c.listView;
-    const cssSlots = sanitizeTableCssSlots(lv.customTableCssSlots);
-    const rowRules = sanitizeTableRowStyleRules(lv.tableRowStyleRules);
-    const listRowActions = sanitizeListRowActions(lv.listRowActions);
+    const sanitizedListView = sanitizeListViewConfig(c.listView);
+    if (!sanitizedListView) return undefined;
     const listPageLayoutRaw = sanitizeListPageLayout((c as unknown as Record<string, unknown>).listPageLayout);
     const listPageLayout =
       listPageLayoutRaw !== undefined
@@ -252,19 +337,7 @@ export function parseConfig(raw: string | undefined): IDynamicViewConfig | undef
     return {
       ...c,
       ...(formManager ? { formManager } : {}),
-      listView: {
-        columns: lv.columns ?? defaults.listView.columns,
-        filters: lv.filters ?? defaults.listView.filters,
-        sort: lv.sort ?? defaults.listView.sort,
-        viewModes: lv.viewModes ?? defaults.listView.viewModes,
-        activeViewModeId: lv.activeViewModeId ?? defaults.listView.activeViewModeId,
-        pdfExportEnabled: lv.pdfExportEnabled ?? false,
-        ...(lv.listCardViewEnabled === true ? { listCardViewEnabled: true } : {}),
-        ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
-        ...(typeof lv.customTableCss === 'string' ? { customTableCss: lv.customTableCss } : {}),
-        ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
-        ...(listRowActions ? { listRowActions } : {}),
-      },
+      listView: sanitizedListView,
       projectManagement: projectManagement ?? defaults.projectManagement,
       ...(isValidPdfTemplate(c.pdfTemplate) && { pdfTemplate: c.pdfTemplate }),
       ...(listPageLayout ? { listPageLayout } : {}),

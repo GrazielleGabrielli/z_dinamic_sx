@@ -402,6 +402,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         isOpen={isEditingPageLayout}
         value={config.listPageLayout ?? defaultListPageLayoutFromLegacy(config)}
         rootDashboard={config.dashboard}
+        sourceListTitle={config.dataSource.title ?? ''}
         onSave={handleSaveListPageLayout}
         onDismiss={() => setIsEditingPageLayout(false)}
       />
@@ -409,6 +410,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <ListPageBlockConfigPanel
         isOpen={listContentBlockPanelOpen}
         block={listContentBlockPanelOpen ? editingListContentBlock : null}
+        listTitle={config.dataSource.title ?? ''}
         onDismiss={() => setListPageContentBlockId(null)}
         onApply={handleApplyListContentBlock}
       />

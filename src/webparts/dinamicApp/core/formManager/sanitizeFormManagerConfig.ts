@@ -8,6 +8,8 @@ import type {
   IFormSectionConfig,
   IFormStepConfig,
   IFormCustomButtonConfig,
+  IFormCustomButtonConfirmConfig,
+  TFormCustomButtonConfirmKind,
   TFormButtonAction,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
@@ -503,6 +505,25 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   const opResolved = operation ?? 'legacy';
   const actions: TFormButtonAction[] =
     opResolved === 'redirect' || opResolved === 'history' ? [] : actionsSan;
+  const confirmRaw = b.confirmBeforeRun;
+  let confirmBeforeRun: IFormCustomButtonConfirmConfig | undefined;
+  if (confirmRaw && typeof confirmRaw === 'object') {
+    const c = confirmRaw as Record<string, unknown>;
+    const enabled = c.enabled === true;
+    const msg = typeof c.message === 'string' ? c.message.trim() : '';
+    const kindRaw = c.kind;
+    const kind: TFormCustomButtonConfirmKind =
+      kindRaw === 'success' ||
+      kindRaw === 'warning' ||
+      kindRaw === 'error' ||
+      kindRaw === 'blocked' ||
+      kindRaw === 'info'
+        ? (kindRaw as TFormCustomButtonConfirmKind)
+        : 'info';
+    if (enabled && msg) {
+      confirmBeforeRun = { enabled: true, kind, message: msg };
+    }
+  }
   return {
     id,
     label,
@@ -519,6 +540,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(groupTitles?.length ? { groupTitles } : {}),
     ...(showOnlyWhenAllRequiredFilled ? { showOnlyWhenAllRequiredFilled: true } : {}),
     ...(submitLoadingKind ? { submitLoadingKind } : {}),
+    ...(confirmBeforeRun ? { confirmBeforeRun } : {}),
     actions,
   };
 }

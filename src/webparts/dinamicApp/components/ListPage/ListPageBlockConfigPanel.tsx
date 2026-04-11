@@ -12,13 +12,17 @@ import {
   Slider,
   PrimaryButton,
   DefaultButton,
+  IconButton,
+  Separator,
 } from '@fluentui/react';
 import type {
   IListPageAlertBlockConfig,
+  IListPageAlertCountRule,
   IListPageBannerBlockConfig,
   IListPageBlock,
   IListPageRichEditorBlockConfig,
   IListPageSectionTitleBlockConfig,
+  TListPageAlertCountOp,
   TListPageAlertVariant,
   TListPageBannerContentAlign,
   TListPageSectionTitleSize,
@@ -28,12 +32,15 @@ import {
   defaultBannerConfig,
   defaultRichEditorConfig,
   defaultSectionTitleConfig,
+  MAX_ALERT_COUNT_RULES,
 } from '../../core/listPage/listPageBlockConfigUtils';
 import { ListPageRichQuillEditor } from './ListPageRichQuillEditor';
 
 export interface IListPageBlockConfigPanelProps {
   isOpen: boolean;
   block: IListPageBlock | null;
+  /** Lista da vista (contagem OData nas regras). */
+  listTitle?: string;
   onDismiss: () => void;
   onApply: (next: IListPageBlock) => void;
 }
@@ -57,6 +64,30 @@ const ALERT_VARIANT_OPTIONS: IDropdownOption[] = [
   { key: 'error', text: 'Erro' },
 ];
 
+const ALERT_COUNT_OP_OPTIONS: IDropdownOption[] = [
+  { key: 'eq', text: 'Igual a (=)' },
+  { key: 'ne', text: 'Diferente de (≠)' },
+  { key: 'gt', text: 'Maior que (>)' },
+  { key: 'ge', text: 'Maior ou igual (≥)' },
+  { key: 'lt', text: 'Menor que (<)' },
+  { key: 'le', text: 'Menor ou igual (≤)' },
+];
+
+const INHERIT_TRISTATE_OPTIONS: IDropdownOption[] = [
+  { key: 'inherit', text: 'Herdar do padrão' },
+  { key: 'yes', text: 'Sim' },
+  { key: 'no', text: 'Não' },
+];
+
+function newAlertCountRule(): IListPageAlertCountRule {
+  return {
+    id: `acr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    odataFilter: '',
+    countOp: 'eq',
+    count: 0,
+  };
+}
+
 function panelHeaderForBlockType(t: IListPageBlock['type']): string {
   if (t === 'banner') return 'Banner';
   if (t === 'editor') return 'Editor de conteúdo';
@@ -66,12 +97,15 @@ function panelHeaderForBlockType(t: IListPageBlock['type']): string {
 }
 
 function panelWidthForBlockType(t: IListPageBlock['type']): string {
-  return t === 'editor' ? '620px' : '480px';
+  if (t === 'editor') return '620px';
+  if (t === 'alert') return '560px';
+  return '480px';
 }
 
 export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> = ({
   isOpen,
   block,
+  listTitle = '',
   onDismiss,
   onApply,
 }) => {
@@ -94,7 +128,11 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
       setSectionTitle(block.sectionTitle ? { ...block.sectionTitle } : defaultSectionTitleConfig());
     }
     if (block.type === 'alert') {
-      setAlertCfg(block.alert ? { ...block.alert } : defaultAlertConfig());
+      const src = block.alert ? { ...block.alert } : defaultAlertConfig();
+      src.countRules = block.alert?.countRules?.length
+        ? block.alert.countRules.map((r) => ({ ...r }))
+        : [];
+      setAlertCfg(src);
     }
   }, [isOpen, block]);
 
@@ -116,7 +154,12 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
     } else if (block.type === 'sectionTitle') {
       onApply({ ...block, sectionTitle });
     } else {
-      onApply({ ...block, alert: alertCfg });
+      const rules = alertCfg.countRules ?? [];
+      const alert: IListPageAlertBlockConfig = {
+        ...alertCfg,
+        countRules: rules.length ? rules : undefined,
+      };
+      onApply({ ...block, alert });
     }
   };
 
@@ -382,6 +425,15 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
         ) : null}
         {block.type === 'alert' ? (
           <>
+            {!listTitle.trim() ? (
+              <Text variant="small" styles={{ root: { color: '#a4262c', lineHeight: 1.45 } }}>
+                Defina o título da lista na fonte de dados da vista para as regras de contagem funcionarem.
+              </Text>
+            ) : (
+              <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+                Contagem na lista: <strong>{listTitle.trim()}</strong>
+              </Text>
+            )}
             <TextField
               label="Título"
               value={alertCfg.title}
@@ -431,6 +483,270 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
               value={alertCfg.linkText}
               onChange={(_, v) => setAlertCfg((a) => ({ ...a, linkText: v ?? '' }))}
             />
+            <Separator />
+            <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+              <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                Regras por contagem (ordem importa)
+              </Text>
+              <IconButton
+                iconProps={{ iconName: 'Add' }}
+                title="Adicionar regra"
+                ariaLabel="Adicionar regra"
+                disabled={(alertCfg.countRules?.length ?? 0) >= MAX_ALERT_COUNT_RULES}
+                onClick={() =>
+                  setAlertCfg((a) => ({
+                    ...a,
+                    countRules: [...(a.countRules ?? []), newAlertCountRule()],
+                  }))
+                }
+              />
+            </Stack>
+            <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+              Primeira regra em que a contagem (filtro OData opcional) corresponder ao operador e valor substitui
+              título, mensagem, tipo e ícone em relação ao padrão acima. Máximo {MAX_ALERT_COUNT_RULES} regras.
+            </Text>
+            {(alertCfg.countRules ?? []).map((rule, idx) => (
+              <Stack
+                key={rule.id}
+                tokens={{ childrenGap: 8 }}
+                styles={{
+                  root: {
+                    border: '1px solid #edebe9',
+                    borderRadius: 4,
+                    padding: 10,
+                    background: '#faf9f8',
+                  },
+                }}
+              >
+                <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Regra {idx + 1}
+                  </Text>
+                  <Stack horizontal verticalAlign="center">
+                    <IconButton
+                      iconProps={{ iconName: 'ChevronUpSmall' }}
+                      title="Subir"
+                      ariaLabel="Subir regra"
+                      disabled={idx === 0}
+                      onClick={() =>
+                        setAlertCfg((a) => {
+                          const rules = [...(a.countRules ?? [])];
+                          if (idx <= 0) return a;
+                          [rules[idx - 1], rules[idx]] = [rules[idx], rules[idx - 1]];
+                          return { ...a, countRules: rules };
+                        })
+                      }
+                    />
+                    <IconButton
+                      iconProps={{ iconName: 'ChevronDownSmall' }}
+                      title="Descer"
+                      ariaLabel="Descer regra"
+                      disabled={idx >= (alertCfg.countRules?.length ?? 0) - 1}
+                      onClick={() =>
+                        setAlertCfg((a) => {
+                          const rules = [...(a.countRules ?? [])];
+                          if (idx >= rules.length - 1) return a;
+                          [rules[idx + 1], rules[idx]] = [rules[idx], rules[idx + 1]];
+                          return { ...a, countRules: rules };
+                        })
+                      }
+                    />
+                    <IconButton
+                      iconProps={{ iconName: 'Delete' }}
+                      title="Remover"
+                      ariaLabel="Remover regra"
+                      onClick={() =>
+                        setAlertCfg((a) => ({
+                          ...a,
+                          countRules: (a.countRules ?? []).filter((_, i) => i !== idx),
+                        }))
+                      }
+                    />
+                  </Stack>
+                </Stack>
+                <TextField
+                  label="Filtro OData (opcional)"
+                  multiline
+                  rows={2}
+                  value={rule.odataFilter ?? ''}
+                  onChange={(_, v) => {
+                    const s = v ?? '';
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      rules[idx] = { ...rules[idx], odataFilter: s.trim() ? s : '' };
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                  description="Vazio = contar todos os itens (até 5000). Ex.: Status eq 'Aberto'"
+                />
+                <Stack horizontal tokens={{ childrenGap: 10 }}>
+                  <Stack.Item grow={1} styles={{ root: { minWidth: 200 } }}>
+                    <Dropdown
+                      label="Condição"
+                      selectedKey={rule.countOp}
+                      options={ALERT_COUNT_OP_OPTIONS}
+                      onChange={(_, opt) => {
+                        const k = opt?.key as TListPageAlertCountOp | undefined;
+                        if (!k) return;
+                        setAlertCfg((a) => {
+                          const rules = [...(a.countRules ?? [])];
+                          rules[idx] = { ...rules[idx], countOp: k };
+                          return { ...a, countRules: rules };
+                        });
+                      }}
+                    />
+                  </Stack.Item>
+                  <Stack.Item grow={1}>
+                    <TextField
+                      label="Valor"
+                      type="number"
+                      value={String(rule.count)}
+                      onChange={(_, v) => {
+                        const n = parseInt(String(v ?? ''), 10);
+                        if (isNaN(n)) return;
+                        setAlertCfg((a) => {
+                          const rules = [...(a.countRules ?? [])];
+                          rules[idx] = { ...rules[idx], count: Math.min(5000, Math.max(0, n)) };
+                          return { ...a, countRules: rules };
+                        });
+                      }}
+                    />
+                  </Stack.Item>
+                </Stack>
+                <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 4 } }}>
+                  Aspeto quando esta regra coincidir (opcional; vazio mantém o padrão)
+                </Text>
+                <TextField
+                  label="Título"
+                  value={rule.title ?? ''}
+                  onChange={(_, v) => {
+                    const s = v ?? '';
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (s.trim()) next.title = s;
+                      else delete next.title;
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <TextField
+                  label="Mensagem"
+                  multiline
+                  rows={2}
+                  value={rule.message ?? ''}
+                  onChange={(_, v) => {
+                    const s = v ?? '';
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (s.trim()) next.message = s;
+                      else delete next.message;
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <Dropdown
+                  label="Tipo"
+                  selectedKey={rule.variant ?? 'inherit'}
+                  options={[{ key: 'inherit', text: '(padrão acima)' }, ...ALERT_VARIANT_OPTIONS]}
+                  onChange={(_, opt) => {
+                    const k = opt?.key as string | undefined;
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (k === 'inherit' || !k) delete next.variant;
+                      else if (k === 'info' || k === 'success' || k === 'warning' || k === 'error') {
+                        next.variant = k;
+                      }
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <TextField
+                  label="Ícone"
+                  value={rule.iconName ?? ''}
+                  onChange={(_, v) => {
+                    const s = (v ?? '').trim();
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (s) next.iconName = s;
+                      else delete next.iconName;
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <Dropdown
+                  label="Pode ser fechado"
+                  selectedKey={
+                    rule.dismissible === undefined ? 'inherit' : rule.dismissible ? 'yes' : 'no'
+                  }
+                  options={INHERIT_TRISTATE_OPTIONS}
+                  onChange={(_, opt) => {
+                    const k = String(opt?.key ?? 'inherit');
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (k === 'inherit') delete next.dismissible;
+                      else next.dismissible = k === 'yes';
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <Dropdown
+                  label="Destaque (borda)"
+                  selectedKey={rule.emphasized === undefined ? 'inherit' : rule.emphasized ? 'yes' : 'no'}
+                  options={INHERIT_TRISTATE_OPTIONS}
+                  onChange={(_, opt) => {
+                    const k = String(opt?.key ?? 'inherit');
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (k === 'inherit') delete next.emphasized;
+                      else next.emphasized = k === 'yes';
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <TextField
+                  label="URL do link"
+                  value={rule.linkUrl ?? ''}
+                  onChange={(_, v) => {
+                    const s = (v ?? '').trim();
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (s) next.linkUrl = s;
+                      else delete next.linkUrl;
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+                <TextField
+                  label="Texto do link"
+                  value={rule.linkText ?? ''}
+                  onChange={(_, v) => {
+                    const s = v ?? '';
+                    setAlertCfg((a) => {
+                      const rules = [...(a.countRules ?? [])];
+                      const next = { ...rules[idx] };
+                      if (s.trim()) next.linkText = s;
+                      else delete next.linkText;
+                      rules[idx] = next;
+                      return { ...a, countRules: rules };
+                    });
+                  }}
+                />
+              </Stack>
+            ))}
           </>
         ) : null}
       </Stack>

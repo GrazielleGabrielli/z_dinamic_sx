@@ -509,6 +509,16 @@ export type TFormButtonAction =
   | IFormButtonActionSetFieldValue
   | IFormButtonActionJoinFields;
 
+/** Alinhado a `MessageBarType` (Fluent): realce do ícone no modal de confirmação. */
+export type TFormCustomButtonConfirmKind = 'info' | 'success' | 'warning' | 'error' | 'blocked';
+
+export interface IFormCustomButtonConfirmConfig {
+  enabled?: boolean;
+  kind?: TFormCustomButtonConfirmKind;
+  /** Texto do modal (obrigatório para o modal aparecer no runtime). */
+  message?: string;
+}
+
 export interface IFormCustomButtonConfig {
   id: string;
   label: string;
@@ -538,6 +548,11 @@ export interface IFormCustomButtonConfig {
   showOnlyWhenAllRequiredFilled?: boolean;
   /** Loading ao gravar; omitido usa `defaultSubmitLoadingKind` do gestor. */
   submitLoadingKind?: TFormSubmitLoadingUiKind;
+  /**
+   * Se ativo com mensagem, mostra um modal antes de qualquer efeito do botão (ações, redirect, gravar, etc.).
+   * «Cancelar» não executa nada; «Confirmar» segue o fluxo normal.
+   */
+  confirmBeforeRun?: IFormCustomButtonConfirmConfig;
   actions: TFormButtonAction[];
 }
 
