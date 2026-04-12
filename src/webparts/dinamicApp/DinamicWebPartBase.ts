@@ -1,7 +1,10 @@
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { DisplayMode, Version } from '@microsoft/sp-core-library';
-import { type IPropertyPaneConfiguration } from '@microsoft/sp-property-pane';
+import {
+  type IPropertyPaneConfiguration,
+  PropertyPaneTextField,
+} from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
 
@@ -32,6 +35,7 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
       siteUrl: this.context.pageContext.web.serverRelativeUrl,
       instanceScopeId: this.instanceId,
       onSaveConfig: (config: IDynamicViewConfig) => this.saveConfig(config),
+      openAiApiKey: this.properties.openAiApiKey ?? '',
       ...(forcedMode !== undefined ? { forcedMode } : {}),
     });
 
@@ -45,6 +49,7 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   private saveConfig(config: IDynamicViewConfig): void {
     this.properties.configJson = JSON.stringify(config);
     this.render();
+    if (this.displayMode === DisplayMode.Read) return;
     if (this._nativePersistTimer !== undefined) {
       window.clearTimeout(this._nativePersistTimer);
     }
@@ -53,7 +58,7 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
       try {
         runNativePagePersistAfterPropertyWrite(
           this.domElement,
-          this.displayMode === DisplayMode.Read,
+          false,
           800
         );
       } catch {}
@@ -92,6 +97,31 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   }
 
   protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
-    return { pages: [] };
+    return {
+      pages: [
+        {
+          header: { description: 'Configurações da web part' },
+          groups: [
+            {
+              groupName: 'Integração com IA',
+              groupFields: [
+                PropertyPaneTextField('openAiApiKey', {
+                  label: 'Chave de API OpenAI',
+                  description: 'Necessária para o assistente de configuração com IA (Crie com IA).',
+                  placeholder: 'sk-...',
+                }),
+                PropertyPaneTextField('configJson', {
+                  label: 'Configuração atual (JSON)',
+                  description: 'Leitura apenas — backup da configuração gerada pelas telas e pela IA.',
+                  multiline: true,
+                  rows: 12,
+                  disabled: true,
+                }),
+              ],
+            },
+          ],
+        },
+      ],
+    };
   }
 }

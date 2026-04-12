@@ -501,4 +501,5 @@ export interface IDynamicViewConfig {
 
 export interface IDynamicViewWebPartProps {
   configJson?: string;
+  openAiApiKey?: string;
 }

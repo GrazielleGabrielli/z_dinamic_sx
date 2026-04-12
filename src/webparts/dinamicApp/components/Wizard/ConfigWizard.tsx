@@ -8,13 +8,15 @@ import {
   ProgressIndicator,
   Separator,
 } from '@fluentui/react';
-import { IDynamicViewConfig, TViewMode } from '../../core/config/types';
+import { IDynamicViewConfig, TViewMode, IFormFieldConfig, IFormCustomButtonConfig } from '../../core/config/types';
 import {
   getDefaultConfig,
   getDefaultConfigForMode,
   getDefaultFormManagerConfig,
 } from '../../core/config/utils';
 import { applyWizardPartial, cloneJson } from '../../core/config/configMemory';
+import type { IAIStepConfig, IAIButtonConfig } from '../../../../services/ai/AIConfigService';
+import { FORM_OCULTOS_STEP_ID, FORM_FIXOS_STEP_ID } from '../../core/config/types/formManager';
 import { IWizardFormState, configToWizardState } from './types';
 import { Step1DataSource } from './steps/Step1DataSource';
 import { Step2Mode } from './steps/Step2Mode';
@@ -29,6 +31,7 @@ interface IConfigWizardProps {
   initialValues?: IDynamicViewConfig;
   onCancel?: () => void;
   forcedMode?: TViewMode;
+  openAiApiKey?: string;
 }
 
 const LIST_STEP_LABELS = ['Fonte de dados', 'Modo', 'Dashboard', 'Paginação', 'Modos de visualização'];
@@ -135,6 +138,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
   initialValues,
   onCancel,
   forcedMode,
+  openAiApiKey,
 }) => {
   const isEditMode = initialValues !== undefined;
 
@@ -172,6 +176,56 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     return forcedMode !== undefined ? applyForcedMode(base, forcedMode) : base;
   }, [draft, forcedMode]);
 
+  const handleAIStructureApply = useCallback((aiSteps: IAIStepConfig[]): void => {
+    setDraft((prev) => {
+      const baseFm = prev.formManager ?? getDefaultFormManagerConfig();
+      const safeSteps = aiSteps.map((s) => ({ ...s, fieldNames: s.fieldNames.slice() }));
+      if (!safeSteps.some((s) => s.id === FORM_OCULTOS_STEP_ID)) {
+        safeSteps.unshift({ id: FORM_OCULTOS_STEP_ID, title: 'Ocultos', fieldNames: [] });
+      }
+      if (!safeSteps.some((s) => s.id === FORM_FIXOS_STEP_ID)) {
+        const oi = safeSteps.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
+        safeSteps.splice(oi >= 0 ? oi + 1 : 0, 0, { id: FORM_FIXOS_STEP_ID, title: 'Fixos', fieldNames: [] });
+      }
+      const newSections = safeSteps.map((s) => ({ id: s.id, title: s.title, visible: true as const }));
+      const seen: Record<string, boolean> = {};
+      const newFields: IFormFieldConfig[] = [];
+      for (const st of safeSteps) {
+        for (const n of st.fieldNames) {
+          if (!seen[n]) {
+            seen[n] = true;
+            const existing = baseFm.fields.find((f) => f.internalName === n);
+            newFields.push(existing ?? { internalName: n, sectionId: st.id });
+          }
+        }
+      }
+      return {
+        ...prev,
+        formManager: { ...baseFm, steps: safeSteps, sections: newSections, fields: newFields },
+      };
+    });
+  }, []);
+
+  const handleAIButtonsApply = useCallback((aiButtons: IAIButtonConfig[]): void => {
+    setDraft((prev) => {
+      const baseFm = prev.formManager ?? getDefaultFormManagerConfig();
+      const mapped: IFormCustomButtonConfig[] = aiButtons.map((b) => ({
+        id: b.id,
+        label: b.label,
+        appearance: b.appearance ?? 'default',
+        behavior: b.behavior ?? 'actionsOnly',
+        operation: b.operation ?? 'legacy',
+        ...(b.redirectUrlTemplate ? { redirectUrlTemplate: b.redirectUrlTemplate } : {}),
+        ...(b.modes && b.modes.length > 0 ? { modes: b.modes } : {}),
+        actions: [],
+      }));
+      return {
+        ...prev,
+        formManager: { ...baseFm, customButtons: mapped },
+      };
+    });
+  }, []);
+
   const handleNext = (): void => {
     if (!valid) return;
     const max = totalStepsForForm(form, forcedMode);
@@ -191,11 +245,22 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     if (step > 1) setStep((s) => s - 1);
   };
 
+  const step1ForFormManager = (
+    <Step1DataSource
+      form={form}
+      onChange={updateForm}
+      openAiApiKey={openAiApiKey}
+      onAIStructureApply={handleAIStructureApply}
+      onAIButtonsApply={handleAIButtonsApply}
+    />
+  );
+  const step1Default = <Step1DataSource form={form} onChange={updateForm} />;
+
   const renderStep = (): React.ReactElement => {
     if (forcedMode === 'formManager') {
       switch (step) {
         case 1:
-          return <Step1DataSource form={form} onChange={updateForm} />;
+          return step1ForFormManager;
         case 2:
           return <Step3FormStepLayout form={form} onChange={updateForm} />;
         default:
@@ -205,7 +270,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     if (forcedMode === 'list' || forcedMode === 'projectManagement') {
       switch (step) {
         case 1:
-          return <Step1DataSource form={form} onChange={updateForm} />;
+          return step1Default;
         case 2:
           return <Step3Dashboard form={form} onChange={updateForm} />;
         case 3:
@@ -219,7 +284,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     if (isFormManagerWizard(form, forcedMode)) {
       switch (step) {
         case 1:
-          return <Step1DataSource form={form} onChange={updateForm} />;
+          return step1ForFormManager;
         case 2:
           return <Step2Mode form={form} onChange={updateForm} />;
         case 3:
@@ -230,7 +295,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     }
     switch (step) {
       case 1:
-        return <Step1DataSource form={form} onChange={updateForm} />;
+        return step1Default;
       case 2:
         return <Step2Mode form={form} onChange={updateForm} />;
       case 3:

@@ -48,6 +48,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   siteUrl,
   instanceScopeId,
   onSaveConfig,
+  openAiApiKey,
   forcedMode,
 }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
@@ -254,6 +255,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         initialValues={config}
         onCancel={config !== undefined ? () => setIsEditingWebPart(false) : undefined}
         forcedMode={forcedMode}
+        openAiApiKey={openAiApiKey ?? ''}
       />
     );
   }

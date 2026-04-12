@@ -5,5 +5,6 @@ export interface IDinamicAppProps {
   siteUrl: string;
   instanceScopeId: string;
   onSaveConfig: (config: IDynamicViewConfig) => void;
+  openAiApiKey?: string;
   forcedMode?: TViewMode;
 }
