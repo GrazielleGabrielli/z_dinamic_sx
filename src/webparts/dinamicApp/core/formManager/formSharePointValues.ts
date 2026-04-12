@@ -35,10 +35,10 @@ function writeNullForMappedType(
       break;
     case 'lookupmulti':
     case 'usermulti':
-      out[`${name}Id`] = { results: [] };
+      out[`${name}Id`] = [];
       break;
     case 'multichoice':
-      out[name] = { results: [] };
+      out[name] = [];
       break;
     default:
       out[name] = null;
@@ -122,7 +122,7 @@ export function formValuesToSharePointPayload(
               .split(';')
               .map((s) => s.trim())
               .filter(Boolean);
-        out[name] = { results: arr };
+        out[name] = arr;
         break;
       }
       case 'lookup': {
@@ -136,7 +136,7 @@ export function formValuesToSharePointPayload(
           : lookupId(v) !== undefined
             ? [lookupId(v) as number]
             : [];
-        out[`${name}Id`] = { results: ids };
+        out[`${name}Id`] = ids;
         break;
       }
       case 'user': {
@@ -148,7 +148,7 @@ export function formValuesToSharePointPayload(
         const ids = Array.isArray(v)
           ? (v as unknown[]).map(lookupId).filter((x): x is number => x !== undefined)
           : [];
-        out[`${name}Id`] = { results: ids };
+        out[`${name}Id`] = ids;
         break;
       }
       default:
