@@ -42,12 +42,14 @@ import { ListPageLayoutEditorPanel } from './ListPage/ListPageLayoutEditorPanel'
 import { ListPageBlockConfigPanel } from './ListPage/ListPageBlockConfigPanel';
 import { FormManagerView } from './FormManager/FormManagerView';
 import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
+import { PersistStatusBar } from './PersistStatusBar';
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({
   configJson,
   siteUrl,
   instanceScopeId,
   onSaveConfig,
+  persistStatus,
   forcedMode,
 }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
@@ -69,13 +71,20 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     return { ...rawConfig, mode: forcedMode };
   }, [rawConfig, forcedMode]);
 
+  // 'pending' não bloqueia — em Edit Mode o usuário pode alterar a config múltiplas vezes antes de salvar a página
+  const isSaving = persistStatus === 'saving' || persistStatus === 'persisting';
+
   const saveConfig = useCallback(
     (cfg: IDynamicViewConfig) => {
+      if (isSaving) {
+        console.warn('[DinamicSX Persist] save bloqueado no componente — persistência em andamento');
+        return;
+      }
       const next: IDynamicViewConfig =
         forcedMode !== undefined ? { ...cfg, mode: forcedMode } : cfg;
       onSaveConfig(next);
     },
-    [forcedMode, onSaveConfig]
+    [forcedMode, isSaving, onSaveConfig]
   );
 
   const formManagerResolved = useMemo(
@@ -262,6 +271,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
   return (
     <>
+      <PersistStatusBar status={persistStatus} />
+
       {/* Toolbar */}
       <div
         style={{
@@ -274,6 +285,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         <ActionButton
           iconProps={{ iconName: 'Settings' }}
           onClick={() => setIsEditingWebPart(true)}
+          disabled={isSaving}
           styles={{ root: { color: '#605e5c', fontSize: 12 } }}
         >
           Editar configuração
