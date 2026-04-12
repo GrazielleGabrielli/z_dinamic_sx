@@ -78,6 +78,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     [forcedMode, onSaveConfig]
   );
 
+  const formManagerResolved = useMemo(
+    () => config?.formManager ?? getDefaultFormManagerConfig(),
+    [config?.formManager]
+  );
+
   useEffect(() => {
     setDashboardListSelection(null);
   }, [config?.dataSource.title]);
@@ -414,7 +419,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         <FormManagerConfigPanel
           isOpen={isEditingFormManager}
           listTitle={config.dataSource.title}
-          value={config.formManager ?? getDefaultFormManagerConfig()}
+          value={formManagerResolved}
           onSave={handleSaveFormManagerConfig}
           onDismiss={() => setIsEditingFormManager(false)}
         />

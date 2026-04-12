@@ -220,7 +220,12 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
     : '0 2px 8px rgba(0, 0, 0, 0.04)';
 
   const inner = (
-    <Stack horizontal tokens={{ childrenGap: 14 }} styles={{ root: { alignItems: 'flex-start', minWidth: 0 } }}>
+    <Stack
+      horizontal
+      verticalAlign="center"
+      tokens={{ childrenGap: 14 }}
+      styles={{ root: { alignItems: 'center', minWidth: 0 } }}
+    >
       <div
         style={{
           width: 44,
@@ -235,21 +240,37 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
       >
         <Icon iconName={iconName} styles={{ root: { fontSize: 22, color: skin.iconColor } }} />
       </div>
-      <Stack styles={{ root: { flex: 1, minWidth: 0, paddingRight: c.dismissible ? 36 : 0 } }} tokens={{ childrenGap: 6 }}>
+      <Stack
+        tokens={{ childrenGap: 16 }}
+        styles={{
+          root: {
+            flex: '1 1 auto',
+            minWidth: 0,
+            maxWidth: '100%',
+            paddingRight: c.dismissible ? 36 : 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+          },
+        }}
+      >
         {countErr ? (
-          <Text variant="small" styles={{ root: { color: '#a4262c', lineHeight: 1.45 } }}>
+          <Text block variant="small" styles={{ root: { color: '#a4262c', lineHeight: 1.45 } }}>
             Contagem: {countErr}
           </Text>
         ) : null}
         {c.title.trim() ? (
           <Text
+            block
             variant="mediumPlus"
             styles={{
               root: {
                 fontWeight: 700,
                 color: skin.titleColor,
                 letterSpacing: '-0.01em',
-                lineHeight: 1.35,
+                lineHeight: 1.4,
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
               },
             }}
           >
@@ -258,12 +279,15 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
         ) : null}
         {c.message.trim() ? (
           <Text
+            block
             variant="small"
             styles={{
               root: {
                 color: skin.bodyColor,
                 lineHeight: 1.55,
                 fontSize: 13,
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
               },
             }}
           >
@@ -271,7 +295,7 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
           </Text>
         ) : (
           onConfigure !== undefined && (
-            <Text variant="small" styles={{ root: { color: '#a19f9d', fontStyle: 'italic', fontSize: 13 } }}>
+            <Text block variant="small" styles={{ root: { color: '#a19f9d', fontStyle: 'italic', fontSize: 13 } }}>
               Sem mensagem — configure o bloco
             </Text>
           )
@@ -283,9 +307,11 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
             rel="noopener noreferrer"
             styles={{
               root: {
-                marginTop: 4,
+                marginTop: 2,
                 fontWeight: 600,
                 fontSize: 13,
+                display: 'inline-block',
+                wordWrap: 'break-word',
               },
             }}
           >

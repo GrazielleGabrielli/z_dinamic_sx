@@ -103,9 +103,34 @@ function coerceBool(v: unknown): boolean | undefined {
 }
 
 function coerceNumber(v: unknown): number {
-  if (typeof v === 'number' && !isNaN(v)) return v;
-  if (typeof v === 'string' && v.trim() !== '') {
-    const n = Number(v.replace(',', '.'));
+  if (typeof v === 'number') return isFinite(v) ? v : NaN;
+  if (typeof v === 'bigint') return Number(v);
+  if (v === null || v === undefined) return NaN;
+  if (typeof v === 'boolean') return NaN;
+  if (typeof v === 'object' && v !== null) {
+    const ro = v as Record<string, unknown>;
+    const results = ro.results;
+    if (Array.isArray(results) && results.length === 1) return coerceNumber(results[0]);
+    const wrapped = ro.Value ?? ro.value;
+    if (wrapped !== undefined && wrapped !== v) return coerceNumber(wrapped);
+  }
+  if (typeof v === 'string') {
+    let s = v.replace(/[\s\u00a0\u202f]/g, '').trim();
+    if (!s) return NaN;
+    const hasComma = s.indexOf(',') !== -1;
+    const hasDot = s.indexOf('.') !== -1;
+    if (hasComma && hasDot) {
+      const lastComma = s.lastIndexOf(',');
+      const lastDot = s.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else {
+        s = s.replace(/,/g, '');
+      }
+    } else if (hasComma) {
+      s = s.replace(',', '.');
+    }
+    const n = Number(s);
     return isNaN(n) ? NaN : n;
   }
   return NaN;

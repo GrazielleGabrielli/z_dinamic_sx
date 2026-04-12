@@ -35,6 +35,7 @@ import {
   cloneDashboardConfig,
   columnCountForLayout,
   countDashboardBlocksInSections,
+  mergeExtraListPageColumnsIntoLayout,
   normalizeListPageLayoutDashboards,
   reshapeSectionColumns,
   sanitizeListPageContentPadding,
@@ -182,11 +183,12 @@ function finalizeListPageLayoutForSave(
   const cleaned: IListPageSection[] = [];
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i];
+    const merged = mergeExtraListPageColumnsIntoLayout(s.layout, s.columns.map((col) => col.slice()));
     const nc = columnCountForLayout(s.layout);
     const cols: IListPageBlock[][] = [];
     for (let c = 0; c < nc; c++) {
       cols.push(
-        (s.columns[c] ?? []).filter((b) => b.id && VALID_SAVE_BLOCK_TYPES.indexOf(b.type) !== -1)
+        (merged[c] ?? []).filter((b) => b.id && VALID_SAVE_BLOCK_TYPES.indexOf(b.type) !== -1)
       );
     }
     cleaned.push({
@@ -225,10 +227,12 @@ function finalizeListPageLayoutForSave(
 function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
   const pad = v.contentPadding?.trim();
   return {
-    sections: v.sections.map((s) => ({
+    sections: v.sections.map((s) => {
+      const columnsMerged = mergeExtraListPageColumnsIntoLayout(s.layout, s.columns.map((col) => col.slice()));
+      return {
       id: s.id,
       layout: s.layout,
-      columns: s.columns.map((col) =>
+      columns: columnsMerged.map((col) =>
         col.map((b) => {
           const x: IListPageBlock = { ...b };
           if (b.dashboard) x.dashboard = cloneDashboardConfig(b.dashboard);
@@ -247,7 +251,8 @@ function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
           return x;
         })
       ),
-    })),
+    };
+    }),
     ...(pad ? { contentPadding: pad } : {}),
   };
 }
@@ -628,6 +633,7 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
                   </Stack>
                 ))}
                 <Dropdown
+                  key={`addblk_${sec.id}_${ci}_${blocks.length}`}
                   placeholder="Adicionar bloco nesta coluna…"
                   options={BLOCK_OPTIONS}
                   onChange={(_, opt) => {

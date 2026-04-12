@@ -33,6 +33,9 @@ import {
   loadFolderTreeFromAttachmentLibrary,
 } from '../../core/formManager/attachmentFolderTree';
 import { FormManagerFolderTreeEditor } from './FormManagerFolderTreeEditor';
+import { FormFieldRulesPanel } from './FormFieldRulesPanel';
+import { FormManagerLinkedChildConditionalRulesBlock } from './FormManagerLinkedChildConditionalRulesBlock';
+import { buildFieldUiRules, mergeFieldRules } from '../../core/formManager/formManagerVisualModel';
 
 const MAX_LINKED = 10;
 
@@ -72,6 +75,68 @@ const MAX_ROWS_DROPDOWN: IDropdownOption[] = [
 function normListGuid(g: string | undefined): string {
   if (!g) return '';
   return g.replace(/[{}]/g, '').toLowerCase();
+}
+
+/** Guid da lista referenciada por LookupList (REST pode devolver `{guid}`, URL ou só o guid). */
+function listGuidFromLookupListField(raw: string | undefined): string {
+  if (!raw) return '';
+  const t = raw.trim();
+  const inBraces = t.match(/\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}/i);
+  if (inBraces) return normListGuid(inBraces[1]);
+  const plain = t.match(
+    /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  );
+  if (plain) return normListGuid(plain[1]);
+  return normListGuid(t);
+}
+
+function buildParentLookupDropdownOptions(
+  meta: IFieldMetadata[],
+  primaryListIdNorm: string,
+  savedParentLookupInternalName: string
+): IDropdownOption[] {
+  const lookupFields = meta.filter((m) => m.MappedType === 'lookup' && m.LookupList);
+  const filtered = primaryListIdNorm
+    ? lookupFields.filter(
+        (m) => listGuidFromLookupListField(m.LookupList) === primaryListIdNorm
+      )
+    : lookupFields;
+  const opts = filtered.map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+  const saved = savedParentLookupInternalName.trim();
+  if (!saved) return opts;
+  const keys = new Set(opts.map((o) => String(o.key)));
+  if (keys.has(saved)) return opts;
+  const baseSaved = saved.replace(/Id$/i, '');
+  const fromMeta = lookupFields.find(
+    (m) =>
+      m.InternalName === saved ||
+      m.InternalName === `${saved}Id` ||
+      m.InternalName.replace(/Id$/i, '') === baseSaved
+  );
+  if (fromMeta && !keys.has(fromMeta.InternalName)) {
+    return opts.concat([
+      { key: fromMeta.InternalName, text: `${fromMeta.Title} (${fromMeta.InternalName})` },
+    ]);
+  }
+  return opts.concat([
+    {
+      key: saved,
+      text: `${saved} (guardado na configuração)`,
+    },
+  ]);
+}
+
+function parentLookupSelectedKeyForDropdown(
+  meta: IFieldMetadata[],
+  savedInternalName: string
+): string {
+  const t = savedInternalName.trim();
+  if (!t) return '';
+  const lookups = meta.filter((m) => m.MappedType === 'lookup' && m.LookupList);
+  if (lookups.some((m) => m.InternalName === t)) return t;
+  const base = t.replace(/Id$/i, '');
+  const hit = lookups.find((m) => m.InternalName.replace(/Id$/i, '') === base);
+  return hit?.InternalName ?? t;
 }
 
 function isSelectableChildField(m: IFieldMetadata): boolean {
@@ -127,7 +192,7 @@ function listDropdownOptionsWithLegacy(
 export interface IFormManagerLinkedChildFormsTabProps {
   primaryListTitle: string;
   linkedChildForms: IFormLinkedChildFormConfig[];
-  onLinkedChildFormsChange: (next: IFormLinkedChildFormConfig[]) => void;
+  onLinkedChildFormsChange: React.Dispatch<React.SetStateAction<IFormLinkedChildFormConfig[]>>;
   mainAttachmentStorageKind: TFormAttachmentStorageKind | undefined;
   mainAttachmentLibraryFromPanel: IFormManagerAttachmentLibraryConfig | undefined;
 }
@@ -239,6 +304,15 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
     },
     [fieldsService]
   );
+
+  useEffect(() => {
+    for (let i = 0; i < linkedChildForms.length; i++) {
+      const cfg = linkedChildForms[i];
+      const t = cfg.listTitle.trim();
+      if (!t) continue;
+      void loadChildMeta(cfg.id, t);
+    }
+  }, [linkedChildForms, loadChildMeta]);
 
   useEffect(() => {
     let cancel = false;
@@ -400,7 +474,13 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
     onLinkedChildFormsChange(next);
   };
 
+  const [linkedFieldRuleTarget, setLinkedFieldRuleTarget] = useState<{
+    cfgId: string;
+    internalName: string;
+  } | null>(null);
+
   return (
+    <>
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
         Listas secundárias com Lookup para a lista principal. A ordem na etapa «Geral» define cada mini-formulário.
@@ -425,13 +505,13 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
         const listOpts = listDropdownOptionsWithLegacy(childListDropdownOptions, cfg.listTitle);
         const mainNames =
           cfg.steps?.find((s) => s.id === 'main')?.fieldNames?.slice() ?? [];
-        const lookupOpts: IDropdownOption[] = meta
-          .filter((m) => m.MappedType === 'lookup' && m.LookupList)
-          .filter((m) => {
-            if (!primaryListId) return true;
-            return normListGuid(m.LookupList) === primaryListId;
-          })
-          .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+        const parentLookupSaved = cfg.parentLookupFieldInternalName.trim();
+        const parentLookupResolvedKey = parentLookupSelectedKeyForDropdown(meta, cfg.parentLookupFieldInternalName);
+        const lookupOpts = buildParentLookupDropdownOptions(
+          meta,
+          primaryListId,
+          cfg.parentLookupFieldInternalName
+        );
         const lookupDropdownOptions: IDropdownOption[] = lookupOpts.length
           ? [{ key: '', text: '— Selecione o campo Lookup —' }, ...lookupOpts]
           : [
@@ -447,7 +527,8 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
         const availableToAdd = meta.filter(
           (m) =>
             isSelectableChildField(m) &&
-            m.InternalName !== cfg.parentLookupFieldInternalName.trim() &&
+            m.InternalName !== parentLookupSaved &&
+            m.InternalName !== parentLookupResolvedKey &&
             mainNames.indexOf(m.InternalName) === -1
         );
         const addOptions: IDropdownOption[] = availableToAdd.map((m) => ({
@@ -507,7 +588,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
             <Dropdown
               label="Campo Lookup para a lista principal"
               options={lookupDropdownOptions}
-              selectedKey={cfg.parentLookupFieldInternalName.trim() || ''}
+              selectedKey={parentLookupResolvedKey || parentLookupSaved || ''}
               onChange={(_, o) =>
                 o &&
                 onLinkedChildFormsChange(
@@ -516,7 +597,11 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                   })
                 )
               }
-              disabled={!cfg.listTitle.trim() || loading || !lookupOpts.length}
+              disabled={
+                !cfg.listTitle.trim() ||
+                loading ||
+                (lookupOpts.length === 0 && !parentLookupSaved)
+              }
             />
             {cfg.title?.trim() && (
               <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
@@ -826,6 +911,10 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                         );
                       }}
                     />
+                    <DefaultButton
+                      text="Regras…"
+                      onClick={() => setLinkedFieldRuleTarget({ cfgId: cfg.id, internalName: name })}
+                    />
                   </Stack>
                 );
               })}
@@ -846,9 +935,73 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                 );
               }}
             />
+            <FormManagerLinkedChildConditionalRulesBlock
+              rules={cfg.rules ?? []}
+              fieldOptions={meta
+                .filter(
+                  (m) =>
+                    isSelectableChildField(m) &&
+                    m.InternalName !== cfg.parentLookupFieldInternalName.trim()
+                )
+                .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }))}
+              onRulesChange={(next) =>
+                onLinkedChildFormsChange((prev) =>
+                  prev.map((c) => (c.id === cfg.id ? { ...c, rules: next } : c))
+                )
+              }
+            />
           </Stack>
         );
       })}
     </Stack>
+    {linkedFieldRuleTarget !== null &&
+      ((): JSX.Element | null => {
+        const lc = linkedChildForms.find((c) => c.id === linkedFieldRuleTarget.cfgId);
+        if (!lc) return null;
+        const name = linkedFieldRuleTarget.internalName;
+        const childMeta = childMetaById[lc.id] ?? [];
+        const fieldOpts: IDropdownOption[] = childMeta
+          .filter(
+            (m) =>
+              isSelectableChildField(m) &&
+              m.InternalName !== lc.parentLookupFieldInternalName.trim()
+          )
+          .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+        const fc =
+          lc.fields.find((f) => f.internalName === name) ??
+          ({ internalName: name, sectionId: 'main' } as IFormFieldConfig);
+        const fieldMeta = childMeta.find((x) => x.InternalName === name);
+        const cfgId = lc.id;
+        return (
+          <FormFieldRulesPanel
+            isOpen
+            internalName={name}
+            fieldConfig={fc}
+            meta={fieldMeta}
+            rules={lc.rules ?? []}
+            fieldOptions={fieldOpts.length ? fieldOpts : [{ key: 'Title', text: 'Title' }]}
+            onDismiss={() => setLinkedFieldRuleTarget(null)}
+            onApply={(nextFc, editor) => {
+              onLinkedChildFormsChange((prev) =>
+                prev.map((c) => {
+                  if (c.id !== cfgId) return c;
+                  const rulesNext = mergeFieldRules(
+                    c.rules ?? [],
+                    name,
+                    buildFieldUiRules(name, editor)
+                  );
+                  const has = c.fields.some((f) => f.internalName === name);
+                  const fieldsNext = has
+                    ? c.fields.map((f) => (f.internalName === name ? { ...f, ...nextFc } : f))
+                    : c.fields.concat([{ ...nextFc, internalName: name, sectionId: nextFc.sectionId ?? 'main' }]);
+                  return { ...c, fields: fieldsNext, rules: rulesNext };
+                })
+              );
+              setLinkedFieldRuleTarget(null);
+            }}
+          />
+        );
+      })()}
+    </>
   );
 }

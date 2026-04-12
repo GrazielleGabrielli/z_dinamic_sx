@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useMemo } from 'react';
-import { Stack, Text, DefaultButton, IconButton, Spinner, MessageBar, MessageBarType } from '@fluentui/react';
+import { Stack, Text, DefaultButton, IconButton, Spinner, MessageBar, MessageBarType, Link, Icon } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type {
   IFormLinkedChildFormConfig,
@@ -16,6 +16,79 @@ import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { isAttachmentFolderUploaderVisible } from '../../core/formManager/formRuleEngine';
 import { LinkedChildFormRowFields } from './LinkedChildFormRowFields';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
+import { attachmentFileKindIconName } from './attachmentFileKindIcon';
+
+export type ILinkedChildServerAttachmentRow = { fileName: string; fileUrl: string; fileRef?: string };
+
+function LinkedChildServerAttachmentList(props: {
+  rows: ILinkedChildServerAttachmentRow[];
+  filePreview?: TFormAttachmentFilePreviewKind;
+}): JSX.Element | null {
+  const { rows, filePreview = 'nameAndSize' } = props;
+  if (!rows.length) return null;
+  const showIcon =
+    filePreview === 'iconAndName' ||
+    filePreview === 'thumbnailAndName' ||
+    filePreview === 'thumbnailLarge';
+  const iconPx = filePreview === 'thumbnailLarge' ? 48 : 20;
+  const thumbBox = filePreview === 'thumbnailAndName' || filePreview === 'thumbnailLarge';
+  const boxPx = filePreview === 'thumbnailLarge' ? 56 : 40;
+  return (
+    <Stack tokens={{ childrenGap: thumbBox ? 8 : 4 }}>
+      {rows.map((a, ai) => (
+        <Stack
+          key={`${a.fileRef ?? a.fileUrl}-${a.fileName}-${ai}`}
+          horizontal
+          verticalAlign="center"
+          tokens={{ childrenGap: 10 }}
+          styles={{
+            root: thumbBox
+              ? {
+                  padding: '8px 12px',
+                  background: '#faf9f8',
+                  borderRadius: 6,
+                  border: '1px solid #edebe9',
+                }
+              : undefined,
+          }}
+        >
+          {showIcon &&
+            (thumbBox ? (
+              <div
+                style={{
+                  width: boxPx,
+                  height: boxPx,
+                  borderRadius: 6,
+                  background: '#edebe9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon
+                  iconName={attachmentFileKindIconName(a.fileName)}
+                  styles={{ root: { fontSize: iconPx, color: '#605e5c' } }}
+                />
+              </div>
+            ) : (
+              <Icon
+                iconName={attachmentFileKindIconName(a.fileName)}
+                styles={{ root: { fontSize: iconPx, color: '#0078d4', flexShrink: 0 } }}
+              />
+            ))}
+          {a.fileUrl ? (
+            <Link href={a.fileUrl} target="_blank" rel="noopener noreferrer">
+              {a.fileName}
+            </Link>
+          ) : (
+            <Text variant="small">{a.fileName}</Text>
+          )}
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
 
 export interface ILinkedChildFormsBlockProps {
   configs: IFormLinkedChildFormConfig[];
@@ -38,6 +111,7 @@ export interface ILinkedChildFormsBlockProps {
   attachmentUploadLayout?: TFormAttachmentUploadLayoutKind;
   attachmentFilePreview?: TFormAttachmentFilePreviewKind;
   attachmentAllowedExtensions?: string[];
+  linkedServerAttachmentsByKey: Record<string, ILinkedChildServerAttachmentRow[]>;
 }
 
 function newLocalKey(): string {
@@ -65,6 +139,7 @@ export const LinkedChildFormsBlock: React.FC<ILinkedChildFormsBlockProps> = ({
   attachmentUploadLayout,
   attachmentFilePreview,
   attachmentAllowedExtensions,
+  linkedServerAttachmentsByKey,
 }) => {
   if (!configs.length) return null;
 
@@ -222,7 +297,7 @@ export const LinkedChildFormsBlock: React.FC<ILinkedChildFormsBlockProps> = ({
                       dynamicContext={dynamicContext}
                       localErrors={rowErr}
                     />
-                    {formMode !== 'view' && attResolved.kind !== 'none' && (
+                    {attResolved.kind !== 'none' && (
                       <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 8 } }}>
                         <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
                           {attResolved.kind === 'itemAttachments'
@@ -240,35 +315,56 @@ export const LinkedChildFormsBlock: React.FC<ILinkedChildFormsBlockProps> = ({
                               <Stack tokens={{ childrenGap: 10 }}>
                                 {nodes.map((node) => {
                                   const pk = linkedChildAttPendingKey(cfg.id, row.localKey, node.id);
+                                  const serverRows = linkedServerAttachmentsByKey[pk] ?? [];
                                   return (
-                                    <FormAttachmentUploader
-                                      key={pk}
-                                      files={linkedPendingFilesByKey[pk] ?? []}
-                                      onFilesChange={(files) => onLinkedPendingFilesChange(pk, files)}
-                                      disabled={false}
-                                      label={node.nameTemplate?.trim() || 'Pasta'}
-                                      layout={attachmentUploadLayout ?? 'default'}
-                                      filePreview={attachmentFilePreview ?? 'nameAndSize'}
-                                      allowedFileExtensions={attachmentAllowedExtensions}
-                                    />
+                                    <Stack key={pk} tokens={{ childrenGap: 6 }}>
+                                      <LinkedChildServerAttachmentList
+                                        rows={serverRows}
+                                        filePreview={attachmentFilePreview}
+                                      />
+                                      {formMode !== 'view' && (
+                                        <FormAttachmentUploader
+                                          files={linkedPendingFilesByKey[pk] ?? []}
+                                          onFilesChange={(files) => onLinkedPendingFilesChange(pk, files)}
+                                          disabled={false}
+                                          label={node.nameTemplate?.trim() || 'Pasta'}
+                                          layout={attachmentUploadLayout ?? 'default'}
+                                          filePreview={attachmentFilePreview ?? 'nameAndSize'}
+                                          allowedFileExtensions={attachmentAllowedExtensions}
+                                          priorFileCount={serverRows.length}
+                                        />
+                                      )}
+                                    </Stack>
                                   );
                                 })}
                               </Stack>
                             );
                           }
                           const flatKey = linkedChildAttPendingKey(cfg.id, row.localKey, '');
+                          const flatServer = linkedServerAttachmentsByKey[flatKey] ?? [];
                           return (
-                            <FormAttachmentUploader
-                              files={linkedPendingFilesByKey[flatKey] ?? []}
-                              onFilesChange={(files) => onLinkedPendingFilesChange(flatKey, files)}
-                              disabled={false}
-                              label={
-                                attResolved.kind === 'itemAttachments' ? 'Anexos' : 'Ficheiros para enviar'
-                              }
-                              layout={attachmentUploadLayout ?? 'default'}
-                              filePreview={attachmentFilePreview ?? 'nameAndSize'}
-                              allowedFileExtensions={attachmentAllowedExtensions}
-                            />
+                            <Stack tokens={{ childrenGap: 6 }}>
+                              <LinkedChildServerAttachmentList
+                                rows={flatServer}
+                                filePreview={attachmentFilePreview}
+                              />
+                              {formMode !== 'view' && (
+                                <FormAttachmentUploader
+                                  files={linkedPendingFilesByKey[flatKey] ?? []}
+                                  onFilesChange={(files) => onLinkedPendingFilesChange(flatKey, files)}
+                                  disabled={false}
+                                  label={
+                                    attResolved.kind === 'itemAttachments'
+                                      ? 'Anexos'
+                                      : 'Ficheiros para enviar'
+                                  }
+                                  layout={attachmentUploadLayout ?? 'default'}
+                                  filePreview={attachmentFilePreview ?? 'nameAndSize'}
+                                  allowedFileExtensions={attachmentAllowedExtensions}
+                                  priorFileCount={flatServer.length}
+                                />
+                              )}
+                            </Stack>
                           );
                         })()}
                       </Stack>

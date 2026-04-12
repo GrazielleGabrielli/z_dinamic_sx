@@ -744,6 +744,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [linkedLoadingById, setLinkedLoadingById] = useState<Record<string, boolean>>({});
   const [linkedRowErrorsById, setLinkedRowErrorsById] = useState<Record<string, Record<string, string>[]>>({});
   const [linkedPendingByKey, setLinkedPendingByKey] = useState<Record<string, File[]>>({});
+  const [linkedServerAttachmentsByKey, setLinkedServerAttachmentsByKey] = useState<
+    Record<string, IServerAttachmentRow[]>
+  >({});
 
   const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
     const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
@@ -917,6 +920,88 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       cancel = true;
     };
   }, [formMode, itemId, linkedConfigsSorted, linkedMetaById, itemsService]);
+
+  useEffect(() => {
+    if (linkedConfigsSorted.length === 0) {
+      setLinkedServerAttachmentsByKey({});
+      return;
+    }
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      const out: Record<string, IServerAttachmentRow[]> = {};
+      const sp = getSP();
+      for (let ci = 0; ci < linkedConfigsSorted.length; ci++) {
+        if (cancelled) return;
+        const cfg = linkedConfigsSorted[ci];
+        const resolved = resolveLinkedChildAttachmentRuntime(cfg, formManager);
+        if (resolved.kind === 'none') continue;
+        const rows = linkedRowsById[cfg.id] ?? [];
+        const childList = cfg.listTitle.trim();
+        if (!childList) continue;
+        for (let ri = 0; ri < rows.length; ri++) {
+          if (cancelled) return;
+          const row = rows[ri];
+          const sid = row.sharePointId;
+          if (sid === undefined || sid === null || !Number.isFinite(sid)) continue;
+          if (resolved.kind === 'itemAttachments') {
+            const flatKey = linkedChildAttPendingKey(cfg.id, row.localKey, '');
+            try {
+              const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(childList);
+              const list = isGuid ? sp.web.lists.getById(childList) : sp.web.lists.getByTitle(childList);
+              const item = list.items.getById(sid) as unknown as { attachmentFiles(): Promise<unknown> };
+              const raw = await item.attachmentFiles();
+              const mapped = mapServerAttachments(normalizeSharePointAttachmentFiles(raw));
+              out[flatKey] = mapped;
+            } catch {
+              out[flatKey] = [];
+            }
+            continue;
+          }
+          if (resolved.kind === 'documentLibrary') {
+            try {
+              const all = await loadLibraryAttachmentRowsForMainItem(
+                resolved.libraryTitle,
+                resolved.lookupFieldInternalName,
+                sid
+              );
+              const mapped: IServerAttachmentRow[] = all.map((x) => ({
+                fileName: x.fileName,
+                fileUrl: x.fileUrl,
+                fileRef: x.fileRef,
+              }));
+              const tree = resolved.folderTree;
+              const multiLib = !!tree?.length && treeHasPerStepFolderUploaders(tree);
+              if (multiLib) {
+                const nodes = flattenFolderTreeNodes(tree!).filter((n) => n.uploadTarget);
+                if (nodes.length > 0) {
+                  for (let ni = 0; ni < nodes.length; ni++) {
+                    const node = nodes[ni];
+                    const pk = linkedChildAttPendingKey(cfg.id, row.localKey, node.id);
+                    out[pk] = mapped.filter(
+                      (m) =>
+                        typeof m.fileRef === 'string' &&
+                        m.fileRef.trim() &&
+                        libraryFileRowBelongsToFolderNode(m.fileRef.trim(), node.id, tree!, sid, row.values)
+                    );
+                  }
+                } else {
+                  out[linkedChildAttPendingKey(cfg.id, row.localKey, '')] = mapped;
+                }
+              } else {
+                out[linkedChildAttPendingKey(cfg.id, row.localKey, '')] = mapped;
+              }
+            } catch {
+              out[linkedChildAttPendingKey(cfg.id, row.localKey, '')] = [];
+            }
+          }
+        }
+      }
+      if (!cancelled) setLinkedServerAttachmentsByKey(out);
+    })();
+    return (): void => {
+      cancelled = true;
+    };
+  }, [linkedConfigsSorted, linkedRowsById, formManager]);
 
   useEffect(() => {
     if (formMode !== 'create') return;
@@ -2862,6 +2947,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             attachmentAllowedExtensions={
               attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
             }
+            linkedServerAttachmentsByKey={linkedServerAttachmentsByKey}
           />
         )}
         {visibleStepsForUi && visibleStepsForUi.length > 1 && (

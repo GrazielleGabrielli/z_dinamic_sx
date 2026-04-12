@@ -141,8 +141,90 @@ export const CONDITIONAL_EFFECT_OPTIONS: { key: TConditionalEffectKind; text: st
 export interface IConditionalEffectUi {
   kind: TConditionalEffectKind;
   targetField?: string;
+  /** Internos adicionais (mesmo efeito), separados por vírgula ou ponto e vírgula. */
+  targetFieldsCsv?: string;
   messageVariant?: 'info' | 'warning' | 'error';
   messageText?: string;
+}
+
+const MULTI_TARGET_EFFECT_KINDS = new Set<TConditionalEffectKind>([
+  'showField',
+  'hideField',
+  'requireField',
+  'optionalField',
+  'disableField',
+  'enableField',
+  'readonlyField',
+  'editableField',
+]);
+
+export function resolveEffectTargetFields(e: IConditionalEffectUi): string[] {
+  const raw = [e.targetField, e.targetFieldsCsv].filter(Boolean).join(',');
+  const parts = raw.split(/[,;]/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const t = parts[i].trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+export function splitEffectTargetsFromCsv(raw: string): Pick<IConditionalEffectUi, 'targetField' | 'targetFieldsCsv'> {
+  const names = raw
+    .split(/[,;]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (!names.length) return { targetField: undefined, targetFieldsCsv: undefined };
+  if (names.length === 1) return { targetField: names[0], targetFieldsCsv: undefined };
+  return { targetField: names[0], targetFieldsCsv: names.slice(1).join(', ') };
+}
+
+function effectTargetsToStorage(names: string[]): Pick<IConditionalEffectUi, 'targetField' | 'targetFieldsCsv'> {
+  if (!names.length) return { targetField: undefined, targetFieldsCsv: undefined };
+  if (names.length === 1) return { targetField: names[0], targetFieldsCsv: undefined };
+  return { targetField: names[0], targetFieldsCsv: names.slice(1).join(', ') };
+}
+
+function mergeConsecutiveTargetableEffects(effects: IConditionalEffectUi[]): IConditionalEffectUi[] {
+  const out: IConditionalEffectUi[] = [];
+  for (let i = 0; i < effects.length; i++) {
+    const e = effects[i];
+    if (e.kind === 'message' || !MULTI_TARGET_EFFECT_KINDS.has(e.kind)) {
+      out.push({ ...e });
+      continue;
+    }
+    const targets = resolveEffectTargetFields(e);
+    if (!targets.length) {
+      out.push({ ...e });
+      continue;
+    }
+    const last = out[out.length - 1];
+    if (
+      last &&
+      last.kind === e.kind &&
+      MULTI_TARGET_EFFECT_KINDS.has(last.kind) &&
+      e.kind === last.kind
+    ) {
+      const prev = resolveEffectTargetFields(last);
+      const merged = prev.slice();
+      for (let j = 0; j < targets.length; j++) {
+        if (merged.indexOf(targets[j]) === -1) merged.push(targets[j]);
+      }
+      out[out.length - 1] = {
+        ...last,
+        ...effectTargetsToStorage(merged),
+      };
+    } else {
+      out.push({
+        ...e,
+        ...effectTargetsToStorage(targets),
+      });
+    }
+  }
+  return out;
 }
 
 export interface IConditionalRuleCard {
@@ -172,52 +254,77 @@ export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] 
       ...(card.groupTitles?.length ? { groupTitles: card.groupTitles } : {}),
     };
     const id = (suffix: string): string => `ui_card_${card.id}_${idx++}_${suffix}`;
+    const targets = MULTI_TARGET_EFFECT_KINDS.has(e.kind) ? resolveEffectTargetFields(e) : [];
     switch (e.kind) {
       case 'showField':
-        if (e.targetField)
+        for (let ti = 0; ti < targets.length; ti++) {
+          const targetId = targets[ti];
+          if (!targetId) continue;
           out.push({
             id: id('vis'),
             action: 'setVisibility',
             targetKind: 'field',
-            targetId: e.targetField,
+            targetId,
             visibility: 'show',
             ...base,
           });
+        }
         break;
       case 'hideField':
-        if (e.targetField)
+        for (let ti = 0; ti < targets.length; ti++) {
+          const targetId = targets[ti];
+          if (!targetId) continue;
           out.push({
             id: id('hid'),
             action: 'setVisibility',
             targetKind: 'field',
-            targetId: e.targetField,
+            targetId,
             visibility: 'hide',
             ...base,
           });
+        }
         break;
       case 'requireField':
-        if (e.targetField)
-          out.push({ id: id('req'), action: 'setRequired', field: e.targetField, required: true, ...base });
+        for (let ti = 0; ti < targets.length; ti++) {
+          const field = targets[ti];
+          if (!field) continue;
+          out.push({ id: id('req'), action: 'setRequired', field, required: true, ...base });
+        }
         break;
       case 'optionalField':
-        if (e.targetField)
-          out.push({ id: id('opt'), action: 'setRequired', field: e.targetField, required: false, ...base });
+        for (let ti = 0; ti < targets.length; ti++) {
+          const field = targets[ti];
+          if (!field) continue;
+          out.push({ id: id('opt'), action: 'setRequired', field, required: false, ...base });
+        }
         break;
       case 'disableField':
-        if (e.targetField)
-          out.push({ id: id('dis'), action: 'setDisabled', field: e.targetField, disabled: true, ...base });
+        for (let ti = 0; ti < targets.length; ti++) {
+          const field = targets[ti];
+          if (!field) continue;
+          out.push({ id: id('dis'), action: 'setDisabled', field, disabled: true, ...base });
+        }
         break;
       case 'enableField':
-        if (e.targetField)
-          out.push({ id: id('ena'), action: 'setDisabled', field: e.targetField, disabled: false, ...base });
+        for (let ti = 0; ti < targets.length; ti++) {
+          const field = targets[ti];
+          if (!field) continue;
+          out.push({ id: id('ena'), action: 'setDisabled', field, disabled: false, ...base });
+        }
         break;
       case 'readonlyField':
-        if (e.targetField)
-          out.push({ id: id('ro'), action: 'setReadOnly', field: e.targetField, readOnly: true, ...base });
+        for (let ti = 0; ti < targets.length; ti++) {
+          const field = targets[ti];
+          if (!field) continue;
+          out.push({ id: id('ro'), action: 'setReadOnly', field, readOnly: true, ...base });
+        }
         break;
       case 'editableField':
-        if (e.targetField)
-          out.push({ id: id('rw'), action: 'setReadOnly', field: e.targetField, readOnly: false, ...base });
+        for (let ti = 0; ti < targets.length; ti++) {
+          const field = targets[ti];
+          if (!field) continue;
+          out.push({ id: id('rw'), action: 'setReadOnly', field, readOnly: false, ...base });
+        }
         break;
       case 'message':
         if (e.messageText && e.messageText.trim())
@@ -296,11 +403,12 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
     if (!w) return;
     const modes = first.modes;
     const groupTitles = first.groupTitles;
-    const effects: IConditionalEffectUi[] = [];
+    const effectsRaw: IConditionalEffectUi[] = [];
     for (let j = 0; j < list.length; j++) {
       const eff = effectFromRule(list[j]);
-      if (eff) effects.push(eff);
+      if (eff) effectsRaw.push(eff);
     }
+    const effects = mergeConsecutiveTargetableEffects(effectsRaw);
     cards.push({
       id: cardId,
       when: w,
@@ -714,6 +822,27 @@ export function templateConditionalShowWhenEquals(
       op: 'eq',
       compareKind: 'literal',
       compareValue: whenValue,
+    },
+    effects: [{ kind: 'showField', targetField }],
+  };
+}
+
+/** Cartão «mostrar campo alvo» com operador livre (contém, diferente, maior, …). */
+export function templateConditionalShowWhenCompare(
+  whenField: string,
+  op: TFormConditionOp,
+  compareValue: string,
+  targetField: string
+): IConditionalRuleCard {
+  const noCompare =
+    op === 'isEmpty' || op === 'isFilled' || op === 'isTrue' || op === 'isFalse';
+  return {
+    id: newCardId(),
+    when: {
+      field: whenField,
+      op,
+      compareKind: 'literal',
+      compareValue: noCompare ? '' : compareValue,
     },
     effects: [{ kind: 'showField', targetField }],
   };

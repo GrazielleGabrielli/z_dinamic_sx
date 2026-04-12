@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
-import { Version } from '@microsoft/sp-core-library';
+import { DisplayMode, Version } from '@microsoft/sp-core-library';
 import { type IPropertyPaneConfiguration } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
@@ -12,8 +12,11 @@ import { IDynamicViewConfig, IDynamicViewWebPartProps, TViewMode } from './core/
 import { parseConfig } from './core/config/validators';
 import { getDefaultConfig } from './core/config/utils';
 import { getSP, getGraph } from './pnpConfig';
+import { runNativePagePersistAfterPropertyWrite } from './core/sharePoint/sharePointPageToolbarDom';
 
 export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicViewWebPartProps> {
+  private _nativePersistTimer: number | undefined;
+
   protected abstract getForcedMode(): TViewMode | undefined;
 
   protected onInit(): Promise<void> {
@@ -42,6 +45,19 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   private saveConfig(config: IDynamicViewConfig): void {
     this.properties.configJson = JSON.stringify(config);
     this.render();
+    if (this._nativePersistTimer !== undefined) {
+      window.clearTimeout(this._nativePersistTimer);
+    }
+    this._nativePersistTimer = window.setTimeout(() => {
+      this._nativePersistTimer = undefined;
+      try {
+        runNativePagePersistAfterPropertyWrite(
+          this.domElement,
+          this.displayMode === DisplayMode.Read,
+          800
+        );
+      } catch {}
+    }, 500);
   }
 
   private updateConfig(partial: Partial<IDynamicViewConfig>): void {
@@ -64,6 +80,10 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   }
 
   protected onDispose(): void {
+    if (this._nativePersistTimer !== undefined) {
+      window.clearTimeout(this._nativePersistTimer);
+      this._nativePersistTimer = undefined;
+    }
     ReactDom.unmountComponentAtNode(this.domElement);
   }
 

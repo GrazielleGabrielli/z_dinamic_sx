@@ -460,7 +460,13 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
 function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const b = raw as Record<string, unknown>;
-  const id = typeof b.id === 'string' ? b.id.trim() : '';
+  const idRaw = b.id;
+  const id =
+    typeof idRaw === 'string'
+      ? idRaw.trim()
+      : typeof idRaw === 'number' && Number.isFinite(idRaw)
+        ? String(Math.trunc(idRaw))
+        : '';
   if (!id) return undefined;
   const labelRaw = typeof b.label === 'string' ? b.label.trim() : '';
   const label = labelRaw || id;

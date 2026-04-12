@@ -38,6 +38,14 @@ export function reshapeSectionColumns(section: IListPageSection, newLayout: TLis
   return { ...section, layout: newLayout, columns: cols };
 }
 
+/** Alinha `columns.length` ao `layout`; colunas a mais são fundidas na primeira (igual a `reshapeSectionColumns`). */
+export function mergeExtraListPageColumnsIntoLayout(
+  layout: TListPageSectionLayout,
+  columns: IListPageBlock[][]
+): IListPageBlock[][] {
+  return reshapeSectionColumns({ id: '_merge', layout, columns }, layout).columns;
+}
+
 function newBlockId(): string {
   return `blk_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -320,15 +328,19 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
     const layout = (VALID_LAYOUTS.has(layoutKey) ? layoutKey : 'one') as TListPageSectionLayout;
     const need = columnCountForLayout(layout);
     const columnsRaw = Array.isArray(s.columns) ? s.columns : [];
+    const columnsAligned = mergeExtraListPageColumnsIntoLayout(
+      layout,
+      columnsRaw.map((c) => (Array.isArray(c) ? (c as IListPageBlock[]) : []))
+    );
     const columns: IListPageBlock[][] = [];
     for (let ci = 0; ci < need; ci++) {
-      const colSrc = columnsRaw[ci];
+      const colSrc = columnsAligned[ci];
       const blocks: IListPageBlock[] = [];
       if (Array.isArray(colSrc)) {
         for (let bi = 0; bi < colSrc.length; bi++) {
           const b = colSrc[bi];
           if (!b || typeof b !== 'object') continue;
-          const bb = b as Record<string, unknown>;
+          const bb = b as unknown as Record<string, unknown>;
           const bid = typeof bb.id === 'string' && bb.id.trim() ? bb.id.trim() : newBlockId();
           const bt = String(bb.type ?? '');
           if (!VALID_BLOCK_TYPES.has(bt)) continue;

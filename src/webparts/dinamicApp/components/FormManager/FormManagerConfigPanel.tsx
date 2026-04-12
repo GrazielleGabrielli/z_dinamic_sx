@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Panel,
   PanelType,
@@ -102,6 +102,7 @@ import {
   whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
+import { FormManagerConditionalEffectTargetsEditor } from './FormManagerConditionalEffectTargetsEditor';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { FormManagerAttachmentsTabContent } from './FormManagerAttachmentsTab';
 import type { IFolderVisibilityEditorProps } from './FormManagerFolderTreeEditor';
@@ -147,7 +148,7 @@ function cloneLinkedChildFormConfig(c: IFormLinkedChildFormConfig): IFormLinkedC
     ...c,
     sections: c.sections.map((s) => ({ ...s })),
     fields: c.fields.map((f) => ({ ...f })),
-    rules: c.rules.map((r) => JSON.parse(JSON.stringify(r)) as TFormRule),
+    rules: (c.rules ?? []).map((r) => JSON.parse(JSON.stringify(r)) as TFormRule),
     steps: (c.steps ?? []).map((s) => ({ ...s, fieldNames: [...s.fieldNames] })),
     ...(lib
       ? {
@@ -666,7 +667,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [customButtons, setCustomButtons] = useState<IFormCustomButtonConfig[]>(() =>
     (value.customButtons ?? []).map((b) => ({
       ...b,
-      actions: b.actions.map((a) => ({ ...a })),
+      actions: (b.actions ?? []).map((a) => ({ ...a })),
     }))
   );
   const [stepLayout, setStepLayout] = useState<TFormStepLayoutKind>(() => value.stepLayout ?? 'segmented');
@@ -814,7 +815,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setCustomButtons(
       (cfg.customButtons ?? []).map((b) => ({
         ...b,
-        actions: b.actions.map((a) => ({ ...a })),
+        actions: (b.actions ?? []).map((a) => ({ ...a })),
       }))
     );
     setStepLayout(cfg.stepLayout ?? 'segmented');
@@ -865,16 +866,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setLinkedChildForms((cfg.linkedChildForms ?? []).map(cloneLinkedChildFormConfig));
   }, []);
 
-  const formManagerPanelHydratedForOpenRef = useRef(false);
-  useEffect(() => {
-    if (!isOpen) {
-      formManagerPanelHydratedForOpenRef.current = false;
-      return;
-    }
-    if (!formManagerPanelHydratedForOpenRef.current) {
-      hydrateFromFormManagerConfig(value);
-      formManagerPanelHydratedForOpenRef.current = true;
-    }
+  const formManagerValueRef = useRef(value);
+  formManagerValueRef.current = value;
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    hydrateFromFormManagerConfig(value);
   }, [isOpen, value, hydrateFromFormManagerConfig]);
 
   useEffect(() => {
@@ -1300,7 +1296,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}),
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
-      ...(customButtons.length ? { customButtons } : {}),
+      ...(customButtons.length
+        ? {
+            customButtons: customButtons.map((b) => ({
+              ...b,
+              actions: b.actions ?? [],
+            })),
+          }
+        : {}),
       stepLayout,
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
       ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
@@ -1554,7 +1557,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}),
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
-      ...(customButtons.length ? { customButtons } : {}),
+      ...(customButtons.length
+        ? {
+            customButtons: customButtons.map((b) => ({
+              ...b,
+              actions: b.actions ?? [],
+            })),
+          }
+        : {}),
       stepLayout,
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
       ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
@@ -3294,7 +3304,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 />
                 <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Então</Text>
                 {card.effects.map((eff, ei) => (
-                  <Stack key={ei} horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                  <Stack key={`${card.id}-eff-${ei}`} horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
                     <Dropdown
                       label="Efeito"
                       options={CONDITIONAL_EFFECT_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
@@ -3304,13 +3314,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       }
                     />
                     {eff.kind !== 'message' && (
-                      <Dropdown
-                        label="Campo alvo"
-                        options={[{ key: '', text: '—' }, ...fieldOptions]}
-                        selectedKey={eff.targetField ?? ''}
-                        onChange={(_, o) =>
-                          patchEffect(ci, ei, { targetField: o ? String(o.key) : undefined })
-                        }
+                      <FormManagerConditionalEffectTargetsEditor
+                        effect={eff}
+                        fieldOptions={fieldOptions}
+                        onPatch={(p) => patchEffect(ci, ei, p)}
                       />
                     )}
                     {eff.kind === 'message' && (
