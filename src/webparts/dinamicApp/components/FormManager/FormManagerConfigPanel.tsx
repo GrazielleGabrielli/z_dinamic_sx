@@ -102,7 +102,6 @@ import {
   whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
-import { FormManagerConditionalEffectTargetsEditor } from './FormManagerConditionalEffectTargetsEditor';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { FormManagerAttachmentsTabContent } from './FormManagerAttachmentsTab';
 import type { IFolderVisibilityEditorProps } from './FormManagerFolderTreeEditor';
@@ -3303,46 +3302,68 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   }}
                 />
                 <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Então</Text>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  Uma linha por combinação (efeito + campo). «Adicionar efeito» acrescenta outra linha com a mesma
+                  condição «Quando».
+                </Text>
                 {card.effects.map((eff, ei) => (
-                  <Stack key={`${card.id}-eff-${ei}`} horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                    <Dropdown
-                      label="Efeito"
-                      options={CONDITIONAL_EFFECT_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                      selectedKey={eff.kind}
-                      onChange={(_, o) =>
-                        o && patchEffect(ci, ei, { kind: o.key as TConditionalEffectKind })
-                      }
-                    />
-                    {eff.kind !== 'message' && (
-                      <FormManagerConditionalEffectTargetsEditor
-                        effect={eff}
-                        fieldOptions={fieldOptions}
-                        onPatch={(p) => patchEffect(ci, ei, p)}
+                  <Stack
+                    key={`${card.id}-eff-${ei}`}
+                    tokens={{ childrenGap: 8 }}
+                    styles={{
+                      root: {
+                        paddingTop: ei > 0 ? 10 : 0,
+                        marginTop: ei > 0 ? 10 : 0,
+                        borderTop: ei > 0 ? '1px solid #edebe9' : undefined,
+                      },
+                    }}
+                  >
+                    <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                      Efeito {ei + 1}
+                    </Text>
+                    <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                      <Dropdown
+                        label="Efeito"
+                        options={CONDITIONAL_EFFECT_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                        selectedKey={eff.kind}
+                        onChange={(_, o) =>
+                          o && patchEffect(ci, ei, { kind: o.key as TConditionalEffectKind })
+                        }
                       />
-                    )}
-                    {eff.kind === 'message' && (
-                      <>
+                      {eff.kind !== 'message' && (
                         <Dropdown
-                          label="Tipo"
-                          options={[
-                            { key: 'info', text: 'Info' },
-                            { key: 'warning', text: 'Aviso' },
-                            { key: 'error', text: 'Erro' },
-                          ]}
-                          selectedKey={eff.messageVariant ?? 'info'}
+                          label="Campo alvo"
+                          options={[{ key: '', text: '—' }, ...fieldOptions]}
+                          selectedKey={eff.targetField ?? ''}
                           onChange={(_, o) =>
-                            o &&
-                            patchEffect(ci, ei, { messageVariant: o.key as 'info' | 'warning' | 'error' })
+                            patchEffect(ci, ei, { targetField: o ? String(o.key) : undefined })
                           }
                         />
-                        <TextField
-                          label="Texto"
-                          value={eff.messageText ?? ''}
-                          onChange={(_, v) => patchEffect(ci, ei, { messageText: v ?? '' })}
-                        />
-                      </>
-                    )}
-                    <DefaultButton text="Remover efeito" onClick={() => removeEffect(ci, ei)} />
+                      )}
+                      {eff.kind === 'message' && (
+                        <>
+                          <Dropdown
+                            label="Tipo"
+                            options={[
+                              { key: 'info', text: 'Info' },
+                              { key: 'warning', text: 'Aviso' },
+                              { key: 'error', text: 'Erro' },
+                            ]}
+                            selectedKey={eff.messageVariant ?? 'info'}
+                            onChange={(_, o) =>
+                              o &&
+                              patchEffect(ci, ei, { messageVariant: o.key as 'info' | 'warning' | 'error' })
+                            }
+                          />
+                          <TextField
+                            label="Texto"
+                            value={eff.messageText ?? ''}
+                            onChange={(_, v) => patchEffect(ci, ei, { messageText: v ?? '' })}
+                          />
+                        </>
+                      )}
+                      <DefaultButton text="Remover efeito" onClick={() => removeEffect(ci, ei)} />
+                    </Stack>
                   </Stack>
                 ))}
                 <DefaultButton text="Adicionar efeito" onClick={() => addEffect(ci)} />
