@@ -31,18 +31,49 @@ export interface IFormItemHistoryUiProps {
 
 interface IAuditEntry {
   key: string;
-  lineTitle: string;
+  actionLabel: string;
   createdStr: string;
   who: string;
   html: string;
 }
 
+function actionLabelFromItemTitle(title: string): string {
+  const t = title.trim();
+  const sep = ' · ';
+  let idx = t.lastIndexOf(sep);
+  while (idx > 0) {
+    const tail = t.slice(idx + sep.length).trim();
+    if (
+      /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(tail) ||
+      /\d{4}-\d{2}-\d{2}/.test(tail) ||
+      /\d{1,2}:\d{2}(:\d{2})?/.test(tail)
+    ) {
+      return t.slice(0, idx).trim() || t;
+    }
+    idx = t.lastIndexOf(sep, idx - 1);
+  }
+  return t;
+}
+
 function authorDisplay(row: Record<string, unknown>): string {
   const a = row.Author;
   if (a && typeof a === 'object' && a !== null && 'Title' in a) {
-    return String((a as { Title?: string }).Title ?? '');
+    return String((a as { Title?: string }).Title ?? '').trim();
   }
+  if (typeof a === 'string') return a.trim();
   return '';
+}
+
+function formatCreatedValue(created: unknown): string {
+  if (created == null || created === '') return '—';
+  const d =
+    created instanceof Date
+      ? created
+      : typeof created === 'string' || typeof created === 'number'
+        ? new Date(created)
+        : null;
+  if (!d || Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function renderHtmlBlock(html: string, compact: boolean): React.ReactNode {
@@ -62,9 +93,24 @@ function renderHtmlBlock(html: string, compact: boolean): React.ReactNode {
   );
 }
 
-function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayoutKind): React.ReactNode {
-  const metaLine = (e: IAuditEntry): string => `${e.createdStr}${e.who ? ` · ${e.who}` : ''}`;
+function entryHeadline(e: IAuditEntry): React.ReactNode {
+  return (
+    <>
+      <span style={{ fontWeight: 600 }}>{e.actionLabel}</span>
+      <span style={{ color: '#605e5c', fontWeight: 400 }}> · {e.createdStr}</span>
+    </>
+  );
+}
 
+function entryAuthorLine(e: IAuditEntry, fontSize: number): React.ReactNode {
+  return (
+    <Text variant="small" styles={{ root: { color: '#605e5c', fontSize, marginTop: 2 } }}>
+      {e.who || '—'}
+    </Text>
+  );
+}
+
+function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayoutKind): React.ReactNode {
   if (layoutKind === 'compact') {
     return (
       <Stack tokens={{ childrenGap: 0 }}>
@@ -77,9 +123,9 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
             }}
           >
             <Text variant="small" styles={{ root: { fontSize: 11, color: '#323130' } }}>
-              <span style={{ fontWeight: 600 }}>{e.lineTitle}</span>
-              <span style={{ color: '#605e5c' }}> · {metaLine(e)}</span>
+              {entryHeadline(e)}
             </Text>
+            {entryAuthorLine(e, 11)}
             <div style={{ marginTop: e.html ? 6 : 4 }}>{renderHtmlBlock(e.html, true)}</div>
           </div>
         ))}
@@ -116,10 +162,10 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
                   boxShadow: '0 0 0 1px #c8c6c4',
                 }}
               />
-              <Text styles={{ root: { fontWeight: 600 } }}>{e.lineTitle}</Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {metaLine(e)}
+              <Text variant="small" styles={{ root: { color: '#323130' } }}>
+                {entryHeadline(e)}
               </Text>
+              {entryAuthorLine(e, 12)}
               <div style={{ marginTop: 6 }}>{renderHtmlBlock(e.html, false)}</div>
             </div>
           ))}
@@ -142,10 +188,10 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
               border: '1px solid #edebe9',
             }}
           >
-            <Text styles={{ root: { fontWeight: 600 } }}>{e.lineTitle}</Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c', marginTop: 4 } }}>
-              {metaLine(e)}
+            <Text variant="small" styles={{ root: { color: '#323130' } }}>
+              {entryHeadline(e)}
             </Text>
+            {entryAuthorLine(e, 12)}
             <div style={{ marginTop: 10 }}>{renderHtmlBlock(e.html, false)}</div>
           </div>
         ))}
@@ -168,10 +214,10 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
             },
           }}
         >
-          <Text styles={{ root: { fontWeight: 600 } }}>{e.lineTitle}</Text>
-          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            {metaLine(e)}
+          <Text variant="small" styles={{ root: { color: '#323130' } }}>
+            {entryHeadline(e)}
           </Text>
+          {entryAuthorLine(e, 12)}
           {renderHtmlBlock(e.html, false)}
         </Stack>
       ))}
@@ -258,14 +304,11 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
           : rawHtml !== undefined && rawHtml !== null
             ? String(rawHtml)
             : '';
-      const created = r.Created;
-      const createdStr =
-        typeof created === 'string'
-          ? new Date(created).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
-          : '—';
+      const createdStr = formatCreatedValue(r.Created);
       const who = authorDisplay(r);
       const lineTitle = typeof r.Title === 'string' ? r.Title : String(r.Title ?? '—');
-      out.push({ key, lineTitle, createdStr, who, html });
+      const actionLabel = actionLabelFromItemTitle(lineTitle);
+      out.push({ key, actionLabel, createdStr, who, html });
     }
     return out;
   }, [rows, resolvedActionField]);

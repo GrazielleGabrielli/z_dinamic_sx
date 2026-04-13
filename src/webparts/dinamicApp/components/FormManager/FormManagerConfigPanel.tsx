@@ -20,6 +20,9 @@ import {
   Icon,
   IconButton,
   Toggle,
+  Dialog,
+  DialogFooter,
+  DialogType,
 } from '@fluentui/react';
 import { FieldsService, GroupsService } from '../../../../services';
 import type { IFieldMetadata, IGroupDetails } from '../../../../services';
@@ -739,6 +742,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonPanelText, setJsonPanelText] = useState('');
   const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
+  const [jsonCopiedDialogOpen, setJsonCopiedDialogOpen] = useState(false);
+  const [jsonClipboardFailed, setJsonClipboardFailed] = useState(false);
+  const lastSavedFormManagerJsonRef = useRef('');
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
   const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
   const [redirectInsertNonceByBtn, setRedirectInsertNonceByBtn] = useState<Record<string, number>>({});
@@ -1338,8 +1344,38 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       setErr('Configuração inválida.');
       return;
     }
+    const jsonStr = JSON.stringify(sanitized, null, 2);
+    lastSavedFormManagerJsonRef.current = jsonStr;
+    setJsonClipboardFailed(false);
+    void (async (): Promise<void> => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(jsonStr);
+        } else {
+          setJsonClipboardFailed(true);
+        }
+      } catch {
+        setJsonClipboardFailed(true);
+      }
+    })();
+    setJsonCopiedDialogOpen(true);
     onSave(sanitized);
     onDismiss();
+  };
+
+  const downloadLastSavedFormManagerJson = (): void => {
+    const body = lastSavedFormManagerJsonRef.current;
+    if (!body) return;
+    const safeTitle = (listTitle || 'form-manager').replace(/[^\w.-]+/g, '_').slice(0, 80);
+    const blob = new Blob([body], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `formulario-${safeTitle}-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const addStep = (): void => {
@@ -1734,7 +1770,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   return (
-    <Panel
+    <>
+      <Panel
       isOpen={isOpen}
       type={PanelType.large}
       headerText="Configurar formulário e regras"
@@ -3432,5 +3469,38 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         />
       )}
     </Panel>
+    <Dialog
+      hidden={!jsonCopiedDialogOpen}
+      onDismiss={() => setJsonCopiedDialogOpen(false)}
+      dialogContentProps={{
+        type: DialogType.normal,
+        title: jsonClipboardFailed
+          ? 'Configuração gravada (cópia automática falhou)'
+          : 'JSON copiado automaticamente',
+      }}
+      modalProps={{ isBlocking: true }}
+    >
+      <Stack tokens={{ childrenGap: 12 }}>
+        {jsonClipboardFailed ? (
+          <MessageBar messageBarType={MessageBarType.warning}>
+            Não foi possível copiar para a área de transferência neste navegador. Utilize o botão Baixar JSON para
+            guardar uma cópia local.
+          </MessageBar>
+        ) : (
+          <Text>
+            O JSON da configuração do formulário foi copiado para a área de transferência (Ctrl+V onde precisar).
+          </Text>
+        )}
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Por garantia: se atualizar a página sem gravar as alterações da web part na página do SharePoint, configure
+          de novo e clique em Salvar para voltar a copiar o JSON.
+        </Text>
+        <DialogFooter>
+          <PrimaryButton text="Baixar JSON" onClick={downloadLastSavedFormManagerJson} />
+          <DefaultButton text="Fechar" onClick={() => setJsonCopiedDialogOpen(false)} />
+        </DialogFooter>
+      </Stack>
+    </Dialog>
+    </>
   );
 };
