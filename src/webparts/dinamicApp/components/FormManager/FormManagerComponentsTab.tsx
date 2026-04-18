@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Stack,
   Text,
@@ -9,6 +9,7 @@ import {
   ShimmerElementType,
   ProgressIndicator,
   IconButton,
+  useTheme,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
 import type {
@@ -19,8 +20,11 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormHistoryLayoutKind,
+  TFormCustomButtonPaletteSlot,
 } from '../../core/config/types/formManager';
+import { resolveStepUiAccentColor } from '../../core/formManager/formCustomButtonTheme';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
+import { ThemePaletteSlotDropdown } from './ThemePaletteSlotDropdown';
 import {
   FormDataLoadingView,
   FORM_DATA_LOADING_DROPDOWN_OPTIONS,
@@ -418,6 +422,8 @@ export interface IFormManagerComponentsTabContentProps {
   loading: boolean;
   stepLayout: TFormStepLayoutKind;
   onStepLayoutChange: (v: TFormStepLayoutKind) => void;
+  stepAccentPaletteSlot: TFormCustomButtonPaletteSlot | undefined;
+  onStepAccentPaletteSlotChange: (v: TFormCustomButtonPaletteSlot) => void;
   stepNavButtons: TFormStepNavButtonsKind;
   onStepNavButtonsChange: (v: TFormStepNavButtonsKind) => void;
   formDataLoadingKind: TFormDataLoadingUiKind;
@@ -440,6 +446,11 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
   if (props.loading) {
     return <FormManagerComponentsLoadingLayouts />;
   }
+  const theme = useTheme();
+  const stepAccentPreview = useMemo(
+    () => resolveStepUiAccentColor(theme, props.stepAccentPaletteSlot),
+    [theme, props.stepAccentPaletteSlot]
+  );
   return (
     <Stack tokens={{ childrenGap: 10 }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -513,14 +524,27 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
           Navegação visual entre etapas (quando existir mais de uma).
         </Text>
-        <FormStepLayoutPicker value={props.stepLayout} onChange={props.onStepLayoutChange} />
+        <ThemePaletteSlotDropdown
+          label="Cor de destaque (passador e botões de etapa)"
+          selectedKey={props.stepAccentPaletteSlot ?? 'themePrimary'}
+          onChange={(slot) => props.onStepAccentPaletteSlotChange(slot)}
+        />
+        <FormStepLayoutPicker
+          value={props.stepLayout}
+          onChange={props.onStepLayoutChange}
+          accentColor={stepAccentPreview}
+        />
         <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
           Botões «Etapa anterior» / «Próxima etapa»
         </Text>
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
           Estilo apenas dos botões de navegação no rodapé.
         </Text>
-        <FormStepNavButtonsPicker value={props.stepNavButtons} onChange={props.onStepNavButtonsChange} />
+        <FormStepNavButtonsPicker
+          value={props.stepNavButtons}
+          onChange={props.onStepNavButtonsChange}
+          accentColor={stepAccentPreview}
+        />
       </FormManagerCollapseSection>
 
       <FormManagerCollapseSection

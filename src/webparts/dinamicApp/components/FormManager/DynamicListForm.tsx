@@ -20,6 +20,7 @@ import {
   Dialog,
   DialogFooter,
   DialogType,
+  useTheme,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type {
@@ -111,6 +112,11 @@ import {
   resolveLinkedChildAttachmentRuntime,
 } from '../../core/formManager/linkedChildAttachmentRuntime';
 import { FieldsService } from '../../../../services';
+import {
+  getFilledPaletteButtonStyles,
+  resolveFormCustomButtonPaletteSlot,
+  resolveStepUiAccentColor,
+} from '../../core/formManager/formCustomButtonTheme';
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -650,6 +656,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   onDismiss,
   onAfterItemUpdated,
 }) => {
+  const theme = useTheme();
+  const stepAccentHex = useMemo(
+    () => resolveStepUiAccentColor(theme, formManager.stepAccentPaletteSlot),
+    [theme, formManager.stepAccentPaletteSlot]
+  );
   const fieldConfigs: IFormFieldConfig[] =
     formManager.fields.length > 0
       ? formManager.fields
@@ -2909,6 +2920,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             activeIndex={stepIndex}
             onStepSelect={(i) => tryGoToStep(i)}
             layout={formManager.stepLayout ?? 'segmented'}
+            accentColor={stepAccentHex}
           />
         )}
         {modalGroupIds.length > 0 && formMode !== 'view' && (
@@ -2965,6 +2977,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               onPrev={() => tryGoToStep(stepIndex - 1)}
               onNext={() => tryGoToStep(stepIndex + 1)}
               disabled={submitting}
+              accentColor={stepAccentHex}
             />
           </Stack>
         )}
@@ -2988,25 +3001,25 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 historyItemId: itemId,
               })
             )
-            .map((b) =>
-              b.appearance === 'primary' ? (
-                <PrimaryButton
-                  key={b.id}
-                  text={b.label}
-                  title={b.shortDescription || undefined}
-                  onClick={() => void runCustomButton(b)}
-                  disabled={submitting}
-                />
-              ) : (
+            .map((b) => {
+              const slot = resolveFormCustomButtonPaletteSlot(b);
+              const common = {
+                text: b.label,
+                title: b.shortDescription || undefined,
+                onClick: () => void runCustomButton(b),
+                disabled: submitting,
+              };
+              if (slot === 'outline') {
+                return <DefaultButton key={b.id} {...common} />;
+              }
+              return (
                 <DefaultButton
                   key={b.id}
-                  text={b.label}
-                  title={b.shortDescription || undefined}
-                  onClick={() => void runCustomButton(b)}
-                  disabled={submitting}
+                  {...common}
+                  styles={getFilledPaletteButtonStyles(theme, slot)}
                 />
-              )
-            )}
+              );
+            })}
           {formManager.historyEnabled === true &&
             shouldShowBuiltinHistoryButton({
               historyEnabledInConfig: true,
@@ -3070,6 +3083,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               onDismiss={() => setHistoryBtn(null)}
               title={historyBtn.label}
               subtitle={historyBtn.shortDescription}
+              accentColor={stepAccentHex}
             />
           )}
         <FormSubmitLoadingChrome kind="belowButtons" active={submitUi === 'belowButtons'} message={submitMsg} />

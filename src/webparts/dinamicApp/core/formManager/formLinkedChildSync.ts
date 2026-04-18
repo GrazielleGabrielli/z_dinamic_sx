@@ -1,5 +1,10 @@
 import type { IFieldMetadata } from '../../../../services';
-import type { IFormLinkedChildFormConfig, IFormManagerConfig } from '../config/types/formManager';
+import type {
+  IFormFieldConfig,
+  IFormLinkedChildFormConfig,
+  IFormManagerConfig,
+} from '../config/types/formManager';
+import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_BANNER_INTERNAL_PREFIX } from '../config/types/formManager';
 import type { ItemsService } from '../../../../services';
 import { formValuesToSharePointPayload } from './formSharePointValues';
 
@@ -34,6 +39,23 @@ export function itemFieldNamesToValues(
 export function getLinkedChildMainStepFieldNames(cfg: IFormLinkedChildFormConfig): string[] {
   const st = cfg.steps?.find((s) => s.id === 'main');
   return st?.fieldNames?.slice() ?? [];
+}
+
+/** Campos do passo principal na ordem da UI (ex.: cabeçalhos de tabela em lista vinculada). */
+export function getLinkedChildOrderedFieldConfigs(cfg: IFormLinkedChildFormConfig): IFormFieldConfig[] {
+  const mainNames = cfg.steps?.find((s) => s.id === 'main')?.fieldNames ?? [];
+  const fieldConfigs = cfg.fields;
+  const lk = cfg.parentLookupFieldInternalName.trim();
+  const out: IFormFieldConfig[] = [];
+  for (let i = 0; i < mainNames.length; i++) {
+    const n = mainNames[i];
+    if (n === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
+    if (n.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0) continue;
+    if (n === lk) continue;
+    const fc = fieldConfigs.find((f) => f.internalName === n);
+    if (fc) out.push(fc);
+  }
+  return out;
 }
 
 export function payloadFieldNamesForLinkedChild(

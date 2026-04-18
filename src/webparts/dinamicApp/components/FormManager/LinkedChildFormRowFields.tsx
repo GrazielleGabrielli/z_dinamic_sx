@@ -141,6 +141,8 @@ function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
   return false;
 }
 
+export type TLinkedChildFormRowFieldLayout = 'stack' | 'compact' | 'tableCells';
+
 export interface ILinkedChildFormRowFieldsProps {
   childForm: IFormLinkedChildFormConfig;
   fieldMetadata: IFieldMetadata[];
@@ -152,6 +154,7 @@ export interface ILinkedChildFormRowFieldsProps {
   authorId: number | undefined;
   dynamicContext: IDynamicContext;
   localErrors?: Record<string, string>;
+  fieldLayout?: TLinkedChildFormRowFieldLayout;
 }
 
 export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> = ({
@@ -165,6 +168,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
   authorId,
   dynamicContext,
   localErrors = {},
+  fieldLayout = 'stack',
 }) => {
   const itemsService = useMemo(() => new ItemsService(), []);
   const usersService = useMemo(() => new UsersService(), []);
@@ -318,13 +322,17 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     };
   }, [lookupFetchKey, loadLookupOptions, orderedFieldConfigs, metaByName, derived.lookupFilters, values]);
 
-  const renderFieldControl = (fc: IFormFieldConfig): React.ReactNode => {
+  type TRenderMode = 'default' | 'compact' | 'cell';
+
+  const renderFieldControl = (fc: IFormFieldConfig, mode: TRenderMode = 'default'): React.ReactNode => {
     const name = fc.internalName;
     if (derived.fieldVisible[name] === false) return null;
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return null;
 
     const m = metaByName.get(name);
     if (!m) return null;
+    const mb = mode === 'compact' ? 4 : 8;
+    const cell = mode === 'cell';
     const disabled = formMode === 'view' || derived.fieldDisabled[name] === true;
     const readOnly = derived.fieldReadOnly[name] === true || disabled;
     const err = localErrors[name];
@@ -336,10 +344,12 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const comp = derived.computedDisplay[name];
     if (comp !== undefined) {
       return (
-        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 8 } }}>
-          <Label required={isRequired}>{label}</Label>
-          <Text styles={{ root: { color: '#323130' } }}>{String(comp)}</Text>
-          {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+          {!cell && <Label required={isRequired}>{label}</Label>}
+          <Text styles={{ root: { color: '#323130' } }} title={cell ? label : undefined}>
+            {String(comp)}
+          </Text>
+          {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
         </Stack>
       );
     }
@@ -349,8 +359,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     switch (m.MappedType) {
       case 'boolean':
         return (
-          <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 8 } }}>
-            <Label required={isRequired}>{label}</Label>
+          <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: mb } }}>
+            {!cell && <Label required={isRequired}>{label}</Label>}
             <Toggle
               ariaLabel={label}
               onText="Sim"
@@ -366,31 +376,32 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <TextField
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             type="number"
             placeholder={fc.placeholder}
             value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
             onChange={(_, v) => updateField(name, v === '' ? null : Number(v))}
             required={isRequired}
             {...common}
-            description={help}
+            description={cell ? undefined : help}
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
       case 'datetime':
         return (
-          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 8 } }}>
-            <Label required={isRequired}>{label}</Label>
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            {!cell && <Label required={isRequired}>{label}</Label>}
             <DatePicker
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => updateField(name, d ? d.toISOString() : null)}
               disabled={readOnly}
               textField={{
+                ...(cell ? { ariaLabel: label } : {}),
                 errorMessage: err,
                 styles: stylesTextFieldRequiredEmpty(showReqEmpty),
               }}
             />
-            {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+            {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
         );
       case 'choice': {
@@ -399,7 +410,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <Dropdown
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             options={opts}
             selectedKey={
@@ -429,7 +440,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <Dropdown
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             multiSelect
             options={opts}
@@ -457,7 +468,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <Dropdown
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             options={opts}
             selectedKey={id !== undefined ? String(id) : ''}
@@ -482,7 +493,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <Dropdown
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             multiSelect
             options={opts}
@@ -514,7 +525,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <Dropdown
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             options={opts}
             selectedKey={id !== undefined ? String(id) : ''}
@@ -538,7 +549,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <Dropdown
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             multiSelect
             options={opts}
@@ -563,10 +574,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       case 'url': {
         const uv = parseUrlFieldValue(values[name]);
         return (
-          <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 8 } }}>
-            <Label required={isRequired}>{label}</Label>
+          <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: mb } }}>
+            {!cell && <Label required={isRequired}>{label}</Label>}
             <TextField
-              label="Endereço web"
+              label={cell ? undefined : 'Endereço web'}
+              ariaLabel={cell ? `${label} · Endereço web` : undefined}
               placeholder="https://"
               value={uv.Url}
               onChange={(_, v) => updateField(name, { Url: v ?? '', Description: uv.Description })}
@@ -575,12 +587,13 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
             />
             <TextField
-              label="Descrição a apresentar"
+              label={cell ? undefined : 'Descrição a apresentar'}
+              ariaLabel={cell ? `${label} · Descrição` : undefined}
               value={uv.Description}
               onChange={(_, v) => updateField(name, { Url: uv.Url, Description: v ?? '' })}
               disabled={readOnly}
             />
-            {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+            {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
         );
       }
@@ -594,23 +607,24 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               label={label}
               required={isRequired}
               html={raw}
-              help={help}
+              help={cell ? undefined : help}
               showReqEmpty={showReqEmpty}
+              showLabel={!cell}
             />
           );
         }
         return (
           <TextField
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             multiline
-            rows={3}
+            rows={cell ? 2 : 3}
             placeholder={fc.placeholder}
             value={raw}
             onChange={(_, v) => updateField(name, v ?? '')}
             required={isRequired}
             {...common}
-            description={help}
+            description={cell ? undefined : help}
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
@@ -619,22 +633,46 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return (
           <TextField
             key={name}
-            label={label}
+            {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
             value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
             onChange={(_, v) => updateField(name, v ?? '')}
             required={isRequired}
             {...common}
-            description={help}
+            description={cell ? undefined : help}
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
           />
         );
     }
   };
 
+  if (fieldLayout === 'tableCells') {
+    return (
+      <>
+        {orderedFieldConfigs.map((fc) => (
+          <td
+            key={fc.internalName}
+            style={{
+              verticalAlign: 'top',
+              padding: '8px 10px',
+              borderBottom: '1px solid #edebe9',
+              borderRight: '1px solid #edebe9',
+              maxWidth: 300,
+              minWidth: 80,
+            }}
+          >
+            {renderFieldControl(fc, 'cell')}
+          </td>
+        ))}
+      </>
+    );
+  }
+
+  const stackMode: TRenderMode = fieldLayout === 'compact' ? 'compact' : 'default';
+
   return (
-    <Stack tokens={{ childrenGap: 8 }}>
-      {orderedFieldConfigs.map((fc) => renderFieldControl(fc))}
+    <Stack tokens={{ childrenGap: fieldLayout === 'compact' ? 6 : 8 }}>
+      {orderedFieldConfigs.map((fc) => renderFieldControl(fc, stackMode))}
     </Stack>
   );
 };

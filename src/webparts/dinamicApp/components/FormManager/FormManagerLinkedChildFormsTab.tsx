@@ -7,11 +7,11 @@ import {
   DefaultButton,
   Dropdown,
   IDropdownOption,
-  Toggle,
   Spinner,
   MessageBar,
   MessageBarType,
   IconButton,
+  Icon,
 } from '@fluentui/react';
 import { FieldsService, ListsService } from '../../../../services';
 import type { IFieldMetadata, IListSummary } from '../../../../services';
@@ -21,6 +21,7 @@ import type {
   IFormManagerAttachmentLibraryConfig,
   TFormAttachmentStorageKind,
   TLinkedChildAttachmentStorageKind,
+  TLinkedChildRowsPresentationKind,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -35,9 +36,17 @@ import {
 import { FormManagerFolderTreeEditor } from './FormManagerFolderTreeEditor';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 import { FormManagerLinkedChildConditionalRulesBlock } from './FormManagerLinkedChildConditionalRulesBlock';
+import { FormManagerLinkedChildPresentationPreview } from './FormManagerLinkedChildPresentationPreview';
 import { buildFieldUiRules, mergeFieldRules } from '../../core/formManager/formManagerVisualModel';
 
 const MAX_LINKED = 10;
+
+const ROWS_PRESENTATION_OPTIONS: { key: TLinkedChildRowsPresentationKind; text: string }[] = [
+  { key: 'stack', text: 'Blocos (em coluna)' },
+  { key: 'table', text: 'Tabela' },
+  { key: 'compact', text: 'Compacto' },
+  { key: 'cards', text: 'Cartões' },
+];
 
 const LINKED_CHILD_STORAGE_OPTIONS: { key: TLinkedChildAttachmentStorageKind; text: string }[] = [
   { key: 'none', text: 'Sem anexos neste bloco' },
@@ -221,6 +230,9 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
   const [inheritLibLoading, setInheritLibLoading] = useState<Record<string, boolean>>({});
   const [customLibFieldOpts, setCustomLibFieldOpts] = useState<Record<string, IDropdownOption[]>>({});
   const [customLibLoading, setCustomLibLoading] = useState<Record<string, boolean>>({});
+  const [linkedUiCollapse, setLinkedUiCollapse] = useState<
+    Record<string, { presentation: boolean; preview: boolean }>
+  >({});
 
   useEffect(() => {
     setListsLoading(true);
@@ -618,61 +630,152 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                 />
               </Stack>
             )}
-            <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
-              <Dropdown
-                label="Ordem de exibição"
-                options={ORDER_DROPDOWN}
-                selectedKey={cfg.order === undefined ? '__auto' : String(cfg.order)}
-                onChange={(_, o) => {
-                  if (!o) return;
-                  const k = String(o.key);
-                  onLinkedChildFormsChange(
-                    patchChildById(linkedChildForms, cfg.id, {
-                      order: k === '__auto' ? undefined : parseInt(k, 10),
-                    })
-                  );
-                }}
-                styles={{ root: { minWidth: 200 } }}
-              />
-              <Dropdown
-                label="Mínimo de linhas"
-                options={MIN_ROWS_DROPDOWN}
-                selectedKey={String(cfg.minRows ?? 0)}
-                onChange={(_, o) =>
-                  o &&
-                  onLinkedChildFormsChange(
-                    patchChildById(linkedChildForms, cfg.id, {
-                      minRows: parseInt(String(o.key), 10),
-                    })
-                  )
-                }
-                styles={{ root: { minWidth: 200 } }}
-              />
-              <Dropdown
-                label="Máximo de linhas"
-                options={MAX_ROWS_DROPDOWN}
-                selectedKey={cfg.maxRows === undefined ? '__none' : String(cfg.maxRows)}
-                onChange={(_, o) => {
-                  if (!o) return;
-                  const k = String(o.key);
-                  onLinkedChildFormsChange(
-                    patchChildById(linkedChildForms, cfg.id, {
-                      maxRows: k === '__none' ? undefined : parseInt(k, 10),
-                    })
-                  );
-                }}
-                styles={{ root: { minWidth: 200 } }}
-              />
-            </Stack>
-            <Toggle
-              label="Secção recolhida por defeito (reservado)"
-              checked={cfg.collapsedDefault === true}
-              onChange={(_, c) =>
-                onLinkedChildFormsChange(
-                  patchChildById(linkedChildForms, cfg.id, { collapsedDefault: !!c })
-                )
-              }
-            />
+            {(() => {
+              const ui = linkedUiCollapse[cfg.id] ?? { presentation: true, preview: false };
+              const headerStyle = {
+                cursor: 'pointer' as const,
+                userSelect: 'none' as const,
+              };
+              const togglePresentation = (): void => {
+                setLinkedUiCollapse((m) => {
+                  const cur = m[cfg.id] ?? { presentation: true, preview: false };
+                  return { ...m, [cfg.id]: { ...cur, presentation: !cur.presentation } };
+                });
+              };
+              const togglePreview = (): void => {
+                setLinkedUiCollapse((m) => {
+                  const cur = m[cfg.id] ?? { presentation: true, preview: false };
+                  return { ...m, [cfg.id]: { ...cur, preview: !cur.preview } };
+                });
+              };
+              return (
+                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 4 } }}>
+                  <Stack
+                    horizontal
+                    verticalAlign="center"
+                    tokens={{ childrenGap: 8 }}
+                    styles={{ root: headerStyle }}
+                    onClick={togglePresentation}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        togglePresentation();
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={ui.presentation}
+                  >
+                    <Icon
+                      iconName={ui.presentation ? 'ChevronDown' : 'ChevronRight'}
+                      styles={{ root: { fontSize: 14, color: '#323130', flexShrink: 0 } }}
+                    />
+                    <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                      Apresentação no formulário
+                    </Text>
+                  </Stack>
+                  {ui.presentation && (
+                    <Stack
+                      tokens={{ childrenGap: 10 }}
+                      styles={{ root: { paddingLeft: 22, borderLeft: '2px solid #edebe9' } }}
+                    >
+                      <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
+                        <Dropdown
+                          label="Ordem de exibição"
+                          options={ORDER_DROPDOWN}
+                          selectedKey={cfg.order === undefined ? '__auto' : String(cfg.order)}
+                          onChange={(_, o) => {
+                            if (!o) return;
+                            const k = String(o.key);
+                            onLinkedChildFormsChange(
+                              patchChildById(linkedChildForms, cfg.id, {
+                                order: k === '__auto' ? undefined : parseInt(k, 10),
+                              })
+                            );
+                          }}
+                          styles={{ root: { minWidth: 200 } }}
+                        />
+                        <Dropdown
+                          label="Mínimo de linhas"
+                          options={MIN_ROWS_DROPDOWN}
+                          selectedKey={String(cfg.minRows ?? 0)}
+                          onChange={(_, o) =>
+                            o &&
+                            onLinkedChildFormsChange(
+                              patchChildById(linkedChildForms, cfg.id, {
+                                minRows: parseInt(String(o.key), 10),
+                              })
+                            )
+                          }
+                          styles={{ root: { minWidth: 200 } }}
+                        />
+                        <Dropdown
+                          label="Máximo de linhas"
+                          options={MAX_ROWS_DROPDOWN}
+                          selectedKey={cfg.maxRows === undefined ? '__none' : String(cfg.maxRows)}
+                          onChange={(_, o) => {
+                            if (!o) return;
+                            const k = String(o.key);
+                            onLinkedChildFormsChange(
+                              patchChildById(linkedChildForms, cfg.id, {
+                                maxRows: k === '__none' ? undefined : parseInt(k, 10),
+                              })
+                            );
+                          }}
+                          styles={{ root: { minWidth: 200 } }}
+                        />
+                      </Stack>
+                      <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                        <Dropdown
+                          label="Apresentação das linhas"
+                          options={ROWS_PRESENTATION_OPTIONS}
+                          selectedKey={cfg.rowsPresentation ?? 'stack'}
+                          onChange={(_, o) => {
+                            if (!o) return;
+                            const k = String(o.key) as TLinkedChildRowsPresentationKind;
+                            onLinkedChildFormsChange(
+                              patchChildById(linkedChildForms, cfg.id, {
+                                rowsPresentation: k === 'stack' ? undefined : k,
+                              })
+                            );
+                          }}
+                          styles={{ root: { minWidth: 260 } }}
+                        />
+                      </Stack>
+                    </Stack>
+                  )}
+                  <Stack
+                    horizontal
+                    verticalAlign="center"
+                    tokens={{ childrenGap: 8 }}
+                    styles={{ root: headerStyle }}
+                    onClick={togglePreview}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        togglePreview();
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={ui.preview}
+                  >
+                    <Icon
+                      iconName={ui.preview ? 'ChevronDown' : 'ChevronRight'}
+                      styles={{ root: { fontSize: 14, color: '#323130', flexShrink: 0 } }}
+                    />
+                    <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                      Pré-visualização dos modos de linha
+                    </Text>
+                  </Stack>
+                  {ui.preview && (
+                    <Stack styles={{ root: { paddingLeft: 22, borderLeft: '2px solid #edebe9' } }}>
+                      <FormManagerLinkedChildPresentationPreview cfg={cfg} fieldMeta={meta} />
+                    </Stack>
+                  )}
+                </Stack>
+              );
+            })()}
             {(() => {
               const mainCanInherit =
                 mainAttachmentStorageKind === 'documentLibrary' &&

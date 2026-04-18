@@ -41,6 +41,7 @@ import type {
   TFormConditionOp,
   TFormCustomButtonBehavior,
   TFormCustomButtonOperation,
+  TFormCustomButtonPaletteSlot,
   TFormManagerFormMode,
   TFormRule,
   TFormStepLayoutKind,
@@ -74,6 +75,7 @@ import {
   type TChromePositionMode,
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
+import { resolveFormCustomButtonPaletteSlot } from '../../core/formManager/formCustomButtonTheme';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 import {
   attachmentFolderNodePathLabel,
@@ -106,6 +108,7 @@ import {
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
+import { ThemePaletteSlotDropdown } from './ThemePaletteSlotDropdown';
 import { FormManagerAttachmentsTabContent } from './FormManagerAttachmentsTab';
 import type { IFolderVisibilityEditorProps } from './FormManagerFolderTreeEditor';
 import {
@@ -638,7 +641,7 @@ function buildStepNavigationForSave(
  * | Aba | Chaves principais em `IFormManagerConfig` |
  * | --- | --- |
  * | Estrutura | `steps`, `sections`, `fields`, `rules` (merge anexos), `stepNavigation` |
- * | Componentes | `stepLayout`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview` |
+ * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview` |
  * | Anexos | `attachmentStorageKind` (`itemAttachments` \| `documentLibrary`), `attachmentLibrary` |
  * | Botões | `customButtons` |
  * | Lista de logs | `actionLog`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
@@ -676,6 +679,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [stepNavButtons, setStepNavButtons] = useState<TFormStepNavButtonsKind>(
     () => value.stepNavButtons ?? 'fluent'
   );
+  const [stepAccentPaletteSlot, setStepAccentPaletteSlot] = useState<
+    TFormCustomButtonPaletteSlot | undefined
+  >(() => value.stepAccentPaletteSlot);
   const [formDataLoadingKind, setFormDataLoadingKind] = useState<TFormDataLoadingUiKind>(
     () => value.formDataLoadingKind ?? 'spinner'
   );
@@ -824,6 +830,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       }))
     );
     setStepLayout(cfg.stepLayout ?? 'segmented');
+    setStepAccentPaletteSlot(cfg.stepAccentPaletteSlot);
     setStepNavButtons(cfg.stepNavButtons ?? 'fluent');
     setFormDataLoadingKind(cfg.formDataLoadingKind ?? 'spinner');
     setDefaultSubmitLoadingKind(cfg.defaultSubmitLoadingKind ?? 'overlay');
@@ -1310,6 +1317,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           }
         : {}),
       stepLayout,
+      ...(stepAccentPaletteSlot ? { stepAccentPaletteSlot } : {}),
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
       ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
       ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
@@ -1601,6 +1609,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           }
         : {}),
       stepLayout,
+      ...(stepAccentPaletteSlot ? { stepAccentPaletteSlot } : {}),
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
       ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
       ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'
@@ -1640,6 +1649,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     customButtons,
     linkedChildForms,
     stepLayout,
+    stepAccentPaletteSlot,
     stepNavButtons,
     formDataLoadingKind,
     defaultSubmitLoadingKind,
@@ -2599,6 +2609,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               loading={loading}
               stepLayout={stepLayout}
               onStepLayoutChange={setStepLayout}
+              stepAccentPaletteSlot={stepAccentPaletteSlot}
+              onStepAccentPaletteSlotChange={(slot) =>
+                setStepAccentPaletteSlot(slot === 'themePrimary' ? undefined : slot)
+              }
               stepNavButtons={stepNavButtons}
               onStepNavButtonsChange={setStepNavButtons}
               formDataLoadingKind={formDataLoadingKind}
@@ -2875,15 +2889,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     </Stack>
                   )}
                   <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
-                    <Dropdown
-                      label="Estilo"
-                      options={[
-                        { key: 'default', text: 'Secundário' },
-                        { key: 'primary', text: 'Primário' },
-                      ]}
-                      selectedKey={btn.appearance === 'primary' ? 'primary' : 'default'}
-                      onChange={(_, o) =>
-                        o && patchCustomButton(bi, { appearance: o.key === 'primary' ? 'primary' : 'default' })
+                    <ThemePaletteSlotDropdown
+                      label="Cor do botão (tema do site)"
+                      selectedKey={resolveFormCustomButtonPaletteSlot(btn)}
+                      onChange={(slot) =>
+                        patchCustomButton(bi, {
+                          themePaletteSlot: slot,
+                          appearance: slot === 'outline' ? 'default' : 'primary',
+                        })
                       }
                     />
                     {(btn.operation ?? 'legacy') === 'legacy' && (

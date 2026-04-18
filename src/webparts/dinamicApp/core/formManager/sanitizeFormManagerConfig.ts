@@ -11,6 +11,7 @@ import type {
   IFormCustomButtonConfirmConfig,
   TFormCustomButtonConfirmKind,
   TFormCustomButtonFinishAfterRun,
+  TFormCustomButtonPaletteSlot,
   TFormButtonAction,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
@@ -29,6 +30,7 @@ import type {
   TFormRootHorizontalAlign,
   TFormAttachmentStorageKind,
   TLinkedChildAttachmentStorageKind,
+  TLinkedChildRowsPresentationKind,
   TFormBannerPlacement,
   TChromePositionMode,
 } from '../config/types/formManager';
@@ -37,6 +39,7 @@ import {
   FORM_FIXOS_STEP_ID,
   FORM_OCULTOS_STEP_ID,
 } from '../config/types/formManager';
+import { FORM_CUSTOM_BUTTON_THEME_SLOTS } from './formCustomButtonTheme';
 import { migrateFolderPathSegmentsToTree, sanitizeFolderTreeInput } from './attachmentFolderTree';
 import { sanitizeConditionNode } from './formConditionSanitize';
 
@@ -470,6 +473,12 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   if (!id) return undefined;
   const labelRaw = typeof b.label === 'string' ? b.label.trim() : '';
   const label = labelRaw || id;
+  const PALETTE_SLOT_SET = new Set<string>(['outline', ...FORM_CUSTOM_BUTTON_THEME_SLOTS]);
+  const tpsRaw = b.themePaletteSlot;
+  const themePaletteSlot: TFormCustomButtonPaletteSlot | undefined =
+    typeof tpsRaw === 'string' && PALETTE_SLOT_SET.has(tpsRaw)
+      ? (tpsRaw as TFormCustomButtonPaletteSlot)
+      : undefined;
   const appearance = b.appearance === 'primary' ? 'primary' : 'default';
   const behaviorRaw = b.behavior;
   const behavior: IFormCustomButtonConfig['behavior'] =
@@ -548,6 +557,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     id,
     label,
     appearance,
+    ...(themePaletteSlot ? { themePaletteSlot } : {}),
     behavior,
     ...(operation && operation !== 'legacy' ? { operation } : {}),
     ...(shortDescription && opResolved === 'history' ? { shortDescription } : {}),
@@ -743,7 +753,17 @@ function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig
     if (m >= 0 && m <= 500) maxRows = m;
   }
   if (minRows !== undefined && maxRows !== undefined && maxRows < minRows) maxRows = minRows;
-  const collapsedDefault = o.collapsedDefault === true ? true : undefined;
+  const collapsedExplicitExpanded = o.collapsedDefault === false;
+  const ROWS_PRES = new Set<TLinkedChildRowsPresentationKind>([
+    'stack',
+    'table',
+    'compact',
+    'cards',
+  ]);
+  let rowsPresentation: TLinkedChildRowsPresentationKind | undefined;
+  if (typeof o.rowsPresentation === 'string' && ROWS_PRES.has(o.rowsPresentation as TLinkedChildRowsPresentationKind)) {
+    rowsPresentation = o.rowsPresentation as TLinkedChildRowsPresentationKind;
+  }
   let mainFormStepId: string | undefined;
   if (typeof o.mainFormStepId === 'string') {
     const t = o.mainFormStepId.trim();
@@ -773,7 +793,8 @@ function sanitizeLinkedChildFormConfig(raw: unknown): IFormLinkedChildFormConfig
     ...(order !== undefined ? { order } : {}),
     ...(minRows !== undefined ? { minRows } : {}),
     ...(maxRows !== undefined ? { maxRows } : {}),
-    ...(collapsedDefault ? { collapsedDefault: true } : {}),
+    ...(collapsedExplicitExpanded ? { collapsedDefault: false } : {}),
+    ...(rowsPresentation && rowsPresentation !== 'stack' ? { rowsPresentation } : {}),
     ...(mainFormStepId ? { mainFormStepId } : {}),
     ...(childAttachmentStorageKind && childAttachmentStorageKind !== 'none'
       ? { childAttachmentStorageKind }
@@ -947,6 +968,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   const snRaw = o.stepNavButtons;
   const stepNavButtons: TFormStepNavButtonsKind | undefined =
     typeof snRaw === 'string' && STEP_NAV_BUTTONS_SET.has(snRaw) ? (snRaw as TFormStepNavButtonsKind) : undefined;
+  const STEP_ACC_SLOT_SET = new Set<string>(['outline', ...FORM_CUSTOM_BUTTON_THEME_SLOTS]);
+  const sapRaw = o.stepAccentPaletteSlot;
+  const stepAccentPaletteSlot: TFormCustomButtonPaletteSlot | undefined =
+    typeof sapRaw === 'string' && STEP_ACC_SLOT_SET.has(sapRaw)
+      ? (sapRaw as TFormCustomButtonPaletteSlot)
+      : undefined;
   const fdlRaw = o.formDataLoadingKind;
   const formDataLoadingKind: TFormDataLoadingUiKind | undefined =
     typeof fdlRaw === 'string' && FORM_DATA_LOADING_SET.has(fdlRaw)
@@ -1059,6 +1086,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(dynamicHelp.length ? { dynamicHelp } : {}),
     ...(customButtonsAdjusted.length ? { customButtons: customButtonsAdjusted } : {}),
     ...(stepLayout ? { stepLayout } : {}),
+    ...(stepAccentPaletteSlot ? { stepAccentPaletteSlot } : {}),
     ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
     ...(formDataLoadingKind && formDataLoadingKind !== 'spinner' ? { formDataLoadingKind } : {}),
     ...(defaultSubmitLoadingKind && defaultSubmitLoadingKind !== 'overlay'

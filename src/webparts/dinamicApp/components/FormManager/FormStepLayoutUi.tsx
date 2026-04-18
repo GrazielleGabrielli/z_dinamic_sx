@@ -12,6 +12,7 @@ import {
   PanelType,
 } from '@fluentui/react';
 import type { TFormStepLayoutKind, TFormStepNavButtonsKind } from '../../core/config/types/formManager';
+import { hexToRgbaString, STEP_UI_FALLBACK_ACCENT_HEX } from '../../core/formManager/formCustomButtonTheme';
 
 export const FORM_STEP_LAYOUT_OPTIONS: {
   id: TFormStepLayoutKind;
@@ -81,7 +82,6 @@ export const FORM_STEP_LAYOUT_QUICK_IDS: TFormStepLayoutKind[] = [
 
 export const FORM_STEP_LAYOUT_TOTAL = FORM_STEP_LAYOUT_OPTIONS.length;
 
-const accent = '#0078d4';
 const line = '#c8c6c4';
 const muted = '#605e5c';
 const done = '#107c10';
@@ -89,9 +89,14 @@ const done = '#107c10';
 export interface IFormStepLayoutPickerProps {
   value: TFormStepLayoutKind;
   onChange: (id: TFormStepLayoutKind) => void;
+  accentColor?: string;
 }
 
-export const FormStepLayoutMiniPreview: React.FC<{ kind: TFormStepLayoutKind }> = ({ kind }) => {
+export const FormStepLayoutMiniPreview: React.FC<{ kind: TFormStepLayoutKind; accentColor?: string }> = ({
+  kind,
+  accentColor,
+}) => {
+  const accent = accentColor ?? STEP_UI_FALLBACK_ACCENT_HEX;
   const w = 72;
   const h = 40;
   const dot = (activeDot: boolean, doneDot: boolean): React.ReactNode => (
@@ -314,7 +319,7 @@ export const FormStepLayoutMiniPreview: React.FC<{ kind: TFormStepLayoutKind }> 
   );
 };
 
-function layoutOptionButtonStyle(sel: boolean): React.CSSProperties {
+function layoutOptionButtonStyle(sel: boolean, accent: string): React.CSSProperties {
   return {
     display: 'flex',
     flexDirection: 'row',
@@ -329,12 +334,13 @@ function layoutOptionButtonStyle(sel: boolean): React.CSSProperties {
     border: sel ? `2px solid ${accent}` : '2px solid #edebe9',
     background: sel ? '#f3f9ff' : '#fff',
     cursor: 'pointer',
-    boxShadow: sel ? '0 4px 14px rgba(0,120,212,0.12)' : '0 1px 4px rgba(0,0,0,0.06)',
+    boxShadow: sel ? `0 4px 14px ${hexToRgbaString(accent, 0.12)}` : '0 1px 4px rgba(0,0,0,0.06)',
     transition: 'border 0.15s ease, box-shadow 0.15s ease',
   };
 }
 
-export const FormStepLayoutPicker: React.FC<IFormStepLayoutPickerProps> = ({ value, onChange }) => {
+export const FormStepLayoutPicker: React.FC<IFormStepLayoutPickerProps> = ({ value, onChange, accentColor }) => {
+  const acc = accentColor ?? STEP_UI_FALLBACK_ACCENT_HEX;
   const [galleryOpen, setGalleryOpen] = useState(false);
   const current = FORM_STEP_LAYOUT_OPTIONS.find((o) => o.id === value);
 
@@ -354,14 +360,14 @@ export const FormStepLayoutPicker: React.FC<IFormStepLayoutPickerProps> = ({ val
               type="button"
               onClick={() => onChange(opt.id)}
               style={{
-                ...layoutOptionButtonStyle(sel),
+                ...layoutOptionButtonStyle(sel, acc),
                 maxWidth: 200,
                 minWidth: 168,
                 flex: '1 1 168px',
               }}
             >
               <span style={{ flexShrink: 0, lineHeight: 0 }}>
-                <FormStepLayoutMiniPreview kind={opt.id} />
+                <FormStepLayoutMiniPreview kind={opt.id} accentColor={acc} />
               </span>
               <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                 <span
@@ -458,7 +464,7 @@ export const FormStepLayoutPicker: React.FC<IFormStepLayoutPickerProps> = ({ val
                     onChange(opt.id);
                     setGalleryOpen(false);
                   }}
-                  style={layoutOptionButtonStyle(sel)}
+                  style={layoutOptionButtonStyle(sel, acc)}
                 >
                   <span
                     style={{
@@ -468,7 +474,7 @@ export const FormStepLayoutPicker: React.FC<IFormStepLayoutPickerProps> = ({ val
                       transformOrigin: 'top left',
                     }}
                   >
-                    <FormStepLayoutMiniPreview kind={opt.id} />
+                    <FormStepLayoutMiniPreview kind={opt.id} accentColor={acc} />
                   </span>
                   <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                     <span
@@ -511,6 +517,7 @@ export interface IFormStepNavigationProps {
   activeIndex: number;
   onStepSelect: (index: number) => void;
   layout: TFormStepLayoutKind;
+  accentColor?: string;
 }
 
 export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
@@ -518,8 +525,10 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
   activeIndex,
   onStepSelect,
   layout,
+  accentColor,
 }) => {
   if (steps.length <= 1) return null;
+  const accent = accentColor ?? STEP_UI_FALLBACK_ACCENT_HEX;
 
   const go = (i: number): void => {
     if (i >= 0 && i < steps.length) onStepSelect(i);
@@ -567,7 +576,7 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: active ? '0 2px 8px rgba(0,120,212,0.35)' : 'none',
+                    boxShadow: active ? `0 2px 8px ${hexToRgbaString(accent, 0.35)}` : 'none',
                   }}
                   aria-current={active ? 'step' : undefined}
                 >
@@ -645,7 +654,9 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                 fontSize: 14,
                 color: active ? '#fff' : '#323130',
                 background: active ? accent : '#fff',
-                boxShadow: active ? '0 4px 12px rgba(0,120,212,0.35)' : '0 1px 2px rgba(0,0,0,0.08)',
+                boxShadow: active
+                  ? `0 4px 12px ${hexToRgbaString(accent, 0.35)}`
+                  : '0 1px 2px rgba(0,0,0,0.08)',
                 transition: 'background 0.15s ease, color 0.15s ease',
               }}
             >
@@ -702,7 +713,9 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                     border: active ? `3px solid ${accent}` : '3px solid #fff',
                     background: done ? accent : active ? '#fff' : '#edebe9',
                     cursor: 'pointer',
-                    boxShadow: active ? '0 0 0 2px rgba(0,120,212,0.25)' : '0 1px 3px rgba(0,0,0,0.12)',
+                    boxShadow: active
+                      ? `0 0 0 2px ${hexToRgbaString(accent, 0.25)}`
+                      : '0 1px 3px rgba(0,0,0,0.12)',
                     padding: 0,
                   }}
                   aria-label={st.title}
@@ -782,7 +795,7 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                   style={{
                     border: 'none',
                     cursor: 'pointer',
-                    background: active ? 'rgba(0, 120, 212, 0.08)' : 'transparent',
+                    background: active ? hexToRgbaString(accent, 0.08) : 'transparent',
                     padding: '6px 12px',
                     borderRadius: 6,
                     maxWidth: '100%',
@@ -889,7 +902,7 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                 fontWeight: active ? 700 : 500,
                 fontSize: 14,
                 cursor: 'pointer',
-                boxShadow: active ? '0 2px 8px rgba(0,120,212,0.12)' : 'none',
+                boxShadow: active ? `0 2px 8px ${hexToRgbaString(accent, 0.12)}` : 'none',
                 transition: 'border 0.15s ease, background 0.15s ease',
               }}
               aria-current={active ? 'step' : undefined}
@@ -929,7 +942,7 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                 fontWeight: active ? 700 : 500,
                 fontSize: 12,
                 cursor: 'pointer',
-                boxShadow: active ? '0 2px 6px rgba(0,120,212,0.3)' : 'none',
+                boxShadow: active ? `0 2px 6px ${hexToRgbaString(accent, 0.3)}` : 'none',
               }}
               aria-current={active ? 'step' : undefined}
             >
@@ -967,7 +980,9 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
                       cursor: 'pointer',
                       padding: 0,
                       flexShrink: 0,
-                      boxShadow: active ? '0 2px 10px rgba(0,120,212,0.35)' : '0 1px 3px rgba(0,0,0,0.08)',
+                      boxShadow: active
+                        ? `0 2px 10px ${hexToRgbaString(accent, 0.35)}`
+                        : '0 1px 3px rgba(0,0,0,0.08)',
                     }}
                     aria-current={active ? 'step' : undefined}
                     aria-label={st.title}
@@ -1077,7 +1092,9 @@ export const FormStepNavigation: React.FC<IFormStepNavigationProps> = ({
               background: active ? '#f3f9ff' : '#fff',
               cursor: 'pointer',
               textAlign: 'left',
-              boxShadow: active ? '0 6px 20px rgba(0,120,212,0.15)' : '0 2px 8px rgba(0,0,0,0.06)',
+              boxShadow: active
+                ? `0 6px 20px ${hexToRgbaString(accent, 0.15)}`
+                : '0 2px 8px rgba(0,0,0,0.06)',
               transition: 'box-shadow 0.15s ease, border 0.15s ease',
             }}
           >
@@ -1161,7 +1178,11 @@ export const FORM_STEP_NAV_BUTTONS_QUICK_IDS: TFormStepNavButtonsKind[] = [
 
 export const FORM_STEP_NAV_BUTTONS_TOTAL = FORM_STEP_NAV_BUTTONS_OPTIONS.length;
 
-export const FormStepNavButtonsMiniPreview: React.FC<{ kind: TFormStepNavButtonsKind }> = ({ kind }) => {
+export const FormStepNavButtonsMiniPreview: React.FC<{ kind: TFormStepNavButtonsKind; accentColor?: string }> = ({
+  kind,
+  accentColor,
+}) => {
+  const accent = accentColor ?? STEP_UI_FALLBACK_ACCENT_HEX;
   const w = 72;
   const pill = (filled: boolean): React.ReactNode => (
     <div
@@ -1290,9 +1311,15 @@ export const FormStepNavButtonsMiniPreview: React.FC<{ kind: TFormStepNavButtons
 export interface IFormStepNavButtonsPickerProps {
   value: TFormStepNavButtonsKind;
   onChange: (id: TFormStepNavButtonsKind) => void;
+  accentColor?: string;
 }
 
-export const FormStepNavButtonsPicker: React.FC<IFormStepNavButtonsPickerProps> = ({ value, onChange }) => {
+export const FormStepNavButtonsPicker: React.FC<IFormStepNavButtonsPickerProps> = ({
+  value,
+  onChange,
+  accentColor,
+}) => {
+  const acc = accentColor ?? STEP_UI_FALLBACK_ACCENT_HEX;
   const [galleryOpen, setGalleryOpen] = useState(false);
   const current = FORM_STEP_NAV_BUTTONS_OPTIONS.find((o) => o.id === value);
 
@@ -1312,14 +1339,14 @@ export const FormStepNavButtonsPicker: React.FC<IFormStepNavButtonsPickerProps> 
               type="button"
               onClick={() => onChange(opt.id)}
               style={{
-                ...layoutOptionButtonStyle(sel),
+                ...layoutOptionButtonStyle(sel, acc),
                 maxWidth: 200,
                 minWidth: 160,
                 flex: '1 1 160px',
               }}
             >
               <span style={{ flexShrink: 0, lineHeight: 0 }}>
-                <FormStepNavButtonsMiniPreview kind={opt.id} />
+                <FormStepNavButtonsMiniPreview kind={opt.id} accentColor={acc} />
               </span>
               <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                 <span
@@ -1402,7 +1429,7 @@ export const FormStepNavButtonsPicker: React.FC<IFormStepNavButtonsPickerProps> 
                     onChange(opt.id);
                     setGalleryOpen(false);
                   }}
-                  style={layoutOptionButtonStyle(sel)}
+                  style={layoutOptionButtonStyle(sel, acc)}
                 >
                   <span
                     style={{
@@ -1412,7 +1439,7 @@ export const FormStepNavButtonsPicker: React.FC<IFormStepNavButtonsPickerProps> 
                       transformOrigin: 'top left',
                     }}
                   >
-                    <FormStepNavButtonsMiniPreview kind={opt.id} />
+                    <FormStepNavButtonsMiniPreview kind={opt.id} accentColor={acc} />
                   </span>
                   <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                     <span
@@ -1457,6 +1484,7 @@ export interface IFormStepPrevNextNavProps {
   onPrev: () => void;
   onNext: () => void;
   disabled?: boolean;
+  accentColor?: string;
 }
 
 export const FormStepPrevNextNav: React.FC<IFormStepPrevNextNavProps> = ({
@@ -1466,8 +1494,10 @@ export const FormStepPrevNextNav: React.FC<IFormStepPrevNextNavProps> = ({
   onPrev,
   onNext,
   disabled,
+  accentColor,
 }) => {
   if (stepCount <= 1) return null;
+  const accent = accentColor ?? STEP_UI_FALLBACK_ACCENT_HEX;
   const canPrev = stepIndex > 0;
   const canNext = stepIndex < stepCount - 1;
   const prevLabel = 'Etapa anterior';
@@ -1487,7 +1517,7 @@ export const FormStepPrevNextNav: React.FC<IFormStepPrevNextNavProps> = ({
         fontSize: 14,
         color: primary ? '#fff' : '#323130',
         background: primary ? accent : '#fff',
-        boxShadow: primary ? '0 4px 12px rgba(0,120,212,0.35)' : '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: primary ? `0 4px 12px ${hexToRgbaString(accent, 0.35)}` : '0 1px 3px rgba(0,0,0,0.1)',
         opacity: can ? 1 : 0.45,
       }}
     >
@@ -1544,7 +1574,8 @@ export const FormStepPrevNextNav: React.FC<IFormStepPrevNextNavProps> = ({
                     height: i === stepIndex ? 10 : 8,
                     borderRadius: '50%',
                     background: i === stepIndex ? accent : i < stepIndex ? done : '#edebe9',
-                    boxShadow: i === stepIndex ? '0 0 0 2px rgba(0,120,212,0.25)' : undefined,
+                    boxShadow:
+                      i === stepIndex ? `0 0 0 2px ${hexToRgbaString(accent, 0.25)}` : undefined,
                   }}
                 />
               );

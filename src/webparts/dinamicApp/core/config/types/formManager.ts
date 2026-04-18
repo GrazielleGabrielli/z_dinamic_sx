@@ -524,12 +524,29 @@ export type TFormCustomButtonFinishAfterRun =
   | { kind: 'redirect'; redirectUrlTemplate: string }
   | { kind: 'clearForm' };
 
+/** Slots da paleta Fluent alinhados ao tema do site (SharePoint). `outline` = neutro (DefaultButton). */
+export type TFormCustomButtonPaletteSlot =
+  | 'outline'
+  | 'themePrimary'
+  | 'themeSecondary'
+  | 'themeTertiary'
+  | 'themeDark'
+  | 'themeDarkAlt'
+  | 'themeDarker'
+  | 'themeLight'
+  | 'themeLighter'
+  | 'themeLighterAlt';
+
 export interface IFormCustomButtonConfig {
   id: string;
   label: string;
   /** Só usado em operation === 'history': texto curto (subtítulo / ajuda). */
   shortDescription?: string;
   appearance?: 'primary' | 'default';
+  /**
+   * Cor de preenchimento a partir do tema. Omitido = só `appearance` (primary → themePrimary, default → outline).
+   */
+  themePaletteSlot?: TFormCustomButtonPaletteSlot;
   behavior?: TFormCustomButtonBehavior;
   /** Omitido ou legacy: usa apenas `behavior` + ações. */
   operation?: TFormCustomButtonOperation;
@@ -604,6 +621,9 @@ export type TLinkedChildAttachmentStorageKind =
   | 'documentLibraryInheritMain'
   | 'documentLibraryCustom';
 
+/** Como as linhas da lista vinculada são apresentadas no formulário principal. */
+export type TLinkedChildRowsPresentationKind = 'stack' | 'table' | 'compact' | 'cards';
+
 /** Lista secundária com mini-formulário e Lookup para o item da lista principal. */
 export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
   id: string;
@@ -617,7 +637,10 @@ export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
   order?: number;
   minRows?: number;
   maxRows?: number;
+  /** Legado: ignorado na vista do formulário (listas vinculadas são sempre expandidas). */
   collapsedDefault?: boolean;
+  /** Omitido ou `stack` = blocos em coluna (comportamento original). */
+  rowsPresentation?: TLinkedChildRowsPresentationKind;
   /**
    * Id da etapa do formulário principal (`formManager.steps`) onde o bloco aparece no passador.
    * Omitido = primeira etapa do passador (excl. Ocultos/Fixos).
@@ -667,6 +690,8 @@ export interface IFormManagerConfig {
   actionLog?: IFormManagerActionLogConfig;
   /** Apresentação das etapas quando há mais de uma */
   stepLayout?: TFormStepLayoutKind;
+  /** Cor de destaque do passador e botões de etapa (omitido = primária do tema). */
+  stepAccentPaletteSlot?: TFormCustomButtonPaletteSlot;
   /** Estilo dos botões anterior/próximo etapa no rodapé */
   stepNavButtons?: TFormStepNavButtonsKind;
   /** Indicador ao carregar dados do formulário (lista / item). */

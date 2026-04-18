@@ -10,12 +10,15 @@ import {
   PanelType,
   Modal,
   DefaultButton,
+  useTheme,
+  type ITheme,
 } from '@fluentui/react';
 import type {
   IFormManagerActionLogConfig,
   TFormHistoryPresentationKind,
   TFormHistoryLayoutKind,
 } from '../../core/config/types/formManager';
+import { hexToRgbaString } from '../../core/formManager/formCustomButtonTheme';
 import { ItemsService, FieldsService } from '../../../../services';
 
 export interface IFormItemHistoryUiProps {
@@ -27,6 +30,36 @@ export interface IFormItemHistoryUiProps {
   onDismiss: () => void;
   title: string;
   subtitle?: string;
+  /** Cor de realce (passador); omitido = primária do tema Fluent. */
+  accentColor?: string;
+}
+
+interface IHistoryUiColors {
+  accent: string;
+  bodyText: string;
+  bodySubtext: string;
+  mutedHint: string;
+  border: string;
+  borderStrong: string;
+  cardBg: string;
+  listRowBg: string;
+  timelineLine: string;
+}
+
+function historyColorsFromTheme(theme: ITheme, accentOverride?: string): IHistoryUiColors {
+  const p = theme.palette;
+  const s = theme.semanticColors;
+  return {
+    accent: accentOverride ?? p.themePrimary,
+    bodyText: s.bodyText ?? p.neutralPrimary,
+    bodySubtext: p.neutralSecondary,
+    mutedHint: p.neutralTertiaryAlt ?? p.neutralTertiary ?? p.neutralSecondary,
+    border: p.neutralLight,
+    borderStrong: p.neutralQuaternaryAlt ?? p.neutralLight,
+    cardBg: p.white,
+    listRowBg: p.neutralLighterAlt ?? p.neutralLighter,
+    timelineLine: p.neutralQuaternaryAlt ?? '#e1dfdd',
+  };
 }
 
 interface IAuditEntry {
@@ -76,41 +109,47 @@ function formatCreatedValue(created: unknown): string {
   return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function renderHtmlBlock(html: string, compact: boolean): React.ReactNode {
+function renderHtmlBlock(html: string, compact: boolean, colors: IHistoryUiColors): React.ReactNode {
   return html ? (
     <div
       className="form-audit-log-html"
-      style={{ fontSize: compact ? 12 : 14, color: '#323130', lineHeight: 1.45 }}
+      style={{ fontSize: compact ? 12 : 14, color: colors.bodyText, lineHeight: 1.45 }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   ) : (
     <Text
       variant="small"
-      styles={{ root: { color: '#a19f9d', fontStyle: 'italic', fontSize: compact ? 11 : 12 } }}
+      styles={{
+        root: { color: colors.mutedHint, fontStyle: 'italic', fontSize: compact ? 11 : 12 },
+      }}
     >
       (sem texto no campo de ação)
     </Text>
   );
 }
 
-function entryHeadline(e: IAuditEntry): React.ReactNode {
+function entryHeadline(e: IAuditEntry, colors: IHistoryUiColors): React.ReactNode {
   return (
     <>
-      <span style={{ fontWeight: 600 }}>{e.actionLabel}</span>
-      <span style={{ color: '#605e5c', fontWeight: 400 }}> · {e.createdStr}</span>
+      <span style={{ fontWeight: 600, color: colors.bodyText }}>{e.actionLabel}</span>
+      <span style={{ color: colors.bodySubtext, fontWeight: 400 }}> · {e.createdStr}</span>
     </>
   );
 }
 
-function entryAuthorLine(e: IAuditEntry, fontSize: number): React.ReactNode {
+function entryAuthorLine(e: IAuditEntry, fontSize: number, colors: IHistoryUiColors): React.ReactNode {
   return (
-    <Text variant="small" styles={{ root: { color: '#605e5c', fontSize, marginTop: 2 } }}>
+    <Text variant="small" styles={{ root: { color: colors.bodySubtext, fontSize, marginTop: 2 } }}>
       {e.who || '—'}
     </Text>
   );
 }
 
-function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayoutKind): React.ReactNode {
+function renderAuditEntries(
+  entries: IAuditEntry[],
+  layoutKind: TFormHistoryLayoutKind,
+  colors: IHistoryUiColors
+): React.ReactNode {
   if (layoutKind === 'compact') {
     return (
       <Stack tokens={{ childrenGap: 0 }}>
@@ -119,14 +158,14 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
             key={e.key}
             style={{
               padding: '8px 0',
-              borderBottom: i < entries.length - 1 ? '1px solid #edebe9' : undefined,
+              borderBottom: i < entries.length - 1 ? `1px solid ${colors.border}` : undefined,
             }}
           >
-            <Text variant="small" styles={{ root: { fontSize: 11, color: '#323130' } }}>
-              {entryHeadline(e)}
+            <Text variant="small" styles={{ root: { fontSize: 11 } }}>
+              {entryHeadline(e, colors)}
             </Text>
-            {entryAuthorLine(e, 11)}
-            <div style={{ marginTop: e.html ? 6 : 4 }}>{renderHtmlBlock(e.html, true)}</div>
+            {entryAuthorLine(e, 11, colors)}
+            <div style={{ marginTop: e.html ? 6 : 4 }}>{renderHtmlBlock(e.html, true, colors)}</div>
           </div>
         ))}
       </Stack>
@@ -143,7 +182,7 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
             top: 8,
             bottom: 8,
             width: 2,
-            background: '#e1dfdd',
+            background: colors.timelineLine,
           }}
         />
         <Stack tokens={{ childrenGap: 14 }}>
@@ -157,16 +196,16 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
                   width: 12,
                   height: 12,
                   borderRadius: '50%',
-                  background: '#0078d4',
-                  border: '2px solid #fff',
-                  boxShadow: '0 0 0 1px #c8c6c4',
+                  background: colors.accent,
+                  border: `2px solid ${colors.cardBg}`,
+                  boxShadow: `0 0 0 1px ${colors.borderStrong}`,
                 }}
               />
-              <Text variant="small" styles={{ root: { color: '#323130' } }}>
-                {entryHeadline(e)}
+              <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
+                {entryHeadline(e, colors)}
               </Text>
-              {entryAuthorLine(e, 12)}
-              <div style={{ marginTop: 6 }}>{renderHtmlBlock(e.html, false)}</div>
+              {entryAuthorLine(e, 12, colors)}
+              <div style={{ marginTop: 6 }}>{renderHtmlBlock(e.html, false, colors)}</div>
             </div>
           ))}
         </Stack>
@@ -175,6 +214,7 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
   }
 
   if (layoutKind === 'cards') {
+    const cardShadow = `0 2px 8px ${hexToRgbaString(colors.bodyText, 0.08)}`;
     return (
       <Stack tokens={{ childrenGap: 12 }}>
         {entries.map((e) => (
@@ -183,16 +223,16 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
             style={{
               padding: 16,
               borderRadius: 8,
-              background: '#fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              border: '1px solid #edebe9',
+              background: colors.cardBg,
+              boxShadow: cardShadow,
+              border: `1px solid ${colors.border}`,
             }}
           >
-            <Text variant="small" styles={{ root: { color: '#323130' } }}>
-              {entryHeadline(e)}
+            <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
+              {entryHeadline(e, colors)}
             </Text>
-            {entryAuthorLine(e, 12)}
-            <div style={{ marginTop: 10 }}>{renderHtmlBlock(e.html, false)}</div>
+            {entryAuthorLine(e, 12, colors)}
+            <div style={{ marginTop: 10 }}>{renderHtmlBlock(e.html, false, colors)}</div>
           </div>
         ))}
       </Stack>
@@ -209,16 +249,16 @@ function renderAuditEntries(entries: IAuditEntry[], layoutKind: TFormHistoryLayo
             root: {
               padding: '10px 12px',
               borderRadius: 4,
-              border: '1px solid #edebe9',
-              background: '#faf9f8',
+              border: `1px solid ${colors.border}`,
+              background: colors.listRowBg,
             },
           }}
         >
-          <Text variant="small" styles={{ root: { color: '#323130' } }}>
-            {entryHeadline(e)}
+          <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
+            {entryHeadline(e, colors)}
           </Text>
-          {entryAuthorLine(e, 12)}
-          {renderHtmlBlock(e.html, false)}
+          {entryAuthorLine(e, 12, colors)}
+          {renderHtmlBlock(e.html, false, colors)}
         </Stack>
       ))}
     </Stack>
@@ -234,7 +274,13 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
   onDismiss,
   title,
   subtitle,
+  accentColor,
 }) => {
+  const theme = useTheme();
+  const colors = useMemo(
+    () => historyColorsFromTheme(theme, accentColor),
+    [theme, accentColor]
+  );
   const itemsService = useMemo(() => new ItemsService(), []);
   const fieldsService = useMemo(() => new FieldsService(), []);
   const [loading, setLoading] = useState(false);
@@ -316,18 +362,23 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
   const body = (
     <Stack tokens={{ childrenGap: 12 }}>
       {subtitle && (
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        <Text variant="small" styles={{ root: { color: colors.bodySubtext } }}>
           {subtitle}
         </Text>
       )}
       {err && <MessageBar messageBarType={MessageBarType.error}>{err}</MessageBar>}
-      {loading && <Spinner label="A carregar registos de auditoria…" />}
+      {loading && (
+        <Spinner
+          label="A carregar registos de auditoria…"
+          styles={{ circle: { borderTopColor: colors.accent } }}
+        />
+      )}
       {!loading && !err && entries.length === 0 && (
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        <Text variant="small" styles={{ root: { color: colors.bodySubtext } }}>
           Nenhum registo na lista de auditoria para este item (filtro pelo lookup configurado).
         </Text>
       )}
-      {!loading && !err && entries.length > 0 && renderAuditEntries(entries, layoutKind)}
+      {!loading && !err && entries.length > 0 && renderAuditEntries(entries, layoutKind, colors)}
     </Stack>
   );
 
@@ -341,13 +392,13 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
             marginTop: 8,
             padding: 16,
             borderRadius: 4,
-            border: '1px solid #edebe9',
-            background: '#ffffff',
+            border: `1px solid ${colors.border}`,
+            background: colors.cardBg,
           },
         }}
       >
         <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
-          <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
+          <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: colors.bodyText } }}>
             {title}
           </Text>
           <DefaultButton text="Fechar" onClick={onDismiss} />
@@ -366,15 +417,16 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
             root: {
               margin: '48px auto',
               maxWidth: 560,
-              background: '#ffffff',
+              background: colors.cardBg,
               padding: 24,
               borderRadius: 4,
-              boxShadow: '0 6.4px 14.4px rgba(0,0,0,.13)',
+              border: `1px solid ${colors.border}`,
+              boxShadow: `0 6.4px 14.4px ${hexToRgbaString(colors.bodyText, 0.13)}`,
             },
           }}
         >
           <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
-            <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
+            <Text variant="xLarge" styles={{ root: { fontWeight: 600, color: colors.bodyText } }}>
               {title}
             </Text>
             <DefaultButton text="Fechar" onClick={onDismiss} />
@@ -393,6 +445,12 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
       onDismiss={onDismiss}
       isBlocking
       closeButtonAriaLabel="Fechar"
+      styles={{
+        main: { background: colors.cardBg },
+        header: { borderBottom: `1px solid ${colors.border}` },
+        headerText: { color: colors.bodyText },
+        content: { paddingTop: 16 },
+      }}
     >
       {body}
     </Panel>

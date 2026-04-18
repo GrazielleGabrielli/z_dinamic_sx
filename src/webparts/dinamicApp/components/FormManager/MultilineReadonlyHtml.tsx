@@ -9,6 +9,7 @@ export interface IMultilineReadonlyHtmlProps {
   html: string;
   help?: React.ReactNode;
   showReqEmpty?: boolean;
+  showLabel?: boolean;
 }
 
 export const MultilineReadonlyHtml: React.FC<IMultilineReadonlyHtmlProps> = ({
@@ -17,6 +18,7 @@ export const MultilineReadonlyHtml: React.FC<IMultilineReadonlyHtmlProps> = ({
   html,
   help,
   showReqEmpty,
+  showLabel = true,
 }) => (
   <Stack
     tokens={{ childrenGap: 6 }}
@@ -34,9 +36,10 @@ export const MultilineReadonlyHtml: React.FC<IMultilineReadonlyHtmlProps> = ({
       },
     }}
   >
-    <Label required={required}>{label}</Label>
+    {showLabel ? <Label required={required}>{label}</Label> : null}
     <div
       className="dinamic-sp-rich-note"
+      title={!showLabel ? label : undefined}
       style={{
         padding: '8px 10px',
         border: '1px solid #edebe9',
