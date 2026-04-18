@@ -212,6 +212,81 @@ function childFolderStepOptions(cfg: IFormLinkedChildFormConfig): { id: string; 
     .map((s) => ({ id: s.id, title: s.title }));
 }
 
+interface ILinkedChildCardPanels {
+  card: boolean;
+  connection: boolean;
+  presentation: boolean;
+  preview: boolean;
+  attachments: boolean;
+  fields: boolean;
+  rules: boolean;
+}
+
+const DEFAULT_LINKED_CHILD_CARD_PANELS: ILinkedChildCardPanels = {
+  card: false,
+  connection: false,
+  presentation: false,
+  preview: false,
+  attachments: false,
+  fields: false,
+  rules: false,
+};
+
+function LinkedChildTabCollapseSection(props: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  indent?: boolean;
+  children: React.ReactNode;
+}): JSX.Element {
+  const { title, expanded, onToggle, indent, children } = props;
+  return (
+    <Stack tokens={{ childrenGap: 8 }}>
+      <Stack
+        horizontal
+        verticalAlign="center"
+        tokens={{ childrenGap: 8 }}
+        styles={{
+          root: {
+            cursor: 'pointer',
+            userSelect: 'none',
+          },
+        }}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+      >
+        <Icon
+          iconName={expanded ? 'ChevronDown' : 'ChevronRight'}
+          styles={{ root: { fontSize: 14, color: '#323130', flexShrink: 0 } }}
+        />
+        <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+          {title}
+        </Text>
+      </Stack>
+      {expanded && (
+        <Stack
+          tokens={{ childrenGap: 10 }}
+          styles={
+            indent
+              ? { root: { paddingLeft: 22, borderLeft: '2px solid #edebe9' } }
+              : undefined
+          }
+        >
+          {children}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
 export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedChildFormsTabProps): JSX.Element {
   const {
     primaryListTitle,
@@ -230,8 +305,8 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
   const [inheritLibLoading, setInheritLibLoading] = useState<Record<string, boolean>>({});
   const [customLibFieldOpts, setCustomLibFieldOpts] = useState<Record<string, IDropdownOption[]>>({});
   const [customLibLoading, setCustomLibLoading] = useState<Record<string, boolean>>({});
-  const [linkedUiCollapse, setLinkedUiCollapse] = useState<
-    Record<string, { presentation: boolean; preview: boolean }>
+  const [linkedChildCardPanels, setLinkedChildCardPanels] = useState<
+    Record<string, ILinkedChildCardPanels>
   >({});
 
   useEffect(() => {
@@ -548,6 +623,13 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
           text: `${m.Title} (${m.InternalName})`,
         }));
 
+        const panels = linkedChildCardPanels[cfg.id] ?? DEFAULT_LINKED_CHILD_CARD_PANELS;
+        const flip = (key: keyof ILinkedChildCardPanels): (() => void) => () =>
+          setLinkedChildCardPanels((m) => {
+            const cur = m[cfg.id] ?? DEFAULT_LINKED_CHILD_CARD_PANELS;
+            return { ...m, [cfg.id]: { ...cur, [key]: !cur[key] } };
+          });
+
         return (
           <Stack
             key={cfg.id}
@@ -561,242 +643,228 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
               },
             }}
           >
-            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-              Lista vinculada {index + 1}: {cfg.listTitle.trim() || '(sem título)'}
-            </Text>
-            <Stack horizontal tokens={{ childrenGap: 8 }}>
-              <IconButton
-                iconProps={{ iconName: 'Up' }}
-                title="Mover bloco para cima"
-                disabled={index === 0}
-                onClick={() => moveLinked(index, index - 1)}
-              />
-              <IconButton
-                iconProps={{ iconName: 'Down' }}
-                title="Mover bloco para baixo"
-                disabled={index === linkedChildForms.length - 1}
-                onClick={() => moveLinked(index, index + 1)}
-              />
-              <DefaultButton text="Remover este bloco" onClick={() => removeLinked(cfg.id)} />
-            </Stack>
-            <Dropdown
-              label="Lista filha (SharePoint)"
-              options={listOpts}
-              selectedKey={cfg.listTitle.trim() || ''}
-              onChange={(_, o) => {
-                if (!o) return;
-                const title = String(o.key);
-                onLinkedChildFormsChange(
-                  patchChildById(linkedChildForms, cfg.id, {
-                    listTitle: title,
-                    parentLookupFieldInternalName: '',
-                  })
-                );
-                void loadChildMeta(cfg.id, title);
-              }}
-              disabled={listsLoading}
-            />
-            {loading && <Spinner label="A carregar campos da lista…" />}
-            <Dropdown
-              label="Campo Lookup para a lista principal"
-              options={lookupDropdownOptions}
-              selectedKey={parentLookupResolvedKey || parentLookupSaved || ''}
-              onChange={(_, o) =>
-                o &&
-                onLinkedChildFormsChange(
-                  patchChildById(linkedChildForms, cfg.id, {
-                    parentLookupFieldInternalName: String(o.key),
-                  })
-                )
-              }
-              disabled={
-                !cfg.listTitle.trim() ||
-                loading ||
-                (lookupOpts.length === 0 && !parentLookupSaved)
-              }
-            />
-            {cfg.title?.trim() && (
-              <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                  Rótulo JSON legado: «{cfg.title}»
-                </Text>
-                <DefaultButton
-                  text="Usar só o nome da lista"
-                  onClick={() =>
-                    onLinkedChildFormsChange(
-                      patchChildById(linkedChildForms, cfg.id, { title: undefined })
-                    )
+            <Stack horizontal horizontalAlign="space-between" verticalAlign="center" tokens={{ childrenGap: 8 }}>
+              <Stack
+                horizontal
+                verticalAlign="center"
+                tokens={{ childrenGap: 8 }}
+                styles={{
+                  root: {
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    flex: 1,
+                    minWidth: 0,
+                  },
+                }}
+                onClick={flip('card')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    flip('card')();
                   }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={panels.card}
+              >
+                <Icon
+                  iconName={panels.card ? 'ChevronDown' : 'ChevronRight'}
+                  styles={{ root: { fontSize: 16, color: '#323130', flexShrink: 0 } }}
+                />
+                <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+                  Lista vinculada {index + 1}: {cfg.listTitle.trim() || '(sem título)'}
+                </Text>
+              </Stack>
+              <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} styles={{ root: { flexShrink: 0 } }}>
+                <IconButton
+                  iconProps={{ iconName: 'Up' }}
+                  title="Mover bloco para cima"
+                  disabled={index === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveLinked(index, index - 1);
+                  }}
+                />
+                <IconButton
+                  iconProps={{ iconName: 'Down' }}
+                  title="Mover bloco para baixo"
+                  disabled={index === linkedChildForms.length - 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveLinked(index, index + 1);
+                  }}
+                />
+                <DefaultButton
+                  text="Remover bloco"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLinked(cfg.id);
+                  }}
                 />
               </Stack>
-            )}
-            {(() => {
-              const ui = linkedUiCollapse[cfg.id] ?? { presentation: true, preview: false };
-              const headerStyle = {
-                cursor: 'pointer' as const,
-                userSelect: 'none' as const,
-              };
-              const togglePresentation = (): void => {
-                setLinkedUiCollapse((m) => {
-                  const cur = m[cfg.id] ?? { presentation: true, preview: false };
-                  return { ...m, [cfg.id]: { ...cur, presentation: !cur.presentation } };
-                });
-              };
-              const togglePreview = (): void => {
-                setLinkedUiCollapse((m) => {
-                  const cur = m[cfg.id] ?? { presentation: true, preview: false };
-                  return { ...m, [cfg.id]: { ...cur, preview: !cur.preview } };
-                });
-              };
-              return (
-                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 4 } }}>
-                  <Stack
-                    horizontal
-                    verticalAlign="center"
-                    tokens={{ childrenGap: 8 }}
-                    styles={{ root: headerStyle }}
-                    onClick={togglePresentation}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        togglePresentation();
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={ui.presentation}
-                  >
-                    <Icon
-                      iconName={ui.presentation ? 'ChevronDown' : 'ChevronRight'}
-                      styles={{ root: { fontSize: 14, color: '#323130', flexShrink: 0 } }}
-                    />
-                    <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                      Apresentação no formulário
-                    </Text>
-                  </Stack>
-                  {ui.presentation && (
-                    <Stack
-                      tokens={{ childrenGap: 10 }}
-                      styles={{ root: { paddingLeft: 22, borderLeft: '2px solid #edebe9' } }}
-                    >
-                      <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
-                        <Dropdown
-                          label="Ordem de exibição"
-                          options={ORDER_DROPDOWN}
-                          selectedKey={cfg.order === undefined ? '__auto' : String(cfg.order)}
-                          onChange={(_, o) => {
-                            if (!o) return;
-                            const k = String(o.key);
-                            onLinkedChildFormsChange(
-                              patchChildById(linkedChildForms, cfg.id, {
-                                order: k === '__auto' ? undefined : parseInt(k, 10),
-                              })
-                            );
-                          }}
-                          styles={{ root: { minWidth: 200 } }}
-                        />
-                        <Dropdown
-                          label="Mínimo de linhas"
-                          options={MIN_ROWS_DROPDOWN}
-                          selectedKey={String(cfg.minRows ?? 0)}
-                          onChange={(_, o) =>
-                            o &&
-                            onLinkedChildFormsChange(
-                              patchChildById(linkedChildForms, cfg.id, {
-                                minRows: parseInt(String(o.key), 10),
-                              })
-                            )
-                          }
-                          styles={{ root: { minWidth: 200 } }}
-                        />
-                        <Dropdown
-                          label="Máximo de linhas"
-                          options={MAX_ROWS_DROPDOWN}
-                          selectedKey={cfg.maxRows === undefined ? '__none' : String(cfg.maxRows)}
-                          onChange={(_, o) => {
-                            if (!o) return;
-                            const k = String(o.key);
-                            onLinkedChildFormsChange(
-                              patchChildById(linkedChildForms, cfg.id, {
-                                maxRows: k === '__none' ? undefined : parseInt(k, 10),
-                              })
-                            );
-                          }}
-                          styles={{ root: { minWidth: 200 } }}
-                        />
-                      </Stack>
-                      <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-                        <Dropdown
-                          label="Apresentação das linhas"
-                          options={ROWS_PRESENTATION_OPTIONS}
-                          selectedKey={cfg.rowsPresentation ?? 'stack'}
-                          onChange={(_, o) => {
-                            if (!o) return;
-                            const k = String(o.key) as TLinkedChildRowsPresentationKind;
-                            onLinkedChildFormsChange(
-                              patchChildById(linkedChildForms, cfg.id, {
-                                rowsPresentation: k === 'stack' ? undefined : k,
-                              })
-                            );
-                          }}
-                          styles={{ root: { minWidth: 260 } }}
-                        />
-                      </Stack>
-                    </Stack>
-                  )}
-                  <Stack
-                    horizontal
-                    verticalAlign="center"
-                    tokens={{ childrenGap: 8 }}
-                    styles={{ root: headerStyle }}
-                    onClick={togglePreview}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        togglePreview();
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={ui.preview}
-                  >
-                    <Icon
-                      iconName={ui.preview ? 'ChevronDown' : 'ChevronRight'}
-                      styles={{ root: { fontSize: 14, color: '#323130', flexShrink: 0 } }}
-                    />
-                    <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                      Pré-visualização dos modos de linha
-                    </Text>
-                  </Stack>
-                  {ui.preview && (
-                    <Stack styles={{ root: { paddingLeft: 22, borderLeft: '2px solid #edebe9' } }}>
-                      <FormManagerLinkedChildPresentationPreview cfg={cfg} fieldMeta={meta} />
-                    </Stack>
-                  )}
-                </Stack>
-              );
-            })()}
-            {(() => {
-              const mainCanInherit =
-                mainAttachmentStorageKind === 'documentLibrary' &&
-                !!(mainAttachmentLibraryFromPanel?.libraryTitle ?? '').trim() &&
-                !!(mainAttachmentLibraryFromPanel?.sourceListLookupFieldInternalName ?? '').trim();
-              const storageOpts: IDropdownOption[] = LINKED_CHILD_STORAGE_OPTIONS.filter(
-                (o) => o.key !== 'documentLibraryInheritMain' || mainCanInherit
-              ).map((o) => ({ key: o.key, text: o.text }));
-              const sk: TLinkedChildAttachmentStorageKind = cfg.childAttachmentStorageKind ?? 'none';
-              const stepOpts = childFolderStepOptions(cfg);
-              const libBase = cfg.childAttachmentLibrary ?? {
-                libraryTitle: '',
-                sourceListLookupFieldInternalName: '',
-                folderTree: addRootSibling([]),
-              };
-              return (
-                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 4 } }}>
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                    Anexos / biblioteca (por linha da lista filha)
-                  </Text>
+            </Stack>
+            {panels.card && (
+              <Stack tokens={{ childrenGap: 14 }} styles={{ root: { marginTop: 4 } }}>
+                <LinkedChildTabCollapseSection
+                  title="Lista e ligação ao principal"
+                  expanded={panels.connection}
+                  onToggle={flip('connection')}
+                  indent
+                >
                   <Dropdown
+                    label="Lista filha (SharePoint)"
+                    options={listOpts}
+                    selectedKey={cfg.listTitle.trim() || ''}
+                    onChange={(_, o) => {
+                      if (!o) return;
+                      const title = String(o.key);
+                      onLinkedChildFormsChange(
+                        patchChildById(linkedChildForms, cfg.id, {
+                          listTitle: title,
+                          parentLookupFieldInternalName: '',
+                        })
+                      );
+                      void loadChildMeta(cfg.id, title);
+                    }}
+                    disabled={listsLoading}
+                  />
+                  {loading && <Spinner label="A carregar campos da lista…" />}
+                  <Dropdown
+                    label="Campo Lookup para a lista principal"
+                    options={lookupDropdownOptions}
+                    selectedKey={parentLookupResolvedKey || parentLookupSaved || ''}
+                    onChange={(_, o) =>
+                      o &&
+                      onLinkedChildFormsChange(
+                        patchChildById(linkedChildForms, cfg.id, {
+                          parentLookupFieldInternalName: String(o.key),
+                        })
+                      )
+                    }
+                    disabled={
+                      !cfg.listTitle.trim() ||
+                      loading ||
+                      (lookupOpts.length === 0 && !parentLookupSaved)
+                    }
+                  />
+                  {cfg.title?.trim() && (
+                    <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Rótulo JSON legado: «{cfg.title}»
+                      </Text>
+                      <DefaultButton
+                        text="Usar só o nome da lista"
+                        onClick={() =>
+                          onLinkedChildFormsChange(
+                            patchChildById(linkedChildForms, cfg.id, { title: undefined })
+                          )
+                        }
+                      />
+                    </Stack>
+                  )}
+                </LinkedChildTabCollapseSection>
+                <LinkedChildTabCollapseSection
+                  title="Apresentação no formulário (ordem, linhas, vista)"
+                  expanded={panels.presentation}
+                  onToggle={flip('presentation')}
+                  indent
+                >
+                  <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
+                    <Dropdown
+                      label="Ordem de exibição"
+                      options={ORDER_DROPDOWN}
+                      selectedKey={cfg.order === undefined ? '__auto' : String(cfg.order)}
+                      onChange={(_, o) => {
+                        if (!o) return;
+                        const k = String(o.key);
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            order: k === '__auto' ? undefined : parseInt(k, 10),
+                          })
+                        );
+                      }}
+                      styles={{ root: { minWidth: 200 } }}
+                    />
+                    <Dropdown
+                      label="Mínimo de linhas"
+                      options={MIN_ROWS_DROPDOWN}
+                      selectedKey={String(cfg.minRows ?? 0)}
+                      onChange={(_, o) =>
+                        o &&
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            minRows: parseInt(String(o.key), 10),
+                          })
+                        )
+                      }
+                      styles={{ root: { minWidth: 200 } }}
+                    />
+                    <Dropdown
+                      label="Máximo de linhas"
+                      options={MAX_ROWS_DROPDOWN}
+                      selectedKey={cfg.maxRows === undefined ? '__none' : String(cfg.maxRows)}
+                      onChange={(_, o) => {
+                        if (!o) return;
+                        const k = String(o.key);
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            maxRows: k === '__none' ? undefined : parseInt(k, 10),
+                          })
+                        );
+                      }}
+                      styles={{ root: { minWidth: 200 } }}
+                    />
+                  </Stack>
+                  <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                    <Dropdown
+                      label="Apresentação das linhas"
+                      options={ROWS_PRESENTATION_OPTIONS}
+                      selectedKey={cfg.rowsPresentation ?? 'stack'}
+                      onChange={(_, o) => {
+                        if (!o) return;
+                        const k = String(o.key) as TLinkedChildRowsPresentationKind;
+                        onLinkedChildFormsChange(
+                          patchChildById(linkedChildForms, cfg.id, {
+                            rowsPresentation: k === 'stack' ? undefined : k,
+                          })
+                        );
+                      }}
+                      styles={{ root: { minWidth: 260 } }}
+                    />
+                  </Stack>
+                </LinkedChildTabCollapseSection>
+                <LinkedChildTabCollapseSection
+                  title="Pré-visualização dos modos de linha"
+                  expanded={panels.preview}
+                  onToggle={flip('preview')}
+                  indent
+                >
+                  <FormManagerLinkedChildPresentationPreview cfg={cfg} fieldMeta={meta} />
+                </LinkedChildTabCollapseSection>
+                <LinkedChildTabCollapseSection
+                  title="Anexos e biblioteca (por linha)"
+                  expanded={panels.attachments}
+                  onToggle={flip('attachments')}
+                  indent
+                >
+                  {(() => {
+                    const mainCanInherit =
+                      mainAttachmentStorageKind === 'documentLibrary' &&
+                      !!(mainAttachmentLibraryFromPanel?.libraryTitle ?? '').trim() &&
+                      !!(mainAttachmentLibraryFromPanel?.sourceListLookupFieldInternalName ?? '').trim();
+                    const storageOpts: IDropdownOption[] = LINKED_CHILD_STORAGE_OPTIONS.filter(
+                      (o) => o.key !== 'documentLibraryInheritMain' || mainCanInherit
+                    ).map((o) => ({ key: o.key, text: o.text }));
+                    const sk: TLinkedChildAttachmentStorageKind = cfg.childAttachmentStorageKind ?? 'none';
+                    const stepOpts = childFolderStepOptions(cfg);
+                    const libBase = cfg.childAttachmentLibrary ?? {
+                      libraryTitle: '',
+                      sourceListLookupFieldInternalName: '',
+                      folderTree: addRootSibling([]),
+                    };
+                    return (
+                      <Stack tokens={{ childrenGap: 10 }}>
+                        <Dropdown
                     label="Modo"
                     options={storageOpts}
                     selectedKey={sk}
@@ -948,13 +1016,17 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                       />
                     </Stack>
                   )}
-                </Stack>
-              );
-            })()}
-            <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
-              Campos na etapa «Geral» (ordem)
-            </Text>
-            <Stack styles={{ root: { border: '1px solid #edebe9', padding: 8, borderRadius: 4 } }} tokens={{ childrenGap: 6 }}>
+                      </Stack>
+                    );
+                  })()}
+                </LinkedChildTabCollapseSection>
+                <LinkedChildTabCollapseSection
+                  title="Campos na etapa «Geral» (ordem)"
+                  expanded={panels.fields}
+                  onToggle={flip('fields')}
+                  indent
+                >
+                  <Stack styles={{ root: { border: '1px solid #edebe9', padding: 8, borderRadius: 4 } }} tokens={{ childrenGap: 6 }}>
               {mainNames.length === 0 && (
                 <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                   Nenhum campo. Adicione abaixo.
@@ -1038,21 +1110,31 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                 );
               }}
             />
-            <FormManagerLinkedChildConditionalRulesBlock
-              rules={cfg.rules ?? []}
-              fieldOptions={meta
-                .filter(
-                  (m) =>
-                    isSelectableChildField(m) &&
-                    m.InternalName !== cfg.parentLookupFieldInternalName.trim()
-                )
-                .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }))}
-              onRulesChange={(next) =>
-                onLinkedChildFormsChange((prev) =>
-                  prev.map((c) => (c.id === cfg.id ? { ...c, rules: next } : c))
-                )
-              }
-            />
+                  </LinkedChildTabCollapseSection>
+                  <LinkedChildTabCollapseSection
+                    title="Regras condicionais"
+                    expanded={panels.rules}
+                    onToggle={flip('rules')}
+                    indent
+                  >
+                    <FormManagerLinkedChildConditionalRulesBlock
+                      rules={cfg.rules ?? []}
+                      fieldOptions={meta
+                        .filter(
+                          (m) =>
+                            isSelectableChildField(m) &&
+                            m.InternalName !== cfg.parentLookupFieldInternalName.trim()
+                        )
+                        .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }))}
+                      onRulesChange={(next) =>
+                        onLinkedChildFormsChange((prev) =>
+                          prev.map((c) => (c.id === cfg.id ? { ...c, rules: next } : c))
+                        )
+                      }
+                    />
+                  </LinkedChildTabCollapseSection>
+              </Stack>
+            )}
           </Stack>
         );
       })}
