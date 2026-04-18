@@ -874,12 +874,29 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
       if (html.trim()) descriptionsHtmlByButtonId[id] = html;
     }
   }
+  const paletteRaw = o.descriptionPaletteSlotByButtonId;
+  const descriptionPaletteSlotByButtonId: Record<string, TFormCustomButtonPaletteSlot> = {};
+  const paletteSlotOk = (s: string): s is TFormCustomButtonPaletteSlot =>
+    s === 'outline' || (FORM_CUSTOM_BUTTON_THEME_SLOTS as readonly string[]).includes(s);
+  if (paletteRaw && typeof paletteRaw === 'object' && !Array.isArray(paletteRaw)) {
+    const pentries = Object.entries(paletteRaw as Record<string, unknown>);
+    for (let i = 0; i < pentries.length; i++) {
+      const pk = pentries[i][0];
+      const pv = pentries[i][1];
+      const bid = String(pk).trim();
+      if (!bid) continue;
+      const slotStr = typeof pv === 'string' ? pv.trim() : '';
+      if (!paletteSlotOk(slotStr)) continue;
+      if (slotStr !== 'themePrimary') descriptionPaletteSlotByButtonId[bid] = slotStr;
+    }
+  }
   if (
     !captureEnabled &&
     !listTitle &&
     !actionFieldInternalName &&
     !sourceListLookupFieldInternalName &&
-    Object.keys(descriptionsHtmlByButtonId).length === 0
+    Object.keys(descriptionsHtmlByButtonId).length === 0 &&
+    Object.keys(descriptionPaletteSlotByButtonId).length === 0
   ) {
     return undefined;
   }
@@ -889,6 +906,7 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
     ...(actionFieldInternalName ? { actionFieldInternalName } : {}),
     ...(sourceListLookupFieldInternalName ? { sourceListLookupFieldInternalName } : {}),
     ...(Object.keys(descriptionsHtmlByButtonId).length ? { descriptionsHtmlByButtonId } : {}),
+    ...(Object.keys(descriptionPaletteSlotByButtonId).length ? { descriptionPaletteSlotByButtonId } : {}),
   };
 }
 

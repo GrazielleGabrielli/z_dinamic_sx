@@ -604,6 +604,11 @@ export interface IFormManagerActionLogConfig {
   sourceListLookupFieldInternalName?: string;
   /** HTML (editor rich) por id de `customButtons`. */
   descriptionsHtmlByButtonId?: Record<string, string>;
+  /**
+   * Cor de realce do registo (slot da paleta Fluent) por id de botão.
+   * Omitido por botão → `themePrimary`.
+   */
+  descriptionPaletteSlotByButtonId?: Record<string, TFormCustomButtonPaletteSlot>;
 }
 
 /** Corpo de formulário reutilizável (lista principal ou lista filha vinculada). */

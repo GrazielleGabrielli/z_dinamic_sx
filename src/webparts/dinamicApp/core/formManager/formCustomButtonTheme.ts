@@ -118,6 +118,14 @@ export function resolveStepUiAccentColor(
   return paletteBgFromSlot(theme, slot);
 }
 
+/** Cor de barra lateral do HTML gravado no registo de log (SharePoint). */
+export function resolveActionLogPaletteAccentHex(
+  theme: ITheme,
+  slot: TFormCustomButtonPaletteSlot | undefined
+): string {
+  return resolveStepUiAccentColor(theme, slot ?? 'themePrimary');
+}
+
 export function getFilledPaletteButtonStyles(
   theme: ITheme,
   slot: Exclude<TFormCustomButtonPaletteSlot, 'outline'>

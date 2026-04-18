@@ -764,6 +764,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [actionLogSourceListLookupFieldInternalName, setActionLogSourceListLookupFieldInternalName] =
     useState('');
   const [actionLogDescById, setActionLogDescById] = useState<Record<string, string>>({});
+  const [actionLogPaletteSlotById, setActionLogPaletteSlotById] = useState<
+    Record<string, TFormCustomButtonPaletteSlot>
+  >({});
   const [historyEnabled, setHistoryEnabled] = useState(() => value.historyEnabled === true);
   const [historyPresentationKind, setHistoryPresentationKind] = useState<TFormHistoryPresentationKind>(
     () => value.historyPresentationKind ?? 'panel'
@@ -867,6 +870,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         ? { ...cfg.actionLog.descriptionsHtmlByButtonId }
         : {}
     );
+    setActionLogPaletteSlotById(
+      cfg.actionLog?.descriptionPaletteSlotByButtonId
+        ? { ...cfg.actionLog.descriptionPaletteSlotByButtonId }
+        : {}
+    );
     setHistoryEnabled(cfg.historyEnabled === true);
     setHistoryPresentationKind(cfg.historyPresentationKind ?? 'panel');
     setHistoryLayoutKind(cfg.historyLayoutKind ?? 'list');
@@ -898,6 +906,37 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       for (let i = 0; i < customButtons.length; i++) {
         const id = customButtons[i].id;
         if (!(id in next)) next[id] = '';
+      }
+      const keys = Object.keys(next);
+      for (let k = 0; k < keys.length; k++) {
+        const key = keys[k];
+        if (key === FORM_BUILTIN_HISTORY_BUTTON_ID) continue;
+        let found = false;
+        for (let j = 0; j < customButtons.length; j++) {
+          if (customButtons[j].id === key) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) delete next[key];
+      }
+      return next;
+    });
+  }, [customButtons, historyEnabled]);
+
+  useEffect(() => {
+    setActionLogPaletteSlotById((prev) => {
+      const next = { ...prev };
+      if (historyEnabled) {
+        if (!(FORM_BUILTIN_HISTORY_BUTTON_ID in next)) {
+          next[FORM_BUILTIN_HISTORY_BUTTON_ID] = 'themePrimary';
+        }
+      } else {
+        delete next[FORM_BUILTIN_HISTORY_BUTTON_ID];
+      }
+      for (let i = 0; i < customButtons.length; i++) {
+        const id = customButtons[i].id;
+        if (!(id in next)) next[id] = 'themePrimary';
       }
       const keys = Object.keys(next);
       for (let k = 0; k < keys.length; k++) {
@@ -1275,12 +1314,19 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     if (descEntries.length) {
       actionLogPayload.descriptionsHtmlByButtonId = Object.fromEntries(descEntries);
     }
+    const paletteEntries = Object.entries(actionLogPaletteSlotById).filter(
+      ([, slot]) => slot && slot !== 'themePrimary'
+    );
+    if (paletteEntries.length) {
+      actionLogPayload.descriptionPaletteSlotByButtonId = Object.fromEntries(paletteEntries);
+    }
     const hasActionLog = !!(
       actionLogCaptureEnabled ||
       actionLogPayload.listTitle ||
       actionLogPayload.actionFieldInternalName ||
       actionLogPayload.sourceListLookupFieldInternalName ||
-      actionLogPayload.descriptionsHtmlByButtonId
+      actionLogPayload.descriptionsHtmlByButtonId ||
+      actionLogPayload.descriptionPaletteSlotByButtonId
     );
     const attachmentLibStashed = attachmentLibraryFromPanelState(
       attachmentLibLibraryTitle,
@@ -1567,12 +1613,19 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     if (descPrev.length) {
       actionLogPreview.descriptionsHtmlByButtonId = Object.fromEntries(descPrev);
     }
+    const palettePrev = Object.entries(actionLogPaletteSlotById).filter(
+      ([, slot]) => slot && slot !== 'themePrimary'
+    );
+    if (palettePrev.length) {
+      actionLogPreview.descriptionPaletteSlotByButtonId = Object.fromEntries(palettePrev);
+    }
     const hasActionLogPreview = !!(
       actionLogCaptureEnabled ||
       actionLogPreview.listTitle ||
       actionLogPreview.actionFieldInternalName ||
       actionLogPreview.sourceListLookupFieldInternalName ||
-      actionLogPreview.descriptionsHtmlByButtonId
+      actionLogPreview.descriptionsHtmlByButtonId ||
+      actionLogPreview.descriptionPaletteSlotByButtonId
     );
     const attachmentLibStashedPreview = attachmentLibraryFromPanelState(
       attachmentLibLibraryTitle,
@@ -1676,6 +1729,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     actionLogFieldInternalName,
     actionLogSourceListLookupFieldInternalName,
     actionLogDescById,
+    actionLogPaletteSlotById,
     historyEnabled,
     historyPresentationKind,
     historyLayoutKind,
@@ -3264,6 +3318,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             descriptionsHtmlByButtonId={actionLogDescById}
             onDescriptionChange={(buttonId, html) =>
               setActionLogDescById((prev) => ({ ...prev, [buttonId]: html }))
+            }
+            descriptionPaletteSlotByButtonId={actionLogPaletteSlotById}
+            onDescriptionPaletteSlotChange={(buttonId, slot) =>
+              setActionLogPaletteSlotById((prev) => ({ ...prev, [buttonId]: slot }))
             }
             customButtons={customButtons}
           />

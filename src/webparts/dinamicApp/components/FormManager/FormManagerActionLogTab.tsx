@@ -13,10 +13,11 @@ import {
 } from '@fluentui/react';
 import { ListsService, FieldsService } from '../../../../services';
 import type { IListSummary, IFieldMetadata } from '../../../../services';
-import type { IFormCustomButtonConfig } from '../../core/config/types/formManager';
+import type { IFormCustomButtonConfig, TFormCustomButtonPaletteSlot } from '../../core/config/types/formManager';
 import { FORM_BUILTIN_HISTORY_BUTTON_ID } from '../../core/config/types/formManager';
 import { ListPageRichQuillEditor } from '../ListPage/ListPageRichQuillEditor';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
+import { ThemePaletteSlotDropdown } from './ThemePaletteSlotDropdown';
 
 const LOG_QUILL_PERMISSIONS = {
   allowHeaders: true,
@@ -46,6 +47,8 @@ export interface IFormManagerActionLogTabProps {
   onActionFieldInternalNameChange: (internalName: string) => void;
   descriptionsHtmlByButtonId: Record<string, string>;
   onDescriptionChange: (buttonId: string, html: string) => void;
+  descriptionPaletteSlotByButtonId: Record<string, TFormCustomButtonPaletteSlot>;
+  onDescriptionPaletteSlotChange: (buttonId: string, slot: TFormCustomButtonPaletteSlot) => void;
   customButtons: IFormCustomButtonConfig[];
   /** Título da lista principal do formulário (origem dos dados). */
   primaryListTitle: string;
@@ -64,6 +67,8 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
     onActionFieldInternalNameChange,
     descriptionsHtmlByButtonId,
     onDescriptionChange,
+    descriptionPaletteSlotByButtonId,
+    onDescriptionPaletteSlotChange,
     customButtons,
     primaryListTitle,
     sourceListLookupFieldInternalName,
@@ -344,6 +349,13 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
                   Botão de histórico (integrado){' '}
                   <span style={{ color: '#605e5c', fontWeight: 400 }}>({FORM_BUILTIN_HISTORY_BUTTON_ID})</span>
                 </Text>
+                <ThemePaletteSlotDropdown
+                  label="Cor do registo (tema)"
+                  selectedKey={
+                    descriptionPaletteSlotByButtonId[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? 'themePrimary'
+                  }
+                  onChange={(slot) => onDescriptionPaletteSlotChange(FORM_BUILTIN_HISTORY_BUTTON_ID, slot)}
+                />
                 <ListPageRichQuillEditor
                   value={descriptionsHtmlByButtonId[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? ''}
                   onChange={(html) => onDescriptionChange(FORM_BUILTIN_HISTORY_BUTTON_ID, html)}
@@ -369,6 +381,11 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
                   {btn.label || btn.id}{' '}
                   <span style={{ color: '#605e5c', fontWeight: 400 }}>({btn.id})</span>
                 </Text>
+                <ThemePaletteSlotDropdown
+                  label="Cor do registo (tema)"
+                  selectedKey={descriptionPaletteSlotByButtonId[btn.id] ?? 'themePrimary'}
+                  onChange={(slot) => onDescriptionPaletteSlotChange(btn.id, slot)}
+                />
                 <ListPageRichQuillEditor
                   value={descriptionsHtmlByButtonId[btn.id] ?? ''}
                   onChange={(html) => onDescriptionChange(btn.id, html)}

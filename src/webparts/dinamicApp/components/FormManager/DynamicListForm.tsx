@@ -75,7 +75,10 @@ import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidation';
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
-import { appendFormActionLogEntry } from '../../core/formManager/formActionLog';
+import {
+  appendFormActionLogEntry,
+  type IFormActionLogRuntimeContext,
+} from '../../core/formManager/formActionLog';
 import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
 import { ItemsService, UsersService } from '../../../../services';
 import { getSP } from '../../../../services/core/sp';
@@ -114,6 +117,7 @@ import {
 import { FieldsService } from '../../../../services';
 import {
   getFilledPaletteButtonStyles,
+  resolveActionLogPaletteAccentHex,
   resolveFormCustomButtonPaletteSlot,
   resolveStepUiAccentColor,
 } from '../../core/formManager/formCustomButtonTheme';
@@ -736,6 +740,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [initialItem]);
 
   const itemsService = useMemo(() => new ItemsService(), []);
+  const buildActionLogRuntimeCtx = useCallback(
+    (btn: IFormCustomButtonConfig, sourceItemId: number | null | undefined): IFormActionLogRuntimeContext => ({
+      sourceListTitle: listTitle,
+      sourceItemId,
+      formMode,
+      logEntryAccentHex: resolveActionLogPaletteAccentHex(
+        theme,
+        formManager.actionLog?.descriptionPaletteSlotByButtonId?.[btn.id]
+      ),
+    }),
+    [listTitle, formMode, theme, formManager.actionLog]
+  );
   const fieldsService = useMemo(() => new FieldsService(), []);
   const usersService = useMemo(() => new UsersService(), []);
   const [siteUserOptions, setSiteUserOptions] = useState<IDropdownOption[]>([{ key: '', text: '—' }]);
@@ -758,6 +774,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [linkedServerAttachmentsByKey, setLinkedServerAttachmentsByKey] = useState<
     Record<string, IServerAttachmentRow[]>
   >({});
+
+  const historyLogEntryPaletteContext = useMemo(
+    () => ({
+      slotByButtonId: formManager.actionLog?.descriptionPaletteSlotByButtonId ?? {},
+      customButtons: (formManager.customButtons ?? []).map((b) => ({ id: b.id, label: b.label })),
+      historyButtonLabel: (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico',
+    }),
+    [
+      formManager.actionLog?.descriptionPaletteSlotByButtonId,
+      formManager.customButtons,
+      formManager.historyButtonLabel,
+    ]
+  );
 
   const builtinHistoryButtonConfig = useMemo((): IFormCustomButtonConfig => {
     const label = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
@@ -1735,11 +1764,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
       const url = interpolateFormButtonRedirectUrl(tpl, mergedValues, { itemId, formMode });
       try {
-        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-          sourceListTitle: listTitle,
-          sourceItemId: itemId,
-          formMode,
-        });
+        await appendFormActionLogEntry(
+          itemsService,
+          formManager.actionLog,
+          btn,
+          buildActionLogRuntimeCtx(btn, itemId)
+        );
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
         return;
@@ -1786,11 +1816,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           return;
         }
         try {
-          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-            sourceListTitle: listTitle,
-            sourceItemId: newId,
-            formMode,
-          });
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, newId)
+          );
         } catch (le) {
           setFormError(
             `Item criado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
@@ -1848,11 +1879,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }
         await onAfterItemUpdated?.();
         try {
-          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-            sourceListTitle: listTitle,
-            sourceItemId: itemId,
-            formMode,
-          });
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
         } catch (le) {
           setFormError(
             `Gravado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
@@ -1883,11 +1915,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       try {
         await itemsService.deleteItem(listTitle, itemId);
         try {
-          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-            sourceListTitle: listTitle,
-            sourceItemId: itemId,
-            formMode,
-          });
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
         } catch (le) {
           setFormError(
             `Eliminado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
@@ -1908,11 +1941,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const behavior = btn.behavior ?? 'actionsOnly';
     if (behavior === 'close') {
       try {
-        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-          sourceListTitle: listTitle,
-          sourceItemId: itemId,
-          formMode,
-        });
+        await appendFormActionLogEntry(
+          itemsService,
+          formManager.actionLog,
+          btn,
+          buildActionLogRuntimeCtx(btn, itemId)
+        );
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
         return;
@@ -1931,11 +1965,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       });
       if (saved) {
         try {
-          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-            sourceListTitle: listTitle,
-            sourceItemId: itemId,
-            formMode,
-          });
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
           await runFinishAfterSuccess(btn, mergedValues, itemId);
         } catch (e) {
           setFormError(e instanceof Error ? e.message : String(e));
@@ -1949,11 +1984,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       });
       if (saved) {
         try {
-          await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-            sourceListTitle: listTitle,
-            sourceItemId: itemId,
-            formMode,
-          });
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
           await runFinishAfterSuccess(btn, mergedValues, itemId);
         } catch (e) {
           setFormError(e instanceof Error ? e.message : String(e));
@@ -1961,11 +1997,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
     } else if (behavior === 'actionsOnly') {
       try {
-        await appendFormActionLogEntry(itemsService, formManager.actionLog, btn, {
-          sourceListTitle: listTitle,
-          sourceItemId: itemId,
-          formMode,
-        });
+        await appendFormActionLogEntry(
+          itemsService,
+          formManager.actionLog,
+          btn,
+          buildActionLogRuntimeCtx(btn, itemId)
+        );
         await runFinishAfterSuccess(btn, mergedValues, itemId);
       } catch (e) {
         setFormError(e instanceof Error ? e.message : String(e));
@@ -3084,6 +3121,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               title={historyBtn.label}
               subtitle={historyBtn.shortDescription}
               accentColor={stepAccentHex}
+              logEntryPaletteContext={historyLogEntryPaletteContext}
             />
           )}
         <FormSubmitLoadingChrome kind="belowButtons" active={submitUi === 'belowButtons'} message={submitMsg} />

@@ -17,8 +17,17 @@ import type {
   IFormManagerActionLogConfig,
   TFormHistoryPresentationKind,
   TFormHistoryLayoutKind,
+  TFormCustomButtonPaletteSlot,
 } from '../../core/config/types/formManager';
-import { hexToRgbaString } from '../../core/formManager/formCustomButtonTheme';
+import { FORM_BUILTIN_HISTORY_BUTTON_ID } from '../../core/config/types/formManager';
+import {
+  hexToRgbaString,
+  resolveActionLogPaletteAccentHex,
+} from '../../core/formManager/formCustomButtonTheme';
+import {
+  parseActionLogButtonIdFromStoredHtml,
+  stripActionLogMarkerFromStoredHtml,
+} from '../../core/formManager/formActionLog';
 import { ItemsService, FieldsService } from '../../../../services';
 
 export interface IFormItemHistoryUiProps {
@@ -32,6 +41,12 @@ export interface IFormItemHistoryUiProps {
   subtitle?: string;
   /** Cor de realce (passador); omitido = primária do tema Fluent. */
   accentColor?: string;
+  /** Por entrada: bolinha / barra usam a cor do log por botão quando configurada. */
+  logEntryPaletteContext?: {
+    slotByButtonId: Record<string, TFormCustomButtonPaletteSlot>;
+    customButtons: readonly { id: string; label: string }[];
+    historyButtonLabel: string;
+  };
 }
 
 interface IHistoryUiColors {
@@ -68,6 +83,26 @@ interface IAuditEntry {
   createdStr: string;
   who: string;
   html: string;
+  entryAccentHex: string;
+}
+
+function resolveLogButtonIdForPalette(
+  rawHtml: string,
+  actionLabel: string,
+  buttons: readonly { id: string; label: string }[],
+  historyButtonLabel: string
+): string | undefined {
+  const fromHtml = parseActionLogButtonIdFromStoredHtml(rawHtml);
+  if (fromHtml) return fromHtml;
+  const a = actionLabel.trim();
+  const h = historyButtonLabel.trim() || 'Histórico';
+  if (a === h) return FORM_BUILTIN_HISTORY_BUTTON_ID;
+  for (let i = 0; i < buttons.length; i++) {
+    const b = buttons[i];
+    const disp = (b.label || b.id).trim();
+    if (a === disp || a === b.id.trim()) return b.id;
+  }
+  return undefined;
 }
 
 function actionLabelFromItemTitle(title: string): string {
@@ -157,7 +192,8 @@ function renderAuditEntries(
           <div
             key={e.key}
             style={{
-              padding: '8px 0',
+              padding: '8px 0 8px 10px',
+              borderLeft: `3px solid ${e.entryAccentHex}`,
               borderBottom: i < entries.length - 1 ? `1px solid ${colors.border}` : undefined,
             }}
           >
@@ -196,7 +232,7 @@ function renderAuditEntries(
                   width: 12,
                   height: 12,
                   borderRadius: '50%',
-                  background: colors.accent,
+                  background: e.entryAccentHex,
                   border: `2px solid ${colors.cardBg}`,
                   boxShadow: `0 0 0 1px ${colors.borderStrong}`,
                 }}
@@ -226,6 +262,7 @@ function renderAuditEntries(
               background: colors.cardBg,
               boxShadow: cardShadow,
               border: `1px solid ${colors.border}`,
+              borderLeft: `4px solid ${e.entryAccentHex}`,
             }}
           >
             <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
@@ -250,6 +287,7 @@ function renderAuditEntries(
               padding: '10px 12px',
               borderRadius: 4,
               border: `1px solid ${colors.border}`,
+              borderLeft: `4px solid ${e.entryAccentHex}`,
               background: colors.listRowBg,
             },
           }}
@@ -275,6 +313,7 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
   title,
   subtitle,
   accentColor,
+  logEntryPaletteContext,
 }) => {
   const theme = useTheme();
   const colors = useMemo(
@@ -338,13 +377,14 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
 
   const entries: IAuditEntry[] = useMemo(() => {
     const out: IAuditEntry[] = [];
+    const defaultAccent = colors.accent;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const id = r.Id;
       const key =
         typeof id === 'number' || typeof id === 'string' ? String(id) : `r-${i}`;
       const rawHtml = resolvedActionField ? r[resolvedActionField] : undefined;
-      const html =
+      const htmlRaw =
         typeof rawHtml === 'string'
           ? rawHtml
           : rawHtml !== undefined && rawHtml !== null
@@ -354,10 +394,23 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
       const who = authorDisplay(r);
       const lineTitle = typeof r.Title === 'string' ? r.Title : String(r.Title ?? '—');
       const actionLabel = actionLabelFromItemTitle(lineTitle);
-      out.push({ key, actionLabel, createdStr, who, html });
+      let entryAccentHex = defaultAccent;
+      if (logEntryPaletteContext) {
+        const btnId = resolveLogButtonIdForPalette(
+          htmlRaw,
+          actionLabel,
+          logEntryPaletteContext.customButtons,
+          logEntryPaletteContext.historyButtonLabel
+        );
+        const slot =
+          (btnId ? logEntryPaletteContext.slotByButtonId[btnId] : undefined) ?? 'themePrimary';
+        entryAccentHex = resolveActionLogPaletteAccentHex(theme, slot);
+      }
+      const html = stripActionLogMarkerFromStoredHtml(htmlRaw);
+      out.push({ key, actionLabel, createdStr, who, html, entryAccentHex });
     }
     return out;
-  }, [rows, resolvedActionField]);
+  }, [rows, resolvedActionField, logEntryPaletteContext, theme, colors.accent]);
 
   const body = (
     <Stack tokens={{ childrenGap: 12 }}>
