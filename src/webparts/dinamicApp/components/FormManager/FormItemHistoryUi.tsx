@@ -295,7 +295,7 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
     const linkField = actionLog?.sourceListLookupFieldInternalName?.trim();
     if (!logList || !actionField || !linkField) {
       setErr(
-        'Indique na configuração do gestor (aba Lista de logs) a lista de registo, o campo multilinhas e o lookup de vínculo à lista principal.'
+        'Indique na configuração do gestor (aba «Lista de logs») a lista de registo, o campo multilinhas e o lookup de vínculo à lista principal. Ative o histórico na aba «Componentes».'
       );
       setRows([]);
       setResolvedActionField('');

@@ -242,7 +242,7 @@ export type TFixedChromePlacement = 'top' | 'bottom';
 /** Como o bloco se posiciona na zona fixa (Fixos ou banner top/bottom fixo). */
 export type TChromePositionMode = 'sticky' | 'absolute' | 'flow';
 
-/** Id sintético do botão de histórico integrado (config na aba Lista de logs). */
+/** Id sintético do botão de histórico integrado (ativar na aba Componentes; lista de log na aba Lista de logs). */
 export const FORM_BUILTIN_HISTORY_BUTTON_ID = '__builtin_history';
 
 /** Como apresentar o botão de histórico de versões no formulário. */
@@ -447,7 +447,7 @@ export type TFormRootWidthMode = 'full' | 'percent';
 /** Posição horizontal do bloco do formulário na área disponível. */
 export type TFormRootHorizontalAlign = 'start' | 'center' | 'end';
 
-/** Onde o painel de histórico de auditoria abre (aba Lista de logs). */
+/** Onde o painel de histórico de auditoria abre (aba Componentes). */
 export type TFormHistoryPresentationKind = 'panel' | 'modal' | 'collapse';
 
 /** Estilo da lista de registos dentro do painel de histórico (aba Componentes). */

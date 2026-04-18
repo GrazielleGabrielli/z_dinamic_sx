@@ -1682,7 +1682,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
     if (op === 'history') {
       if (formManager.historyEnabled !== true) {
-        setFormError('Ative o histórico na aba Lista de logs do gestor de formulário.');
+        setFormError('Ative o histórico na aba Componentes do gestor de formulário.');
         return;
       }
       if (itemId === undefined || itemId === null || formMode === 'create') {

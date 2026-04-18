@@ -10,8 +10,17 @@ import {
   ProgressIndicator,
   IconButton,
   useTheme,
+  Toggle,
+  ChoiceGroup,
+  type IChoiceGroupOption,
+  TextField,
+  Checkbox,
+  DefaultButton,
+  MessageBar,
+  MessageBarType,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
+import type { IGroupDetails } from '../../../../services';
 import type {
   TFormStepLayoutKind,
   TFormStepNavButtonsKind,
@@ -20,6 +29,8 @@ import type {
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormHistoryLayoutKind,
+  TFormHistoryPresentationKind,
+  TFormHistoryButtonKind,
   TFormCustomButtonPaletteSlot,
 } from '../../core/config/types/formManager';
 import { resolveStepUiAccentColor } from '../../core/formManager/formCustomButtonTheme';
@@ -30,6 +41,16 @@ import {
   FORM_DATA_LOADING_DROPDOWN_OPTIONS,
   FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS,
 } from './FormLoadingUi';
+
+function normSpGroupTitle(s: string): string {
+  return s.trim().toLowerCase();
+}
+
+const HISTORY_BUTTON_KIND_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'text', text: 'Só texto' },
+  { key: 'icon', text: 'Só ícone' },
+  { key: 'iconAndText', text: 'Ícone e texto' },
+];
 
 export const FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS: {
   key: TFormAttachmentUploadLayoutKind;
@@ -430,6 +451,25 @@ export interface IFormManagerComponentsTabContentProps {
   onFormDataLoadingKindChange: (v: TFormDataLoadingUiKind) => void;
   defaultSubmitLoadingKind: TFormSubmitLoadingUiKind;
   onDefaultSubmitLoadingKindChange: (v: TFormSubmitLoadingUiKind) => void;
+  historyEnabled: boolean;
+  onHistoryEnabledChange: (enabled: boolean) => void;
+  historyPresentationKind: TFormHistoryPresentationKind;
+  onHistoryPresentationKindChange: (v: TFormHistoryPresentationKind) => void;
+  historyButtonKind: TFormHistoryButtonKind;
+  onHistoryButtonKindChange: (v: TFormHistoryButtonKind) => void;
+  historyButtonLabel: string;
+  onHistoryButtonLabelChange: (v: string) => void;
+  historyButtonIcon: string;
+  onHistoryButtonIconChange: (v: string) => void;
+  historyPanelSubtitle: string;
+  onHistoryPanelSubtitleChange: (v: string) => void;
+  historyGroupTitles: string[];
+  onHistoryGroupTitlesChange: (titles: string[]) => void;
+  siteGroups: IGroupDetails[];
+  siteGroupsSorted: IGroupDetails[];
+  siteGroupsLoading: boolean;
+  siteGroupsErr?: string;
+  onRetryLoadSiteGroups: () => void;
   historyLayoutKind: TFormHistoryLayoutKind;
   onHistoryLayoutKindChange: (v: TFormHistoryLayoutKind) => void;
 }
@@ -451,6 +491,9 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
     () => resolveStepUiAccentColor(theme, props.stepAccentPaletteSlot),
     [theme, props.stepAccentPaletteSlot]
   );
+  const showIconFields = props.historyButtonKind === 'icon' || props.historyButtonKind === 'iconAndText';
+  const showLabelField = props.historyButtonKind === 'text' || props.historyButtonKind === 'iconAndText';
+  const showAriaOnlyLabel = props.historyButtonKind === 'icon';
   return (
     <Stack tokens={{ childrenGap: 10 }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -548,23 +591,170 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
       </FormManagerCollapseSection>
 
       <FormManagerCollapseSection
-        title="Histórico de auditoria — apresentação"
+        title="Histórico de auditoria"
         isOpen={isOpen(SECTION_IDS.historyAudit)}
         onToggle={() => toggleSection(SECTION_IDS.historyAudit)}
       >
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Aplica-se ao painel do botão de histórico (registos da lista de log filtrados pelo lookup). A abertura em
-          painel lateral, modal ou secção continua na aba «Lista de logs».
+          Botão integrado no formulário, forma de abrir o histórico e aspeto. A lista SharePoint e a captação de logs
+          configuram-se na aba «Lista de logs».
         </Text>
-        <Dropdown
-          label="Estilo da lista de registos"
-          options={FORM_HISTORY_LAYOUT_DROPDOWN_OPTIONS}
-          selectedKey={props.historyLayoutKind}
-          onChange={(_, o) =>
-            o && props.onHistoryLayoutKindChange(String(o.key) as TFormHistoryLayoutKind)
-          }
+        <Toggle
+          label="Ativar botão de histórico de auditoria"
+          checked={props.historyEnabled}
+          onChange={(_, c) => props.onHistoryEnabledChange(!!c)}
+          onText="Ativo"
+          offText="Inativo"
         />
-        <HistoryLayoutPreview kind={props.historyLayoutKind} />
+        {props.historyEnabled && (
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { maxWidth: 560 } }}>
+            <Dropdown
+              label="Abrir histórico como"
+              options={[
+                { key: 'panel', text: 'Painel lateral' },
+                { key: 'modal', text: 'Modal' },
+                { key: 'collapse', text: 'Secção no formulário (abaixo dos botões)' },
+              ]}
+              selectedKey={props.historyPresentationKind}
+              onChange={(_, o) =>
+                o && props.onHistoryPresentationKindChange(String(o.key) as TFormHistoryPresentationKind)
+              }
+            />
+            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+              Aspeto do botão no formulário
+            </Text>
+            <ChoiceGroup
+              options={HISTORY_BUTTON_KIND_OPTIONS}
+              selectedKey={props.historyButtonKind}
+              onChange={(_, o) =>
+                o && props.onHistoryButtonKindChange(String(o.key) as TFormHistoryButtonKind)
+              }
+            />
+            {showLabelField && (
+              <TextField
+                label="Texto do botão"
+                value={props.historyButtonLabel}
+                onChange={(_, v) => props.onHistoryButtonLabelChange(v ?? '')}
+                placeholder="Histórico"
+              />
+            )}
+            {showAriaOnlyLabel && (
+              <TextField
+                label="Nome acessível (tooltip / leitor de ecrã)"
+                value={props.historyButtonLabel}
+                onChange={(_, v) => props.onHistoryButtonLabelChange(v ?? '')}
+                placeholder="Histórico"
+              />
+            )}
+            {showIconFields && (
+              <TextField
+                label="Ícone Fluent (nome)"
+                description="Ex.: History, Clock, TimelineProgress. Em «só ícone», use o subtítulo abaixo como tooltip."
+                value={props.historyButtonIcon}
+                onChange={(_, v) => props.onHistoryButtonIconChange(v ?? '')}
+                placeholder="History"
+              />
+            )}
+            <TextField
+              label="Subtítulo / ajuda (painel de histórico e tooltip)"
+              multiline
+              rows={2}
+              value={props.historyPanelSubtitle}
+              onChange={(_, v) => props.onHistoryPanelSubtitleChange(v ?? '')}
+            />
+            <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
+              Grupos do SharePoint
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão de histórico. Vazio =
+              todos.
+            </Text>
+            {props.siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
+            {props.siteGroupsErr && (
+              <>
+                <MessageBar messageBarType={MessageBarType.warning}>{props.siteGroupsErr}</MessageBar>
+                <DefaultButton text="Tentar carregar grupos novamente" onClick={props.onRetryLoadSiteGroups} />
+              </>
+            )}
+            {!props.siteGroupsLoading ? (
+              <Stack
+                tokens={{ childrenGap: 6 }}
+                styles={{
+                  root: {
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                    border: '1px solid #edebe9',
+                    borderRadius: 4,
+                    padding: 8,
+                    background: '#ffffff',
+                  },
+                }}
+              >
+                {(props.historyGroupTitles ?? [])
+                  .filter(
+                    (t) =>
+                      !props.siteGroups.some((g) => normSpGroupTitle(g.Title) === normSpGroupTitle(t))
+                  )
+                  .map((t, oi) => (
+                    <Checkbox
+                      key={`hist-orphan-grp-${oi}-${t}`}
+                      label={`${t} (guardado; não na lista do site)`}
+                      checked
+                      onChange={(_, c) => {
+                        if (c) return;
+                        const cur = props.historyGroupTitles ?? [];
+                        const n = normSpGroupTitle(t);
+                        const next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                        props.onHistoryGroupTitlesChange(next);
+                      }}
+                    />
+                  ))}
+                {props.siteGroupsSorted.map((g) => {
+                  const cur = props.historyGroupTitles ?? [];
+                  const n = normSpGroupTitle(g.Title);
+                  const checked = cur.some((x) => normSpGroupTitle(x) === n);
+                  return (
+                    <Checkbox
+                      key={g.Id}
+                      label={g.Title}
+                      title={g.Description || undefined}
+                      checked={checked}
+                      onChange={(_, c) => {
+                        let next: string[];
+                        if (c) {
+                          next = checked ? cur : cur.concat([g.Title]);
+                        } else {
+                          next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                        }
+                        props.onHistoryGroupTitlesChange(next);
+                      }}
+                    />
+                  );
+                })}
+                {!props.siteGroupsSorted.length && !(props.historyGroupTitles ?? []).length && (
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Nenhum grupo no site.
+                  </Text>
+                )}
+              </Stack>
+            ) : null}
+            <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 12 } }}>
+              Estilo da lista de registos (dentro do painel)
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Aplica-se ao conteúdo do histórico (registos da lista de log filtrados pelo lookup).
+            </Text>
+            <Dropdown
+              label="Estilo da lista de registos"
+              options={FORM_HISTORY_LAYOUT_DROPDOWN_OPTIONS}
+              selectedKey={props.historyLayoutKind}
+              onChange={(_, o) =>
+                o && props.onHistoryLayoutKindChange(String(o.key) as TFormHistoryLayoutKind)
+              }
+            />
+            <HistoryLayoutPreview kind={props.historyLayoutKind} />
+          </Stack>
+        )}
       </FormManagerCollapseSection>
     </Stack>
   );

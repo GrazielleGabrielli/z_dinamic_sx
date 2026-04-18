@@ -216,7 +216,6 @@ interface ILinkedChildCardPanels {
   card: boolean;
   connection: boolean;
   presentation: boolean;
-  preview: boolean;
   attachments: boolean;
   fields: boolean;
   rules: boolean;
@@ -226,7 +225,6 @@ const DEFAULT_LINKED_CHILD_CARD_PANELS: ILinkedChildCardPanels = {
   card: false,
   connection: false,
   presentation: false,
-  preview: false,
   attachments: false,
   fields: false,
   rules: false,
@@ -764,7 +762,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                   )}
                 </LinkedChildTabCollapseSection>
                 <LinkedChildTabCollapseSection
-                  title="Apresentação no formulário (ordem, linhas, vista)"
+                  title="Apresentação no formulário"
                   expanded={panels.presentation}
                   onToggle={flip('presentation')}
                   indent
@@ -832,14 +830,11 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                       styles={{ root: { minWidth: 260 } }}
                     />
                   </Stack>
-                </LinkedChildTabCollapseSection>
-                <LinkedChildTabCollapseSection
-                  title="Pré-visualização dos modos de linha"
-                  expanded={panels.preview}
-                  onToggle={flip('preview')}
-                  indent
-                >
-                  <FormManagerLinkedChildPresentationPreview cfg={cfg} fieldMeta={meta} />
+                  <FormManagerLinkedChildPresentationPreview
+                    cfg={cfg}
+                    fieldMeta={meta}
+                    presentationKind={cfg.rowsPresentation ?? 'stack'}
+                  />
                 </LinkedChildTabCollapseSection>
                 <LinkedChildTabCollapseSection
                   title="Anexos e biblioteca (por linha)"

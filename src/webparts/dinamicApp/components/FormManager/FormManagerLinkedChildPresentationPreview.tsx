@@ -155,25 +155,33 @@ function PreviewBlock(props: {
   );
 }
 
+const PREVIEW_TITLE_BY_KIND: Record<TLinkedChildRowsPresentationKind, string> = {
+  stack: 'Blocos (em coluna)',
+  table: 'Tabela',
+  compact: 'Compacto',
+  cards: 'Cartões',
+};
+
 export interface IFormManagerLinkedChildPresentationPreviewProps {
   cfg: IFormLinkedChildFormConfig;
   fieldMeta: IFieldMetadata[];
+  /** Modo escolhido no dropdown «Apresentação das linhas». */
+  presentationKind: TLinkedChildRowsPresentationKind;
 }
 
 export const FormManagerLinkedChildPresentationPreview: React.FC<
   IFormManagerLinkedChildPresentationPreviewProps
-> = ({ cfg, fieldMeta }) => {
+> = ({ cfg, fieldMeta, presentationKind }) => {
   const labels = useMemo(() => previewLabels(cfg, fieldMeta), [cfg, fieldMeta]);
+  const title = PREVIEW_TITLE_BY_KIND[presentationKind] ?? PREVIEW_TITLE_BY_KIND.stack;
 
   return (
-    <Stack tokens={{ childrenGap: 16 }} styles={{ root: { marginTop: 4 } }}>
+    <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 8 } }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Esboço com base nos primeiros campos da etapa «Geral» (o formulário real segue as regras e visibilidade).
+        Pré-visualização do modo selecionado (esboço com os primeiros campos da etapa «Geral»; o formulário real
+        segue regras e visibilidade).
       </Text>
-      <PreviewBlock title="Blocos (em coluna)" kind="stack" labels={labels} />
-      <PreviewBlock title="Tabela" kind="table" labels={labels} />
-      <PreviewBlock title="Compacto" kind="compact" labels={labels} />
-      <PreviewBlock title="Cartões" kind="cards" labels={labels} />
+      <PreviewBlock title={title} kind={presentationKind} labels={labels} />
     </Stack>
   );
 };

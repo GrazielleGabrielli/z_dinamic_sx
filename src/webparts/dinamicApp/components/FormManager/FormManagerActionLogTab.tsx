@@ -9,20 +9,11 @@ import {
   MessageBar,
   MessageBarType,
   Toggle,
-  ChoiceGroup,
-  IChoiceGroupOption,
-  TextField,
   Separator,
-  Checkbox,
-  DefaultButton,
 } from '@fluentui/react';
 import { ListsService, FieldsService } from '../../../../services';
-import type { IListSummary, IFieldMetadata, IGroupDetails } from '../../../../services';
-import type {
-  IFormCustomButtonConfig,
-  TFormHistoryPresentationKind,
-  TFormHistoryButtonKind,
-} from '../../core/config/types/formManager';
+import type { IListSummary, IFieldMetadata } from '../../../../services';
+import type { IFormCustomButtonConfig } from '../../core/config/types/formManager';
 import { FORM_BUILTIN_HISTORY_BUTTON_ID } from '../../core/config/types/formManager';
 import { ListPageRichQuillEditor } from '../ListPage/ListPageRichQuillEditor';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
@@ -35,47 +26,18 @@ const LOG_QUILL_PERMISSIONS = {
   allowVideoEmbed: false,
 };
 
-const HISTORY_BUTTON_KIND_OPTIONS: IChoiceGroupOption[] = [
-  { key: 'text', text: 'Só texto' },
-  { key: 'icon', text: 'Só ícone' },
-  { key: 'iconAndText', text: 'Ícone e texto' },
-];
-
-function normSpGroupTitle(s: string): string {
-  return s.trim().toLowerCase();
-}
-
 function normListGuid(g: string | undefined): string {
   if (!g) return '';
   return g.replace(/[{}]/g, '').toLowerCase();
 }
 
 const LOG_SECTION_IDS = {
-  history: 'logHistory',
   list: 'logList',
   texts: 'logTexts',
 } as const;
 
 export interface IFormManagerActionLogTabProps {
   historyEnabled: boolean;
-  onHistoryEnabledChange: (enabled: boolean) => void;
-  historyPresentationKind: TFormHistoryPresentationKind;
-  onHistoryPresentationKindChange: (v: TFormHistoryPresentationKind) => void;
-  historyButtonKind: TFormHistoryButtonKind;
-  onHistoryButtonKindChange: (v: TFormHistoryButtonKind) => void;
-  historyButtonLabel: string;
-  onHistoryButtonLabelChange: (v: string) => void;
-  historyButtonIcon: string;
-  onHistoryButtonIconChange: (v: string) => void;
-  historyPanelSubtitle: string;
-  onHistoryPanelSubtitleChange: (v: string) => void;
-  historyGroupTitles: string[];
-  onHistoryGroupTitlesChange: (titles: string[]) => void;
-  siteGroups: IGroupDetails[];
-  siteGroupsSorted: IGroupDetails[];
-  siteGroupsLoading: boolean;
-  siteGroupsErr?: string;
-  onRetryLoadSiteGroups: () => void;
   captureEnabled: boolean;
   onCaptureEnabledChange: (enabled: boolean) => void;
   listTitle: string;
@@ -94,24 +56,6 @@ export interface IFormManagerActionLogTabProps {
 export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabProps): JSX.Element {
   const {
     historyEnabled,
-    onHistoryEnabledChange,
-    historyPresentationKind,
-    onHistoryPresentationKindChange,
-    historyButtonKind,
-    onHistoryButtonKindChange,
-    historyButtonLabel,
-    onHistoryButtonLabelChange,
-    historyButtonIcon,
-    onHistoryButtonIconChange,
-    historyPanelSubtitle,
-    onHistoryPanelSubtitleChange,
-    historyGroupTitles,
-    onHistoryGroupTitlesChange,
-    siteGroups,
-    siteGroupsSorted,
-    siteGroupsLoading,
-    siteGroupsErr,
-    onRetryLoadSiteGroups,
     captureEnabled,
     onCaptureEnabledChange,
     listTitle,
@@ -260,168 +204,14 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
       sourceListLookupFieldInternalName.trim()
   );
 
-  const showIconFields = historyButtonKind === 'icon' || historyButtonKind === 'iconAndText';
-  const showLabelField = historyButtonKind === 'text' || historyButtonKind === 'iconAndText';
-  const showAriaOnlyLabel = historyButtonKind === 'icon';
-
   const logDescBlocks = captureEnabled && (customButtons.length > 0 || historyEnabled);
 
   return (
     <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12 } }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Expanda cada secção para configurar. Por defeito todas vêm fechadas — igual à aba Componentes.
+        Expanda cada secção para configurar. O botão de histórico e a forma de abrir (painel, modal, secção)
+        configuram-se na aba «Componentes». Por defeito as secções aqui vêm fechadas.
       </Text>
-
-      <FormManagerCollapseSection
-        title="Histórico de auditoria no formulário"
-        isOpen={isSectionOpen(LOG_SECTION_IDS.history)}
-        onToggle={() => toggleSection(LOG_SECTION_IDS.history)}
-      >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Ativar o botão integrado, apresentação (painel/modal), aspeto e quem o vê.
-        </Text>
-        <Toggle
-          label="Ativar botão de histórico de auditoria"
-          checked={historyEnabled}
-          onChange={(_, c) => onHistoryEnabledChange(!!c)}
-          onText="Ativo"
-          offText="Inativo"
-        />
-        {historyEnabled && (
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { maxWidth: 520 } }}>
-            <Dropdown
-              label="Abrir histórico como"
-              options={[
-                { key: 'panel', text: 'Painel lateral' },
-                { key: 'modal', text: 'Modal' },
-                { key: 'collapse', text: 'Secção no formulário (abaixo dos botões)' },
-              ]}
-              selectedKey={historyPresentationKind}
-              onChange={(_, o) =>
-                o && onHistoryPresentationKindChange(String(o.key) as TFormHistoryPresentationKind)
-              }
-            />
-            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-              Aspeto do botão no formulário
-            </Text>
-            <ChoiceGroup
-              options={HISTORY_BUTTON_KIND_OPTIONS}
-              selectedKey={historyButtonKind}
-              onChange={(_, o) =>
-                o && onHistoryButtonKindChange(String(o.key) as TFormHistoryButtonKind)
-              }
-            />
-            {showLabelField && (
-              <TextField
-                label="Texto do botão"
-                value={historyButtonLabel}
-                onChange={(_, v) => onHistoryButtonLabelChange(v ?? '')}
-                placeholder="Histórico"
-              />
-            )}
-            {showAriaOnlyLabel && (
-              <TextField
-                label="Nome acessível (tooltip / leitor de ecrã)"
-                value={historyButtonLabel}
-                onChange={(_, v) => onHistoryButtonLabelChange(v ?? '')}
-                placeholder="Histórico"
-              />
-            )}
-            {showIconFields && (
-              <TextField
-                label="Ícone Fluent (nome)"
-                description="Ex.: History, Clock, TimelineProgress. Em «só ícone», use o subtítulo abaixo como tooltip."
-                value={historyButtonIcon}
-                onChange={(_, v) => onHistoryButtonIconChange(v ?? '')}
-                placeholder="History"
-              />
-            )}
-            <TextField
-              label="Subtítulo / ajuda (painel de histórico e tooltip)"
-              multiline
-              rows={2}
-              value={historyPanelSubtitle}
-              onChange={(_, v) => onHistoryPanelSubtitleChange(v ?? '')}
-            />
-            <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
-              Grupos do SharePoint
-            </Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão de histórico. Vazio =
-              todos.
-            </Text>
-            {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
-            {siteGroupsErr && (
-              <>
-                <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
-                <DefaultButton text="Tentar carregar grupos novamente" onClick={onRetryLoadSiteGroups} />
-              </>
-            )}
-            {!siteGroupsLoading ? (
-              <Stack
-                tokens={{ childrenGap: 6 }}
-                styles={{
-                  root: {
-                    maxHeight: 240,
-                    overflowY: 'auto',
-                    border: '1px solid #edebe9',
-                    borderRadius: 4,
-                    padding: 8,
-                    background: '#ffffff',
-                  },
-                }}
-              >
-                {(historyGroupTitles ?? [])
-                  .filter(
-                    (t) =>
-                      !siteGroups.some((g) => normSpGroupTitle(g.Title) === normSpGroupTitle(t))
-                  )
-                  .map((t, oi) => (
-                    <Checkbox
-                      key={`hist-orphan-grp-${oi}-${t}`}
-                      label={`${t} (guardado; não na lista do site)`}
-                      checked
-                      onChange={(_, c) => {
-                        if (c) return;
-                        const cur = historyGroupTitles ?? [];
-                        const n = normSpGroupTitle(t);
-                        const next = cur.filter((x) => normSpGroupTitle(x) !== n);
-                        onHistoryGroupTitlesChange(next);
-                      }}
-                    />
-                  ))}
-                {siteGroupsSorted.map((g) => {
-                  const cur = historyGroupTitles ?? [];
-                  const n = normSpGroupTitle(g.Title);
-                  const checked = cur.some((x) => normSpGroupTitle(x) === n);
-                  return (
-                    <Checkbox
-                      key={g.Id}
-                      label={g.Title}
-                      title={g.Description || undefined}
-                      checked={checked}
-                      onChange={(_, c) => {
-                        let next: string[];
-                        if (c) {
-                          next = checked ? cur : cur.concat([g.Title]);
-                        } else {
-                          next = cur.filter((x) => normSpGroupTitle(x) !== n);
-                        }
-                        onHistoryGroupTitlesChange(next);
-                      }}
-                    />
-                  );
-                })}
-                {!siteGroupsSorted.length && !(historyGroupTitles ?? []).length && (
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Nenhum grupo no site.
-                  </Text>
-                )}
-              </Stack>
-            ) : null}
-          </Stack>
-        )}
-      </FormManagerCollapseSection>
 
       <FormManagerCollapseSection
         title="Lista de registo e captação"
@@ -528,7 +318,7 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
         {!logDescBlocks ? (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
             {captureEnabled
-              ? 'Ative o histórico na primeira secção ou configure botões no separador «Botões» para editar textos aqui.'
+              ? 'Ative o histórico na aba «Componentes» ou configure botões no separador «Botões» para editar textos aqui.'
               : 'Ative a captação na secção anterior e tenha histórico ou botões configurados para editar os textos de registo.'}
           </Text>
         ) : (

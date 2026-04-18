@@ -641,10 +641,10 @@ function buildStepNavigationForSave(
  * | Aba | Chaves principais em `IFormManagerConfig` |
  * | --- | --- |
  * | Estrutura | `steps`, `sections`, `fields`, `rules` (merge anexos), `stepNavigation` |
- * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview` |
+ * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
  * | Anexos | `attachmentStorageKind` (`itemAttachments` \| `documentLibrary`), `attachmentLibrary` |
  * | Botões | `customButtons` |
- * | Lista de logs | `actionLog`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
+ * | Lista de logs | `actionLog` (lista, captação, textos por botão) |
  * | Listas vinculadas | `linkedChildForms` |
  * | Regras condicionais | `rules` |
  * | JSON | mesmo modelo (JSON inválido ou regras com `action` desconhecida são descartadas no sanitize) |
@@ -958,7 +958,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const buttonOperationDropdownOptions = useMemo((): IDropdownOption[] => {
     const opts = BUTTON_OPERATION_OPTIONS_BASE.slice();
     if (customButtons.some((b) => b.operation === 'history')) {
-      opts.push({ key: 'history', text: 'Histórico (legado — use a aba Lista de logs)' });
+      opts.push({ key: 'history', text: 'Histórico (legado — use Componentes + Lista de logs)' });
     }
     return opts;
   }, [customButtons]);
@@ -2619,6 +2619,25 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               onFormDataLoadingKindChange={setFormDataLoadingKind}
               defaultSubmitLoadingKind={defaultSubmitLoadingKind}
               onDefaultSubmitLoadingKindChange={setDefaultSubmitLoadingKind}
+              historyEnabled={historyEnabled}
+              onHistoryEnabledChange={setHistoryEnabled}
+              historyPresentationKind={historyPresentationKind}
+              onHistoryPresentationKindChange={setHistoryPresentationKind}
+              historyButtonKind={historyButtonKind}
+              onHistoryButtonKindChange={setHistoryButtonKind}
+              historyButtonLabel={historyButtonLabel}
+              onHistoryButtonLabelChange={setHistoryButtonLabel}
+              historyButtonIcon={historyButtonIcon}
+              onHistoryButtonIconChange={setHistoryButtonIcon}
+              historyPanelSubtitle={historyPanelSubtitle}
+              onHistoryPanelSubtitleChange={setHistoryPanelSubtitle}
+              historyGroupTitles={historyGroupTitles}
+              onHistoryGroupTitlesChange={setHistoryGroupTitles}
+              siteGroups={siteGroups}
+              siteGroupsSorted={siteGroupsSorted}
+              siteGroupsLoading={siteGroupsLoading}
+              siteGroupsErr={siteGroupsErr}
+              onRetryLoadSiteGroups={loadSiteGroups}
               historyLayoutKind={historyLayoutKind}
               onHistoryLayoutKindChange={setHistoryLayoutKind}
             />
@@ -2758,8 +2777,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   />
                   {(btn.operation ?? 'legacy') === 'history' && (
                     <MessageBar messageBarType={MessageBarType.info}>
-                      Preferível o botão integrado na aba «Lista de logs». Pode remover este botão e ativar o histórico
-                      aí.
+                      Preferível o botão integrado: ative-o na aba «Componentes» (secção Histórico de auditoria) e
+                      configure a lista de log na aba «Lista de logs». Pode remover este botão legado.
                     </MessageBar>
                   )}
                   {(btn.operation ?? 'legacy') !== 'history' && (
@@ -3222,24 +3241,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         <PivotItem headerText="Lista de logs">
           <FormManagerActionLogTabContent
             historyEnabled={historyEnabled}
-            onHistoryEnabledChange={setHistoryEnabled}
-            historyPresentationKind={historyPresentationKind}
-            onHistoryPresentationKindChange={setHistoryPresentationKind}
-            historyButtonKind={historyButtonKind}
-            onHistoryButtonKindChange={setHistoryButtonKind}
-            historyButtonLabel={historyButtonLabel}
-            onHistoryButtonLabelChange={setHistoryButtonLabel}
-            historyButtonIcon={historyButtonIcon}
-            onHistoryButtonIconChange={setHistoryButtonIcon}
-            historyPanelSubtitle={historyPanelSubtitle}
-            onHistoryPanelSubtitleChange={setHistoryPanelSubtitle}
-            historyGroupTitles={historyGroupTitles}
-            onHistoryGroupTitlesChange={setHistoryGroupTitles}
-            siteGroups={siteGroups}
-            siteGroupsSorted={siteGroupsSorted}
-            siteGroupsLoading={siteGroupsLoading}
-            siteGroupsErr={siteGroupsErr}
-            onRetryLoadSiteGroups={loadSiteGroups}
             captureEnabled={actionLogCaptureEnabled}
             onCaptureEnabledChange={setActionLogCaptureEnabled}
             listTitle={actionLogListTitle}

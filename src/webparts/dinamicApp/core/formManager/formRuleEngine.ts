@@ -299,7 +299,7 @@ export function areAllRequiredFieldsFilled(
   return true;
 }
 
-/** Botão de histórico integrado (aba Lista de logs): só com item gravado. */
+/** Botão de histórico integrado (config na aba Componentes): só com item gravado. */
 export function shouldShowBuiltinHistoryButton(visibilityOpts?: IFormCustomButtonVisibilityOpts): boolean {
   if (visibilityOpts?.historyEnabledInConfig !== true) return false;
   const hid = visibilityOpts?.historyItemId;
