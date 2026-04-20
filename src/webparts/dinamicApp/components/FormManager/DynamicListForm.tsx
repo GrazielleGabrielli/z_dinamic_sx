@@ -20,6 +20,8 @@ import {
   Dialog,
   DialogFooter,
   DialogType,
+  Spinner,
+  SpinnerSize,
   useTheme,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
@@ -36,10 +38,10 @@ import type {
   TFormRule,
   TFormSubmitLoadingUiKind,
   TFormAttachmentFilePreviewKind,
+  IFormManagerActionLogConfig,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
-  FORM_BANNER_INTERNAL_PREFIX,
   FORM_OCULTOS_STEP_ID,
   FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
@@ -65,6 +67,7 @@ import {
   areAllRequiredFieldsFilled,
   isAttachmentFolderUploaderVisible,
   buildFormFieldLabelMap,
+  buildValidationModalSections,
   formatValidationSummaryForForm,
   type IFormAttachmentFolderUrlContext,
   type IFormRuleRuntimeContext,
@@ -405,6 +408,168 @@ function confirmKindToIconSpec(kind: TFormCustomButtonConfirmKind | undefined): 
   }
 }
 
+type TRunTimelineStepStatus = 'pending' | 'running' | 'done' | 'error';
+
+interface IRunTimelineDialogState {
+  open: boolean;
+  failed: boolean;
+  title: string;
+  steps: Array<{ id: string; label: string; status: TRunTimelineStepStatus }>;
+}
+
+function actionLogWillRunForTimeline(al: IFormManagerActionLogConfig | undefined): boolean {
+  return (
+    al?.captureEnabled === true &&
+    !!(al.listTitle ?? '').trim() &&
+    !!(al.actionFieldInternalName ?? '').trim()
+  );
+}
+
+function finishStepLabelForTimeline(btn: IFormCustomButtonConfig): string {
+  const f = btn.finishAfterRun;
+  if (!f) return 'Fechar painel';
+  if (f.kind === 'redirect') return 'Redirecionar para o destino';
+  if (f.kind === 'clearForm') return 'Limpar formulário';
+  return 'Concluir';
+}
+
+interface IFormButtonRunTimelineCtx {
+  hasLinkedChildren: boolean;
+  actionLogWillRun: boolean;
+  hasPendingAttachments: boolean;
+}
+
+function buildCustomButtonRunTimelineLabels(
+  btn: IFormCustomButtonConfig,
+  ctx: IFormButtonRunTimelineCtx
+): string[] {
+  const out: string[] = [];
+  const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
+  const actions = op === 'redirect' ? [] : btn.actions ?? [];
+
+  if (op === 'history') {
+    out.push('Abrir histórico do item');
+    return out;
+  }
+
+  if (actions.length > 0) {
+    out.push('Aplicar alterações nos campos (ações do botão)');
+  }
+
+  if (op === 'redirect') {
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push('Redirecionar para o destino');
+    return out;
+  }
+
+  if (op === 'add') {
+    out.push('Validar dados do formulário');
+    out.push('Criar item na lista');
+    if (ctx.hasPendingAttachments) out.push('Enviar anexos');
+    if (ctx.hasLinkedChildren) out.push('Sincronizar listas vinculadas');
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push(finishStepLabelForTimeline(btn));
+    return out;
+  }
+
+  if (op === 'update') {
+    out.push('Validar dados do formulário');
+    out.push('Atualizar item na lista');
+    if (ctx.hasPendingAttachments) out.push('Enviar anexos');
+    if (ctx.hasLinkedChildren) out.push('Sincronizar listas vinculadas');
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push(finishStepLabelForTimeline(btn));
+    return out;
+  }
+
+  if (op === 'delete') {
+    out.push('Eliminar item na lista');
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push(finishStepLabelForTimeline(btn));
+    return out;
+  }
+
+  const behavior = btn.behavior ?? 'actionsOnly';
+  if (behavior === 'close') {
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push('Fechar painel');
+    return out;
+  }
+  if (behavior === 'draft') {
+    out.push('Validar e guardar rascunho');
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push(finishStepLabelForTimeline(btn));
+    return out;
+  }
+  if (behavior === 'submit') {
+    out.push('Validar e guardar envio');
+    if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+    out.push(finishStepLabelForTimeline(btn));
+    return out;
+  }
+  if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
+  out.push(finishStepLabelForTimeline(btn));
+  return out;
+}
+
+interface IRunTimelineCtl {
+  enter: (i: number) => void;
+  ok: (i: number) => void;
+  err: (i: number) => void;
+  closeSuccess: () => void;
+  closeError: () => void;
+}
+
+function createRunTimelineController(
+  setState: React.Dispatch<React.SetStateAction<IRunTimelineDialogState | null>>,
+  labels: string[],
+  title: string
+): IRunTimelineCtl | null {
+  if (labels.length === 0) return null;
+  const patch = (i: number, phase: 'enter' | 'ok' | 'err'): void => {
+    setState((prev) => {
+      if (!prev) return prev;
+      const steps = prev.steps.map((s, idx) => {
+        if (phase === 'enter') {
+          if (idx < i) return { ...s, status: 'done' as const };
+          if (idx === i) return { ...s, status: 'running' as const };
+          return { ...s, status: 'pending' as const };
+        }
+        if (idx === i) {
+          return { ...s, status: phase === 'ok' ? ('done' as const) : ('error' as const) };
+        }
+        return s;
+      });
+      return { ...prev, steps };
+    });
+  };
+  flushSync(() => {
+    setState({
+      open: true,
+      failed: false,
+      title,
+      steps: labels.map((label, idx) => ({
+        id: `tl_${idx}`,
+        label,
+        status: 'pending' as const,
+      })),
+    });
+  });
+  return {
+    enter: (i) => patch(i, 'enter'),
+    ok: (i) => patch(i, 'ok'),
+    err: (i) => patch(i, 'err'),
+    closeSuccess: () => {
+      window.setTimeout(() => {
+        setState(null);
+      }, 900);
+    },
+    closeError: () => {
+      setState((prev) => (prev ? { ...prev, failed: true } : prev));
+    },
+  };
+}
+
 const REQ_EMPTY_BORDER = '#a4262c';
 
 function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
@@ -439,25 +604,6 @@ function stylesTextFieldRequiredEmpty(active: boolean): { fieldGroup?: Record<st
       borderRadius: 2,
     },
   };
-}
-
-function listRequiredEmptyErrorsInStep(
-  stepFieldList: Set<string>,
-  values: Record<string, unknown>,
-  metaByName: Map<string, IFieldMetadata>,
-  fieldVisible: (n: string) => boolean
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  stepFieldList.forEach((name) => {
-    if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) return;
-    if (name.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0) return;
-    if (!fieldVisible(name)) return;
-    const m = metaByName.get(name);
-    if (!m?.Required) return;
-    if (!isValueEmptyForRequired(values[name], m.MappedType)) return;
-    out[name] = 'Obrigatório.';
-  });
-  return out;
 }
 
 function lookupIdFromValue(v: unknown): number | undefined {
@@ -717,6 +863,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const submitting = submitUi !== null;
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
+  const [requiredValidationModalSections, setRequiredValidationModalSections] = useState<
+    ReturnType<typeof buildValidationModalSections> | null
+  >(null);
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingFilesByFolder, setPendingFilesByFolder] = useState<Record<string, File[]>>({});
@@ -1396,13 +1545,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     ]
   );
 
+  type IValidateFailurePayload = {
+    errors: Record<string, string>;
+    linkedRowErrorsById: Record<string, Record<string, string>[]>;
+    submitKind: TFormSubmitKind;
+  };
+
   const validate = async (
     submitKind: TFormSubmitKind,
     opts?: {
       values?: Record<string, unknown>;
       buttonOverlay?: IFormButtonFieldOverlay;
     }
-  ): Promise<Record<string, string> | undefined> => {
+  ): Promise<IValidateFailurePayload | undefined> => {
     const vals = opts?.values ?? values;
     const ov = opts?.buttonOverlay ?? buttonOverlay;
     const att: IFormValidationAttachmentContext = {
@@ -1423,10 +1578,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       dynamicContext,
       attachmentFolderUrl,
     };
-    const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, att, {
-      show: ov.show,
-      hide: ov.hide,
-    });
+    const sync = collectFormValidationErrors(
+      formManager,
+      fieldConfigs,
+      ctx,
+      att,
+      {
+        show: ov.show,
+        hide: ov.hide,
+      },
+      metaByName
+    );
     let mergedErr = { ...sync };
     if (submitKind !== 'draft' && multiFolderAttachmentMode && isFormAttachmentLibraryRuntime(formManager)) {
       const t = formManager.attachmentLibrary?.folderTree;
@@ -1462,11 +1624,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
     }
     setLocalErrors(mergedErr);
-    if (Object.keys(mergedErr).length > 0) return mergedErr;
+    if (Object.keys(mergedErr).length > 0) {
+      setLinkedRowErrorsById({});
+      return { errors: mergedErr, linkedRowErrorsById: {}, submitKind };
+    }
     const asyncErr = await runAsyncFormValidations(formManager, vals, itemsService, listTitle, itemId, submitKind);
     if (Object.keys(asyncErr).length > 0) {
       setLocalErrors(asyncErr);
-      return asyncErr;
+      setLinkedRowErrorsById({});
+      return { errors: asyncErr, linkedRowErrorsById: {}, submitKind };
     }
     if (submitKind === 'submit' && linkedConfigsSorted.length > 0) {
       const rowErr: Record<string, Record<string, string>[]> = {};
@@ -1504,7 +1670,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             attachmentCount: 0,
             pendingFiles: [],
           };
-          const syncL = collectFormValidationErrors(shell, cfg.fields, ctxL, attEmpty, undefined);
+          const linkedMetaMap = new Map(meta.map((m) => [m.InternalName, m]));
+          const syncL = collectFormValidationErrors(shell, cfg.fields, ctxL, attEmpty, undefined, linkedMetaMap);
           const asyncL = await runAsyncFormValidations(
             shell,
             row.values,
@@ -1526,7 +1693,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (anyMsg) {
         const flat: Record<string, string> = { _linked: 'Corrija as listas vinculadas.' };
         setLocalErrors(flat);
-        return flat;
+        return { errors: flat, linkedRowErrorsById: rowErr, submitKind };
       }
     }
     setLinkedRowErrorsById({});
@@ -1545,9 +1712,32 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const vals = opts?.valuesOverride ?? values;
     const ov = opts?.buttonOverlayOverride ?? buttonOverlay;
     setFormError(undefined);
-    const validationErrors = await validate(submitKind, { values: vals, buttonOverlay: ov });
-    if (validationErrors) {
-      setFormError(formatValidationSummaryForForm(validationErrors, fieldLabelByName));
+    const validationOutcome = await validate(submitKind, { values: vals, buttonOverlay: ov });
+    if (validationOutcome) {
+      setRequiredValidationModalSections(
+        buildValidationModalSections({
+          mainErrors: validationOutcome.errors,
+          formManager,
+          fieldConfigs,
+          ctx: {
+            formMode,
+            values: vals,
+            submitKind: validationOutcome.submitKind,
+            userGroupTitles,
+            currentUserId,
+            authorId,
+            dynamicContext,
+            attachmentFolderUrl,
+          },
+          buttonOverlay: { show: ov.show, hide: ov.hide },
+          fieldLabelByName: fieldLabelByName,
+          linkedConfigs: linkedConfigsSorted,
+          linkedRowErrorsById: validationOutcome.linkedRowErrorsById,
+          linkedRowsById,
+          linkedMetaById,
+          mainListLabel: listTitle,
+        })
+      );
       return false;
     }
     setSubmitUi(resolveSubmitLoadingKind(formManager, opts?.submitLoadingFromButton));
@@ -1607,6 +1797,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     message: string;
     title: string;
   } | null>(null);
+  const [runTimelineDialog, setRunTimelineDialog] = useState<IRunTimelineDialogState | null>(null);
 
   const closeButtonConfirmDialog = useCallback((ok: boolean) => {
     setConfirmDialogOpen(false);
@@ -1708,21 +1899,69 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
     const proceed = await confirmBeforeRunIfNeeded(btn);
     if (!proceed) return;
+    const useRunTimeline =
+      btn.confirmBeforeRun?.enabled === true && (btn.confirmBeforeRun?.message ?? '').trim().length > 0;
+    const logWillRun = actionLogWillRunForTimeline(formManager.actionLog);
+    const hasPendingAttachments =
+      flatPendingFiles.length > 0 ||
+      Object.keys(pendingFilesByFolder).some((k) => (pendingFilesByFolder[k]?.length ?? 0) > 0);
+    const hasLinkedChildren = linkedConfigsSorted.length > 0;
+    const tlCtx: IFormButtonRunTimelineCtx = {
+      hasLinkedChildren,
+      actionLogWillRun: logWillRun,
+      hasPendingAttachments,
+    };
+    const runTlTitle = `Execução: ${(btn.label || btn.id).trim() || 'Botão'}`;
+    let tl: IRunTimelineCtl | null = null;
+    let ti = 0;
     const op: TFormCustomButtonOperation = btn.operation ?? 'legacy';
+
     if (op === 'history') {
+      if (useRunTimeline) {
+        tl = createRunTimelineController(
+          setRunTimelineDialog,
+          buildCustomButtonRunTimelineLabels(btn, tlCtx),
+          runTlTitle
+        );
+      }
       if (formManager.historyEnabled !== true) {
         setFormError('Ative o histórico na aba Componentes do gestor de formulário.');
+        if (tl) {
+          tl.enter(0);
+          tl.err(0);
+          tl.closeError();
+        }
         return;
       }
       if (itemId === undefined || itemId === null || formMode === 'create') {
         setFormError('O histórico só está disponível quando o item já existe na lista.');
+        if (tl) {
+          tl.enter(0);
+          tl.err(0);
+          tl.closeError();
+        }
         return;
       }
       setFormError(undefined);
+      if (tl) tl.enter(0);
       setHistoryBtn(btn);
+      if (tl) tl.ok(0);
+      tl?.closeSuccess();
       return;
     }
+
+    if (useRunTimeline && op !== 'delete') {
+      tl = createRunTimelineController(
+        setRunTimelineDialog,
+        buildCustomButtonRunTimelineLabels(btn, tlCtx),
+        runTlTitle
+      );
+    }
+
     const actions = op === 'redirect' ? [] : btn.actions ?? [];
+    if (actions.length > 0) {
+      if (tl) tl.enter(ti);
+    }
     const { mergedValues, mergedOverlay } = reduceCustomButtonActions(
       actions,
       values,
@@ -1730,6 +1969,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       buttonOverlay,
       attachmentFolderUrl
     );
+    if (actions.length > 0 && tl) {
+      tl.ok(ti);
+      ti++;
+    }
     if (op !== 'redirect') {
       flushSync(() => {
         setValues(mergedValues);
@@ -1760,33 +2003,81 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const tpl = (btn.redirectUrlTemplate ?? '').trim();
       if (!tpl) {
         setFormError('Configure o URL de redirecionamento no gestor de formulário.');
+        if (tl) {
+          tl.enter(ti);
+          tl.err(ti);
+          tl.closeError();
+        }
         return;
       }
       const url = interpolateFormButtonRedirectUrl(tpl, mergedValues, { itemId, formMode });
-      try {
-        await appendFormActionLogEntry(
-          itemsService,
-          formManager.actionLog,
-          btn,
-          buildActionLogRuntimeCtx(btn, itemId)
-        );
-      } catch (e) {
-        setFormError(e instanceof Error ? e.message : String(e));
-        return;
+      if (logWillRun) {
+        if (tl) tl.enter(ti);
+        try {
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+          if (tl) {
+            tl.err(ti);
+            tl.closeError();
+          }
+          return;
+        }
+        if (tl) tl.ok(ti);
+        ti++;
       }
+      if (tl) tl.enter(ti);
       window.location.assign(url);
+      if (tl) tl.ok(ti);
+      tl?.closeSuccess();
       return;
     }
 
     if (op === 'add') {
       setFormError(undefined);
-      const validationErrors = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
-      if (validationErrors) {
-        setFormError(formatValidationSummaryForForm(validationErrors, fieldLabelByName));
+      if (tl) tl.enter(ti);
+      const validationOutcome = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
+      if (validationOutcome) {
+        setRequiredValidationModalSections(
+          buildValidationModalSections({
+            mainErrors: validationOutcome.errors,
+            formManager,
+            fieldConfigs,
+            ctx: {
+              formMode,
+              values: mergedValues,
+              submitKind: validationOutcome.submitKind,
+              userGroupTitles,
+              currentUserId,
+              authorId,
+              dynamicContext,
+              attachmentFolderUrl,
+            },
+            buttonOverlay: { show: mergedOverlay.show, hide: mergedOverlay.hide },
+            fieldLabelByName: fieldLabelByName,
+            linkedConfigs: linkedConfigsSorted,
+            linkedRowErrorsById: validationOutcome.linkedRowErrorsById,
+            linkedRowsById,
+            linkedMetaById,
+            mainListLabel: listTitle,
+          })
+        );
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
         return;
       }
+      if (tl) tl.ok(ti);
+      ti++;
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
+        if (tl) tl.enter(ti);
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
@@ -1795,43 +2086,78 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           payload,
           multiFolderAttachmentMode ? flatPendingFiles : pendingFiles
         );
-        await uploadListItemAttachments(
-          listTitle,
-          newId,
-          multiFolderAttachmentMode ? [] : filesForAttachments,
-          formManager,
-          {
-            ...mergedValues,
-            Id: newId,
-          },
-          multiFolderAttachmentMode ? pendingFilesByFolder : undefined
-        );
-        try {
-          await performLinkedSync(newId);
-        } catch (le) {
-          setFormError(
-            `Item criado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
+        if (tl) tl.ok(ti);
+        ti++;
+        if (hasPendingAttachments) {
+          if (tl) tl.enter(ti);
+          await uploadListItemAttachments(
+            listTitle,
+            newId,
+            multiFolderAttachmentMode ? [] : filesForAttachments,
+            formManager,
+            {
+              ...mergedValues,
+              Id: newId,
+            },
+            multiFolderAttachmentMode ? pendingFilesByFolder : undefined
           );
-          setSubmitUi(null);
-          return;
+          if (tl) tl.ok(ti);
+          ti++;
         }
-        try {
-          await appendFormActionLogEntry(
-            itemsService,
-            formManager.actionLog,
-            btn,
-            buildActionLogRuntimeCtx(btn, newId)
-          );
-        } catch (le) {
-          setFormError(
-            `Item criado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
-          );
+        if (hasLinkedChildren) {
+          if (tl) tl.enter(ti);
+          try {
+            await performLinkedSync(newId);
+          } catch (le) {
+            setFormError(
+              `Item criado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
+            );
+            setSubmitUi(null);
+            if (tl) {
+              tl.err(ti);
+              tl.closeError();
+            }
+            return;
+          }
+          if (tl) tl.ok(ti);
+          ti++;
         }
+        if (logWillRun) {
+          if (tl) tl.enter(ti);
+          try {
+            await appendFormActionLogEntry(
+              itemsService,
+              formManager.actionLog,
+              btn,
+              buildActionLogRuntimeCtx(btn, newId)
+            );
+          } catch (le) {
+            setFormError(
+              `Item criado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
+            );
+          }
+          if (tl) tl.ok(ti);
+          ti++;
+        }
+        if (tl) tl.enter(ti);
         const fin = await runFinishAfterSuccess(btn, { ...mergedValues, Id: newId }, newId);
+        if (tl) {
+          if (fin === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+            tl.err(ti);
+            tl.closeError();
+          } else {
+            tl.ok(ti);
+            tl.closeSuccess();
+          }
+        }
         if (fin !== 'redirect' && fin !== 'cleared') {
           onDismiss();
         }
       } catch (e) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
         setSubmitUi(null);
@@ -1842,62 +2168,133 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     if (op === 'update') {
       if (!itemId || formMode === 'create') {
         setFormError('Atualizar requer um item aberto (parâmetros Form / FormID na página).');
+        if (tl) {
+          tl.enter(ti);
+          tl.err(ti);
+          tl.closeError();
+        }
         return;
       }
       setFormError(undefined);
-      const validationErrors = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
-      if (validationErrors) {
-        setFormError(formatValidationSummaryForForm(validationErrors, fieldLabelByName));
+      if (tl) tl.enter(ti);
+      const validationOutcome = await validate('submit', { values: mergedValues, buttonOverlay: mergedOverlay });
+      if (validationOutcome) {
+        setRequiredValidationModalSections(
+          buildValidationModalSections({
+            mainErrors: validationOutcome.errors,
+            formManager,
+            fieldConfigs,
+            ctx: {
+              formMode,
+              values: mergedValues,
+              submitKind: validationOutcome.submitKind,
+              userGroupTitles,
+              currentUserId,
+              authorId,
+              dynamicContext,
+              attachmentFolderUrl,
+            },
+            buttonOverlay: { show: mergedOverlay.show, hide: mergedOverlay.hide },
+            fieldLabelByName: fieldLabelByName,
+            linkedConfigs: linkedConfigsSorted,
+            linkedRowErrorsById: validationOutcome.linkedRowErrorsById,
+            linkedRowsById,
+            linkedMetaById,
+            mainListLabel: listTitle,
+          })
+        );
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
         return;
       }
+      if (tl) tl.ok(ti);
+      ti++;
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       let updateBusinessOk = false;
       try {
+        if (tl) tl.enter(ti);
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
         await itemsService.updateItem(listTitle, itemId, payload);
-        await uploadListItemAttachments(
-          listTitle,
-          itemId,
-          multiFolderAttachmentMode ? [] : pendingFiles,
-          formManager,
-          {
-            ...mergedValues,
-            Id: itemId,
-          },
-          multiFolderAttachmentMode ? pendingFilesByFolder : undefined
-        );
-        try {
-          await performLinkedSync(itemId);
-        } catch (le) {
-          setFormError(
-            `Gravado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
+        if (tl) tl.ok(ti);
+        ti++;
+        if (hasPendingAttachments) {
+          if (tl) tl.enter(ti);
+          await uploadListItemAttachments(
+            listTitle,
+            itemId,
+            multiFolderAttachmentMode ? [] : pendingFiles,
+            formManager,
+            {
+              ...mergedValues,
+              Id: itemId,
+            },
+            multiFolderAttachmentMode ? pendingFilesByFolder : undefined
           );
-          setSubmitUi(null);
-          return;
+          if (tl) tl.ok(ti);
+          ti++;
+        }
+        if (hasLinkedChildren) {
+          if (tl) tl.enter(ti);
+          try {
+            await performLinkedSync(itemId);
+          } catch (le) {
+            setFormError(
+              `Gravado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
+            );
+            setSubmitUi(null);
+            if (tl) {
+              tl.err(ti);
+              tl.closeError();
+            }
+            return;
+          }
+          if (tl) tl.ok(ti);
+          ti++;
         }
         await onAfterItemUpdated?.();
-        try {
-          await appendFormActionLogEntry(
-            itemsService,
-            formManager.actionLog,
-            btn,
-            buildActionLogRuntimeCtx(btn, itemId)
-          );
-        } catch (le) {
-          setFormError(
-            `Gravado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
-          );
+        if (logWillRun) {
+          if (tl) tl.enter(ti);
+          try {
+            await appendFormActionLogEntry(
+              itemsService,
+              formManager.actionLog,
+              btn,
+              buildActionLogRuntimeCtx(btn, itemId)
+            );
+          } catch (le) {
+            setFormError(
+              `Gravado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
+            );
+          }
+          if (tl) tl.ok(ti);
+          ti++;
         }
         updateBusinessOk = true;
       } catch (e) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
         setSubmitUi(null);
       }
       if (updateBusinessOk) {
-        await runFinishAfterSuccess(btn, { ...mergedValues, Id: itemId }, itemId);
+        if (tl) tl.enter(ti);
+        const finUp = await runFinishAfterSuccess(btn, { ...mergedValues, Id: itemId }, itemId);
+        if (tl) {
+          if (finUp === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+            tl.err(ti);
+            tl.closeError();
+          } else {
+            tl.ok(ti);
+            tl.closeSuccess();
+          }
+        }
       }
       return;
     }
@@ -1910,27 +2307,61 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const skipNativeDeleteConfirm =
         btn.confirmBeforeRun?.enabled === true && (btn.confirmBeforeRun?.message ?? '').trim().length > 0;
       if (!skipNativeDeleteConfirm && !window.confirm('Eliminar este item permanentemente?')) return;
+      if (useRunTimeline) {
+        tl = createRunTimelineController(
+          setRunTimelineDialog,
+          buildCustomButtonRunTimelineLabels(btn, tlCtx),
+          runTlTitle
+        );
+      }
+      if (actions.length > 0 && tl) {
+        tl.enter(0);
+        tl.ok(0);
+        ti = 1;
+      }
       setFormError(undefined);
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
+        if (tl) tl.enter(ti);
         await itemsService.deleteItem(listTitle, itemId);
-        try {
-          await appendFormActionLogEntry(
-            itemsService,
-            formManager.actionLog,
-            btn,
-            buildActionLogRuntimeCtx(btn, itemId)
-          );
-        } catch (le) {
-          setFormError(
-            `Eliminado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
-          );
+        if (tl) tl.ok(ti);
+        ti++;
+        if (logWillRun) {
+          if (tl) tl.enter(ti);
+          try {
+            await appendFormActionLogEntry(
+              itemsService,
+              formManager.actionLog,
+              btn,
+              buildActionLogRuntimeCtx(btn, itemId)
+            );
+          } catch (le) {
+            setFormError(
+              `Eliminado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
+            );
+          }
+          if (tl) tl.ok(ti);
+          ti++;
         }
+        if (tl) tl.enter(ti);
         const finDel = await runFinishAfterSuccess(btn, mergedValues, itemId);
+        if (tl) {
+          if (finDel === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+            tl.err(ti);
+            tl.closeError();
+          } else {
+            tl.ok(ti);
+            tl.closeSuccess();
+          }
+        }
         if (finDel !== 'redirect') {
           onDismiss();
         }
       } catch (e) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {
         setSubmitUi(null);
@@ -1940,30 +2371,60 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 
     const behavior = btn.behavior ?? 'actionsOnly';
     if (behavior === 'close') {
-      try {
-        await appendFormActionLogEntry(
-          itemsService,
-          formManager.actionLog,
-          btn,
-          buildActionLogRuntimeCtx(btn, itemId)
-        );
-      } catch (e) {
-        setFormError(e instanceof Error ? e.message : String(e));
-        return;
+      if (logWillRun) {
+        if (tl) tl.enter(ti);
+        try {
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+          if (tl) {
+            tl.err(ti);
+            tl.closeError();
+          }
+          return;
+        }
+        if (tl) tl.ok(ti);
+        ti++;
       }
+      if (tl) tl.enter(ti);
       const finClose = await runFinishAfterSuccess(btn, mergedValues, itemId);
+      if (tl) {
+        if (finClose === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+          tl.err(ti);
+          tl.closeError();
+        } else {
+          tl.ok(ti);
+          tl.closeSuccess();
+        }
+      }
       if (finClose !== 'redirect') {
         onDismiss();
       }
       return;
     }
     if (behavior === 'draft') {
+      if (tl) tl.enter(ti);
       const saved = await handleSave('draft', {
         valuesOverride: mergedValues,
         buttonOverlayOverride: mergedOverlay,
         submitLoadingFromButton: btn,
       });
-      if (saved) {
+      if (!saved) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
+        return;
+      }
+      if (tl) tl.ok(ti);
+      ti++;
+      if (logWillRun) {
+        if (tl) tl.enter(ti);
         try {
           await appendFormActionLogEntry(
             itemsService,
@@ -1971,18 +2432,54 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             btn,
             buildActionLogRuntimeCtx(btn, itemId)
           );
-          await runFinishAfterSuccess(btn, mergedValues, itemId);
         } catch (e) {
           setFormError(e instanceof Error ? e.message : String(e));
+          if (tl) {
+            tl.err(ti);
+            tl.closeError();
+          }
+          return;
         }
+        if (tl) tl.ok(ti);
+        ti++;
+      }
+      if (tl) tl.enter(ti);
+      try {
+        const finDr = await runFinishAfterSuccess(btn, mergedValues, itemId);
+        if (tl) {
+          if (finDr === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+            tl.err(ti);
+            tl.closeError();
+          } else {
+            tl.ok(ti);
+            tl.closeSuccess();
+          }
+        }
+      } catch (e) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
+        setFormError(e instanceof Error ? e.message : String(e));
       }
     } else if (behavior === 'submit') {
+      if (tl) tl.enter(ti);
       const saved = await handleSave('submit', {
         valuesOverride: mergedValues,
         buttonOverlayOverride: mergedOverlay,
         submitLoadingFromButton: btn,
       });
-      if (saved) {
+      if (!saved) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
+        return;
+      }
+      if (tl) tl.ok(ti);
+      ti++;
+      if (logWillRun) {
+        if (tl) tl.enter(ti);
         try {
           await appendFormActionLogEntry(
             itemsService,
@@ -1990,21 +2487,74 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             btn,
             buildActionLogRuntimeCtx(btn, itemId)
           );
-          await runFinishAfterSuccess(btn, mergedValues, itemId);
         } catch (e) {
           setFormError(e instanceof Error ? e.message : String(e));
+          if (tl) {
+            tl.err(ti);
+            tl.closeError();
+          }
+          return;
         }
+        if (tl) tl.ok(ti);
+        ti++;
+      }
+      if (tl) tl.enter(ti);
+      try {
+        const finSb = await runFinishAfterSuccess(btn, mergedValues, itemId);
+        if (tl) {
+          if (finSb === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+            tl.err(ti);
+            tl.closeError();
+          } else {
+            tl.ok(ti);
+            tl.closeSuccess();
+          }
+        }
+      } catch (e) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
+        setFormError(e instanceof Error ? e.message : String(e));
       }
     } else if (behavior === 'actionsOnly') {
+      if (logWillRun) {
+        if (tl) tl.enter(ti);
+        try {
+          await appendFormActionLogEntry(
+            itemsService,
+            formManager.actionLog,
+            btn,
+            buildActionLogRuntimeCtx(btn, itemId)
+          );
+        } catch (e) {
+          setFormError(e instanceof Error ? e.message : String(e));
+          if (tl) {
+            tl.err(ti);
+            tl.closeError();
+          }
+          return;
+        }
+        if (tl) tl.ok(ti);
+        ti++;
+      }
+      if (tl) tl.enter(ti);
       try {
-        await appendFormActionLogEntry(
-          itemsService,
-          formManager.actionLog,
-          btn,
-          buildActionLogRuntimeCtx(btn, itemId)
-        );
-        await runFinishAfterSuccess(btn, mergedValues, itemId);
+        const finAo = await runFinishAfterSuccess(btn, mergedValues, itemId);
+        if (tl) {
+          if (finAo === 'none' && btn.finishAfterRun?.kind === 'redirect') {
+            tl.err(ti);
+            tl.closeError();
+          } else {
+            tl.ok(ti);
+            tl.closeSuccess();
+          }
+        }
       } catch (e) {
+        if (tl) {
+          tl.err(ti);
+          tl.closeError();
+        }
         setFormError(e instanceof Error ? e.message : String(e));
       }
     }
@@ -2100,13 +2650,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       };
       const overlay = { show: buttonOverlay.show, hide: buttonOverlay.hide };
       const syncErrorsForStep = (stepFieldList: Set<string>, stepIdx: number): Record<string, string> | null => {
-        const derivedStep = buildFormDerivedState(formManager, fieldConfigs, ctx, overlay);
-        const fv = (n: string): boolean => derivedStep.fieldVisible[n] !== false;
-        const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, attCtx, overlay);
+        const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, attCtx, overlay, metaByName);
         let rel = filterValidationErrorsToStepFields(sync, stepFieldList);
         if (!fullVal) rel = pickRequiredStyleStepErrors(rel);
-        const listReq = listRequiredEmptyErrorsInStep(stepFieldList, values, metaByName, fv);
-        let merged: Record<string, string> = { ...rel, ...listReq };
+        let merged: Record<string, string> = { ...rel };
         if (multiFolderAttachmentMode && isFormAttachmentLibraryRuntime(formManager)) {
           const tree = formManager.attachmentLibrary?.folderTree;
           if (tree?.length) {
@@ -3165,6 +3712,120 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 <DefaultButton text="Cancelar" onClick={() => closeButtonConfirmDialog(false)} />
               </DialogFooter>
             </>
+          ) : null}
+        </Dialog>
+        <Dialog
+          hidden={!requiredValidationModalSections?.length}
+          onDismiss={() => setRequiredValidationModalSections(null)}
+          dialogContentProps={{
+            type: DialogType.normal,
+            title: 'Campos por preencher',
+            showCloseButton: true,
+          }}
+          modalProps={{ isBlocking: true }}
+        >
+          {requiredValidationModalSections && requiredValidationModalSections.length > 0 ? (
+            <>
+              <Stack tokens={{ childrenGap: 16 }} styles={{ root: { maxHeight: '60vh', overflowY: 'auto' } }}>
+                {requiredValidationModalSections.map((sec, si) => (
+                  <Stack key={`${si}_${sec.heading}`} tokens={{ childrenGap: 6 }}>
+                    <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
+                      {sec.heading}
+                    </Text>
+                    {sec.lines.map((ln, li) => (
+                      <Text key={li} styles={{ root: { paddingLeft: 8 } }}>
+                        • {ln}
+                      </Text>
+                    ))}
+                  </Stack>
+                ))}
+              </Stack>
+              <DialogFooter>
+                <PrimaryButton text="Fechar" onClick={() => setRequiredValidationModalSections(null)} />
+              </DialogFooter>
+            </>
+          ) : null}
+        </Dialog>
+        <Dialog
+          hidden={!runTimelineDialog?.open}
+          onDismiss={
+            runTimelineDialog?.failed ? () => setRunTimelineDialog(null) : () => undefined
+          }
+          dialogContentProps={{
+            type: DialogType.largeHeader,
+            title: runTimelineDialog?.title ?? 'Execução',
+            showCloseButton: !!runTimelineDialog?.failed,
+          }}
+          modalProps={{ isBlocking: true }}
+        >
+          {runTimelineDialog ? (
+            <Stack tokens={{ childrenGap: 10 }} styles={{ root: { maxHeight: '55vh', overflowY: 'auto' } }}>
+              {runTimelineDialog.steps.map((st) => (
+                <Stack
+                  key={st.id}
+                  horizontal
+                  verticalAlign="center"
+                  tokens={{ childrenGap: 12 }}
+                  styles={{
+                    root: {
+                      padding: '8px 10px',
+                      borderRadius: 4,
+                      borderLeft:
+                        st.status === 'done'
+                          ? '4px solid #107c10'
+                          : st.status === 'error'
+                            ? '4px solid #a4262c'
+                            : st.status === 'running'
+                              ? '4px solid #0078d4'
+                              : '4px solid #edebe9',
+                      backgroundColor:
+                        st.status === 'done' ? '#f1faf1' : st.status === 'error' ? '#fdf3f4' : 'transparent',
+                    },
+                  }}
+                >
+                  {st.status === 'running' ? (
+                    <Spinner size={SpinnerSize.small} />
+                  ) : (
+                    <Icon
+                      iconName={
+                        st.status === 'done'
+                          ? 'CompletedSolid'
+                          : st.status === 'error'
+                            ? 'StatusErrorFull'
+                            : 'LocationCircle'
+                      }
+                      styles={{
+                        root: {
+                          fontSize: 22,
+                          color:
+                            st.status === 'done'
+                              ? '#107c10'
+                              : st.status === 'error'
+                                ? '#a4262c'
+                                : '#a19f9d',
+                        },
+                      }}
+                    />
+                  )}
+                  <Text
+                    styles={{
+                      root: {
+                        flex: 1,
+                        color: st.status === 'done' ? '#107c10' : st.status === 'pending' ? '#605e5c' : undefined,
+                        fontWeight: st.status === 'running' ? 600 : 400,
+                      },
+                    }}
+                  >
+                    {st.label}
+                  </Text>
+                </Stack>
+              ))}
+              {runTimelineDialog.failed ? (
+                <DialogFooter>
+                  <PrimaryButton text="Fechar" onClick={() => setRunTimelineDialog(null)} />
+                </DialogFooter>
+              ) : null}
+            </Stack>
           ) : null}
         </Dialog>
       </Stack>

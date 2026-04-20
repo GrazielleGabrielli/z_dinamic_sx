@@ -6,6 +6,7 @@ import type {
   IFormManagerConfig,
   IFormFieldConfig,
   IFormCustomButtonConfig,
+  IFormLinkedChildFormConfig,
   TFormConditionNode,
   TFormRule,
   TFormManagerFormMode,
@@ -742,7 +743,8 @@ export function collectFormValidationErrors(
   fieldConfigs: IFormFieldConfig[],
   ctx: IFormRuleRuntimeContext,
   attachmentCtx?: IFormValidationAttachmentContext,
-  buttonOverlay?: IFormButtonVisibilityOverlay
+  buttonOverlay?: IFormButtonVisibilityOverlay,
+  metaByName?: ReadonlyMap<string, IFieldMetadata>
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const { values, formMode, submitKind, dynamicContext } = ctx;
@@ -754,14 +756,42 @@ export function collectFormValidationErrors(
   const isDraft = submitKind === 'draft';
 
   if (!isDraft) {
-    for (let i = 0; i < fieldConfigs.length; i++) {
-      const fc = fieldConfigs[i];
-      const name = fc.internalName;
-      if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
-      if (isFormBannerFieldConfig(fc)) continue;
-      if (!fieldVisible(name)) continue;
-      const req = derived.fieldRequired[name] === true;
-      if (req && isEmptyish(values[name])) errors[name] = 'Obrigatório.';
+    if (metaByName) {
+      for (let i = 0; i < fieldConfigs.length; i++) {
+        const fc = fieldConfigs[i];
+        const name = fc.internalName;
+        if (!fieldVisible(name)) continue;
+        if (isFormBannerFieldConfig(fc)) continue;
+        if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) {
+          const attReq = derived.fieldRequired[name] === true;
+          if (!attReq) continue;
+          const readOnly = derived.fieldDisabled[name] === true;
+          const pending = attachmentCtx?.pendingFiles?.length ?? 0;
+          const existing = attachmentCtx?.attachmentCount ?? 0;
+          const attSatisfied = pending > 0 || (formMode !== 'create' && existing > 0);
+          if (!readOnly && !attSatisfied) {
+            if (!errors._attachments) errors._attachments = 'Obrigatório.';
+          }
+          continue;
+        }
+        const m = metaByName.get(name);
+        const mappedType = m?.MappedType ?? 'text';
+        const isRequired = derived.fieldRequired[name] === true || m?.Required === true;
+        if (!isRequired) continue;
+        const readOnly = derived.fieldReadOnly[name] === true || derived.fieldDisabled[name] === true;
+        if (readOnly) continue;
+        if (isValueEmptyForRequiredField(values[name], mappedType)) errors[name] = 'Obrigatório.';
+      }
+    } else {
+      for (let i = 0; i < fieldConfigs.length; i++) {
+        const fc = fieldConfigs[i];
+        const name = fc.internalName;
+        if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
+        if (isFormBannerFieldConfig(fc)) continue;
+        if (!fieldVisible(name)) continue;
+        const req = derived.fieldRequired[name] === true;
+        if (req && isEmptyish(values[name])) errors[name] = 'Obrigatório.';
+      }
     }
   }
 
@@ -910,6 +940,133 @@ function isSpecialValidationKey(key: string): boolean {
 function isGenericRequiredMessage(msg: string): boolean {
   const t = msg.trim().toLowerCase();
   return t === 'obrigatório.' || t === 'obrigatório' || t === 'obrigatório!';
+}
+
+export interface IFormValidationModalSection {
+  heading: string;
+  lines: string[];
+}
+
+function resolveSectionHeading(cfg: IFormManagerConfig, sectionId: string | undefined): string {
+  if (!sectionId) return 'Formulário principal';
+  const s = cfg.sections?.find((x) => x.id === sectionId);
+  return (s?.title?.trim() || sectionId).trim() || 'Formulário principal';
+}
+
+function linkedChildAsManagerShell(cfg: IFormLinkedChildFormConfig): IFormManagerConfig {
+  return {
+    sections: cfg.sections,
+    fields: cfg.fields,
+    rules: cfg.rules,
+    steps: cfg.steps,
+    stepLayout: 'segmented',
+  };
+}
+
+export function buildValidationModalSections(args: {
+  mainErrors: Record<string, string>;
+  formManager: IFormManagerConfig;
+  fieldConfigs: IFormFieldConfig[];
+  ctx: IFormRuleRuntimeContext;
+  buttonOverlay?: IFormButtonVisibilityOverlay;
+  fieldLabelByName: ReadonlyMap<string, string>;
+  linkedConfigs?: readonly IFormLinkedChildFormConfig[];
+  linkedRowErrorsById?: Record<string, Record<string, string>[]>;
+  linkedRowsById?: Record<string, { values: Record<string, unknown> }[]>;
+  linkedMetaById?: Record<string, IFieldMetadata[]>;
+  mainListLabel?: string;
+}): IFormValidationModalSection[] {
+  const {
+    mainErrors,
+    formManager,
+    fieldConfigs,
+    ctx,
+    buttonOverlay,
+    fieldLabelByName,
+    linkedConfigs = [],
+    linkedRowErrorsById = {},
+    linkedRowsById = {},
+    linkedMetaById = {},
+    mainListLabel,
+  } = args;
+  const derivedMain = buildFormDerivedState(formManager, fieldConfigs, ctx, buttonOverlay);
+  const map = new Map<string, string[]>();
+  const push = (heading: string, line: string): void => {
+    const arr = map.get(heading) ?? [];
+    arr.push(line);
+    map.set(heading, arr);
+  };
+  const mainRoot = (mainListLabel ?? '').trim() || 'Lista principal';
+
+  for (const [key, raw] of Object.entries(mainErrors)) {
+    const msg = String(raw ?? '').trim();
+    if (!msg) continue;
+    if (key === '_linked') continue;
+    if (key === '_async') {
+      push(`${mainRoot} · Validação`, msg);
+      continue;
+    }
+    let sectionId = derivedMain.effectiveSectionByField[key];
+    if (key === '_attachments' || key.startsWith('_attf_')) {
+      sectionId = derivedMain.effectiveSectionByField[FORM_ATTACHMENTS_FIELD_INTERNAL] ?? sectionId;
+    }
+    const secTitle = resolveSectionHeading(formManager, sectionId);
+    const heading = `${mainRoot} · ${secTitle}`;
+    if (key === '_attachments' || key.startsWith('_attf_')) {
+      const attLabel = 'Anexos';
+      if (isGenericRequiredMessage(msg)) push(heading, `${attLabel}: obrigatório.`);
+      else push(heading, `${attLabel}: ${msg}`);
+      continue;
+    }
+    const label = fieldLabelByName.get(key) ?? key;
+    if (isGenericRequiredMessage(msg)) push(heading, `${label}: obrigatório.`);
+    else push(heading, `${label}: ${msg}`);
+  }
+
+  for (let ci = 0; ci < linkedConfigs.length; ci++) {
+    const cfg = linkedConfigs[ci];
+    const rowsErr = linkedRowErrorsById[cfg.id];
+    if (!rowsErr?.length) continue;
+    const blockRoot = (cfg.title?.trim() || cfg.listTitle.trim() || 'Lista vinculada').trim() || 'Lista vinculada';
+    const meta = linkedMetaById[cfg.id] ?? [];
+    const labelMap = buildFormFieldLabelMap(cfg.fields, new Map(meta.map((m) => [m.InternalName, m])));
+    const rows = linkedRowsById[cfg.id] ?? [];
+    const multi = rowsErr.filter((c) => c && Object.keys(c).length > 0).length > 1;
+    for (let ri = 0; ri < rowsErr.length; ri++) {
+      const cell = rowsErr[ri];
+      if (!cell || Object.keys(cell).length === 0) continue;
+      const rowVals = rows[ri]?.values ?? {};
+      const ctxL: IFormRuleRuntimeContext = { ...ctx, values: rowVals };
+      const shell = linkedChildAsManagerShell(cfg);
+      const derivedL = buildFormDerivedState(shell, cfg.fields, ctxL, undefined);
+      const rowSuffix = multi ? ` — Linha ${ri + 1}` : '';
+      for (const [fk, fraw] of Object.entries(cell)) {
+        const v = String(fraw ?? '').trim();
+        if (!v) continue;
+        if (fk === '_block') {
+          push(`${blockRoot}${rowSuffix} · Geral`, v);
+          continue;
+        }
+        const sid = fk === '_attachments' ? derivedL.effectiveSectionByField[FORM_ATTACHMENTS_FIELD_INTERNAL] : derivedL.effectiveSectionByField[fk];
+        const secTitle = resolveSectionHeading(shell, sid);
+        const heading = `${blockRoot}${rowSuffix} · ${secTitle}`;
+        const lbl = labelMap.get(fk) ?? fk;
+        if (isGenericRequiredMessage(v)) push(heading, `${lbl}: obrigatório.`);
+        else push(heading, `${lbl}: ${v}`);
+      }
+    }
+  }
+
+  const out: IFormValidationModalSection[] = [];
+  map.forEach((lines, heading) => {
+    const u = Array.from(new Set(lines.filter((x) => x.trim())));
+    if (u.length) out.push({ heading, lines: u });
+  });
+  if (!out.length) {
+    const fb = formatValidationSummaryForForm(mainErrors, fieldLabelByName);
+    return [{ heading: 'Validação', lines: [fb] }];
+  }
+  return out;
 }
 
 /** Texto único para MessageBar quando a validação falha (gravar ou mudar de etapa). */
