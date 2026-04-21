@@ -359,6 +359,7 @@ function reduceCustomButtonActions(
       const trimmed = tplRaw.trim();
       let useExpr = trimmed.startsWith('str:') || trimmed.startsWith('attfolder:');
       if (!useExpr) useExpr = isDynamicToken(trimmed);
+      if (!useExpr && dynamicContext && trimmed.indexOf('[') !== -1) useExpr = true;
       const raw = useExpr
         ? evaluateFormValueExpression(tplRaw, next, dynamicContext, attachmentFolderUrl)
         : tplRaw;

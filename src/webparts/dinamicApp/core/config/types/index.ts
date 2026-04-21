@@ -460,6 +460,7 @@ export type {
   IFormSectionConfig,
   IFormStepConfig,
   TFormConditionNode,
+  TFormFieldTextValueTransform,
   TFormSubmitKind,
 } from './formManager';
 

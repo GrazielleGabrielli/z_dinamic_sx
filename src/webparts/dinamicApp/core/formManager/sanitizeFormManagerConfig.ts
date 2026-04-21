@@ -348,6 +348,9 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     f.fieldKind === 'banner' || internalName.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0;
   const bannerUrlRaw = typeof f.bannerImageUrl === 'string' ? f.bannerImageUrl.trim() : '';
   const bannerImageUrl = bannerUrlRaw ? bannerUrlRaw.slice(0, 4000) : undefined;
+  const tvtRaw = f.textValueTransform;
+  const textValueTransform =
+    tvtRaw === 'uppercase' || tvtRaw === 'lowercase' || tvtRaw === 'capitalize' ? tvtRaw : undefined;
   const common: IFormFieldConfig = {
     internalName,
     ...(fixedPl ? { fixedPlacement: fixedPl } : {}),
@@ -363,6 +366,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(f.width === 'half' ? { width: 'half' } : {}),
     ...(typeof f.modalGroupId === 'string' ? { modalGroupId: f.modalGroupId.trim() } : {}),
     ...(typeof f.effectiveSectionId === 'string' ? { effectiveSectionId: f.effectiveSectionId.trim() } : {}),
+    ...(textValueTransform ? { textValueTransform } : {}),
   };
   if (isBanner) {
     const bp = f.bannerPlacement;

@@ -503,6 +503,34 @@ export function evaluateFormValueExpression(
     }
     return s;
   }
+  if (dynamicContext && t.indexOf('[') !== -1) {
+    const daysFirst = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
+      const da = parseIsoDate(String(values[String(a).trim()] ?? ''));
+      const db = parseIsoDate(String(values[String(b).trim()] ?? ''));
+      if (!da || !db) return '0';
+      const ms = startOfDay(da).getTime() - startOfDay(db).getTime();
+      return String(Math.round(ms / 86400000));
+    });
+    const withFields = daysFirst.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
+      const key = String(name).trim();
+      if (key.indexOf('DAYS:') === 0) return '';
+      const v = values[key];
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'object' && v !== null && 'Title' in (v as object)) return String((v as Record<string, unknown>).Title ?? '');
+      return String(v);
+    });
+    const withTok = withFields.replace(/\[(.+?)\]/g, (full, inner: string) => {
+      const tok = `[${String(inner).trim()}]`;
+      if (!isDynamicToken(tok)) return full;
+      const r = resolveStringToken(tok, dynamicContext);
+      return r !== null && r !== undefined ? String(r) : '';
+    });
+    if (/\[/.test(withTok)) return undefined;
+    if (/^[-+*/().0-9]+$/.test(withTok)) {
+      return evalArithmetic(withTok);
+    }
+    return withTok;
+  }
   const withDays = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
     const da = parseIsoDate(String(values[String(a).trim()] ?? ''));
     const db = parseIsoDate(String(values[String(b).trim()] ?? ''));

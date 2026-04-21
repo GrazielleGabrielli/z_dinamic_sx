@@ -1022,9 +1022,47 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.transform)}
             >
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Maiúsculas, minúsculas e capitalização não estão disponíveis nesta UI; o motor do formulário ainda não
-                expõe essas opções. Use o JSON do gestor quando existir suporte.
+                Maiúsculas, minúsculas e capitalização ainda não estão disponíveis no motor do formulário. Esta
+                configuração deve ficar preparada na UI/JSON para uso quando houver suporte.
               </Text>
+              <Stack tokens={{ childrenGap: 4 }}>
+                <Checkbox
+                  label="Maiúsculas"
+                  checked={fc.textValueTransform === 'uppercase'}
+                  onChange={(_, c) =>
+                    setFc((p) => {
+                      const next: IFormFieldConfig = { ...p };
+                      if (c) next.textValueTransform = 'uppercase';
+                      else if (p.textValueTransform === 'uppercase') delete next.textValueTransform;
+                      return next;
+                    })
+                  }
+                />
+                <Checkbox
+                  label="Minúsculas"
+                  checked={fc.textValueTransform === 'lowercase'}
+                  onChange={(_, c) =>
+                    setFc((p) => {
+                      const next: IFormFieldConfig = { ...p };
+                      if (c) next.textValueTransform = 'lowercase';
+                      else if (p.textValueTransform === 'lowercase') delete next.textValueTransform;
+                      return next;
+                    })
+                  }
+                />
+                <Checkbox
+                  label="Capitalizar"
+                  checked={fc.textValueTransform === 'capitalize'}
+                  onChange={(_, c) =>
+                    setFc((p) => {
+                      const next: IFormFieldConfig = { ...p };
+                      if (c) next.textValueTransform = 'capitalize';
+                      else if (p.textValueTransform === 'capitalize') delete next.textValueTransform;
+                      return next;
+                    })
+                  }
+                />
+              </Stack>
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
               title="Máscaras"
