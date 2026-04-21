@@ -345,6 +345,8 @@ export interface IFieldRuleEditorState {
   computedExpression: string;
   /** Id do nó na árvore de pastas (Anexos); gera expressão `attfolder:id`. */
   computedAttachmentFolderNodeId: string;
+  /** Sempre substituir por expressão em edição (valor gravado ignorado). */
+  computedLiveInEditView: boolean;
   disableWhenActive: boolean;
   disableWhenUi: IWhenUi;
   enableWhenActive: boolean;
@@ -389,6 +391,7 @@ export function emptyFieldRuleEditorState(): IFieldRuleEditorState {
     filterLookup: { parentField: '', odataFilterTemplate: '' },
     computedExpression: '',
     computedAttachmentFolderNodeId: '',
+    computedLiveInEditView: false,
     disableWhenActive: false,
     disableWhenUi: { field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' },
     enableWhenActive: false,
@@ -428,6 +431,7 @@ export function fieldRuleStateFromRules(
     }
     if (r.action === 'setComputed' && r.field === internalName) {
       const ex = String(r.expression ?? '').trim();
+      st.computedLiveInEditView = r.alwaysLiveComputed === true;
       if (ex.indexOf('attfolder:') === 0) {
         st.computedAttachmentFolderNodeId = ex.slice('attfolder:'.length).trim();
         st.computedExpression = '';
@@ -542,6 +546,7 @@ export function buildFieldUiRules(internalName: string, st: IFieldRuleEditorStat
       action: 'setComputed',
       field: internalName,
       expression: cmpExpr,
+      ...(st.computedLiveInEditView ? { alwaysLiveComputed: true as const } : {}),
     });
   }
 

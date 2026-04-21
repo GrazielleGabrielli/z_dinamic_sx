@@ -455,6 +455,11 @@ const LinkedChildListSection: React.FC<ILinkedChildListSectionProps> = ({
                         dynamicContext={dynamicContext}
                         localErrors={rowErr}
                         fieldLayout="tableCells"
+                        rowPersisted={
+                          row.sharePointId !== undefined &&
+                          typeof row.sharePointId === 'number' &&
+                          isFinite(row.sharePointId)
+                        }
                       />
                     </tr>
                     {blockMsg && (
@@ -541,6 +546,11 @@ const LinkedChildListSection: React.FC<ILinkedChildListSectionProps> = ({
                 dynamicContext={dynamicContext}
                 localErrors={rowErr}
                 fieldLayout={stackFieldLayout}
+                rowPersisted={
+                  row.sharePointId !== undefined &&
+                  typeof row.sharePointId === 'number' &&
+                  isFinite(row.sharePointId)
+                }
               />
               {renderAttachmentBlock(row)}
             </Stack>

@@ -266,6 +266,7 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
       const field = typeof r.field === 'string' ? r.field.trim() : '';
       const expression = typeof r.expression === 'string' ? r.expression : '';
       if (!field || !expression.trim()) return undefined;
+      const alwaysLiveComputed = (r as { alwaysLiveComputed?: unknown }).alwaysLiveComputed === true;
       return {
         id,
         enabled,
@@ -275,6 +276,7 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
         action: 'setComputed',
         field,
         expression,
+        ...(alwaysLiveComputed ? { alwaysLiveComputed: true as const } : {}),
       };
     }
     case 'profileVisibility':

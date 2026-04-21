@@ -240,6 +240,41 @@ export function evaluateCondition(
   return false;
 }
 
+export function findEnabledSetComputedRule(
+  rules: TFormRule[] | undefined,
+  fieldName: string
+): Extract<TFormRule, { action: 'setComputed' }> | undefined {
+  if (!rules?.length) return undefined;
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    if (r.enabled === false) continue;
+    if (r.action === 'setComputed' && r.field === fieldName) return r as Extract<TFormRule, { action: 'setComputed' }>;
+  }
+  return undefined;
+}
+
+export function resolveSetComputedDisplayValue(args: {
+  derivedComputed: unknown;
+  formMode: TFormManagerFormMode;
+  itemId: number | undefined;
+  fieldName: string;
+  expressionSnapAtItemOpenByField: Readonly<Record<string, string>>;
+  setComputedRule: Extract<TFormRule, { action: 'setComputed' }> | undefined;
+}): unknown {
+  const { derivedComputed, formMode, itemId, fieldName, expressionSnapAtItemOpenByField, setComputedRule } = args;
+  if (derivedComputed === undefined) return undefined;
+  if (setComputedRule?.alwaysLiveComputed === true) return derivedComputed;
+  if (formMode === 'create') return derivedComputed;
+  if (itemId === undefined || itemId === null || typeof itemId !== 'number' || !isFinite(itemId)) {
+    return derivedComputed;
+  }
+  const snap = expressionSnapAtItemOpenByField[fieldName];
+  const cur = (setComputedRule?.expression ?? '').trim();
+  if (snap === undefined) return derivedComputed;
+  if (cur !== snap) return derivedComputed;
+  return undefined;
+}
+
 /**
  * Junta limites de caracteres de regras `validateValue` do campo que passam em modo, when e grupos
  * (alinhado à validação em submissão). Vários limites ativos: mínimo efetivo = maior dos mínimos, máximo = menor dos máximos.

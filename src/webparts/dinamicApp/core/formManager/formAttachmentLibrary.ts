@@ -161,6 +161,43 @@ export function sanitizeSharePointFolderLeafName(name: string): string {
   return s;
 }
 
+function findAttachmentTreeNodeById(
+  nodes: IAttachmentLibraryFolderTreeNode[] | undefined,
+  id: string
+): IAttachmentLibraryFolderTreeNode | undefined {
+  if (!nodes?.length) return undefined;
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.id === id) return n;
+    const d = findAttachmentTreeNodeById(n.children, id);
+    if (d) return d;
+  }
+  return undefined;
+}
+
+export function resolvedFolderDisplayLabelForTreeNode(
+  tree: IAttachmentLibraryFolderTreeNode[],
+  nodeId: string,
+  itemId: number,
+  itemFieldValues: Record<string, unknown>
+): string {
+  const node = findAttachmentTreeNodeById(tree, nodeId);
+  if (!node) return nodeId.trim() || 'Pasta';
+  const raw = resolveAttachmentFolderSegmentTemplate(node.nameTemplate, itemId, itemFieldValues);
+  const leaf = sanitizeSharePointFolderLeafName(raw);
+  return leaf || node.nameTemplate.trim() || node.id;
+}
+
+function resolvedTargetFolderLabelFromTree(
+  folderTree: IAttachmentLibraryFolderTreeNode[],
+  itemId: number,
+  vals: Record<string, unknown>
+): string {
+  const tid = findUploadTargetId(folderTree);
+  if (!tid) return 'Biblioteca';
+  return resolvedFolderDisplayLabelForTreeNode(folderTree, tid, itemId, vals);
+}
+
 async function ensureChildFolder(parent: IFolder, resolvedSegment: string): Promise<IFolder> {
   const name = sanitizeSharePointFolderLeafName(resolvedSegment);
   if (!name) {
@@ -203,6 +240,10 @@ export interface IUploadToAttachmentLibraryOptions {
   folderPathSegments?: string[];
   folderTree?: IAttachmentLibraryFolderTreeNode[];
   itemFieldValues?: Record<string, unknown>;
+  /** Etiqueta da pasta já resolvida (ex.: ao gravar por nó na árvore). */
+  folderDisplayLabel?: string;
+  /** Antes de cada ficheiro ser enviado para a biblioteca. */
+  onUploadFileStart?: (info: { folderLabel: string; fileName: string }) => void;
 }
 
 export async function uploadFilesToAttachmentLibraryByFolderNodes(
@@ -229,14 +270,19 @@ export async function uploadFilesToAttachmentLibraryByFolderNodes(
     });
     return;
   }
+  const values = options?.itemFieldValues ?? {};
   for (let i = 0; i < entries.length; i++) {
     const nodeId = entries[i][0];
     const files = entries[i][1];
     const treeForTarget = setUploadTargetById(folderTree, nodeId);
+    const folderDisplayLabel = folderTree?.length
+      ? resolvedFolderDisplayLabelForTreeNode(folderTree, nodeId, mainItemId, values)
+      : undefined;
     await uploadFilesToAttachmentLibrary(libraryTitle, lookupFieldInternalName, mainItemId, files, {
       ...options,
       folderTree: treeForTarget,
       folderPathSegments: undefined,
+      folderDisplayLabel,
     });
   }
 }
@@ -281,8 +327,25 @@ export async function uploadFilesToAttachmentLibrary(
     const fullChain = [idFolder, ...subFolders];
     uploadFolder = await ensureFolderChainFromListRoot({ rootFolder: root }, fullChain);
   }
+  const folderLabelForUi = ((): string => {
+    const ov = options?.folderDisplayLabel?.trim();
+    if (ov) return ov;
+    if (options?.folderTree?.length) return resolvedTargetFolderLabelFromTree(options.folderTree, mainItemId, values);
+    const rawSeg = options?.folderPathSegments?.filter((s) => typeof s === 'string' && s.trim()) ?? [];
+    if (rawSeg.length) {
+      const resolvedSub: string[] = [];
+      for (let i = 0; i < rawSeg.length; i++) {
+        resolvedSub.push(resolveAttachmentFolderSegmentTemplate(rawSeg[i].trim(), mainItemId, values));
+      }
+      const parts = resolvedSub.map((s) => sanitizeSharePointFolderLeafName(s)).filter(Boolean);
+      return parts.length ? parts.join(' › ') : 'Biblioteca';
+    }
+    return 'Biblioteca';
+  })();
+  const onUploadFileStart = options?.onUploadFileStart;
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
+    onUploadFileStart?.({ folderLabel: folderLabelForUi, fileName: f.name });
     const body = await f.arrayBuffer();
     const fileInfo = await uploadFolder.files.addUsingPath(f.name, body, {
       EnsureUniqueFileName: true,

@@ -74,6 +74,8 @@ import {
   buildFormFieldLabelMap,
   buildValidationModalSections,
   formatValidationSummaryForForm,
+  findEnabledSetComputedRule,
+  resolveSetComputedDisplayValue,
   type IFormAttachmentFolderUrlContext,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
@@ -171,7 +173,8 @@ async function uploadListItemAttachments(
   files: File[],
   formManager: IFormManagerConfig,
   itemFieldValues: Record<string, unknown>,
-  filesByFolderNodeId?: Record<string, File[]>
+  filesByFolderNodeId?: Record<string, File[]>,
+  onUploadProgress?: (info: { folderLabel: string; fileName: string }) => void
 ): Promise<void> {
   const hasFolderBuckets =
     !!filesByFolderNodeId && Object.keys(filesByFolderNodeId).some((k) => filesByFolderNodeId[k].length > 0);
@@ -186,7 +189,7 @@ async function uploadListItemAttachments(
         itemId,
         filesByFolderNodeId!,
         lib.folderTree,
-        { itemFieldValues: iv }
+        { itemFieldValues: iv, onUploadFileStart: onUploadProgress }
       );
       return;
     }
@@ -199,6 +202,7 @@ async function uploadListItemAttachments(
         folderTree: lib.folderTree,
         folderPathSegments: lib.folderPathSegments,
         itemFieldValues: iv,
+        onUploadFileStart: onUploadProgress,
       }
     );
     return;
@@ -210,6 +214,7 @@ async function uploadListItemAttachments(
     attachmentFiles: { add(name: string, content: ArrayBuffer): Promise<unknown> };
   };
   for (let i = 0; i < files.length; i++) {
+    onUploadProgress?.({ folderLabel: 'Anexos ao item', fileName: files[i].name });
     const buf = await files[i].arrayBuffer();
     await item.attachmentFiles.add(files[i].name, buf);
   }
@@ -435,6 +440,8 @@ interface IRunTimelineDialogState {
   failed: boolean;
   title: string;
   steps: Array<{ id: string; label: string; status: TRunTimelineStepStatus }>;
+  /** Detalhe do passo em execução (ex.: pasta e nome do ficheiro no upload). */
+  runningDetail?: string;
 }
 
 function actionLogWillRunForTimeline(al: IFormManagerActionLogConfig | undefined): boolean {
@@ -538,6 +545,7 @@ interface IRunTimelineCtl {
   err: (i: number) => void;
   closeSuccess: () => void;
   closeError: () => void;
+  setRunningDetail: (detail: string | undefined) => void;
 }
 
 function createRunTimelineController(
@@ -560,7 +568,7 @@ function createRunTimelineController(
         }
         return s;
       });
-      return { ...prev, steps };
+      return { ...prev, steps, runningDetail: undefined };
     });
   };
   flushSync(() => {
@@ -568,6 +576,7 @@ function createRunTimelineController(
       open: true,
       failed: false,
       title,
+      runningDetail: undefined,
       steps: labels.map((label, idx) => ({
         id: `tl_${idx}`,
         label,
@@ -579,13 +588,16 @@ function createRunTimelineController(
     enter: (i) => patch(i, 'enter'),
     ok: (i) => patch(i, 'ok'),
     err: (i) => patch(i, 'err'),
+    setRunningDetail: (detail: string | undefined): void => {
+      setState((prev) => (prev ? { ...prev, runningDetail: detail } : prev));
+    },
     closeSuccess: () => {
       window.setTimeout(() => {
         setState(null);
       }, 900);
     },
     closeError: () => {
-      setState((prev) => (prev ? { ...prev, failed: true } : prev));
+      setState((prev) => (prev ? { ...prev, failed: true, runningDetail: undefined } : prev));
     },
   };
 }
@@ -861,6 +873,34 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     () => buildFormFieldLabelMap(fieldConfigs, metaByName),
     [fieldConfigs, metaByName]
   );
+
+  const setComputedExprSnapRef = useRef<{ openKey: string; snap: Record<string, string> }>({
+    openKey: '',
+    snap: {},
+  });
+  const setComputedItemOpenKey =
+    formMode !== 'create' &&
+    itemId !== undefined &&
+    itemId !== null &&
+    typeof itemId === 'number' &&
+    isFinite(itemId)
+      ? `${listTitle}\t${itemId}\t${formMode}`
+      : '';
+  if (setComputedItemOpenKey !== setComputedExprSnapRef.current.openKey) {
+    const snap: Record<string, string> = {};
+    if (setComputedItemOpenKey) {
+      const rules = formManager.rules ?? [];
+      for (let i = 0; i < rules.length; i++) {
+        const r = rules[i];
+        if (r.enabled === false) continue;
+        if (r.action !== 'setComputed') continue;
+        const f = r.field.trim();
+        if (!f) continue;
+        snap[f] = r.expression.trim();
+      }
+    }
+    setComputedExprSnapRef.current = { openKey: setComputedItemOpenKey, snap };
+  }
 
   const attachmentAllowedExtensions = useMemo(
     () => parseAttachmentUiRule(formManager.rules ?? []).allowedFileExtensions ?? [],
@@ -2144,7 +2184,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               ...mergedValues,
               Id: newId,
             },
-            multiFolderAttachmentMode ? pendingFilesByFolder : undefined
+            multiFolderAttachmentMode ? pendingFilesByFolder : undefined,
+            tl
+              ? (info): void => {
+                  tl!.setRunningDetail(`Pasta: ${info.folderLabel} · ${info.fileName}`);
+                }
+              : undefined
           );
           if (tl) tl.ok(ti);
           ti++;
@@ -2277,7 +2322,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               ...mergedValues,
               Id: itemId,
             },
-            multiFolderAttachmentMode ? pendingFilesByFolder : undefined
+            multiFolderAttachmentMode ? pendingFilesByFolder : undefined,
+            tl
+              ? (info): void => {
+                  tl!.setRunningDetail(`Pasta: ${info.folderLabel} · ${info.fileName}`);
+                }
+              : undefined
           );
           if (tl) tl.ok(ti);
           ti++;
@@ -3087,7 +3137,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         </Stack>
       );
     }
-    const comp = derived.computedDisplay[name];
+    const setComputedRule = findEnabledSetComputedRule(formManager.rules, name);
+    const comp = resolveSetComputedDisplayValue({
+      derivedComputed: derived.computedDisplay[name],
+      formMode,
+      itemId,
+      fieldName: name,
+      expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
+      setComputedRule,
+    });
     if (comp !== undefined) {
       const mComp = metaByName.get(name);
       const labelComp = fc.label ?? mComp?.Title ?? name;
@@ -3924,7 +3982,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 <Stack
                   key={st.id}
                   horizontal
-                  verticalAlign="center"
+                  verticalAlign="start"
                   tokens={{ childrenGap: 12 }}
                   styles={{
                     root: {
@@ -3943,41 +4001,49 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                     },
                   }}
                 >
-                  {st.status === 'running' ? (
-                    <Spinner size={SpinnerSize.small} />
-                  ) : (
-                    <Icon
-                      iconName={
-                        st.status === 'done'
-                          ? 'CompletedSolid'
-                          : st.status === 'error'
-                            ? 'StatusErrorFull'
-                            : 'LocationCircle'
-                      }
+                  <Stack styles={{ root: { paddingTop: st.status === 'running' ? 2 : 0 } }}>
+                    {st.status === 'running' ? (
+                      <Spinner size={SpinnerSize.small} />
+                    ) : (
+                      <Icon
+                        iconName={
+                          st.status === 'done'
+                            ? 'CompletedSolid'
+                            : st.status === 'error'
+                              ? 'StatusErrorFull'
+                              : 'LocationCircle'
+                        }
+                        styles={{
+                          root: {
+                            fontSize: 22,
+                            color:
+                              st.status === 'done'
+                                ? '#107c10'
+                                : st.status === 'error'
+                                  ? '#a4262c'
+                                  : '#a19f9d',
+                          },
+                        }}
+                      />
+                    )}
+                  </Stack>
+                  <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: 1 } }}>
+                    <Text
                       styles={{
                         root: {
-                          fontSize: 22,
-                          color:
-                            st.status === 'done'
-                              ? '#107c10'
-                              : st.status === 'error'
-                                ? '#a4262c'
-                                : '#a19f9d',
+                          color: st.status === 'done' ? '#107c10' : st.status === 'pending' ? '#605e5c' : undefined,
+                          fontWeight: st.status === 'running' ? 600 : 400,
                         },
                       }}
-                    />
-                  )}
-                  <Text
-                    styles={{
-                      root: {
-                        flex: 1,
-                        color: st.status === 'done' ? '#107c10' : st.status === 'pending' ? '#605e5c' : undefined,
-                        fontWeight: st.status === 'running' ? 600 : 400,
-                      },
-                    }}
-                  >
-                    {st.label}
-                  </Text>
+                    >
+                      {st.label}
+                    </Text>
+                    {st.status === 'running' && runTimelineDialog.runningDetail ? (
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        {runTimelineDialog.runningDetail}
+                      </Text>
+                    ) : null}
+                  </Stack>
                 </Stack>
               ))}
               {runTimelineDialog.failed ? (

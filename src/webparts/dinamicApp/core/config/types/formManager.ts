@@ -144,6 +144,12 @@ export interface IFormRuleSetComputed extends IFormRuleBase {
   action: 'setComputed';
   field: string;
   /**
+   * Se true, o valor calculado substitui o controlo em todos os modos (valor gravado ignorado).
+   * Omitido ou false: em criação mostra a expressão ao vivo; em edição/visualização mostra o valor gravado,
+   * exceto se a expressão da regra for alterada desde a abertura do item (aí volta a calcular ao vivo).
+   */
+  alwaysLiveComputed?: boolean;
+  /**
    * Números: `{{Campo}}`, operadores + - * / ( ).
    * Texto: prefixo `str:` com `{{Campo}}` e tokens dinâmicos entre colchetes, ex. `[me]`, `[myEmail]`, `[today]`, `[query:chave]`.
    * Sem `str:`: vários tokens e/ou `{{Campo}}` com literais (ex. `[me]-[me]`, `[myLogin]-[myEmail]`); o resultado é texto (não interpreta `-` entre números como subtração).

@@ -613,6 +613,15 @@ function SetComputedRulesBlock({
             )
           : null}
       </div>
+      <Checkbox
+        label="Sempre expressão ao vivo (ignora valor gravado em edição e visualização)"
+        checked={ed.computedLiveInEditView}
+        onChange={(_, c) => setEd((p) => ({ ...p, computedLiveInEditView: !!c }))}
+      />
+      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        Por omissão mantém-se o valor gravado ao abrir o item; se alterar a expressão aqui, o resultado calculado
+        volta a aparecer até gravar outra vez.
+      </Text>
     </Stack>
   );
 }

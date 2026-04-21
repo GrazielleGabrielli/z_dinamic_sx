@@ -20,6 +20,7 @@ import {
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
+  findEnabledSetComputedRule,
   withRuleRuntimeDynamicContext,
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
@@ -157,6 +158,8 @@ export interface ILinkedChildFormRowFieldsProps {
   dynamicContext: IDynamicContext;
   localErrors?: Record<string, string>;
   fieldLayout?: TLinkedChildFormRowFieldLayout;
+  /** Linha já gravada na lista vinculada (mostrar valor gravado em vez da expressão calculada). */
+  rowPersisted?: boolean;
 }
 
 export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> = ({
@@ -171,6 +174,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
   dynamicContext,
   localErrors = {},
   fieldLayout = 'stack',
+  rowPersisted = false,
 }) => {
   const itemsService = useMemo(() => new ItemsService(), []);
   const usersService = useMemo(() => new UsersService(), []);
@@ -336,7 +340,10 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     if (derived.fieldVisible[name] === false) return null;
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return null;
 
-    const comp = derived.computedDisplay[name];
+    const setComputedRule = findEnabledSetComputedRule(shell.rules, name);
+    const compRaw = derived.computedDisplay[name];
+    const comp =
+      setComputedRule?.alwaysLiveComputed === true || !rowPersisted ? compRaw : undefined;
     if (comp !== undefined) {
       const mComp = metaByName.get(name);
       const label = fc.label ?? mComp?.Title ?? name;
