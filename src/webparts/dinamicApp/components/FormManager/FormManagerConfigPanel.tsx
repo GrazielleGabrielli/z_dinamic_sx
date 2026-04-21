@@ -85,24 +85,13 @@ import {
 import { ALL_FORM_MANAGER_MODES, toggleStepShowInFormMode } from '../../core/formManager/stepFormMode';
 import {
   buildFieldUiRules,
-  compileConditionalCard,
   customRulesOnly,
-  describeConditionalCardPT,
   describeRule,
   mergeAttachmentUiRule,
-  mergeCardRulesIntoAll,
   mergeFieldRules,
-  newCardId,
   parseAttachmentUiRule,
-  parseConditionalCardsFromRules,
-  CONDITIONAL_EFFECT_OPTIONS,
   CONDITION_OP_OPTIONS,
-  type IConditionalEffectUi,
-  type IConditionalRuleCard,
   type IWhenUi,
-  type TConditionalEffectKind,
-  templateConditionalShowWhenEquals,
-  templateFieldRulesChoiceRequiresOther,
   whenUiToNode,
   whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
@@ -378,21 +367,6 @@ function defaultWhenUi(meta: IFieldMetadata[]): IWhenUi {
   return { field: f, op: 'eq', compareKind: 'literal', compareValue: '' };
 }
 
-function emptyEffect(): IConditionalEffectUi {
-  return { kind: 'showField', targetField: '' };
-}
-
-function parseCsvFieldNames(s: string): string[] {
-  return s
-    .split(/[,;]/)
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
-function fieldNamesToCsv(names: string[]): string {
-  return names.join(', ');
-}
-
 function normSpGroupTitle(s: string): string {
   return s.trim().toLowerCase();
 }
@@ -646,7 +620,7 @@ function buildStepNavigationForSave(
  * | Botões | `customButtons` |
  * | Lista de logs | `actionLog` (lista, captação, textos por botão) |
  * | Listas vinculadas | `linkedChildForms` |
- * | Regras condicionais | `rules` |
+ * | Regras dos campos | regras por campo (painel) + resto de `rules` no motor |
  * | JSON | mesmo modelo (JSON inválido ou regras com `action` desconhecida são descartadas no sanitize) |
  */
 export interface IFormManagerConfigPanelProps {
@@ -1022,9 +996,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     };
   }, [fieldOptions, meta, siteGroupsSorted, siteGroups, siteGroupsLoading, siteGroupsErr, loadSiteGroups]);
 
-  const conditionalCards = useMemo(() => parseConditionalCardsFromRules(rules).cards, [rules]);
-
   const customs = useMemo(() => customRulesOnly(rules), [rules]);
+
+  const fieldsListedForRulesTab = useMemo(() => {
+    const byName = new Map(meta.map((x) => [x.InternalName, x]));
+    return fields
+      .filter(
+        (fc) =>
+          fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fc)
+      )
+      .slice()
+      .sort((a, b) => {
+        const ta = byName.get(a.internalName)?.Title ?? a.internalName;
+        const tb = byName.get(b.internalName)?.Title ?? b.internalName;
+        return ta.localeCompare(tb, 'pt');
+      });
+  }, [fields, meta]);
 
   const requiredFieldsMissingFromSteps = useMemo(
     () => requiredListFieldsMissingFromSteps(meta, steps),
@@ -1055,10 +1042,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       }))
     );
   }, [meta]);
-
-  const setCardsAndRules = useCallback((cards: IConditionalRuleCard[]) => {
-    setRules((r) => mergeCardRulesIntoAll(r, cards));
-  }, []);
 
   const addField = (internalName: string): void => {
     if (!internalName) return;
@@ -1765,74 +1748,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     }
   }, [jsonPanelText, hydrateFromFormManagerConfig]);
 
-  const addConditionalCard = (): void => {
-    const card: IConditionalRuleCard = {
-      id: newCardId(),
-      when: defaultWhenUi(meta),
-      effects: [emptyEffect()],
-    };
-    setCardsAndRules(conditionalCards.concat([card]));
-  };
-
-  const patchCard = (index: number, patch: Partial<IConditionalRuleCard>): void => {
-    const next = conditionalCards.map((c, i) => (i === index ? { ...c, ...patch } : c));
-    setCardsAndRules(next);
-  };
-
-  const patchWhen = (index: number, w: Partial<IWhenUi>): void => {
-    const c = conditionalCards[index];
-    if (!c) return;
-    patchCard(index, { when: { ...c.when, ...w } });
-  };
-
-  const patchEffect = (cardIndex: number, effIndex: number, patch: Partial<IConditionalEffectUi>): void => {
-    const c = conditionalCards[cardIndex];
-    if (!c) return;
-    const effects = c.effects.map((e, i) => (i === effIndex ? { ...e, ...patch } : e));
-    patchCard(cardIndex, { effects });
-  };
-
-  const addEffect = (cardIndex: number): void => {
-    const c = conditionalCards[cardIndex];
-    if (!c) return;
-    patchCard(cardIndex, { effects: c.effects.concat([emptyEffect()]) });
-  };
-
-  const removeEffect = (cardIndex: number, effIndex: number): void => {
-    const c = conditionalCards[cardIndex];
-    if (!c) return;
-    patchCard(cardIndex, { effects: c.effects.filter((_, i) => i !== effIndex) });
-  };
-
-  const duplicateCard = (index: number): void => {
-    const c = conditionalCards[index];
-    if (!c) return;
-    const copy: IConditionalRuleCard = {
-      ...c,
-      id: newCardId(),
-      effects: c.effects.map((e) => ({ ...e })),
-    };
-    const next = conditionalCards.slice();
-    next.splice(index + 1, 0, copy);
-    setCardsAndRules(next);
-  };
-
-  const removeCard = (index: number): void => {
-    setCardsAndRules(conditionalCards.filter((_, i) => i !== index));
-  };
-
-  const applyPresetConditional = (preset: 'showWhenEq' | 'choiceRequire'): void => {
-    const a = meta[0]?.InternalName ?? 'A';
-    const b = meta[1]?.InternalName ?? 'B';
-    if (preset === 'showWhenEq') {
-      const card = templateConditionalShowWhenEquals(a, '', b);
-      card.when.compareValue = '';
-      setCardsAndRules(conditionalCards.concat([card]));
-    } else {
-      setCardsAndRules(conditionalCards.concat([templateFieldRulesChoiceRequiresOther(a, '', b)]));
-    }
-  };
-
   return (
     <>
       <Panel
@@ -2362,9 +2277,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               }}
                             />
                           </Stack>
-                        )}
-                        {fname !== FORM_ATTACHMENTS_FIELD_INTERNAL && (
-                          <DefaultButton text="Regras…" onClick={() => setFieldPanelName(fname)} />
                         )}
                         <DefaultButton
                           text="Remover"
@@ -3339,149 +3251,52 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             )}
           />
         </PivotItem>
-        <PivotItem headerText="Regras condicionais">
+        <PivotItem headerText="Regras dos campos">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
-              <PrimaryButton text="Nova regra" onClick={addConditionalCard} />
-              <DefaultButton
-                text="Modelo: mostrar B quando A = valor"
-                onClick={() => applyPresetConditional('showWhenEq')}
-              />
-              <DefaultButton
-                text="Modelo: obrigar B quando A = valor"
-                onClick={() => applyPresetConditional('choiceRequire')}
-              />
-            </Stack>
-            {conditionalCards.map((card, ci) => (
-              <Stack
-                key={card.id}
-                styles={{ root: { border: '1px solid #edebe9', padding: 12, borderRadius: 4 } }}
-                tokens={{ childrenGap: 8 }}
-              >
-                <Stack horizontal horizontalAlign="space-between">
-                  <Text styles={{ root: { fontWeight: 600 } }}>{describeConditionalCardPT(card)}</Text>
-                  <Stack horizontal tokens={{ childrenGap: 4 }}>
-                    <DefaultButton text="Duplicar" onClick={() => duplicateCard(ci)} />
-                    <DefaultButton text="Excluir" onClick={() => removeCard(ci)} />
-                  </Stack>
-                </Stack>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Quando</Text>
-                <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                  <Dropdown
-                    label="Campo"
-                    options={fieldOptions}
-                    selectedKey={card.when.field}
-                    onChange={(_, o) => o && patchWhen(ci, { field: String(o.key) })}
-                  />
-                  <Dropdown
-                    label="Operador"
-                    options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                    selectedKey={card.when.op}
-                    onChange={(_, o) => o && patchWhen(ci, { op: o.key as TFormConditionOp })}
-                  />
-                  <Dropdown
-                    label="Comparar com"
-                    options={[
-                      { key: 'literal', text: 'Texto fixo' },
-                      { key: 'field', text: 'Outro campo' },
-                      { key: 'token', text: 'Token' },
-                    ]}
-                    selectedKey={card.when.compareKind}
-                    onChange={(_, o) => o && patchWhen(ci, { compareKind: o.key as IWhenUi['compareKind'] })}
-                  />
-                  <TextField
-                    label="Valor"
-                    value={card.when.compareValue}
-                    onChange={(_, v) => patchWhen(ci, { compareValue: v ?? '' })}
-                    disabled={
-                      card.when.op === 'isEmpty' ||
-                      card.when.op === 'isFilled' ||
-                      card.when.op === 'isTrue' ||
-                      card.when.op === 'isFalse'
-                    }
-                  />
-                </Stack>
-                <TextField
-                  label="Grupos do SharePoint (títulos, vírgula)"
-                  description="Vazio = qualquer utilizador. As regras geradas só aplicam se o utilizador pertencer a um destes grupos."
-                  value={fieldNamesToCsv(card.groupTitles ?? [])}
-                  onChange={(_, v) => {
-                    const parsed = parseCsvFieldNames(v ?? '');
-                    patchCard(ci, { groupTitles: parsed.length ? parsed : undefined });
-                  }}
-                />
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>Então</Text>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                  Uma linha por combinação (efeito + campo). «Adicionar efeito» acrescenta outra linha com a mesma
-                  condição «Quando».
-                </Text>
-                {card.effects.map((eff, ei) => (
-                  <Stack
-                    key={`${card.id}-eff-${ei}`}
-                    tokens={{ childrenGap: 8 }}
-                    styles={{
-                      root: {
-                        paddingTop: ei > 0 ? 10 : 0,
-                        marginTop: ei > 0 ? 10 : 0,
-                        borderTop: ei > 0 ? '1px solid #edebe9' : undefined,
-                      },
-                    }}
-                  >
-                    <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-                      Efeito {ei + 1}
-                    </Text>
-                    <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                      <Dropdown
-                        label="Efeito"
-                        options={CONDITIONAL_EFFECT_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                        selectedKey={eff.kind}
-                        onChange={(_, o) =>
-                          o && patchEffect(ci, ei, { kind: o.key as TConditionalEffectKind })
-                        }
-                      />
-                      {eff.kind !== 'message' && (
-                        <Dropdown
-                          label="Campo alvo"
-                          options={[{ key: '', text: '—' }, ...fieldOptions]}
-                          selectedKey={eff.targetField ?? ''}
-                          onChange={(_, o) =>
-                            patchEffect(ci, ei, { targetField: o ? String(o.key) : undefined })
-                          }
-                        />
-                      )}
-                      {eff.kind === 'message' && (
-                        <>
-                          <Dropdown
-                            label="Tipo"
-                            options={[
-                              { key: 'info', text: 'Info' },
-                              { key: 'warning', text: 'Aviso' },
-                              { key: 'error', text: 'Erro' },
-                            ]}
-                            selectedKey={eff.messageVariant ?? 'info'}
-                            onChange={(_, o) =>
-                              o &&
-                              patchEffect(ci, ei, { messageVariant: o.key as 'info' | 'warning' | 'error' })
-                            }
-                          />
-                          <TextField
-                            label="Texto"
-                            value={eff.messageText ?? ''}
-                            onChange={(_, v) => patchEffect(ci, ei, { messageText: v ?? '' })}
-                          />
-                        </>
-                      )}
-                      <DefaultButton text="Remover efeito" onClick={() => removeEffect(ci, ei)} />
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Por campo: visibilidade, obrigatoriedade condicional, valor por defeito e validações. As regras gravam-se
+              no JSON pelo nome interno do campo.
+            </Text>
+            {!fieldsListedForRulesTab.length ? (
+              <Text>Adicione campos ao formulário na aba Estrutura.</Text>
+            ) : (
+              <Stack tokens={{ childrenGap: 8 }}>
+                {fieldsListedForRulesTab.map((fc) => {
+                  const mm = meta.find((m) => m.InternalName === fc.internalName);
+                  const title = mm?.Title ?? fc.internalName;
+                  const typeAs = (mm?.TypeAsString ?? '').trim() || '—';
+                  return (
+                    <Stack
+                      key={fc.internalName}
+                      horizontal
+                      verticalAlign="center"
+                      tokens={{ childrenGap: 16 }}
+                      wrap
+                      styles={{
+                        root: {
+                          padding: '8px 10px',
+                          borderRadius: 4,
+                          border: '1px solid #edebe9',
+                          background: '#faf9f8',
+                        },
+                      }}
+                    >
+                      <Text styles={{ root: { fontWeight: 600, minWidth: 140, maxWidth: 220 } }}>{title}</Text>
+                      <Text
+                        variant="small"
+                        styles={{ root: { fontFamily: 'monospace', minWidth: 120, color: '#323130' } }}
+                      >
+                        {fc.internalName}
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c', minWidth: 96 } }}>
+                        {typeAs}
+                      </Text>
+                      <DefaultButton text="Regras" onClick={() => setFieldPanelName(fc.internalName)} />
                     </Stack>
-                  </Stack>
-                ))}
-                <DefaultButton text="Adicionar efeito" onClick={() => addEffect(ci)} />
-                <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
-                  Prévia: {compileConditionalCard(card).length} regra(s) gerada(s)
-                </Text>
+                  );
+                })}
               </Stack>
-            ))}
-            {!conditionalCards.length && <Text>Nenhuma regra condicional. Use &quot;Nova regra&quot;.</Text>}
+            )}
           </Stack>
         </PivotItem>
       </Pivot>

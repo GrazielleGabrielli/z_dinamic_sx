@@ -473,7 +473,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
         )}
         {(mt === 'choice' || mt === 'multichoice') && (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            Condições “se valor = X” use a aba Regras condicionais. Aqui: padrão e validação de texto se aplicável.
+            Condições «se outro campo = X» entre colunas: JSON do gestor. Neste painel: obrigatoriedade e validação de
+            texto, quando aplicável.
           </Text>
         )}
         {(mt === 'lookup' || mt === 'lookupmulti' || mt === 'user' || mt === 'usermulti') && (
@@ -506,7 +507,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
         )}
         {mt === 'boolean' && (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            Use valor padrão acima (true/false). Visibilidade condicional: aba Regras condicionais.
+            Use valor padrão acima (true/false). Visibilidade condicional: opções neste painel ou JSON do gestor.
           </Text>
         )}
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
