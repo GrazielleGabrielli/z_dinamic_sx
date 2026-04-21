@@ -234,6 +234,40 @@ export function evaluateCondition(
   return false;
 }
 
+/**
+ * Junta limites de caracteres de regras `validateValue` do campo que passam em modo, when e grupos
+ * (alinhado à validação em submissão). Vários limites ativos: mínimo efetivo = maior dos mínimos, máximo = menor dos máximos.
+ */
+export function getMergedValidateValueLengthBounds(
+  rules: TFormRule[] | undefined,
+  fieldName: string,
+  ctx: Pick<IFormRuleRuntimeContext, 'formMode' | 'values' | 'userGroupTitles' | 'dynamicContext'>,
+  fieldVisibleMap: Record<string, boolean> | undefined
+): { minLength?: number; maxLength?: number } | undefined {
+  if (!rules?.length) return undefined;
+  const { formMode, values, userGroupTitles, dynamicContext } = ctx;
+  let minL: number | undefined;
+  let maxL: number | undefined;
+  for (let r = 0; r < rules.length; r++) {
+    const rule = rules[r];
+    if (rule.action !== 'validateValue') continue;
+    if (rule.field !== fieldName) continue;
+    if (rule.enabled === false) continue;
+    if (!ruleAppliesMode(rule, formMode)) continue;
+    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (!evaluateCondition(rule.when, values, dynamicContext)) continue;
+    if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
+    if (rule.minLength !== undefined) {
+      minL = minL === undefined ? rule.minLength : Math.max(minL, rule.minLength);
+    }
+    if (rule.maxLength !== undefined) {
+      maxL = maxL === undefined ? rule.maxLength : Math.min(maxL, rule.maxLength);
+    }
+  }
+  if (minL === undefined && maxL === undefined) return undefined;
+  return { minLength: minL, maxLength: maxL };
+}
+
 function isValueEmptyForRequiredField(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;

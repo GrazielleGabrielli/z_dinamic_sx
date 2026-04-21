@@ -62,6 +62,7 @@ import {
   evaluateCondition,
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
+  getMergedValidateValueLengthBounds,
   shouldShowCustomButton,
   shouldShowBuiltinHistoryButton,
   areAllRequiredFieldsFilled,
@@ -124,6 +125,20 @@ import {
   resolveFormCustomButtonPaletteSlot,
   resolveStepUiAccentColor,
 } from '../../core/formManager/formCustomButtonTheme';
+
+function validateValueCharLimitHint(
+  len: number,
+  minLength: number,
+  maxLength: number
+): { text: string; color: string } {
+  if (len > maxLength) {
+    return { text: `${len} de ${maxLength} caracteres (máximo)`, color: '#a4262c' };
+  }
+  if (len < minLength) {
+    return { text: `${len} de ${minLength} caracteres (mínimo)`, color: '#a4262c' };
+  }
+  return { text: `${len} de ${maxLength} caracteres (máximo)`, color: '#107c10' };
+}
 
 export interface IDynamicListFormProps {
   listTitle: string;
@@ -1276,6 +1291,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       buttonOverlay,
     ]
   );
+
+  const validateValueLengthMergedByField = useMemo(() => {
+    const rules = formManager.rules ?? [];
+    const vis = derived.fieldVisible;
+    const out: Record<string, { minLength?: number; maxLength?: number }> = {};
+    const ctxSlice = {
+      formMode,
+      values,
+      userGroupTitles,
+      dynamicContext,
+    };
+    for (let i = 0; i < fieldConfigs.length; i++) {
+      const n = fieldConfigs[i].internalName;
+      if (vis[n] === false) continue;
+      const b = getMergedValidateValueLengthBounds(rules, n, ctxSlice, vis);
+      if (b && (b.minLength !== undefined || b.maxLength !== undefined)) {
+        out[n] = { minLength: b.minLength, maxLength: b.maxLength };
+      }
+    }
+    return out;
+  }, [formManager.rules, fieldConfigs, formMode, values, userGroupTitles, dynamicContext, derived.fieldVisible]);
 
   const flatPendingFiles = useMemo(() => {
     if (multiFolderAttachmentMode) return Object.values(pendingFilesByFolder).flat();
@@ -3333,36 +3369,83 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             />
           );
         }
+        const mergedMl = validateValueLengthMergedByField[name];
+        const maxCapMl = mergedMl?.maxLength;
+        const charBoundsMl =
+          mergedMl &&
+          mergedMl.minLength !== undefined &&
+          mergedMl.maxLength !== undefined &&
+          !readOnly &&
+          comp === undefined
+            ? { minLength: mergedMl.minLength, maxLength: mergedMl.maxLength }
+            : null;
+        const charHintMl = charBoundsMl
+          ? validateValueCharLimitHint(raw.length, charBoundsMl.minLength, charBoundsMl.maxLength)
+          : null;
         return (
-          <TextField
-            key={name}
-            label={label}
-            multiline
-            rows={4}
-            placeholder={fc.placeholder}
-            value={raw}
-            onChange={(_, v) => updateField(name, v ?? '')}
-            required={isRequired}
-            {...common}
-            description={help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+            <TextField
+              label={label}
+              multiline
+              rows={4}
+              placeholder={fc.placeholder}
+              value={raw}
+              onChange={(_, v) => {
+                let s = v ?? '';
+                if (maxCapMl !== undefined && s.length > maxCapMl) s = s.slice(0, maxCapMl);
+                updateField(name, s);
+              }}
+              required={isRequired}
+              {...common}
+              {...(maxCapMl !== undefined ? { maxLength: maxCapMl } : {})}
+              description={help}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            />
+            {charHintMl ? (
+              <Text variant="small" styles={{ root: { color: charHintMl.color } }}>{charHintMl.text}</Text>
+            ) : null}
+          </Stack>
         );
       }
-      default:
+      default: {
+        const rawSingle =
+          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+        const mergedTx = validateValueLengthMergedByField[name];
+        const maxCapTx = mergedTx?.maxLength;
+        const charBoundsTx =
+          mergedTx &&
+          mergedTx.minLength !== undefined &&
+          mergedTx.maxLength !== undefined &&
+          !readOnly &&
+          comp === undefined
+            ? { minLength: mergedTx.minLength, maxLength: mergedTx.maxLength }
+            : null;
+        const charHintTx = charBoundsTx
+          ? validateValueCharLimitHint(rawSingle.length, charBoundsTx.minLength, charBoundsTx.maxLength)
+          : null;
         return (
-          <TextField
-            key={name}
-            label={label}
-            placeholder={fc.placeholder}
-            value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
-            onChange={(_, v) => updateField(name, v ?? '')}
-            required={isRequired}
-            {...common}
-            description={help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+            <TextField
+              label={label}
+              placeholder={fc.placeholder}
+              value={rawSingle}
+              onChange={(_, v) => {
+                let s = v ?? '';
+                if (maxCapTx !== undefined && s.length > maxCapTx) s = s.slice(0, maxCapTx);
+                updateField(name, s);
+              }}
+              required={isRequired}
+              {...common}
+              {...(maxCapTx !== undefined ? { maxLength: maxCapTx } : {})}
+              description={help}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            />
+            {charHintTx ? (
+              <Text variant="small" styles={{ root: { color: charHintTx.color } }}>{charHintTx.text}</Text>
+            ) : null}
+          </Stack>
         );
+      }
     }
   };
 
