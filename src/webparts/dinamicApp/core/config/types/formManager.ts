@@ -146,7 +146,7 @@ export interface IFormRuleSetComputed extends IFormRuleBase {
   /**
    * Números: `{{Campo}}`, operadores + - * / ( ).
    * Texto: prefixo `str:` com `{{Campo}}` e tokens dinâmicos entre colchetes, ex. `[me]`, `[myEmail]`, `[today]`, `[query:chave]`.
-   * Sem `str:`: vários tokens e/ou `{{Campo}}` com literais (ex. `[myLogin]-[me]`, `[myEmail] (id [me])`); se após substituir só restar dígitos e + - * / ( ), avalia como expressão numérica.
+   * Sem `str:`: vários tokens e/ou `{{Campo}}` com literais (ex. `[me]-[me]`, `[myLogin]-[myEmail]`); o resultado é texto (não interpreta `-` entre números como subtração).
    * Só token: `[myName]` (valor único).
    * Pasta de anexos (biblioteca): `attfolder:nodeId` com id do nó configurado na árvore de pastas em Anexos.
    */
@@ -249,8 +249,11 @@ export const FORM_BUILTIN_HISTORY_BUTTON_ID = '__builtin_history';
 /** Como apresentar o botão de histórico de versões no formulário. */
 export type TFormHistoryButtonKind = 'text' | 'icon' | 'iconAndText';
 
-/** Transformação de valor de texto (configuração; motor pode ainda não aplicar). */
+/** Transformação de valor de texto (maiúsculas / minúsculas / capitalizar por palavra). */
 export type TFormFieldTextValueTransform = 'uppercase' | 'lowercase' | 'capitalize';
+
+/** Máscara de input para coluna texto (IMask / react-imask). */
+export type TFormFieldTextInputMaskKind = 'cpf' | 'telefone' | 'cep' | 'cnpj' | 'custom';
 
 export interface IFormFieldConfig {
   internalName: string;
@@ -281,8 +284,12 @@ export interface IFormFieldConfig {
   modalGroupId?: string;
   /** Seção efetiva quando condição (avaliada no motor com prefixo de regra dedicada) */
   effectiveSectionId?: string;
-  /** Maiúsculas / minúsculas / capitalizar (só configuração até o motor suportar). */
+  /** Maiúsculas / minúsculas / capitalizar por palavra em colunas texto ou nota. */
   textValueTransform?: TFormFieldTextValueTransform;
+  /** Máscara ativa para campo texto; omitido = sem máscara. */
+  textInputMaskKind?: TFormFieldTextInputMaskKind;
+  /** Padrão IMask quando `textInputMaskKind === 'custom'`; pode permanecer guardado ao mudar o kind. */
+  textInputMaskCustomPattern?: string;
 }
 
 export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName' | 'fieldKind'>): boolean {

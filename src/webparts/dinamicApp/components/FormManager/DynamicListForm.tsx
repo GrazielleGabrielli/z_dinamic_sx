@@ -40,6 +40,9 @@ import type {
   TFormAttachmentFilePreviewKind,
   IFormManagerActionLogConfig,
 } from '../../core/config/types/formManager';
+import { IMaskInput } from 'react-imask';
+import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
+import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_OCULTOS_STEP_ID,
@@ -67,6 +70,7 @@ import {
   shouldShowBuiltinHistoryButton,
   areAllRequiredFieldsFilled,
   isAttachmentFolderUploaderVisible,
+  withRuleRuntimeDynamicContext,
   buildFormFieldLabelMap,
   buildValidationModalSections,
   formatValidationSummaryForForm,
@@ -1217,6 +1221,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [formManager, formMode, dynamicContext]);
 
   useEffect(() => {
+    setValues((prev) => applyTextTransformsToRecordValues(prev, fieldConfigs, metaByName));
+  }, [values, fieldConfigs, metaByName]);
+
+  useEffect(() => {
     if (!isFormAttachmentLibraryRuntime(formManager)) {
       setAttachmentLibRootServerRelative(undefined);
       return;
@@ -1258,7 +1266,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       userGroupTitles,
       currentUserId,
       authorId,
-      dynamicContext,
+      dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
       attachmentFolderUrl,
     }),
     [
@@ -3079,6 +3087,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         </Stack>
       );
     }
+    const comp = derived.computedDisplay[name];
+    if (comp !== undefined) {
+      const mComp = metaByName.get(name);
+      const labelComp = fc.label ?? mComp?.Title ?? name;
+      const helpComp = derived.dynamicHelpByField[name] ?? fc.helpText;
+      const reqComp = derived.fieldRequired[name] === true || mComp?.Required === true;
+      return (
+        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+          <Label required={reqComp}>{labelComp}</Label>
+          <Text styles={{ root: { color: '#323130' } }}>{String(comp)}</Text>
+          {helpComp && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{helpComp}</Text>}
+        </Stack>
+      );
+    }
+
     const m = metaByName.get(name);
     if (!m) return null;
     const disabled = formMode === 'view' || derived.fieldDisabled[name] === true;
@@ -3089,16 +3112,6 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
     const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(values[name], m.MappedType);
-    const comp = derived.computedDisplay[name];
-    if (comp !== undefined) {
-      return (
-        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
-          <Label required={isRequired}>{label}</Label>
-          <Text styles={{ root: { color: '#323130' } }}>{String(comp)}</Text>
-          {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
-        </Stack>
-      );
-    }
 
     const common = { disabled: readOnly, errorMessage: err };
 
@@ -3424,6 +3437,69 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const charHintTx = charBoundsTx
           ? validateValueCharLimitHint(rawSingle.length, charBoundsTx.minLength, charBoundsTx.maxLength)
           : null;
+        const maskOpts =
+          m.MappedType === 'text'
+            ? resolveTextInputMaskOptions(fc.textInputMaskKind, fc.textInputMaskCustomPattern)
+            : null;
+        const inputBorder = err ? theme.semanticColors.errorText : theme.semanticColors.inputBorder;
+        const maskInputStyle: React.CSSProperties = {
+          width: '100%',
+          boxSizing: 'border-box',
+          minHeight: 32,
+          padding: '0 8px',
+          font: 'inherit',
+          color: theme.semanticColors.inputText,
+          backgroundColor: theme.semanticColors.inputBackground,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: inputBorder,
+          borderRadius: 2,
+          outline: 'none',
+        };
+        if (maskOpts) {
+          return (
+            <Stack
+              key={name}
+              tokens={{ childrenGap: 4 }}
+              styles={{
+                root: {
+                  marginBottom: 12,
+                  ...(showReqEmpty
+                    ? {
+                        borderLeft: `3px solid ${REQ_EMPTY_BORDER}`,
+                        paddingLeft: 8,
+                        paddingTop: 2,
+                        paddingBottom: 2,
+                      }
+                    : {}),
+                },
+              }}
+            >
+              <Label required={isRequired}>{label}</Label>
+              <IMaskInput
+                {...maskOpts}
+                value={rawSingle}
+                disabled={readOnly}
+                placeholder={fc.placeholder ?? undefined}
+                onAccept={(val) => {
+                  let s = String(val ?? '');
+                  if (maxCapTx !== undefined && s.length > maxCapTx) s = s.slice(0, maxCapTx);
+                  updateField(name, s);
+                }}
+                style={maskInputStyle}
+                aria-invalid={err ? true : undefined}
+                aria-required={isRequired ? true : undefined}
+              />
+              {err ? (
+                <Text variant="small" styles={{ root: { color: theme.semanticColors.errorText } }}>{err}</Text>
+              ) : null}
+              {help ? <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text> : null}
+              {charHintTx ? (
+                <Text variant="small" styles={{ root: { color: charHintTx.color } }}>{charHintTx.text}</Text>
+              ) : null}
+            </Stack>
+          );
+        }
         return (
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
             <TextField

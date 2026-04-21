@@ -461,6 +461,7 @@ export type {
   IFormStepConfig,
   TFormConditionNode,
   TFormFieldTextValueTransform,
+  TFormFieldTextInputMaskKind,
   TFormSubmitKind,
 } from './formManager';
 

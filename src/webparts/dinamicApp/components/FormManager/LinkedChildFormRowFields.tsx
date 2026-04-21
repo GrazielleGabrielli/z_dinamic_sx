@@ -20,9 +20,11 @@ import {
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
+  withRuleRuntimeDynamicContext,
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
 import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinkedChildSync';
+import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePointNoteHtml';
 import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
 import { ItemsService, UsersService } from '../../../../services';
@@ -208,7 +210,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       userGroupTitles,
       currentUserId,
       authorId,
-      dynamicContext,
+      dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
     }),
     [formMode, values, userGroupTitles, currentUserId, authorId, dynamicContext]
   );
@@ -217,6 +219,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     () => buildFormDerivedState(shell, fieldConfigs, runtimeCtx, undefined),
     [shell, fieldConfigs, runtimeCtx]
   );
+
+  useEffect(() => {
+    const next = applyTextTransformsToRecordValues(values, fieldConfigs, metaByName);
+    if (next !== values) onChange(next);
+  }, [values, fieldConfigs, metaByName, onChange]);
 
   const updateField = useCallback(
     (name: string, v: unknown): void => {
@@ -329,6 +336,25 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     if (derived.fieldVisible[name] === false) return null;
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return null;
 
+    const comp = derived.computedDisplay[name];
+    if (comp !== undefined) {
+      const mComp = metaByName.get(name);
+      const label = fc.label ?? mComp?.Title ?? name;
+      const help = derived.dynamicHelpByField[name] ?? fc.helpText;
+      const isRequired = derived.fieldRequired[name] === true || mComp?.Required === true;
+      const mb = mode === 'compact' ? 4 : 8;
+      const cell = mode === 'cell';
+      return (
+        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+          {!cell && <Label required={isRequired}>{label}</Label>}
+          <Text styles={{ root: { color: '#323130' } }} title={cell ? label : undefined}>
+            {String(comp)}
+          </Text>
+          {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+        </Stack>
+      );
+    }
+
     const m = metaByName.get(name);
     if (!m) return null;
     const mb = mode === 'compact' ? 4 : 8;
@@ -341,18 +367,6 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
     const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(values[name], m.MappedType);
-    const comp = derived.computedDisplay[name];
-    if (comp !== undefined) {
-      return (
-        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
-          {!cell && <Label required={isRequired}>{label}</Label>}
-          <Text styles={{ root: { color: '#323130' } }} title={cell ? label : undefined}>
-            {String(comp)}
-          </Text>
-          {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
-        </Stack>
-      );
-    }
 
     const common = { disabled: readOnly, errorMessage: err };
 

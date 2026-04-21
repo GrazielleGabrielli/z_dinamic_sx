@@ -13,10 +13,14 @@ import {
   Checkbox,
   Dropdown,
   IDropdownOption,
+  ChoiceGroup,
+  type IChoiceGroupOption,
+  Link,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type {
   IFormFieldConfig,
+  TFormFieldTextInputMaskKind,
   TFormManagerFormMode,
   TFormConditionOp,
   TFormRule,
@@ -34,6 +38,7 @@ import {
   templateFieldRulesEmail,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
+import { TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from '../../core/formManager/formTextInputMasks';
 
 /** Portal de sugestões @ (fora do painel no DOM); ignorar em `Panel.onOuterClick`. */
 export const FORM_FIELD_RULES_MENTION_PORTAL_ATTR = 'data-dinamic-rules-mention';
@@ -45,6 +50,15 @@ const TEXT_RULES_COLLAPSE_IDS = {
   masks: 'textRulesMasks',
   conditionals: 'textRulesConditionals',
 } as const;
+
+const TEXT_MASK_CHOICE_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'none', text: 'Nenhuma' },
+  { key: 'cpf', text: 'CPF' },
+  { key: 'telefone', text: 'Telefone (BR)' },
+  { key: 'cep', text: 'CEP' },
+  { key: 'cnpj', text: 'CNPJ' },
+  { key: 'custom', text: 'Personalizada (IMask)' },
+];
 
 export interface IFormFieldRulesPanelProps {
   isOpen: boolean;
@@ -1022,8 +1036,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.transform)}
             >
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Maiúsculas, minúsculas e capitalização ainda não estão disponíveis no motor do formulário. Esta
-                configuração deve ficar preparada na UI/JSON para uso quando houver suporte.
+                Aplica a colunas de texto e múltiplas linhas, para valor digitado, predefinido por regras e
+                resultados de expressão (p. ex. regra «Valor calculado»).
               </Text>
               <Stack tokens={{ childrenGap: 4 }}>
                 <Checkbox
@@ -1069,10 +1083,49 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.masks)}
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.masks)}
             >
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Máscaras (CPF, telefone, CEP, CNPJ ou personalizada) não estão disponíveis nesta UI nem no motor atual.
-                Configure no JSON do gestor quando existir suporte.
+              <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+                Uma máscara de cada vez. O valor guardado na lista é o texto formatado tal como no input. Padrão
+                personalizado usa a sintaxe IMask (ex.: <code style={{ fontSize: 12 }}>0</code> dígito,{' '}
+                <code style={{ fontSize: 12 }}>a</code> letra, <code style={{ fontSize: 12 }}>*</code> alfanumérico,
+                literais fixos). Guia:{' '}
+                <Link href="https://imask.js.org/guide" target="_blank" rel="noopener noreferrer">
+                  imask.js.org/guide
+                </Link>
+                .
               </Text>
+              <ChoiceGroup
+                selectedKey={fc.textInputMaskKind ?? 'none'}
+                options={TEXT_MASK_CHOICE_OPTIONS}
+                onChange={(_, o) => {
+                  if (!o) return;
+                  const k = String(o.key);
+                  setFc((p) => {
+                    const next: IFormFieldConfig = { ...p };
+                    if (k === 'none') delete next.textInputMaskKind;
+                    else next.textInputMaskKind = k as TFormFieldTextInputMaskKind;
+                    return next;
+                  });
+                }}
+              />
+              {fc.textInputMaskKind === 'custom' ? (
+                <TextField
+                  label="Padrão IMask"
+                  multiline
+                  rows={3}
+                  placeholder="Ex.: 00/00/0000 ou AA-0000"
+                  value={fc.textInputMaskCustomPattern ?? ''}
+                  onChange={(_, v) =>
+                    setFc((p) => {
+                      const raw = v ?? '';
+                      const cut = raw.slice(0, TEXT_INPUT_MASK_CUSTOM_MAX_LEN);
+                      const next: IFormFieldConfig = { ...p };
+                      if (cut) next.textInputMaskCustomPattern = cut;
+                      else delete next.textInputMaskCustomPattern;
+                      return next;
+                    })
+                  }
+                />
+              ) : null}
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
               title="Condicionais"

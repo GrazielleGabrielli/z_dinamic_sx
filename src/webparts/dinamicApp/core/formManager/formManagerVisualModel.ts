@@ -448,7 +448,9 @@ export function fieldRuleStateFromRules(
         }
       }
     }
-    if (r.modes && r.modes.length && st.modes.length === 0) st.modes = r.modes.slice();
+    if (r.modes && r.modes.length && st.modes.length === 0 && r.action !== 'setComputed') {
+      st.modes = r.modes.slice();
+    }
   }
   return st;
 }
@@ -540,7 +542,6 @@ export function buildFieldUiRules(internalName: string, st: IFieldRuleEditorStat
       action: 'setComputed',
       field: internalName,
       expression: cmpExpr,
-      ...baseModes,
     });
   }
 

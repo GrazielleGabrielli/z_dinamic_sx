@@ -22,6 +22,7 @@ import {
 } from '../config/types/formManager';
 import type { IFieldMetadata } from '../../../../services';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
+import { applyFormFieldTextTransform } from './formTextValueTransform';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -43,6 +44,11 @@ export interface IFormRuleRuntimeContext {
   dynamicContext: IDynamicContext;
   /** Resolução de expressões `attfolder:id` (pasta da árvore em Anexos → biblioteca). */
   attachmentFolderUrl?: IFormAttachmentFolderUrlContext;
+}
+
+export function withRuleRuntimeDynamicContext(ctx: IDynamicContext, currentUserId: number): IDynamicContext {
+  if (!currentUserId || ctx.currentUser?.id !== undefined) return ctx;
+  return { ...ctx, currentUser: { ...(ctx.currentUser ?? {}), id: currentUserId } };
 }
 
 export interface IFormDerivedUiState {
@@ -526,9 +532,6 @@ export function evaluateFormValueExpression(
       return r !== null && r !== undefined ? String(r) : '';
     });
     if (/\[/.test(withTok)) return undefined;
-    if (/^[-+*/().0-9]+$/.test(withTok)) {
-      return evalArithmetic(withTok);
-    }
     return withTok;
   }
   const withDays = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
@@ -724,8 +727,13 @@ export function buildFormDerivedState(
         lookupFilters[rule.field] = { parentField: rule.parentField, odataFilterTemplate: rule.odataFilterTemplate };
         break;
       case 'setComputed': {
-        const v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);
-        if (v !== undefined) computedDisplay[rule.field] = v;
+        let v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);
+        if (v !== undefined) {
+          const fc = fieldConfigs.find((f) => f.internalName === rule.field);
+          const tft = fc?.textValueTransform;
+          if (tft && typeof v === 'string') v = applyFormFieldTextTransform(v, tft);
+          computedDisplay[rule.field] = v;
+        }
         break;
       }
       case 'setEffectiveSection':

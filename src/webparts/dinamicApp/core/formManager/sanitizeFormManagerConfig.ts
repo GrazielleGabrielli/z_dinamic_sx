@@ -42,6 +42,7 @@ import {
 import { FORM_CUSTOM_BUTTON_THEME_SLOTS } from './formCustomButtonTheme';
 import { migrateFolderPathSegmentsToTree, sanitizeFolderTreeInput } from './attachmentFolderTree';
 import { sanitizeConditionNode } from './formConditionSanitize';
+import { isTextInputMaskKind, TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from './formTextInputMasks';
 
 const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText']);
 
@@ -265,7 +266,16 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
       const field = typeof r.field === 'string' ? r.field.trim() : '';
       const expression = typeof r.expression === 'string' ? r.expression : '';
       if (!field || !expression.trim()) return undefined;
-      return { ...base, action: 'setComputed', field, expression };
+      return {
+        id,
+        enabled,
+        ...(when ? { when } : {}),
+        ...(groupTitles?.length ? { groupTitles } : {}),
+        ...(tags?.length ? { tags } : {}),
+        action: 'setComputed',
+        field,
+        expression,
+      };
     }
     case 'profileVisibility':
     case 'profileEditable':
@@ -351,6 +361,12 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
   const tvtRaw = f.textValueTransform;
   const textValueTransform =
     tvtRaw === 'uppercase' || tvtRaw === 'lowercase' || tvtRaw === 'capitalize' ? tvtRaw : undefined;
+  const textInputMaskKind = isTextInputMaskKind(f.textInputMaskKind) ? f.textInputMaskKind : undefined;
+  const patSan =
+    typeof f.textInputMaskCustomPattern === 'string'
+      ? f.textInputMaskCustomPattern.trim().slice(0, TEXT_INPUT_MASK_CUSTOM_MAX_LEN)
+      : '';
+  const textInputMaskCustomPattern = patSan || undefined;
   const common: IFormFieldConfig = {
     internalName,
     ...(fixedPl ? { fixedPlacement: fixedPl } : {}),
@@ -367,6 +383,8 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(typeof f.modalGroupId === 'string' ? { modalGroupId: f.modalGroupId.trim() } : {}),
     ...(typeof f.effectiveSectionId === 'string' ? { effectiveSectionId: f.effectiveSectionId.trim() } : {}),
     ...(textValueTransform ? { textValueTransform } : {}),
+    ...(textInputMaskKind ? { textInputMaskKind } : {}),
+    ...(textInputMaskCustomPattern ? { textInputMaskCustomPattern } : {}),
   };
   if (isBanner) {
     const bp = f.bannerPlacement;

@@ -1,13 +1,12 @@
-import { QUERY_TOKEN_PREFIX } from '../constants';
+import { QUERY_TOKEN_PREFIX, TOKEN_PATTERN } from '../constants';
 
 /**
- * Verifica se value é uma string no formato [token] (case-insensitive).
- * Não considera [query:status] como "apenas token" sem chave; use isQueryToken para query.
+ * Verifica se value é exatamente um token `[nome]` ou `[query:chave]` (case-insensitive).
+ * Não é verdade para `[me]-[me]` (vários colchetes).
  */
 export function isDynamicToken(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  const s = value.trim();
-  return s.length >= 3 && s.charAt(0) === '[' && s.charAt(s.length - 1) === ']';
+  return TOKEN_PATTERN.test(value.trim());
 }
 
 /**
