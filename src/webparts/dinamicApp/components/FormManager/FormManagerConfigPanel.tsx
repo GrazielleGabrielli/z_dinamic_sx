@@ -95,7 +95,7 @@ import {
   whenUiToNode,
   whenNodeToUi,
 } from '../../core/formManager/formManagerVisualModel';
-import { FormFieldRulesPanel } from './FormFieldRulesPanel';
+import { FormFieldRulesPanel, FORM_FIELD_RULES_MENTION_PORTAL_ATTR } from './FormFieldRulesPanel';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { ThemePaletteSlotDropdown } from './ThemePaletteSlotDropdown';
 import { FormManagerAttachmentsTabContent } from './FormManagerAttachmentsTab';
@@ -1755,6 +1755,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       type={PanelType.large}
       headerText="Configurar formulário e regras"
       onDismiss={onDismiss}
+      onOuterClick={(ev) => {
+        const t = ev?.target;
+        if (t instanceof Element && t.closest(`[${FORM_FIELD_RULES_MENTION_PORTAL_ATTR}]`)) return;
+        onDismiss();
+      }}
       isFooterAtBottom
       onRenderFooterContent={() => (
         <Stack

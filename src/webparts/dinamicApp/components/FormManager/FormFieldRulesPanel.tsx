@@ -1,11 +1,13 @@
 import * as React from 'react';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Panel,
   PanelType,
   Stack,
   Text,
   TextField,
+  type ITextField,
   PrimaryButton,
   DefaultButton,
   Checkbox,
@@ -32,6 +34,9 @@ import {
   templateFieldRulesEmail,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
+
+/** Portal de sugestões @ (fora do painel no DOM); ignorar em `Panel.onOuterClick`. */
+export const FORM_FIELD_RULES_MENTION_PORTAL_ATTR = 'data-dinamic-rules-mention';
 
 const TEXT_RULES_COLLAPSE_IDS = {
   display: 'textRulesDisplay',
@@ -61,6 +66,542 @@ const MODE_OPTS: { key: TFormManagerFormMode; label: string }[] = [
 ];
 
 const ALL_MODES: TFormManagerFormMode[] = ['create', 'edit', 'view'];
+
+const SET_COMPUTED_CONTEXT_TOKENS: { literal: string; hint: string }[] = [
+  { literal: '[me]', hint: 'Id numérico do utilizador atual' },
+  { literal: '[myId]', hint: 'Igual a [me]' },
+  { literal: '[myName]', hint: 'Nome do utilizador' },
+  { literal: '[myEmail]', hint: 'E-mail do utilizador' },
+  { literal: '[myLogin]', hint: 'Nome de início de sessão' },
+  { literal: '[myDepartment]', hint: 'Departamento (se disponível)' },
+  { literal: '[myJobTitle]', hint: 'Cargo (se disponível)' },
+  { literal: '[siteTitle]', hint: 'Título do site' },
+  { literal: '[siteUrl]', hint: 'URL do site' },
+  { literal: '[listTitle]', hint: 'Título da lista' },
+  { literal: '[today]', hint: 'Data de hoje (ISO)' },
+  { literal: '[now]', hint: 'Data e hora atuais (ISO)' },
+  { literal: '[tomorrow]', hint: 'Dia seguinte (ISO)' },
+  { literal: '[yesterday]', hint: 'Dia anterior (ISO)' },
+  { literal: '[startOfMonth]', hint: 'Primeiro dia do mês corrente' },
+  { literal: '[endOfMonth]', hint: 'Último dia do mês corrente' },
+  { literal: '[startOfYear]', hint: 'Primeiro dia do ano corrente' },
+  { literal: '[endOfYear]', hint: 'Último dia do ano corrente' },
+  { literal: '[empty]', hint: 'Texto vazio' },
+  { literal: '[null]', hint: 'Valor nulo' },
+  { literal: '[true]', hint: 'Booleano verdadeiro' },
+  { literal: '[false]', hint: 'Booleano falso' },
+  { literal: '[query:nome]', hint: 'Valor do parâmetro ?nome= na URL da página' },
+];
+
+type TMentionItem = {
+  key: string;
+  insert: string;
+  primary: string;
+  secondary: string;
+};
+
+function getActiveMentionRange(
+  value: string,
+  caret: number
+): { from: number; to: number; filter: string } | undefined {
+  if (caret < 1) return undefined;
+  const before = value.slice(0, caret);
+  const at = before.lastIndexOf('@');
+  if (at === -1) return undefined;
+  if (at > 0) {
+    const prev = before[at - 1];
+    if (
+      prev !== ' ' &&
+      prev !== '\n' &&
+      prev !== '\t' &&
+      prev !== '(' &&
+      prev !== '[' &&
+      prev !== ';' &&
+      prev !== ',' &&
+      prev !== '+' &&
+      prev !== '-' &&
+      prev !== '*' &&
+      prev !== '/'
+    ) {
+      return undefined;
+    }
+  }
+  const segment = before.slice(at + 1);
+  if (/[\s\n]/.test(segment)) return undefined;
+  return { from: at, to: caret, filter: segment };
+}
+
+function buildMentionItems(
+  filter: string,
+  fieldOptions: IDropdownOption[],
+  attachmentLibraryFolderOptions: IDropdownOption[]
+): TMentionItem[] {
+  const f = filter.trim().toLowerCase();
+  const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
+  const out: TMentionItem[] = [];
+  for (let i = 0; i < SET_COMPUTED_CONTEXT_TOKENS.length; i++) {
+    const row = SET_COMPUTED_CONTEXT_TOKENS[i];
+    if (match(row.literal) || match(row.hint)) {
+      out.push({
+        key: `t-${row.literal}-${i}`,
+        insert: row.literal,
+        primary: row.literal,
+        secondary: row.hint,
+      });
+    }
+  }
+  for (let i = 0; i < fieldOptions.length; i++) {
+    const opt = fieldOptions[i];
+    const k = String(opt.key);
+    const ins = `{{${k}}}`;
+    const lab = String(opt.text ?? k);
+    if (match(k) || match(lab) || match(ins)) {
+      out.push({
+        key: `f-${k}-${i}`,
+        insert: ins,
+        primary: lab,
+        secondary: ins,
+      });
+    }
+  }
+  for (let i = 0; i < attachmentLibraryFolderOptions.length; i++) {
+    const opt = attachmentLibraryFolderOptions[i];
+    const k = String(opt.key);
+    const ins = `attfolder:${k}`;
+    const lab = String(opt.text ?? k);
+    if (match(k) || match(lab) || match(ins)) {
+      out.push({
+        key: `p-${k}-${i}`,
+        insert: ins,
+        primary: lab,
+        secondary: ins,
+      });
+    }
+  }
+  return out;
+}
+
+function overflowScrollAncestors(start: HTMLElement | null): HTMLElement[] {
+  const seen = new Set<HTMLElement>();
+  const out: HTMLElement[] = [];
+  let n: HTMLElement | null = start?.parentElement ?? null;
+  while (n) {
+    const st = window.getComputedStyle(n);
+    if (
+      /(auto|scroll|overlay)/.test(st.overflowY) ||
+      /(auto|scroll|overlay)/.test(st.overflowX) ||
+      /(auto|scroll|overlay)/.test(st.overflow)
+    ) {
+      if (!seen.has(n)) {
+        seen.add(n);
+        out.push(n);
+      }
+    }
+    n = n.parentElement;
+  }
+  const root = document.documentElement;
+  if (!seen.has(root)) out.push(root);
+  return out;
+}
+
+type TSetComputedRulesBlockProps = {
+  ed: IFieldRuleEditorState;
+  setEd: React.Dispatch<React.SetStateAction<IFieldRuleEditorState>>;
+  fieldOptions: IDropdownOption[];
+  attachmentLibraryFolderOptions: IDropdownOption[];
+  bordered?: boolean;
+};
+
+function SetComputedRulesBlock({
+  ed,
+  setEd,
+  fieldOptions,
+  attachmentLibraryFolderOptions,
+  bordered,
+}: TSetComputedRulesBlockProps): JSX.Element {
+  const [formsExprOpen, setFormsExprOpen] = useState(false);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionRange, setMentionRange] = useState<{ from: number; to: number; filter: string } | null>(null);
+  const [mentionHighlight, setMentionHighlight] = useState(0);
+  const [mentionListPos, setMentionListPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const tfRef = useRef<ITextField | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const mentionPortalRef = useRef<HTMLDivElement | null>(null);
+  const pendingCaretRef = useRef<number | undefined>(undefined);
+  const mentionRangeRef = useRef<{ from: number; to: number; filter: string } | undefined>(undefined);
+
+  mentionRangeRef.current = mentionRange ?? undefined;
+
+  const measureMentionListPos = useCallback((): void => {
+    const w = wrapRef.current;
+    if (!w) return;
+    const r = w.getBoundingClientRect();
+    setMentionListPos({
+      top: r.bottom + 4,
+      left: r.left,
+      width: r.width,
+    });
+  }, []);
+
+  const mentionItems = useMemo(() => {
+    if (!mentionOpen || !mentionRange) return [];
+    return buildMentionItems(mentionRange.filter, fieldOptions, attachmentLibraryFolderOptions);
+  }, [mentionOpen, mentionRange, fieldOptions, attachmentLibraryFolderOptions]);
+
+  useLayoutEffect(() => {
+    const p = pendingCaretRef.current;
+    if (p === undefined || !tfRef.current) return;
+    pendingCaretRef.current = undefined;
+    const tf = tfRef.current;
+    tf.focus();
+    requestAnimationFrame(() => {
+      try {
+        tf.setSelectionRange(p, p);
+      } catch {
+        //
+      }
+    });
+  }, [ed.computedExpression]);
+
+  useLayoutEffect(() => {
+    const show =
+      mentionOpen && mentionItems.length > 0 && !ed.computedAttachmentFolderNodeId;
+    if (!show) {
+      setMentionListPos(null);
+      return;
+    }
+    measureMentionListPos();
+  }, [
+    mentionOpen,
+    mentionItems.length,
+    ed.computedAttachmentFolderNodeId,
+    ed.computedExpression,
+    formsExprOpen,
+    measureMentionListPos,
+  ]);
+
+  useEffect(() => {
+    const show =
+      mentionOpen && mentionItems.length > 0 && !ed.computedAttachmentFolderNodeId;
+    if (!show) return;
+    measureMentionListPos();
+    const roots = overflowScrollAncestors(wrapRef.current);
+    const upd = (): void => {
+      measureMentionListPos();
+    };
+    roots.forEach((el) => el.addEventListener('scroll', upd, true));
+    window.addEventListener('resize', upd);
+    return () => {
+      roots.forEach((el) => el.removeEventListener('scroll', upd, true));
+      window.removeEventListener('resize', upd);
+    };
+  }, [
+    mentionOpen,
+    mentionItems.length,
+    ed.computedAttachmentFolderNodeId,
+    measureMentionListPos,
+  ]);
+
+  useEffect(() => {
+    const onDocDown = (e: MouseEvent): void => {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || mentionPortalRef.current?.contains(t)) return;
+      setMentionOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, []);
+
+  useEffect(() => {
+    if (mentionOpen && mentionItems.length === 0) setMentionOpen(false);
+  }, [mentionOpen, mentionItems.length]);
+
+  useEffect(() => {
+    setMentionHighlight(0);
+  }, [mentionRange?.filter]);
+
+  const applyMentionInsert = useCallback(
+    (insertText: string): void => {
+      const r = mentionRangeRef.current;
+      if (!r) return;
+      const cur = ed.computedExpression;
+      const next = cur.slice(0, r.from) + insertText + cur.slice(r.to);
+      pendingCaretRef.current = r.from + insertText.length;
+      setMentionOpen(false);
+      setMentionRange(null);
+      setEd((p) => ({
+        ...p,
+        computedExpression: next,
+        computedAttachmentFolderNodeId: '',
+      }));
+    },
+    [ed.computedExpression, setEd]
+  );
+
+  const handleExprChange = useCallback(
+    (ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v: string | undefined): void => {
+      const raw = v ?? '';
+      const el = ev.target as HTMLTextAreaElement;
+      const caret =
+        typeof el.selectionStart === 'number' ? el.selectionStart : raw.length;
+      const range = getActiveMentionRange(raw, caret);
+      if (range) {
+        const items = buildMentionItems(range.filter, fieldOptions, attachmentLibraryFolderOptions);
+        if (items.length > 0) {
+          setMentionRange(range);
+          setMentionOpen(true);
+          setMentionHighlight(0);
+        } else {
+          setMentionOpen(false);
+          setMentionRange(null);
+        }
+      } else {
+        setMentionOpen(false);
+        setMentionRange(null);
+      }
+      setEd((p) => ({
+        ...p,
+        computedExpression: raw,
+        computedAttachmentFolderNodeId: '',
+      }));
+    },
+    [fieldOptions, attachmentLibraryFolderOptions, setEd]
+  );
+
+  const handleExprKeyDown = useCallback(
+    (ev: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
+      if (!mentionOpen || mentionItems.length === 0) return;
+      if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        setMentionHighlight((h) => Math.min(mentionItems.length - 1, h + 1));
+      } else if (ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        setMentionHighlight((h) => Math.max(0, h - 1));
+      } else if (ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault();
+        const it = mentionItems[mentionHighlight];
+        if (it) applyMentionInsert(it.insert);
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        setMentionOpen(false);
+        setMentionRange(null);
+      }
+    },
+    [mentionOpen, mentionItems, mentionHighlight, applyMentionInsert]
+  );
+
+  const rootStyles =
+    bordered !== false
+      ? { root: { borderTop: '1px solid #edebe9', paddingTop: 12 } }
+      : undefined;
+
+  return (
+    <Stack tokens={{ childrenGap: 10 }} styles={rootStyles}>
+      <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+        Valor calculado (setComputed)
+      </Text>
+      <Stack
+        tokens={{ childrenGap: 10 }}
+        styles={{
+          root: {
+            border: '1px solid #edebe9',
+            borderRadius: 8,
+            padding: 12,
+            background: '#faf9f8',
+          },
+        }}
+      >
+        <FormManagerCollapseSection
+          title="Formas de expressão"
+          isOpen={formsExprOpen}
+          onToggle={() => setFormsExprOpen((v) => !v)}
+        >
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            <strong>Número:</strong> só operadores <code style={{ fontSize: 12 }}>+ − * / ( )</code> e referências{' '}
+            <code style={{ fontSize: 12 }}>{'{{NomeInternoDoCampo}}'}</code> (substituídas por valores numéricos dos
+            campos).
+          </Text>
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            <strong>Texto:</strong> prefixo <code style={{ fontSize: 12 }}>str:</code>, depois texto com{' '}
+            <code style={{ fontSize: 12 }}>{'{{campo}}'}</code> e tokens entre parêntesis retos abaixo.
+          </Text>
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            <strong>Diferença em dias entre duas datas:</strong>{' '}
+            <code style={{ fontSize: 12 }}>{'{{DAYS:CampoDataA:CampoDataB}}'}</code> dentro da parte numérica.
+          </Text>
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            <strong>Só um token:</strong> pode usar apenas <code style={{ fontSize: 12 }}>[myEmail]</code> (sem{' '}
+            <code style={{ fontSize: 12 }}>str:</code>) se a expressão for só o token.
+          </Text>
+          <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130', marginTop: 4 } }}>
+            Tokens de contexto (copiar como está; maiúsculas/minúsculas aceites onde aplicável)
+          </Text>
+          <Stack tokens={{ childrenGap: 6 }}>
+            {SET_COMPUTED_CONTEXT_TOKENS.map((row) => (
+              <Stack key={row.literal} horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
+                <code style={{ fontSize: 12, flexShrink: 0 }}>{row.literal}</code>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  {row.hint}
+                </Text>
+              </Stack>
+            ))}
+          </Stack>
+        </FormManagerCollapseSection>
+        {attachmentLibraryFolderOptions.length > 0 ? (
+          <>
+            <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130', marginTop: 8 } }}>
+              Pastas na biblioteca de anexos
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Gera o URL da pasta ligado ao item quando o formulário corre com anexos configurados. Expressão gravada:{' '}
+              <code style={{ fontSize: 12 }}>attfolder:idDoNó</code>.
+            </Text>
+            <Stack tokens={{ childrenGap: 8 }}>
+              {attachmentLibraryFolderOptions.map((opt) => {
+                const key = String(opt.key);
+                const formula = `attfolder:${key}`;
+                const active = ed.computedAttachmentFolderNodeId === key;
+                return (
+                  <Stack
+                    key={key}
+                    horizontal
+                    verticalAlign="center"
+                    horizontalAlign="space-between"
+                    tokens={{ childrenGap: 8 }}
+                    wrap
+                    styles={{
+                      root: {
+                        border: active ? '1px solid #0078d4' : '1px solid #edebe9',
+                        borderRadius: 4,
+                        padding: '8px 10px',
+                        background: active ? '#f3f9ff' : '#ffffff',
+                      },
+                    }}
+                  >
+                    <Stack tokens={{ childrenGap: 4 }} styles={{ root: { minWidth: 0, flex: 1 } }}>
+                      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                        {opt.text}
+                      </Text>
+                      <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{formula}</code>
+                    </Stack>
+                    <DefaultButton
+                      text={active ? 'Pasta selecionada' : 'Usar esta pasta'}
+                      disabled={active}
+                      onClick={() =>
+                        setEd((p) => ({
+                          ...p,
+                          computedAttachmentFolderNodeId: key,
+                          computedExpression: '',
+                        }))
+                      }
+                    />
+                  </Stack>
+                );
+              })}
+            </Stack>
+          </>
+        ) : null}
+      </Stack>
+      {ed.computedAttachmentFolderNodeId ? (
+        <DefaultButton
+          text="Editar expressão manual (sem pasta)"
+          onClick={() =>
+            setEd((p) => ({
+              ...p,
+              computedAttachmentFolderNodeId: '',
+            }))
+          }
+        />
+      ) : null}
+      <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
+        <TextField
+          label={
+            ed.computedAttachmentFolderNodeId
+              ? 'Expressão (limpe a pasta selecionada acima para editar)'
+              : 'Expressão'
+          }
+          description={
+            ed.computedAttachmentFolderNodeId
+              ? undefined
+              : 'Digite @ para sugestões (tokens, campos numéricos, pastas de anexos).'
+          }
+          multiline
+          rows={3}
+          value={ed.computedAttachmentFolderNodeId ? '' : ed.computedExpression}
+          disabled={!!ed.computedAttachmentFolderNodeId}
+          componentRef={tfRef}
+          onChange={handleExprChange}
+          onKeyDown={handleExprKeyDown}
+        />
+        {mentionOpen &&
+        mentionItems.length > 0 &&
+        !ed.computedAttachmentFolderNodeId &&
+        mentionListPos
+          ? createPortal(
+              <div
+                ref={mentionPortalRef}
+                {...{ [FORM_FIELD_RULES_MENTION_PORTAL_ATTR]: '' }}
+                role="listbox"
+                aria-label="Sugestões de expressão"
+                style={{
+                  position: 'fixed',
+                  left: mentionListPos.left,
+                  top: mentionListPos.top,
+                  width: mentionListPos.width,
+                  maxWidth:
+                    typeof window !== 'undefined'
+                      ? Math.max(0, window.innerWidth - mentionListPos.left - 8)
+                      : mentionListPos.width,
+                  zIndex: 10000000,
+                  minWidth: 280,
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  border: '1px solid #edebe9',
+                  borderRadius: 4,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                  background: '#ffffff',
+                  boxSizing: 'border-box',
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                {mentionItems.map((it, idx) => (
+                  <div
+                    key={it.key}
+                    role="option"
+                    aria-selected={idx === mentionHighlight}
+                    style={{
+                      padding: '8px 10px',
+                      cursor: 'pointer',
+                      background: idx === mentionHighlight ? '#edebe9' : 'transparent',
+                      borderBottom:
+                        idx < mentionItems.length - 1 ? '1px solid #f3f2f1' : undefined,
+                    }}
+                    onMouseEnter={() => setMentionHighlight(idx)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      applyMentionInsert(it.insert);
+                    }}
+                  >
+                    <Text variant="small" styles={{ root: { fontWeight: 600, display: 'block' } }}>
+                      {it.primary}
+                    </Text>
+                    <Text variant="small" styles={{ root: { color: '#605e5c', fontSize: 11 } }}>
+                      {it.secondary}
+                    </Text>
+                  </div>
+                ))}
+              </div>,
+              document.body
+            )
+          : null}
+      </div>
+    </Stack>
+  );
+}
 
 export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   isOpen,
@@ -125,6 +666,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
       type={PanelType.medium}
       headerText={`Configurar regras — ${title}`}
       onDismiss={onDismiss}
+      onOuterClick={(ev) => {
+        const t = ev?.target;
+        if (t instanceof Element && t.closest(`[${FORM_FIELD_RULES_MENTION_PORTAL_ATTR}]`)) return;
+        onDismiss();
+      }}
     >
       <Stack tokens={{ childrenGap: 12 }}>
         {mt !== 'text' && (
@@ -177,52 +723,12 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
             />
             {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
-              <Stack tokens={{ childrenGap: 8 }} styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 12 } }}>
-                <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-                  Valor calculado (setComputed)
-                </Text>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                  Número: expressão com {'{{NomeInterno}}'} e + − * / ( ). Texto: comece com{' '}
-                  <code style={{ fontSize: 12 }}>str:</code> e use {'{{campo}}'}; dentro do texto use{' '}
-                  <code style={{ fontSize: 12 }}>[me]</code> (id do utilizador),{' '}
-                  <code style={{ fontSize: 12 }}>[myName]</code>, <code style={{ fontSize: 12 }}>[myEmail]</code>,{' '}
-                  <code style={{ fontSize: 12 }}>[today]</code>, <code style={{ fontSize: 12 }}>[siteTitle]</code>,{' '}
-                  <code style={{ fontSize: 12 }}>[query:chave]</code> (URL), etc. Só um token:{' '}
-                  <code style={{ fontSize: 12 }}>[myEmail]</code> sem prefixo. URL de pasta de anexos: dropdown abaixo ou{' '}
-                  <code style={{ fontSize: 12 }}>attfolder:idDoNo</code> (com item já gravado e pastas configuradas em Anexos).
-                </Text>
-                {attachmentLibraryFolderOptions.length > 0 && (
-                  <Dropdown
-                    label="URL da pasta na biblioteca de anexos"
-                    options={[{ key: '', text: '— Não usar (expressão manual)' }, ...attachmentLibraryFolderOptions]}
-                    selectedKey={ed.computedAttachmentFolderNodeId || ''}
-                    onChange={(_, o) => {
-                      const k = o ? String(o.key) : '';
-                      setEd((p) => ({
-                        ...p,
-                        computedAttachmentFolderNodeId: k,
-                        computedExpression: k ? '' : p.computedExpression,
-                      }));
-                    }}
-                  />
-                )}
-                <TextField
-                  label={
-                    ed.computedAttachmentFolderNodeId ? 'Expressão (desative a pasta acima para editar)' : 'Expressão'
-                  }
-                  multiline
-                  rows={3}
-                  value={ed.computedAttachmentFolderNodeId ? '' : ed.computedExpression}
-                  disabled={!!ed.computedAttachmentFolderNodeId}
-                  onChange={(_, v) =>
-                    setEd((p) => ({
-                      ...p,
-                      computedExpression: v ?? '',
-                      computedAttachmentFolderNodeId: '',
-                    }))
-                  }
-                />
-              </Stack>
+              <SetComputedRulesBlock
+                ed={ed}
+                setEd={setEd}
+                fieldOptions={fieldOptions}
+                attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+              />
             )}
             <Stack tokens={{ childrenGap: 8 }} styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 12 } }}>
               <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
@@ -420,52 +926,13 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
               />
               {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
-                <Stack tokens={{ childrenGap: 8 }}>
-                  <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-                    Valor calculado (setComputed)
-                  </Text>
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Número: expressão com {'{{NomeInterno}}'} e + − * / ( ). Texto: comece com{' '}
-                    <code style={{ fontSize: 12 }}>str:</code> e use {'{{campo}}'}; dentro do texto use{' '}
-                    <code style={{ fontSize: 12 }}>[me]</code> (id do utilizador),{' '}
-                    <code style={{ fontSize: 12 }}>[myName]</code>, <code style={{ fontSize: 12 }}>[myEmail]</code>,{' '}
-                    <code style={{ fontSize: 12 }}>[today]</code>, <code style={{ fontSize: 12 }}>[siteTitle]</code>,{' '}
-                    <code style={{ fontSize: 12 }}>[query:chave]</code> (URL), etc. Só um token:{' '}
-                    <code style={{ fontSize: 12 }}>[myEmail]</code> sem prefixo. URL de pasta de anexos: dropdown abaixo ou{' '}
-                    <code style={{ fontSize: 12 }}>attfolder:idDoNo</code> (com item já gravado e pastas configuradas em Anexos).
-                  </Text>
-                  {attachmentLibraryFolderOptions.length > 0 && (
-                    <Dropdown
-                      label="URL da pasta na biblioteca de anexos"
-                      options={[{ key: '', text: '— Não usar (expressão manual)' }, ...attachmentLibraryFolderOptions]}
-                      selectedKey={ed.computedAttachmentFolderNodeId || ''}
-                      onChange={(_, o) => {
-                        const k = o ? String(o.key) : '';
-                        setEd((p) => ({
-                          ...p,
-                          computedAttachmentFolderNodeId: k,
-                          computedExpression: k ? '' : p.computedExpression,
-                        }));
-                      }}
-                    />
-                  )}
-                  <TextField
-                    label={
-                      ed.computedAttachmentFolderNodeId ? 'Expressão (desative a pasta acima para editar)' : 'Expressão'
-                    }
-                    multiline
-                    rows={3}
-                    value={ed.computedAttachmentFolderNodeId ? '' : ed.computedExpression}
-                    disabled={!!ed.computedAttachmentFolderNodeId}
-                    onChange={(_, v) =>
-                      setEd((p) => ({
-                        ...p,
-                        computedExpression: v ?? '',
-                        computedAttachmentFolderNodeId: '',
-                      }))
-                    }
-                  />
-                </Stack>
+                <SetComputedRulesBlock
+                  ed={ed}
+                  setEd={setEd}
+                  fieldOptions={fieldOptions}
+                  attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                  bordered={false}
+                />
               )}
               <Checkbox
                 label="Somente leitura"
