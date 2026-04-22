@@ -1,5 +1,8 @@
 export type TFormManagerFormMode = 'create' | 'edit' | 'view';
 
+/** Tag em `TFormRule.tags`: visibilidade com mesclagem «ocultar prevalece» entre regras marcadas. */
+export const FORM_VISIBILITY_PREFER_HIDE_TAG = 'fmVisPreferHide';
+
 export type TFormConditionOp =
   | 'eq'
   | 'ne'
@@ -8,6 +11,7 @@ export type TFormConditionOp =
   | 'lt'
   | 'le'
   | 'contains'
+  | 'notContains'
   | 'startsWith'
   | 'endsWith'
   | 'isEmpty'
@@ -255,6 +259,41 @@ export const FORM_BUILTIN_HISTORY_BUTTON_ID = '__builtin_history';
 /** Como apresentar o botão de histórico de versões no formulário. */
 export type TFormHistoryButtonKind = 'text' | 'icon' | 'iconAndText';
 
+/** Operadores usados na UI de condicionais de exibição (campo texto). */
+export type TTextFieldConditionalDisplayOp =
+  | 'eq'
+  | 'ne'
+  | 'contains'
+  | 'notContains'
+  | 'isEmpty'
+  | 'isFilled';
+
+/** Junção de condições dentro de um grupo de regra condicional (texto). */
+export type TTextFieldConditionalGroupOp = 'all' | 'any';
+
+export type TTextFieldConditionalAction = 'show' | 'hide' | 'disable';
+
+export interface ITextFieldConditionalCondition {
+  id: string;
+  refField: string;
+  op: TTextFieldConditionalDisplayOp;
+  compareKind: TFormCompareKind;
+  compareValue: string;
+}
+
+export interface ITextFieldConditionalGroup {
+  id: string;
+  /** Omitido ou vazio = aplicar em Criar, Editar e Ver. */
+  modes: TFormManagerFormMode[];
+  groupOp: TTextFieldConditionalGroupOp;
+  conditions: ITextFieldConditionalCondition[];
+  action: TTextFieldConditionalAction;
+}
+
+export interface ITextFieldConditionalVisibility {
+  groups: ITextFieldConditionalGroup[];
+}
+
 /** Transformação de valor de texto (maiúsculas / minúsculas / capitalizar por palavra). */
 export type TFormFieldTextValueTransform = 'uppercase' | 'lowercase' | 'capitalize';
 
@@ -296,6 +335,8 @@ export interface IFormFieldConfig {
   textInputMaskKind?: TFormFieldTextInputMaskKind;
   /** Padrão IMask quando `textInputMaskKind === 'custom'`; pode permanecer guardado ao mudar o kind. */
   textInputMaskCustomPattern?: string;
+  /** Regras condicionais de visibilidade (só aplicadas a campos texto na UI de regras). */
+  textConditionalVisibility?: ITextFieldConditionalVisibility;
 }
 
 export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName' | 'fieldKind'>): boolean {

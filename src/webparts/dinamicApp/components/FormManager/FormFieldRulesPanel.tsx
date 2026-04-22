@@ -24,6 +24,12 @@ import type {
   TFormManagerFormMode,
   TFormConditionOp,
   TFormRule,
+  ITextFieldConditionalCondition,
+  ITextFieldConditionalGroup,
+  TTextFieldConditionalDisplayOp,
+  TTextFieldConditionalGroupOp,
+  TTextFieldConditionalAction,
+  TFormCompareKind,
 } from '../../core/config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL, isFormBannerFieldConfig } from '../../core/config/types/formManager';
 import {
@@ -32,6 +38,7 @@ import {
   emptyFieldRuleEditorState,
   fieldRuleStateFromRules,
   mergeFieldRuleEditorState,
+  newCardId,
   type IFieldRuleEditorState,
   type IWhenUi,
   templateFieldRulesDateNotPast,
@@ -59,6 +66,40 @@ const TEXT_MASK_CHOICE_OPTIONS: IChoiceGroupOption[] = [
   { key: 'cnpj', text: 'CNPJ' },
   { key: 'custom', text: 'Personalizada (IMask)' },
 ];
+
+const TEXT_DISPLAY_OP_OPTS: { key: TTextFieldConditionalDisplayOp; text: string }[] = [
+  { key: 'eq', text: 'Igual a' },
+  { key: 'ne', text: 'Diferente de' },
+  { key: 'contains', text: 'Contém' },
+  { key: 'notContains', text: 'Não contém' },
+  { key: 'isEmpty', text: 'Vazio' },
+  { key: 'isFilled', text: 'Não vazio' },
+];
+
+const TEXT_COND_GROUP_OP_OPTS: IChoiceGroupOption[] = [
+  { key: 'all', text: 'E (todas as condições)' },
+  { key: 'any', text: 'OU (pelo menos uma)' },
+];
+
+function newTextConditionalCondition(defaultRefField: string): ITextFieldConditionalCondition {
+  return {
+    id: newCardId(),
+    refField: defaultRefField,
+    op: 'eq',
+    compareKind: 'literal',
+    compareValue: '',
+  };
+}
+
+function newTextConditionalGroup(defaultRefField: string): ITextFieldConditionalGroup {
+  return {
+    id: newCardId(),
+    modes: [],
+    groupOp: 'all',
+    conditions: [newTextConditionalCondition(defaultRefField)],
+    action: 'show',
+  };
+}
 
 export interface IFormFieldRulesPanelProps {
   isOpen: boolean;
@@ -673,6 +714,34 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
     return ed.modes.length === 0 || ed.modes.indexOf(m) !== -1;
   }, [ed.modes]);
 
+  const refFieldOptions = useMemo(
+    () => fieldOptions.filter((o) => String(o.key) !== internalName),
+    [fieldOptions, internalName]
+  );
+  const defaultRefField = refFieldOptions[0] ? String(refFieldOptions[0].key) : '';
+
+  const patchGroupModes = useCallback((groupId: string, m: TFormManagerFormMode, checked: boolean): void => {
+    setFc((p) => {
+      const groups = p.textConditionalVisibility?.groups ?? [];
+      const nextGroups = groups.map((g) => {
+        if (g.id !== groupId) return g;
+        let next = g.modes.length === 0 ? ALL_MODES.slice() : g.modes.slice();
+        if (checked) {
+          if (next.indexOf(m) === -1) next.push(m);
+        } else {
+          next = next.filter((x) => x !== m);
+        }
+        if (next.length === ALL_MODES.length) next = [];
+        return { ...g, modes: next };
+      });
+      return { ...p, textConditionalVisibility: { groups: nextGroups } };
+    });
+  }, []);
+
+  const groupModeChecked = useCallback((modes: TFormManagerFormMode[], m: TFormManagerFormMode): boolean => {
+    return modes.length === 0 || modes.indexOf(m) !== -1;
+  }, []);
+
   const toggleTextRulesSection = useCallback((id: string): void => {
     setTextRulesOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
@@ -1036,7 +1105,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 }
               />
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Pré-visualização: {buildFieldUiRules(internalName, ed).length} regra(s) gerada(s) para este campo.
+                Pré-visualização: {buildFieldUiRules(internalName, ed, fc).length} regra(s) gerada(s) para este campo.
               </Text>
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
@@ -1142,10 +1211,278 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.conditionals)}
             >
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Mostrar ou ocultar este campo consoante outro («se o campo X for Y») usa regras globais (
-                <code style={{ fontSize: 12 }}>setVisibility</code>, cartões em JSON na aba «JSON»). Desativar ou
-                tornar editável consoante outro campo configura-se abaixo; se ambas as condições forem verdadeiras,
-                «Tornar editável quando» prevalece sobre «Desativar quando».
+                {internalName} · text
+                {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
+              </Text>
+              <Text variant="small">
+                Visibilidade dinâmica deste campo: pode haver vários grupos; cada grupo é avaliado de forma
+                independente. Se mais do que um se aplicar e as ações divergirem, prevalece ocultar.
+              </Text>
+              <PrimaryButton
+                text="Adicionar grupo de regra"
+                disabled={!refFieldOptions.length}
+                onClick={() =>
+                  setFc((p) => ({
+                    ...p,
+                    textConditionalVisibility: {
+                      groups: [
+                        ...(p.textConditionalVisibility?.groups ?? []),
+                        newTextConditionalGroup(defaultRefField),
+                      ],
+                    },
+                  }))
+                }
+              />
+              {!refFieldOptions.length ? (
+                <Text variant="small" styles={{ root: { color: '#a4262c' } }}>
+                  Não há outros campos no formulário para referenciar nas condições.
+                </Text>
+              ) : null}
+              {(fc.textConditionalVisibility?.groups ?? []).map((g, gi) => (
+                <Stack
+                  key={g.id}
+                  tokens={{ childrenGap: 10 }}
+                  styles={{
+                    root: {
+                      border: '1px solid #edebe9',
+                      borderRadius: 4,
+                      padding: 12,
+                      marginTop: 10,
+                      background: '#faf9f8',
+                    },
+                  }}
+                >
+                  <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                    <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                      Grupo {gi + 1}
+                    </Text>
+                    <DefaultButton
+                      text="Remover grupo"
+                      onClick={() =>
+                        setFc((p) => {
+                          const nextList = (p.textConditionalVisibility?.groups ?? []).filter((x) => x.id !== g.id);
+                          const next: IFormFieldConfig = { ...p };
+                          if (!nextList.length) delete next.textConditionalVisibility;
+                          else next.textConditionalVisibility = { groups: nextList };
+                          return next;
+                        })
+                      }
+                    />
+                  </Stack>
+                  <Text variant="small">Aplicar esta regra apenas nos modos:</Text>
+                  <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                    {MODE_OPTS.map((m) => (
+                      <Checkbox
+                        key={`${g.id}-${m.key}`}
+                        label={m.label}
+                        checked={groupModeChecked(g.modes, m.key)}
+                        onChange={(_, c) => patchGroupModes(g.id, m.key, !!c)}
+                      />
+                    ))}
+                  </Stack>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Vazio = todos os modos. Desmarque um para restringir.
+                  </Text>
+                  <ChoiceGroup
+                    label="Operador lógico entre condições"
+                    selectedKey={g.groupOp}
+                    options={TEXT_COND_GROUP_OP_OPTS}
+                    onChange={(_, opt) =>
+                      opt &&
+                      setFc((p) => ({
+                        ...p,
+                        textConditionalVisibility: {
+                          groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                            gr.id === g.id ? { ...gr, groupOp: opt.key as TTextFieldConditionalGroupOp } : gr
+                          ),
+                        },
+                      }))
+                    }
+                  />
+                  <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                    Condições
+                  </Text>
+                  {g.conditions.map((c) => (
+                    <Stack
+                      key={c.id}
+                      horizontal
+                      wrap
+                      tokens={{ childrenGap: 8 }}
+                      verticalAlign="end"
+                      styles={{ root: { alignItems: 'flex-end' } }}
+                    >
+                      <Dropdown
+                        label="Campo"
+                        options={refFieldOptions}
+                        selectedKey={c.refField || undefined}
+                        onChange={(_, o) =>
+                          o &&
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id !== g.id
+                                  ? gr
+                                  : {
+                                      ...gr,
+                                      conditions: gr.conditions.map((row) =>
+                                        row.id === c.id ? { ...row, refField: String(o.key) } : row
+                                      ),
+                                    }
+                              ),
+                            },
+                          }))
+                        }
+                        styles={{ dropdown: { width: 180 } }}
+                      />
+                      <Dropdown
+                        label="Operador"
+                        options={TEXT_DISPLAY_OP_OPTS.map((x) => ({ key: x.key, text: x.text }))}
+                        selectedKey={c.op}
+                        onChange={(_, o) =>
+                          o &&
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id !== g.id
+                                  ? gr
+                                  : {
+                                      ...gr,
+                                      conditions: gr.conditions.map((row) =>
+                                        row.id === c.id
+                                          ? { ...row, op: o.key as TTextFieldConditionalDisplayOp }
+                                          : row
+                                      ),
+                                    }
+                              ),
+                            },
+                          }))
+                        }
+                        styles={{ dropdown: { width: 160 } }}
+                      />
+                      <Dropdown
+                        label="Comparar"
+                        options={[
+                          { key: 'literal', text: 'Texto fixo' },
+                          { key: 'field', text: 'Campo' },
+                          { key: 'token', text: 'Token' },
+                        ]}
+                        selectedKey={c.compareKind}
+                        disabled={c.op === 'isEmpty' || c.op === 'isFilled'}
+                        onChange={(_, o) =>
+                          o &&
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id !== g.id
+                                  ? gr
+                                  : {
+                                      ...gr,
+                                      conditions: gr.conditions.map((row) =>
+                                        row.id === c.id ? { ...row, compareKind: o.key as TFormCompareKind } : row
+                                      ),
+                                    }
+                              ),
+                            },
+                          }))
+                        }
+                        styles={{ dropdown: { width: 112 } }}
+                      />
+                      <TextField
+                        label="Valor"
+                        value={c.compareValue}
+                        disabled={c.op === 'isEmpty' || c.op === 'isFilled'}
+                        onChange={(_, v) =>
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id !== g.id
+                                  ? gr
+                                  : {
+                                      ...gr,
+                                      conditions: gr.conditions.map((row) =>
+                                        row.id === c.id ? { ...row, compareValue: v ?? '' } : row
+                                      ),
+                                    }
+                              ),
+                            },
+                          }))
+                        }
+                        styles={{ fieldGroup: { minWidth: 140 } }}
+                      />
+                      <DefaultButton
+                        text="Remover"
+                        disabled={g.conditions.length < 2}
+                        onClick={() =>
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                if (gr.id !== g.id) return gr;
+                                const filt = gr.conditions.filter((row) => row.id !== c.id);
+                                return {
+                                  ...gr,
+                                  conditions: filt.length
+                                    ? filt
+                                    : [newTextConditionalCondition(defaultRefField)],
+                                };
+                              }),
+                            },
+                          }))
+                        }
+                      />
+                    </Stack>
+                  ))}
+                  <DefaultButton
+                    text="Adicionar condição"
+                    onClick={() =>
+                      setFc((p) => ({
+                        ...p,
+                        textConditionalVisibility: {
+                          groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                            gr.id === g.id
+                              ? {
+                                  ...gr,
+                                  conditions: [...gr.conditions, newTextConditionalCondition(defaultRefField)],
+                                }
+                              : gr
+                          ),
+                        },
+                      }))
+                    }
+                  />
+                  <Dropdown
+                    label="Ação deste grupo"
+                    options={[
+                      { key: 'show', text: 'Mostrar' },
+                      { key: 'hide', text: 'Ocultar' },
+                      { key: 'disable', text: 'Desabilitar' },
+                    ]}
+                    selectedKey={g.action}
+                    onChange={(_, o) =>
+                      o &&
+                      setFc((p) => ({
+                        ...p,
+                        textConditionalVisibility: {
+                          groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                            gr.id === g.id ? { ...gr, action: o.key as TTextFieldConditionalAction } : gr
+                          ),
+                        },
+                      }))
+                    }
+                    styles={{ dropdown: { maxWidth: 280 } }}
+                  />
+                </Stack>
+              ))}
+              <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 14 } }}>
+                Desativar / editável consoante outro campo
+              </Text>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Se ambas as condições abaixo forem verdadeiras, «Tornar editável quando» prevalece sobre «Desativar
+                quando».
               </Text>
               <Checkbox
                 label="Desativar este campo quando a condição for verdadeira"
@@ -1448,7 +1785,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
         )}
         {mt !== 'text' && (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            Pré-visualização: {buildFieldUiRules(internalName, ed).length} regra(s) gerada(s) para este campo.
+            Pré-visualização: {buildFieldUiRules(internalName, ed, fc).length} regra(s) gerada(s) para este campo.
           </Text>
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }}>

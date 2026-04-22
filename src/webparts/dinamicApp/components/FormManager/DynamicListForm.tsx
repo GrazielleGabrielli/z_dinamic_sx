@@ -110,6 +110,7 @@ import { FormSubmitLoadingChrome, resolveSubmitLoadingKind } from './FormLoading
 import { FormItemHistoryUi } from './FormItemHistoryUi';
 import { LinkedChildFormsBlock } from './LinkedChildFormsBlock';
 import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
+import { multiSelectDropdownStyles, renderMultiSelectDropdownTitle } from './formMultiSelectDropdownUi';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
 import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePointNoteHtml';
 import { stepVisibleInFormMode } from '../../core/formManager/stepFormMode';
@@ -3281,7 +3282,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+            styles={multiSelectDropdownStyles(showReqEmpty)}
           />
         );
       }
@@ -3338,7 +3340,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+            styles={multiSelectDropdownStyles(showReqEmpty)}
           />
         );
       }
@@ -3394,7 +3397,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+            styles={multiSelectDropdownStyles(showReqEmpty)}
           />
         );
       }

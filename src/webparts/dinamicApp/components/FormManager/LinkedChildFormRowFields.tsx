@@ -9,6 +9,7 @@ import {
   IDropdownOption,
   DatePicker,
   Label,
+  useTheme,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
 import type { IFormFieldConfig, IFormLinkedChildFormConfig } from '../../core/config/types/formManager';
@@ -28,6 +29,7 @@ import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinke
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePointNoteHtml';
 import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
+import { multiSelectDropdownStyles, renderMultiSelectDropdownTitle } from './formMultiSelectDropdownUi';
 import { ItemsService, UsersService } from '../../../../services';
 
 const REQ_EMPTY_BORDER = '#a4262c';
@@ -176,6 +178,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
   fieldLayout = 'stack',
   rowPersisted = false,
 }) => {
+  const theme = useTheme();
   const itemsService = useMemo(() => new ItemsService(), []);
   const usersService = useMemo(() => new UsersService(), []);
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
@@ -475,7 +478,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+            styles={multiSelectDropdownStyles(showReqEmpty)}
           />
         );
       }
@@ -532,7 +536,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+            styles={multiSelectDropdownStyles(showReqEmpty)}
           />
         );
       }
@@ -588,7 +593,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+            styles={multiSelectDropdownStyles(showReqEmpty)}
           />
         );
       }

@@ -1168,7 +1168,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                   const rulesNext = mergeFieldRules(
                     c.rules ?? [],
                     name,
-                    buildFieldUiRules(name, editor)
+                    buildFieldUiRules(name, editor, nextFc)
                   );
                   const has = c.fields.some((f) => f.internalName === name);
                   const fieldsNext = has

@@ -1,16 +1,22 @@
-import type {
-  TFormConditionNode,
-  TFormConditionOp,
-  TFormManagerFormMode,
-  TFormRule,
-  IFormCompareRef,
-  IFormRuleAttachment,
+import {
+  FORM_VISIBILITY_PREFER_HIDE_TAG,
+  type TFormConditionNode,
+  type TFormConditionOp,
+  type TFormManagerFormMode,
+  type TFormRule,
+  type IFormCompareRef,
+  type IFormRuleAttachment,
+  type IFormFieldConfig,
+  type ITextFieldConditionalCondition,
+  type ITextFieldConditionalGroup,
+  type ITextFieldConditionalVisibility,
 } from '../config/types/formManager';
 
 export const CONDITION_OP_OPTIONS: { key: TFormConditionOp; text: string }[] = [
   { key: 'eq', text: 'é igual a' },
   { key: 'ne', text: 'é diferente de' },
   { key: 'contains', text: 'contém' },
+  { key: 'notContains', text: 'não contém' },
   { key: 'startsWith', text: 'começa com' },
   { key: 'endsWith', text: 'termina com' },
   { key: 'gt', text: 'maior que' },
@@ -466,7 +472,70 @@ function numOrUndef(s: string): number | undefined {
   return isNaN(n) ? undefined : n;
 }
 
-export function buildFieldUiRules(internalName: string, st: IFieldRuleEditorState): TFormRule[] {
+function textConditionalConditionToWhenUi(c: ITextFieldConditionalCondition): IWhenUi {
+  return {
+    field: c.refField.trim(),
+    op: c.op as TFormConditionOp,
+    compareKind: c.compareKind as TCompareUiKind,
+    compareValue: c.compareValue,
+  };
+}
+
+function buildWhenFromTextConditionalGroup(group: ITextFieldConditionalGroup): TFormConditionNode | undefined {
+  const leaves: TFormConditionNode[] = [];
+  for (let i = 0; i < group.conditions.length; i++) {
+    const c = group.conditions[i];
+    if (!c.refField.trim()) continue;
+    leaves.push(whenUiToNode(textConditionalConditionToWhenUi(c)));
+  }
+  if (!leaves.length) return undefined;
+  if (leaves.length === 1) return leaves[0];
+  return group.groupOp === 'any' ? { kind: 'any', children: leaves } : { kind: 'all', children: leaves };
+}
+
+export function compileTextFieldConditionalVisibilityRules(
+  internalName: string,
+  vis: ITextFieldConditionalVisibility | undefined
+): TFormRule[] {
+  if (!vis?.groups?.length) return [];
+  const seg = safeIdSegment(internalName);
+  const out: TFormRule[] = [];
+  for (let i = 0; i < vis.groups.length; i++) {
+    const g = vis.groups[i];
+    const when = buildWhenFromTextConditionalGroup(g);
+    if (!when) continue;
+    const gid = safeIdSegment(g.id || `g${i}`);
+    const modePayload = g.modes?.length ? { modes: g.modes } : {};
+    if (g.action === 'disable') {
+      out.push({
+        ...modePayload,
+        id: `ui_f_${seg}_txdis_${gid}`,
+        action: 'setDisabled',
+        field: internalName,
+        disabled: true,
+        when,
+      });
+    } else {
+      out.push({
+        ...modePayload,
+        id: `ui_f_${seg}_txvis_${gid}`,
+        action: 'setVisibility',
+        targetKind: 'field',
+        targetId: internalName,
+        visibility: g.action === 'hide' ? 'hide' : 'show',
+        when,
+        tags: [FORM_VISIBILITY_PREFER_HIDE_TAG],
+      });
+    }
+  }
+  return out;
+}
+
+export function buildFieldUiRules(
+  internalName: string,
+  st: IFieldRuleEditorState,
+  fieldConfig?: Pick<IFormFieldConfig, 'textConditionalVisibility'>
+): TFormRule[] {
   const seg = safeIdSegment(internalName);
   const id = (s: string): string => `ui_f_${seg}_${s}`;
   const baseModes = st.modes.length ? { modes: st.modes } : {};
@@ -570,6 +639,8 @@ export function buildFieldUiRules(internalName: string, st: IFieldRuleEditorStat
       ...baseModes,
     });
   }
+
+  out.push(...compileTextFieldConditionalVisibilityRules(internalName, fieldConfig?.textConditionalVisibility));
 
   return out;
 }

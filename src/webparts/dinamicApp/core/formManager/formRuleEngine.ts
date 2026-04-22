@@ -18,6 +18,7 @@ import type {
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_BANNER_INTERNAL_PREFIX,
+  FORM_VISIBILITY_PREFER_HIDE_TAG,
   isFormBannerFieldConfig,
 } from '../config/types/formManager';
 import type { IFieldMetadata } from '../../../../services';
@@ -176,6 +177,8 @@ function compareResolved(left: unknown, op: string, right: unknown): boolean {
     }
     case 'contains':
       return String(left ?? '').toLowerCase().indexOf(String(right ?? '').toLowerCase()) !== -1;
+    case 'notContains':
+      return String(left ?? '').toLowerCase().indexOf(String(right ?? '').toLowerCase()) === -1;
     case 'startsWith':
       return String(left ?? '').toLowerCase().indexOf(String(right ?? '').toLowerCase()) === 0;
     case 'endsWith': {
@@ -730,6 +733,7 @@ export function buildFormDerivedState(
   }
 
   const rules = cfg.rules ?? [];
+  const visibilityPreferHide: Record<string, { anyHide: boolean; anyShow: boolean }> = {};
   for (let r = 0; r < rules.length; r++) {
     const rule = rules[r];
     if (rule.enabled === false) continue;
@@ -741,8 +745,21 @@ export function buildFormDerivedState(
 
     switch (rule.action) {
       case 'setVisibility': {
-        if (rule.targetKind === 'section') sectionVisible[rule.targetId] = rule.visibility === 'show';
-        else fieldVisible[rule.targetId] = rule.visibility === 'show';
+        if (rule.targetKind === 'section') {
+          sectionVisible[rule.targetId] = rule.visibility === 'show';
+          break;
+        }
+        const visTags = rule.tags;
+        const preferHide =
+          Array.isArray(visTags) && visTags.indexOf(FORM_VISIBILITY_PREFER_HIDE_TAG) !== -1;
+        if (preferHide) {
+          const tid = rule.targetId;
+          if (!visibilityPreferHide[tid]) visibilityPreferHide[tid] = { anyHide: false, anyShow: false };
+          if (rule.visibility === 'hide') visibilityPreferHide[tid].anyHide = true;
+          else visibilityPreferHide[tid].anyShow = true;
+        } else {
+          fieldVisible[rule.targetId] = rule.visibility === 'show';
+        }
         break;
       }
       case 'setRequired':
@@ -805,6 +822,12 @@ export function buildFormDerivedState(
       default:
         break;
     }
+  }
+
+  for (const vid of Object.keys(visibilityPreferHide)) {
+    const m = visibilityPreferHide[vid];
+    if (m.anyHide) fieldVisible[vid] = false;
+    else if (m.anyShow) fieldVisible[vid] = true;
   }
 
   const dh = cfg.dynamicHelp ?? [];

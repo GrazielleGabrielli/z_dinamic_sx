@@ -5,6 +5,10 @@ import type {
   IFormLinkedChildFormConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
+  ITextFieldConditionalCondition,
+  ITextFieldConditionalGroup,
+  ITextFieldConditionalVisibility,
+  TTextFieldConditionalDisplayOp,
   IFormSectionConfig,
   IFormStepConfig,
   IFormCustomButtonConfig,
@@ -45,6 +49,52 @@ import { sanitizeConditionNode } from './formConditionSanitize';
 import { isTextInputMaskKind, TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from './formTextInputMasks';
 
 const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText']);
+
+const TEXT_COND_DISPLAY_OPS = new Set<string>(['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'isFilled']);
+
+function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalVisibility | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const groupsRaw = Array.isArray(o.groups) ? o.groups : [];
+  const groups: ITextFieldConditionalGroup[] = [];
+  for (let i = 0; i < groupsRaw.length; i++) {
+    const g = groupsRaw[i];
+    if (!g || typeof g !== 'object') continue;
+    const gr = g as Record<string, unknown>;
+    const id =
+      typeof gr.id === 'string' && gr.id.trim()
+        ? gr.id.trim().slice(0, 120)
+        : `g${i}`;
+    const groupOp = gr.groupOp === 'any' ? 'any' : 'all';
+    const action =
+      gr.action === 'hide' ? 'hide' : gr.action === 'disable' ? 'disable' : 'show';
+    const modesRaw = Array.isArray(gr.modes) ? gr.modes : [];
+    const modes: TFormManagerFormMode[] = [];
+    for (let j = 0; j < modesRaw.length; j++) {
+      const m = modesRaw[j];
+      if (m === 'create' || m === 'edit' || m === 'view') modes.push(m);
+    }
+    const condRaw = Array.isArray(gr.conditions) ? gr.conditions : [];
+    const conditions: ITextFieldConditionalCondition[] = [];
+    for (let k = 0; k < condRaw.length; k++) {
+      const c = condRaw[k];
+      if (!c || typeof c !== 'object') continue;
+      const cr = c as Record<string, unknown>;
+      const cid =
+        typeof cr.id === 'string' && cr.id.trim() ? cr.id.trim().slice(0, 120) : `c${k}`;
+      const refField = typeof cr.refField === 'string' ? cr.refField.trim().slice(0, 256) : '';
+      const opStr = typeof cr.op === 'string' ? cr.op : 'eq';
+      const op = (TEXT_COND_DISPLAY_OPS.has(opStr) ? opStr : 'eq') as TTextFieldConditionalDisplayOp;
+      const ck =
+        cr.compareKind === 'field' || cr.compareKind === 'token' ? cr.compareKind : 'literal';
+      const cv = typeof cr.compareValue === 'string' ? cr.compareValue.slice(0, 8000) : '';
+      conditions.push({ id: cid, refField, op, compareKind: ck, compareValue: cv });
+    }
+    groups.push({ id, modes, groupOp, conditions, action });
+  }
+  if (!groups.length) return undefined;
+  return { groups };
+}
 
 function pinOcultosFirstSections(sections: IFormSectionConfig[]): void {
   const oi = sections.findIndex((s) => s.id === FORM_OCULTOS_STEP_ID);
@@ -369,6 +419,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
       ? f.textInputMaskCustomPattern.trim().slice(0, TEXT_INPUT_MASK_CUSTOM_MAX_LEN)
       : '';
   const textInputMaskCustomPattern = patSan || undefined;
+  const textConditionalVisibility = sanitizeTextConditionalVisibility(f.textConditionalVisibility);
   const common: IFormFieldConfig = {
     internalName,
     ...(fixedPl ? { fixedPlacement: fixedPl } : {}),
@@ -387,6 +438,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(textValueTransform ? { textValueTransform } : {}),
     ...(textInputMaskKind ? { textInputMaskKind } : {}),
     ...(textInputMaskCustomPattern ? { textInputMaskCustomPattern } : {}),
+    ...(textConditionalVisibility ? { textConditionalVisibility } : {}),
   };
   if (isBanner) {
     const bp = f.bannerPlacement;

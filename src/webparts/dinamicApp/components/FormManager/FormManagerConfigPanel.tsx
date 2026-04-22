@@ -3356,7 +3356,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
             setFields((prev) => prev.map((f) => (f.internalName === fieldPanelName ? { ...f, ...nextFc } : f)));
-            setRules((r) => mergeFieldRules(r, fieldPanelName, buildFieldUiRules(fieldPanelName, editor)));
+            setRules((r) =>
+              mergeFieldRules(r, fieldPanelName, buildFieldUiRules(fieldPanelName, editor, nextFc))
+            );
           }}
         />
       )}

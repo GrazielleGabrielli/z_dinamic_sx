@@ -39,6 +39,7 @@ export function sanitizeConditionNode(raw: unknown): TFormConditionNode | undefi
       'lt',
       'le',
       'contains',
+      'notContains',
       'startsWith',
       'endsWith',
       'isEmpty',
