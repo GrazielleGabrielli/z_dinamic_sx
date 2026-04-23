@@ -57,7 +57,7 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
           >
             <span className={DINAMIC_SX_TABLE_CLASS.headerCellInner} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
               {col.label}
-              {showFilterSort && col.sortable && (
+              {showFilterSort && (
                 <>
                   <span
                     className={DINAMIC_SX_TABLE_CLASS.headerFilterTrigger}
@@ -72,17 +72,19 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
                       styles={{ root: { width: 24, height: 24 }, icon: { fontSize: 12 } }}
                     />
                   </span>
-                  <IconButton
-                    iconProps={{
-                      iconName: sortConfig?.field === col.internalName
-                        ? (sortConfig.direction === 'asc' ? 'SortUp' : 'SortDown')
-                        : 'Sort',
-                    }}
-                    title={sortConfig?.field === col.internalName ? (sortConfig.direction === 'asc' ? 'Ordenação ascendente' : 'Ordenação descendente') : 'Ordenar'}
-                    ariaLabel="Ordenar"
-                    onClick={(ev) => handleSortClick(col, ev)}
-                    styles={{ root: { width: 24, height: 24 }, icon: { fontSize: 12 } }}
-                  />
+                  {col.sortable && (
+                    <IconButton
+                      iconProps={{
+                        iconName: sortConfig?.field === col.internalName
+                          ? (sortConfig.direction === 'asc' ? 'SortUp' : 'SortDown')
+                          : 'Sort',
+                      }}
+                      title={sortConfig?.field === col.internalName ? (sortConfig.direction === 'asc' ? 'Ordenação ascendente' : 'Ordenação descendente') : 'Ordenar'}
+                      ariaLabel="Ordenar"
+                      onClick={(ev) => handleSortClick(col, ev)}
+                      styles={{ root: { width: 24, height: 24 }, icon: { fontSize: 12 } }}
+                    />
+                  )}
                 </>
               )}
               {!showFilterSort && tableSortable && col.sortable && (

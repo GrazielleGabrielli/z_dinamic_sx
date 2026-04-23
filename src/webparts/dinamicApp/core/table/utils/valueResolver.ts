@@ -58,6 +58,21 @@ function resolveCollectionValue(
     .join(sep);
 }
 
+/** Uma etiqueta por item (lookup multi / coleção expandida), para badges na tabela. */
+export function expandCollectionToLabels(
+  value: unknown,
+  expandConfig: ITableColumnExpandConfig
+): string[] {
+  if (value == null || value === '') return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => resolveSingleExpandedValue(v, expandConfig))
+      .filter((s) => s.length > 0);
+  }
+  const one = resolveSingleExpandedValue(value, expandConfig);
+  return one ? [one] : [];
+}
+
 export function resolveExpandedValue(
   value: TCellResolvedValue,
   expandConfig: ITableColumnExpandConfig | undefined

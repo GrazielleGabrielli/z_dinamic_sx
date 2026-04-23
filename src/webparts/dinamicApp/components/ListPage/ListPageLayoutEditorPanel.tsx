@@ -359,6 +359,18 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     }
   };
 
+  const moveSection = (index: number, delta: -1 | 1): void => {
+    setSections((prev) => {
+      const j = index + delta;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = prev.slice();
+      const t = next[index];
+      next[index] = next[j];
+      next[j] = t;
+      return next;
+    });
+  };
+
   const setSectionLayout = (index: number, layout: TListPageSectionLayout): void => {
     setSections((prev) => {
       const next = prev.slice();
@@ -515,8 +527,9 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
             }}
           >
             Monte seções como em páginas modernas: colunas por seção e blocos (dashboard, tabela, banner, editor,
-            título de seção, alerta ou botões). Use a engrenagem para configurar esses blocos de conteúdo. Lista e
-            dashboard usam os botões da barra da página.
+            título de seção, alerta ou botões). Use as setas no cabeçalho de cada seção para alterar a ordem (qual
+            aparece primeiro na página). Use a engrenagem para configurar esses blocos de conteúdo. Lista e dashboard
+            usam os botões da barra da página.
           </p>
         </ListPageLayoutCollapse>
 
@@ -542,17 +555,41 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
               })
             }
             trailing={
-              <IconButton
-                iconProps={{ iconName: 'Delete' }}
-                title="Remover seção"
-                ariaLabel="Remover seção"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeSection(si);
-                }}
-                disabled={sections.length <= 1}
-                styles={{ root: { width: 32, height: 32 } }}
-              />
+              <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 0 }}>
+                <IconButton
+                  iconProps={{ iconName: 'ChevronUp' }}
+                  title="Mover seção para cima"
+                  ariaLabel="Mover seção para cima"
+                  disabled={si === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveSection(si, -1);
+                  }}
+                  styles={{ root: { width: 32, height: 32 } }}
+                />
+                <IconButton
+                  iconProps={{ iconName: 'ChevronDown' }}
+                  title="Mover seção para baixo"
+                  ariaLabel="Mover seção para baixo"
+                  disabled={si >= sections.length - 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveSection(si, 1);
+                  }}
+                  styles={{ root: { width: 32, height: 32 } }}
+                />
+                <IconButton
+                  iconProps={{ iconName: 'Delete' }}
+                  title="Remover seção"
+                  ariaLabel="Remover seção"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeSection(si);
+                  }}
+                  disabled={sections.length <= 1}
+                  styles={{ root: { width: 32, height: 32 } }}
+                />
+              </Stack>
             }
           >
             <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>

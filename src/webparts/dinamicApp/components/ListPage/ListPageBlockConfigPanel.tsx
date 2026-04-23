@@ -534,10 +534,17 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
                 }
               />
             </Stack>
-            <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
-              Primeira regra em que a contagem (filtro OData opcional) corresponder ao operador e valor substitui
-              título, mensagem, tipo e ícone em relação ao padrão acima. Máximo {MAX_ALERT_COUNT_RULES} regras.
-            </Text>
+            <Stack
+              tokens={{ childrenGap: 8 }}
+              styles={{
+                root: {
+                  maxWidth: '100%',
+                  marginTop: 2,
+                },
+              }}
+            >
+             
+            </Stack>
             {(alertCfg.countRules ?? []).map((rule, idx) => (
               <Stack
                 key={rule.id}

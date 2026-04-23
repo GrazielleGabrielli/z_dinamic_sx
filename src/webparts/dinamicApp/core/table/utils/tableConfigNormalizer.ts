@@ -31,7 +31,8 @@ export function normalizeColumnConfig(
     ? { displayField: meta?.LookupField ?? DEFAULT_EXPAND_DISPLAY_FIELD }
     : undefined);
 
-  const nonSortableMulti = fieldType === 'lookupMulti' || fieldType === 'userMulti';
+  const nonSortableMulti =
+    fieldType === 'lookupMulti' || fieldType === 'userMulti' || fieldType === 'multiChoice';
   const nonSortableNote = fieldType === 'note';
   const sortable = nonSortableMulti || nonSortableNote ? false : (column.sortable ?? defaultSortable(fieldType));
 
