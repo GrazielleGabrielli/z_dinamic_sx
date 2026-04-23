@@ -22,6 +22,7 @@ import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens'
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
+import { readListItemId } from '../../../../services/items/listItemId';
 
 const DEFAULT_COLUMN_COUNT = 10;
 
@@ -65,7 +66,11 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
-  const [skip, setSkip] = useState(0);
+  const [paging, setPaging] = useState<{
+    pageIndex: number;
+    forwardPivots: number[];
+    resetKey: string | null;
+  }>({ pageIndex: 0, forwardPivots: [], resetKey: null });
   const [hasNext, setHasNext] = useState(false);
   const [selectedViewModeId, setSelectedViewModeId] = useState<string>(
     () => listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all'
@@ -148,6 +153,36 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
     [effectiveListView, dynamicContext, listFieldMetadata]
   );
 
+  const pagingResetKey = useMemo(
+    () =>
+      [
+        listTitle.trim(),
+        String(pagination.enabled),
+        String(pagination.pageSize),
+        selectedViewModeId,
+        queryOptions.filter ?? '',
+        queryOptions.orderBy?.field ?? '',
+        String(queryOptions.orderBy?.ascending ?? ''),
+        (queryOptions.select ?? []).join(','),
+        (queryOptions.expand ?? []).join(','),
+        String(effectiveColumns.length),
+        String(listFieldMetadata?.length ?? ''),
+      ].join('|'),
+    [
+      listTitle,
+      pagination.enabled,
+      pagination.pageSize,
+      selectedViewModeId,
+      queryOptions.filter,
+      queryOptions.orderBy?.field,
+      queryOptions.orderBy?.ascending,
+      queryOptions.select,
+      queryOptions.expand,
+      effectiveColumns.length,
+      listFieldMetadata?.length,
+    ]
+  );
+
   useEffect(() => {
     if (!listTitle.trim()) {
       setItems([]);
@@ -163,6 +198,11 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
       return;
     }
 
+    if (paging.resetKey !== pagingResetKey) {
+      setPaging({ pageIndex: 0, forwardPivots: [], resetKey: pagingResetKey });
+      return;
+    }
+
     setLoading(true);
     setError(undefined);
 
@@ -175,19 +215,44 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
       fieldMetadata: listFieldMetadata,
     };
 
+    const afterLastItemId =
+      paging.pageIndex === 0 ? undefined : paging.forwardPivots[paging.pageIndex - 1];
+
+    let cancelled = false;
     itemsService
-      .getPagedItems<Record<string, unknown>>(listTitle.trim(), options, pageSize, skip)
+      .getPagedItems<Record<string, unknown>>(listTitle.trim(), options, pageSize, afterLastItemId)
       .then((result) => {
+        if (cancelled) return;
         setItems(result.items);
         setHasNext(result.hasNext);
         setLoading(false);
       })
       .catch((err: Error) => {
+        if (cancelled) return;
         setError(err.message);
         setItems([]);
         setLoading(false);
       });
-  }, [listTitle, skip, pagination.enabled, pagination.pageSize, queryOptions, effectiveColumns.length, listFieldMetadata]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    itemsService,
+    listTitle,
+    pagination.enabled,
+    pagination.pageSize,
+    defaultColumnsLoading,
+    hasConfigColumns,
+    effectiveColumns.length,
+    listFieldMetadata,
+    pagingResetKey,
+    paging,
+    queryOptions.select,
+    queryOptions.expand,
+    queryOptions.filter,
+    queryOptions.orderBy?.field,
+    queryOptions.orderBy?.ascending,
+  ]);
 
   const columns: IColumn[] = useMemo(
     () => effectiveColumns.map((c, i) => columnConfigToIColumn(c, i)),
@@ -197,8 +262,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
   const viewModes = listView?.viewModes ?? [];
   const viewModeOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
 
-  const pageSize = pagination.enabled ? pagination.pageSize : 100;
-  const currentPage = Math.floor(skip / pageSize) + 1;
+  const currentPage = paging.pageIndex + 1;
 
   if (error) {
     return (
@@ -243,7 +307,6 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
           options={viewModeOptions}
           selectedKey={selectedViewModeId}
           onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-            debugger;
             if (opt) setSelectedViewModeId(String(opt.key));
           }}
           styles={{ root: { maxWidth: 220 } }}
@@ -274,15 +337,30 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
             <TooltipHost content="Página anterior">
               <IconButton
                 iconProps={{ iconName: 'ChevronLeft' }}
-                disabled={skip === 0}
-                onClick={() => setSkip((s) => Math.max(0, s - pageSize))}
+                disabled={paging.pageIndex === 0}
+                onClick={() => {
+                  setPaging((prev) =>
+                    prev.resetKey !== pagingResetKey || prev.pageIndex <= 0
+                      ? prev
+                      : { ...prev, pageIndex: prev.pageIndex - 1 }
+                  );
+                }}
               />
             </TooltipHost>
             <TooltipHost content="Próxima página">
               <IconButton
                 iconProps={{ iconName: 'ChevronRight' }}
                 disabled={!hasNext}
-                onClick={() => setSkip((s) => s + pageSize)}
+                onClick={() => {
+                  const last = readListItemId(items[items.length - 1]);
+                  if (last === undefined) return;
+                  setPaging((prev) => {
+                    if (prev.resetKey !== pagingResetKey) return prev;
+                    const pivots = prev.forwardPivots.slice(0, prev.pageIndex);
+                    pivots[prev.pageIndex] = last;
+                    return { ...prev, pageIndex: prev.pageIndex + 1, forwardPivots: pivots };
+                  });
+                }}
               />
             </TooltipHost>
           </Stack>

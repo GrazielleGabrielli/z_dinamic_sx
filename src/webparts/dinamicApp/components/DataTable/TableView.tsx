@@ -8,6 +8,7 @@ import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
 import { generateAndDownloadPdf } from '../../core/pdf';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
+import { readListItemId } from '../../../../services/items/listItemId';
 import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss } from './tableLayoutClasses';
@@ -61,7 +62,11 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
-  const [skip, setSkip] = useState(0);
+  const [paging, setPaging] = useState<{
+    pageIndex: number;
+    forwardPivots: number[];
+    resetKey: string | null;
+  }>({ pageIndex: 0, forwardPivots: [], resetKey: null });
   const [hasNext, setHasNext] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [selectedViewModeId, setSelectedViewModeId] = useState<string>(
@@ -79,10 +84,6 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   useEffect(() => {
     if (!listCardViewEnabled) setListDisplayMode('table');
   }, [listCardViewEnabled]);
-
-  useEffect(() => {
-    setSkip(0);
-  }, [dashboardListFilters]);
 
   useEffect(() => {
     const usersService = new UsersService();
@@ -145,11 +146,55 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   const effectiveSort = sortConfig ?? tableConfig?.defaultSort ?? null;
   const pageSize = pagination?.enabled ? pagination.pageSize : 100;
 
+  const pagingResetKey = useMemo(() => {
+    if (!tableConfig) return `pending|${listTitle}`;
+    const columns = engine.getVisibleColumns(tableConfig);
+    if (columns.length === 0) return `empty|${listTitle}`;
+    const columnFilterStr = buildColumnFilterString(columnFilters);
+    const listViewWithMode = { ...listView, activeViewModeId: selectedViewModeId };
+    const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
+    const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext, fieldsMetadata: fieldMetadata });
+    const dashboardFilterStr =
+      dashboardListFilters && dashboardListFilters.length > 0
+        ? buildListFilter(dashboardListFilters, { dynamicContext, fieldsMetadata: fieldMetadata })
+        : undefined;
+    const sortPart = `${effectiveSort?.field ?? ''}|${effectiveSort?.direction ?? ''}`;
+    const colsKey = columns.map((c) => c.internalName).join(',');
+    return [
+      listTitle,
+      String(pageSize),
+      sortPart,
+      colsKey,
+      viewModeFilterStr ?? '',
+      dashboardFilterStr ?? '',
+      columnFilterStr ?? '',
+      String(fieldMetadata?.length ?? 0),
+    ].join('||');
+  }, [
+    listTitle,
+    pageSize,
+    effectiveSort?.field,
+    effectiveSort?.direction,
+    tableConfig,
+    listView,
+    selectedViewModeId,
+    dynamicContext,
+    fieldMetadata,
+    dashboardListFilters,
+    columnFilters,
+    engine,
+  ]);
+
   useEffect(() => {
     if (!listTitle.trim() || !tableConfig) return;
     const columns = engine.getVisibleColumns(tableConfig);
     if (columns.length === 0) {
       setLoading(false);
+      return;
+    }
+
+    if (paging.resetKey !== pagingResetKey) {
+      setPaging({ pageIndex: 0, forwardPivots: [], resetKey: pagingResetKey });
       return;
     }
 
@@ -168,7 +213,6 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
     const request = engine.buildDataRequest({
       sortConfig: effectiveSort,
       top: pageSize,
-      skip,
       filter: combinedFilter,
     });
 
@@ -180,21 +224,45 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
       fieldMetadata,
     };
 
+    const afterLastItemId =
+      paging.pageIndex === 0 ? undefined : paging.forwardPivots[paging.pageIndex - 1];
+
+    let cancelled = false;
     itemsService
-      .getPagedItems<Record<string, unknown>>(listTitle, options, pageSize, skip)
+      .getPagedItems<Record<string, unknown>>(listTitle, options, pageSize, afterLastItemId)
       .then(
         (result) => {
+          if (cancelled) return;
           setItems(result.items);
           setHasNext(result.hasNext);
           setLoading(false);
         },
         (err: Error) => {
+          if (cancelled) return;
           setError(err.message);
           setItems([]);
           setLoading(false);
         }
       );
-  }, [listTitle, tableConfig, effectiveSort, skip, pageSize, columnFilters, selectedViewModeId, listView, fieldMetadata, dynamicContext, dashboardListFilters]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    itemsService,
+    listTitle,
+    tableConfig,
+    effectiveSort,
+    pageSize,
+    columnFilters,
+    selectedViewModeId,
+    listView,
+    fieldMetadata,
+    dynamicContext,
+    dashboardListFilters,
+    pagingResetKey,
+    paging,
+    engine,
+  ]);
 
   const handleSort = (field: string, direction: 'asc' | 'desc'): void => {
     setSortConfig({ field, direction });
@@ -207,17 +275,35 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
       else delete next[field];
       return next;
     });
-    setSkip(0);
   };
 
   const layout = pagination?.layout ?? 'buttons';
-  const currentPage = Math.floor(skip / pageSize) + 1;
-  const from = skip + 1;
-  const to = skip + items.length;
-  const showPagination = pagination?.enabled && (hasNext || skip > 0);
-  const onPrev = (): void => setSkip(Math.max(0, skip - pageSize));
-  const onNext = (): void => setSkip(skip + pageSize);
-  const goToPage = (page: number): void => setSkip((page - 1) * pageSize);
+  const currentPage = paging.pageIndex + 1;
+  const from = paging.pageIndex * pageSize + 1;
+  const to = paging.pageIndex * pageSize + items.length;
+  const showPagination = pagination?.enabled && (hasNext || paging.pageIndex > 0);
+  const onPrev = (): void => {
+    setPaging((prev) =>
+      prev.resetKey !== pagingResetKey || prev.pageIndex <= 0
+        ? prev
+        : { ...prev, pageIndex: prev.pageIndex - 1 }
+    );
+  };
+  const onNext = (): void => {
+    const last = readListItemId(items[items.length - 1]);
+    if (last === undefined) return;
+    setPaging((prev) => {
+      if (prev.resetKey !== pagingResetKey) return prev;
+      const pivots = prev.forwardPivots.slice(0, prev.pageIndex);
+      pivots[prev.pageIndex] = last;
+      return { ...prev, pageIndex: prev.pageIndex + 1, forwardPivots: pivots };
+    });
+  };
+  const goToPage = (page: number): void => {
+    setPaging((prev) =>
+      prev.resetKey !== pagingResetKey ? prev : { ...prev, pageIndex: Math.max(0, page - 1) }
+    );
+  };
 
   const pagedNumbers: (number | 'ellipsis')[] =
     layout === 'paged'
@@ -249,7 +335,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
         )}
         {layout === 'paged' && (
           <>
-            {skip > 0 && (
+            {paging.pageIndex > 0 && (
               <button type="button" onClick={onPrev} style={{ padding: btnPad, cursor: 'pointer' }}>
                 Anterior
               </button>
@@ -283,7 +369,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
         )}
         {layout !== 'paged' && (
           <>
-            {skip > 0 && (
+            {paging.pageIndex > 0 && (
               <button type="button" onClick={onPrev} style={{ padding: btnPad, cursor: 'pointer' }}>
                 {layout === 'compact' ? '‹' : 'Anterior'}
               </button>

@@ -6,7 +6,10 @@ export interface IBaseServiceResponse<T> {
 export interface IPagedResult<T> {
   items: T[];
   hasNext: boolean;
-  nextSkip: number;
+  firstItemId?: number;
+  lastItemId?: number;
+  /** @deprecated cursor real: use afterLastItemId na próxima chamada */
+  nextSkip?: number;
   total?: number;
 }
 

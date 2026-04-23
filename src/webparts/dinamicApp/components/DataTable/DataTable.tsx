@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { Callout, Stack, TextField, PrimaryButton } from '@fluentui/react';
+import { Callout, Stack, TextField, PrimaryButton, DefaultButton } from '@fluentui/react';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import type { IListRowActionConfig, ITableRowStyleRule } from '../../core/config/types';
@@ -62,6 +62,15 @@ export const DataTable: React.FC<IDataTableProps> = ({
     }
   };
 
+  const clearFilter = (): void => {
+    if (filterColumn && onColumnFilter) {
+      onColumnFilter(filterColumn, '');
+    }
+    setFilterInputValue('');
+    setFilterColumn(null);
+    setFilterTarget(null);
+  };
+
   if (error) return <TableErrorState message={error} />;
   if (loading && items.length === 0) return <TableLoadingState />;
   if (columns.length === 0) return <TableEmptyState message="Nenhuma coluna visível." />;
@@ -117,7 +126,10 @@ export const DataTable: React.FC<IDataTableProps> = ({
               onChange={(_: React.FormEvent<HTMLInputElement>, v?: string) => setFilterInputValue(v ?? '')}
               onKeyDown={(ev) => ev.key === 'Enter' && applyFilter()}
             />
-            <PrimaryButton text="Filtrar" onClick={applyFilter} />
+            <Stack horizontal tokens={{ childrenGap: 8 }}>
+              <DefaultButton text="Limpar" onClick={clearFilter} />
+              <PrimaryButton text="Filtrar" onClick={applyFilter} />
+            </Stack>
           </Stack>
         </Callout>
       )}

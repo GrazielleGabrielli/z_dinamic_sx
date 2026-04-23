@@ -9,6 +9,7 @@ import {
   ISortConfig,
   IPagedResult,
 } from './types';
+import { readListItemId } from './listItemId';
 
 const EXPANDABLE_TYPES: Array<IFieldMetadata['MappedType']> = ['lookup', 'lookupmulti', 'user', 'usermulti'];
 
@@ -157,11 +158,13 @@ export class ItemsService {
         ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
         : rest;
 
+      const orderBy =
+        opts.orderBy ?? ((opts.skip ?? 0) > 0 ? { field: 'Id', ascending: true } : undefined);
       let query = listRef(this.sp, listTitleOrId).items as any;
       if (opts.select?.length) query = query.select(...opts.select);
       if (opts.expand?.length) query = query.expand(...opts.expand);
       if (opts.filter) query = query.filter(opts.filter);
-      if (opts.orderBy) query = query.orderBy(opts.orderBy.field, opts.orderBy.ascending);
+      if (orderBy) query = query.orderBy(orderBy.field, orderBy.ascending);
       if (opts.top) query = query.top(opts.top);
       if (opts.skip) query = query.skip(opts.skip);
 
@@ -171,11 +174,15 @@ export class ItemsService {
     }
   }
 
+  /**
+   * Paginação alinhada ao REST do SharePoint: `items.skip(id)` do PnP usa `$skiptoken` com `p_ID`
+   * (último Id da página anterior), não deslocamento em linhas.
+   */
   async getPagedItems<T = Record<string, unknown>>(
     listTitleOrId: string,
     options: IItemsQueryOptions = {},
     pageSize = 30,
-    skip = 0
+    afterLastItemId?: number
   ): Promise<IPagedResult<T>> {
     try {
       const { fieldMetadata, ...rest } = options;
@@ -184,20 +191,28 @@ export class ItemsService {
         : rest;
 
       const top = opts.top ?? pageSize;
+      const orderBy = opts.orderBy ?? { field: 'Id', ascending: true };
       let query = listRef(this.sp, listTitleOrId).items as any;
       if (opts.select?.length) query = query.select(...opts.select);
       if (opts.expand?.length) query = query.expand(...opts.expand);
       if (opts.filter) query = query.filter(opts.filter);
-      if (opts.orderBy) query = query.orderBy(opts.orderBy.field, opts.orderBy.ascending);
-      query = query.top(top + 1).skip(skip);
+      query = query.orderBy(orderBy.field, orderBy.ascending);
+      if (afterLastItemId !== undefined && afterLastItemId > 0) {
+        query = query.skip(afterLastItemId);
+      }
+      query = query.top(top + 1);
 
       const items: T[] = await query();
       const hasNext = items.length > top;
+      const slice = (hasNext ? items.slice(0, top) : items) as Record<string, unknown>[];
+      const firstItemId = readListItemId(slice[0]);
+      const lastItemId = readListItemId(slice[slice.length - 1]);
 
       return {
-        items: hasNext ? items.slice(0, top) : items,
+        items: slice as T[],
         hasNext,
-        nextSkip: skip + top,
+        firstItemId,
+        lastItemId,
       };
     } catch (e) {
       throw new Error(`ItemsService.getPagedItems("${listTitleOrId}"): ${e}`);

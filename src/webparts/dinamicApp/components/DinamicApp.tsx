@@ -301,14 +301,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
           styles={{ root: { padding: '16px 0 8px' } }}
         >
           {config.mode !== 'formManager' && (
-          <Stack tokens={{ childrenGap: 6 }}>
             <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
               {config.dataSource.title}
             </Text>
-            <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
-              Modo: {config.mode} · Origem: {config.dataSource.kind}
-            </Text>
-          </Stack>
           )}
           <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
             {config.mode === 'list' && (

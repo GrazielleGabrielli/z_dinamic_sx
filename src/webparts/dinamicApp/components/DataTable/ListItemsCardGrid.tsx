@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { Callout, Stack, Text, TextField, PrimaryButton } from '@fluentui/react';
+import { Callout, Stack, Text, TextField, PrimaryButton, DefaultButton } from '@fluentui/react';
 import type { IListRowActionConfig } from '../../core/config/types';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import type { ITableColumnConfig, ISortConfig } from '../../core/table/types';
@@ -64,6 +64,15 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
       setFilterColumn(null);
       setFilterTarget(null);
     }
+  };
+
+  const clearFilter = (): void => {
+    if (filterColumn && onColumnFilter) {
+      onColumnFilter(filterColumn, '');
+    }
+    setFilterInputValue('');
+    setFilterColumn(null);
+    setFilterTarget(null);
   };
 
   if (error) return <TableErrorState message={error} />;
@@ -204,7 +213,10 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
               onChange={(_: React.FormEvent<HTMLInputElement>, v?: string) => setFilterInputValue(v ?? '')}
               onKeyDown={(ev) => ev.key === 'Enter' && applyFilter()}
             />
-            <PrimaryButton text="Filtrar" onClick={applyFilter} />
+            <Stack horizontal tokens={{ childrenGap: 8 }}>
+              <DefaultButton text="Limpar" onClick={clearFilter} />
+              <PrimaryButton text="Filtrar" onClick={applyFilter} />
+            </Stack>
           </Stack>
         </Callout>
       )}
