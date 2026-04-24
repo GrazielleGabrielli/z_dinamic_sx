@@ -6,6 +6,7 @@ import type {
   TFormAttachmentFilePreviewKind,
 } from '../../core/config/types/formManager';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
+import { AttachmentFileDetailModal } from './AttachmentFileDetailModal';
 
 export interface IFormAttachmentUploaderProps {
   files: File[];
@@ -107,6 +108,15 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [pickRejectHint, setPickRejectHint] = useState('');
+  const [pendingDetailFile, setPendingDetailFile] = useState<File | null>(null);
+
+  const fileDetailModal = (
+    <AttachmentFileDetailModal
+      isOpen={pendingDetailFile !== null}
+      onDismiss={() => setPendingDetailFile(null)}
+      target={pendingDetailFile ? { kind: 'pending', file: pendingDetailFile } : null}
+    />
+  );
 
   const inputAccept = useMemo(() => {
     if (!allowedFileExtensions || allowedFileExtensions.length === 0) return undefined;
@@ -318,9 +328,14 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
           }}
           title="Remover"
           ariaLabel={`Remover ${f.name}`}
-          onClick={() => removeAt(idx)}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeAt(idx);
+          }}
         />
       );
+
+    const rowOpenDetail = (f: File) => (): void => setPendingDetailFile(f);
 
     if (compactChips) {
       return (
@@ -380,7 +395,17 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
                     borderRadius: 16,
                     border: '1px solid #edebe9',
                     maxWidth: '100%',
+                    cursor: 'pointer',
                   },
+                }}
+                role="button"
+                tabIndex={0}
+                onClick={rowOpenDetail(f)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setPendingDetailFile(f);
+                  }
                 }}
               >
                 {inner}
@@ -405,7 +430,17 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
                   background: '#faf9f8',
                   borderRadius: 8,
                   border: '1px solid #edebe9',
+                  cursor: 'pointer',
                 },
+              }}
+              role="button"
+              tabIndex={0}
+              onClick={rowOpenDetail(f)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setPendingDetailFile(f);
+                }
               }}
             >
               {renderLargePreview(f, idx)}
@@ -476,7 +511,17 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
                   background: '#faf9f8',
                   borderRadius: 6,
                   border: '1px solid #edebe9',
+                  cursor: 'pointer',
                 },
+              }}
+              role="button"
+              tabIndex={0}
+              onClick={rowOpenDetail(f)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setPendingDetailFile(f);
+                }
               }}
             >
               {row}
@@ -553,6 +598,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
         )}
         {renderFileRows(false)}
         {footerErr}
+        {fileDetailModal}
       </Stack>
     );
   }
@@ -603,6 +649,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
         )}
         {renderFileRows(false)}
         {footerErr}
+        {fileDetailModal}
       </Stack>
     );
   }
@@ -634,6 +681,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
         )}
         {renderFileRows(useCompactChips)}
         {footerErr}
+        {fileDetailModal}
       </Stack>
     );
   }
@@ -709,6 +757,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
         )}
         {renderFileRows(false)}
         {footerErr}
+        {fileDetailModal}
       </Stack>
     );
   }
@@ -757,6 +806,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
       )}
       {renderFileRows(false)}
       {footerErr}
+      {fileDetailModal}
     </Stack>
   );
 };

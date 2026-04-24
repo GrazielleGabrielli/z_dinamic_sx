@@ -285,6 +285,8 @@ export interface ITextFieldConditionalGroup {
   id: string;
   /** Omitido ou vazio = aplicar em Criar, Editar e Ver. */
   modes: TFormManagerFormMode[];
+  /** Omitido ou vazio = todos os utilizadores; caso contrário, pelo menos um grupo. */
+  groupTitles?: string[];
   groupOp: TTextFieldConditionalGroupOp;
   conditions: ITextFieldConditionalCondition[];
   action: TTextFieldConditionalAction;

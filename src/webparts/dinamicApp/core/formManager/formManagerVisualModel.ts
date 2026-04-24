@@ -506,9 +506,11 @@ export function compileTextFieldConditionalVisibilityRules(
     if (!when) continue;
     const gid = safeIdSegment(g.id || `g${i}`);
     const modePayload = g.modes?.length ? { modes: g.modes } : {};
+    const groupPayload = g.groupTitles?.length ? { groupTitles: g.groupTitles } : {};
     if (g.action === 'disable') {
       out.push({
         ...modePayload,
+        ...groupPayload,
         id: `ui_f_${seg}_txdis_${gid}`,
         action: 'setDisabled',
         field: internalName,
@@ -518,6 +520,7 @@ export function compileTextFieldConditionalVisibilityRules(
     } else {
       out.push({
         ...modePayload,
+        ...groupPayload,
         id: `ui_f_${seg}_txvis_${gid}`,
         action: 'setVisibility',
         targetKind: 'field',

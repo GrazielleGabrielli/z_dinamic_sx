@@ -74,6 +74,13 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       const m = modesRaw[j];
       if (m === 'create' || m === 'edit' || m === 'view') modes.push(m);
     }
+    const groupTitlesRaw = Array.isArray(gr.groupTitles) ? gr.groupTitles : [];
+    const groupTitles: string[] = [];
+    for (let gi = 0; gi < groupTitlesRaw.length; gi++) {
+      const t = typeof groupTitlesRaw[gi] === 'string' ? (groupTitlesRaw[gi] as string).trim() : '';
+      if (!t) continue;
+      groupTitles.push(t.slice(0, 256));
+    }
     const condRaw = Array.isArray(gr.conditions) ? gr.conditions : [];
     const conditions: ITextFieldConditionalCondition[] = [];
     for (let k = 0; k < condRaw.length; k++) {
@@ -90,7 +97,14 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       const cv = typeof cr.compareValue === 'string' ? cr.compareValue.slice(0, 8000) : '';
       conditions.push({ id: cid, refField, op, compareKind: ck, compareValue: cv });
     }
-    groups.push({ id, modes, groupOp, conditions, action });
+    groups.push({
+      id,
+      modes,
+      ...(groupTitles.length ? { groupTitles } : {}),
+      groupOp,
+      conditions,
+      action,
+    });
   }
   if (!groups.length) return undefined;
   return { groups };

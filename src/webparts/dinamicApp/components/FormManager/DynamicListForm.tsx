@@ -15,7 +15,6 @@ import {
   MessageBar,
   MessageBarType,
   Label,
-  Link,
   Icon,
   Dialog,
   DialogFooter,
@@ -83,6 +82,7 @@ import {
 import { formValuesToSharePointPayload } from '../../core/formManager/formSharePointValues';
 import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
+import { AttachmentFileDetailModal } from './AttachmentFileDetailModal';
 import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidation';
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
 import {
@@ -2850,6 +2850,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   );
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [attachmentDetailRow, setAttachmentDetailRow] = useState<IServerAttachmentRow | null>(null);
   const modalGroupIds = useMemo(() => {
     const seen: Record<string, boolean> = {};
     const ids: string[] = [];
@@ -2917,13 +2918,28 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                   styles={{ root: { fontSize: iconPx, color: '#0078d4', flexShrink: 0 } }}
                 />
               ))}
-            {a.fileUrl ? (
-              <Link href={a.fileUrl} target="_blank" rel="noopener noreferrer">
-                {a.fileName}
-              </Link>
-            ) : (
-              <Text variant="small">{a.fileName}</Text>
-            )}
+            <Text
+              variant="small"
+              styles={{
+                root: {
+                  color: '#0078d4',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  wordBreak: 'break-word',
+                },
+              }}
+              role="button"
+              tabIndex={0}
+              onClick={() => setAttachmentDetailRow(a)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setAttachmentDetailRow(a);
+                }
+              }}
+            >
+              {a.fileName}
+            </Text>
           </Stack>
         ))}
       </Stack>
@@ -3903,6 +3919,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <DefaultButton text="Fechar modal" onClick={() => setModalOpen(false)} />
           </Stack>
         )}
+        <AttachmentFileDetailModal
+          isOpen={attachmentDetailRow !== null}
+          onDismiss={() => setAttachmentDetailRow(null)}
+          target={
+            attachmentDetailRow
+              ? {
+                  kind: 'server',
+                  fileName: attachmentDetailRow.fileName,
+                  fileUrl: attachmentDetailRow.fileUrl,
+                  fileRef: attachmentDetailRow.fileRef,
+                }
+              : null
+          }
+        />
         <Dialog
           hidden={!confirmDialogOpen}
           onDismiss={() => closeButtonConfirmDialog(false)}

@@ -16,8 +16,11 @@ import {
   ChoiceGroup,
   type IChoiceGroupOption,
   Link,
+  MessageBar,
+  MessageBarType,
+  Spinner,
 } from '@fluentui/react';
-import type { IFieldMetadata } from '../../../../services';
+import { GroupsService, type IFieldMetadata, type IGroupDetails } from '../../../../services';
 import type {
   IFormFieldConfig,
   TFormFieldTextInputMaskKind,
@@ -80,6 +83,10 @@ const TEXT_COND_GROUP_OP_OPTS: IChoiceGroupOption[] = [
   { key: 'all', text: 'E (todas as condições)' },
   { key: 'any', text: 'OU (pelo menos uma)' },
 ];
+
+function normSpGroupTitle(s: string): string {
+  return s.trim().toLowerCase();
+}
 
 function newTextConditionalCondition(defaultRefField: string): ITextFieldConditionalCondition {
   return {
@@ -681,6 +688,37 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const [fc, setFc] = useState<IFormFieldConfig>(fieldConfig);
   const [ed, setEd] = useState<IFieldRuleEditorState>(() => emptyFieldRuleEditorState());
   const [textRulesOpen, setTextRulesOpen] = useState<Record<string, boolean>>({});
+  const groupsService = useMemo(() => new GroupsService(), []);
+  const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
+  const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
+  const [siteGroupsErr, setSiteGroupsErr] = useState<string>();
+
+  const loadSiteGroups = useCallback((): void => {
+    setSiteGroupsErr(undefined);
+    setSiteGroupsLoading(true);
+    groupsService
+      .getSiteGroups()
+      .then((g) => {
+        setSiteGroups(g);
+        setSiteGroupsLoading(false);
+      })
+      .catch((e) => {
+        setSiteGroups([]);
+        setSiteGroupsLoading(false);
+        setSiteGroupsErr(e instanceof Error ? e.message : String(e));
+      });
+  }, [groupsService]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadSiteGroups();
+  }, [isOpen, loadSiteGroups]);
+
+  const siteGroupsSorted = useMemo(() => {
+    const g = siteGroups.slice();
+    g.sort((a, b) => (a.Title < b.Title ? -1 : a.Title > b.Title ? 1 : 0));
+    return g;
+  }, [siteGroups]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1283,6 +1321,106 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Vazio = todos os modos. Desmarque um para restringir.
                   </Text>
+                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                    Grupos do SharePoint
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Vazio = a regra aplica-se a todos. Se marcar grupos, só quem pertencer a pelo menos um deles (e
+                    cumprir as condições acima) fica abrangido.
+                  </Text>
+                  {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
+                  {siteGroupsErr ? (
+                    <>
+                      <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
+                      <DefaultButton text="Tentar carregar grupos novamente" onClick={() => loadSiteGroups()} />
+                    </>
+                  ) : null}
+                  {!siteGroupsLoading ? (
+                    <Stack
+                      tokens={{ childrenGap: 6 }}
+                      styles={{
+                        root: {
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                          border: '1px solid #edebe9',
+                          borderRadius: 4,
+                          padding: 8,
+                        },
+                      }}
+                    >
+                      {(g.groupTitles ?? [])
+                        .filter(
+                          (t) =>
+                            !siteGroups.some(
+                              (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
+                            )
+                        )
+                        .map((t, oi) => (
+                          <Checkbox
+                            key={`tx-orphan-${g.id}-${oi}-${t}`}
+                            label={`${t} (guardado; não na lista do site)`}
+                            checked
+                            onChange={(_, c) => {
+                              if (c) return;
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                    if (gr.id !== g.id) return gr;
+                                    const cur = gr.groupTitles ?? [];
+                                    const n = normSpGroupTitle(t);
+                                    const next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                                    const out: ITextFieldConditionalGroup = { ...gr };
+                                    if (next.length) out.groupTitles = next;
+                                    else delete out.groupTitles;
+                                    return out;
+                                  }),
+                                },
+                              }));
+                            }}
+                          />
+                        ))}
+                      {siteGroupsSorted.map((sg) => {
+                        const cur = g.groupTitles ?? [];
+                        const n = normSpGroupTitle(sg.Title);
+                        const checked = cur.some((x) => normSpGroupTitle(x) === n);
+                        return (
+                          <Checkbox
+                            key={`tx-sg-${g.id}-${sg.Id}`}
+                            label={sg.Title}
+                            title={sg.Description || undefined}
+                            checked={checked}
+                            onChange={(_, c) => {
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                    if (gr.id !== g.id) return gr;
+                                    const prevTitles = gr.groupTitles ?? [];
+                                    let next: string[];
+                                    if (c) {
+                                      next = checked ? prevTitles : prevTitles.concat([sg.Title]);
+                                    } else {
+                                      next = prevTitles.filter((x) => normSpGroupTitle(x) !== n);
+                                    }
+                                    const out: ITextFieldConditionalGroup = { ...gr };
+                                    if (next.length) out.groupTitles = next;
+                                    else delete out.groupTitles;
+                                    return out;
+                                  }),
+                                },
+                              }));
+                            }}
+                          />
+                        );
+                      })}
+                      {!siteGroupsSorted.length && !(g.groupTitles ?? []).length ? (
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          Nenhum grupo no site.
+                        </Text>
+                      ) : null}
+                    </Stack>
+                  ) : null}
                   <ChoiceGroup
                     label="Operador lógico entre condições"
                     selectedKey={g.groupOp}

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   Stack,
   Text,
@@ -8,7 +8,6 @@ import {
   Spinner,
   MessageBar,
   MessageBarType,
-  Link,
   Icon,
   type IStyle,
 } from '@fluentui/react';
@@ -30,6 +29,7 @@ import { isAttachmentFolderUploaderVisible } from '../../core/formManager/formRu
 import { LinkedChildFormRowFields, type TLinkedChildFormRowFieldLayout } from './LinkedChildFormRowFields';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
+import { AttachmentFileDetailModal } from './AttachmentFileDetailModal';
 
 export type ILinkedChildServerAttachmentRow = { fileName: string; fileUrl: string; fileRef?: string };
 
@@ -38,6 +38,7 @@ function LinkedChildServerAttachmentList(props: {
   filePreview?: TFormAttachmentFilePreviewKind;
 }): JSX.Element | null {
   const { rows, filePreview = 'nameAndSize' } = props;
+  const [detailRow, setDetailRow] = useState<ILinkedChildServerAttachmentRow | null>(null);
   if (!rows.length) return null;
   const showIcon =
     filePreview === 'iconAndName' ||
@@ -47,59 +48,90 @@ function LinkedChildServerAttachmentList(props: {
   const thumbBox = filePreview === 'thumbnailAndName' || filePreview === 'thumbnailLarge';
   const boxPx = filePreview === 'thumbnailLarge' ? 56 : 40;
   return (
-    <Stack tokens={{ childrenGap: thumbBox ? 8 : 4 }}>
-      {rows.map((a, ai) => (
-        <Stack
-          key={`${a.fileRef ?? a.fileUrl}-${a.fileName}-${ai}`}
-          horizontal
-          verticalAlign="center"
-          tokens={{ childrenGap: 10 }}
-          styles={{
-            root: thumbBox
-              ? {
-                  padding: '8px 12px',
-                  background: '#faf9f8',
-                  borderRadius: 6,
-                  border: '1px solid #edebe9',
-                }
-              : undefined,
-          }}
-        >
-          {showIcon &&
-            (thumbBox ? (
-              <div
-                style={{
-                  width: boxPx,
-                  height: boxPx,
-                  borderRadius: 6,
-                  background: '#edebe9',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
+    <>
+      <Stack tokens={{ childrenGap: thumbBox ? 8 : 4 }}>
+        {rows.map((a, ai) => (
+          <Stack
+            key={`${a.fileRef ?? a.fileUrl}-${a.fileName}-${ai}`}
+            horizontal
+            verticalAlign="center"
+            tokens={{ childrenGap: 10 }}
+            styles={{
+              root: thumbBox
+                ? {
+                    padding: '8px 12px',
+                    background: '#faf9f8',
+                    borderRadius: 6,
+                    border: '1px solid #edebe9',
+                  }
+                : undefined,
+            }}
+          >
+            {showIcon &&
+              (thumbBox ? (
+                <div
+                  style={{
+                    width: boxPx,
+                    height: boxPx,
+                    borderRadius: 6,
+                    background: '#edebe9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon
+                    iconName={attachmentFileKindIconName(a.fileName)}
+                    styles={{ root: { fontSize: iconPx, color: '#605e5c' } }}
+                  />
+                </div>
+              ) : (
                 <Icon
                   iconName={attachmentFileKindIconName(a.fileName)}
-                  styles={{ root: { fontSize: iconPx, color: '#605e5c' } }}
+                  styles={{ root: { fontSize: iconPx, color: '#0078d4', flexShrink: 0 } }}
                 />
-              </div>
-            ) : (
-              <Icon
-                iconName={attachmentFileKindIconName(a.fileName)}
-                styles={{ root: { fontSize: iconPx, color: '#0078d4', flexShrink: 0 } }}
-              />
-            ))}
-          {a.fileUrl ? (
-            <Link href={a.fileUrl} target="_blank" rel="noopener noreferrer">
+              ))}
+            <Text
+              variant="small"
+              styles={{
+                root: {
+                  color: '#0078d4',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  wordBreak: 'break-word',
+                },
+              }}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailRow(a)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setDetailRow(a);
+                }
+              }}
+            >
               {a.fileName}
-            </Link>
-          ) : (
-            <Text variant="small">{a.fileName}</Text>
-          )}
-        </Stack>
-      ))}
-    </Stack>
+            </Text>
+          </Stack>
+        ))}
+      </Stack>
+      <AttachmentFileDetailModal
+        isOpen={detailRow !== null}
+        onDismiss={() => setDetailRow(null)}
+        target={
+          detailRow
+            ? {
+                kind: 'server',
+                fileName: detailRow.fileName,
+                fileUrl: detailRow.fileUrl,
+                fileRef: detailRow.fileRef,
+              }
+            : null
+        }
+      />
+    </>
   );
 }
 

@@ -31,6 +31,8 @@ import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePoi
 import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
 import { multiSelectDropdownStyles, renderMultiSelectDropdownTitle } from './formMultiSelectDropdownUi';
 import { ItemsService, UsersService } from '../../../../services';
+import { IMaskInput } from 'react-imask';
+import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
 
 const REQ_EMPTY_BORDER = '#a4262c';
 
@@ -622,6 +624,77 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             />
             {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
+        );
+      }
+      case 'text': {
+        const rawSingle =
+          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+        const maskOpts = resolveTextInputMaskOptions(fc.textInputMaskKind, fc.textInputMaskCustomPattern);
+        const inputBorder = err ? theme.semanticColors.errorText : theme.semanticColors.inputBorder;
+        const maskInputStyle: React.CSSProperties = {
+          width: '100%',
+          boxSizing: 'border-box',
+          minHeight: 32,
+          padding: '0 8px',
+          font: 'inherit',
+          color: theme.semanticColors.inputText,
+          backgroundColor: theme.semanticColors.inputBackground,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: inputBorder,
+          borderRadius: 2,
+          outline: 'none',
+        };
+        if (maskOpts) {
+          return (
+            <Stack
+              key={name}
+              tokens={{ childrenGap: 4 }}
+              styles={{
+                root: {
+                  marginBottom: mb,
+                  ...(showReqEmpty && !cell
+                    ? {
+                        borderLeft: `3px solid ${REQ_EMPTY_BORDER}`,
+                        paddingLeft: 8,
+                        paddingTop: 2,
+                        paddingBottom: 2,
+                      }
+                    : {}),
+                },
+              }}
+            >
+              {!cell && <Label required={isRequired}>{label}</Label>}
+              <IMaskInput
+                {...maskOpts}
+                value={rawSingle}
+                disabled={readOnly}
+                placeholder={fc.placeholder ?? undefined}
+                onAccept={(val) => updateField(name, String(val ?? ''))}
+                style={maskInputStyle}
+                aria-invalid={err ? true : undefined}
+                aria-required={isRequired ? true : undefined}
+                aria-label={cell ? label : undefined}
+              />
+              {err ? (
+                <Text variant="small" styles={{ root: { color: theme.semanticColors.errorText } }}>{err}</Text>
+              ) : null}
+              {help && !cell ? <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text> : null}
+            </Stack>
+          );
+        }
+        return (
+          <TextField
+            key={name}
+            {...(cell ? { ariaLabel: label } : { label })}
+            placeholder={fc.placeholder}
+            value={rawSingle}
+            onChange={(_, v) => updateField(name, v ?? '')}
+            required={isRequired}
+            {...common}
+            description={cell ? undefined : help}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+          />
         );
       }
       case 'multiline': {
