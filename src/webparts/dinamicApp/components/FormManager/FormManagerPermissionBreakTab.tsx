@@ -33,7 +33,7 @@ const ROLE_OPTIONS: IDropdownOption[] = [
 
 const KIND_OPTIONS: IDropdownOption[] = [
   { key: 'siteGroup', text: 'Grupo do site' },
-  { key: 'user', text: 'Utilizador' },
+  { key: 'user', text: 'Pessoa do Site' },
   { key: 'field', text: 'Campo (Pessoa / Vários)' },
 ];
 
@@ -100,7 +100,7 @@ const UserPickerInline: React.FC<{
   return (
     <Stack tokens={{ childrenGap: 4 }} styles={{ root: { minWidth: 280 } }}>
       <TextField
-        label="Utilizador (pesquisar)"
+        label="Pessoa do Site (pesquisar)"
         value={q}
         onChange={(_, v) => setQ(v ?? '')}
         description={pickerKey ? `Selecionado: ${displayText ?? pickerKey}` : undefined}

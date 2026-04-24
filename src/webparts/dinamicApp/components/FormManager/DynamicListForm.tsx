@@ -479,6 +479,7 @@ interface IFormButtonRunTimelineCtx {
   hasLinkedChildren: boolean;
   actionLogWillRun: boolean;
   hasPendingAttachments: boolean;
+  permissionBreakWillRun: boolean;
 }
 
 function buildCustomButtonRunTimelineLabels(
@@ -509,6 +510,7 @@ function buildCustomButtonRunTimelineLabels(
     out.push('Criar item na lista');
     if (ctx.hasPendingAttachments) out.push('Enviar anexos');
     if (ctx.hasLinkedChildren) out.push('Sincronizar listas vinculadas');
+    if (ctx.permissionBreakWillRun) out.push('Aplicar quebra de permissões');
     if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
     out.push(finishStepLabelForTimeline(btn));
     return out;
@@ -519,6 +521,7 @@ function buildCustomButtonRunTimelineLabels(
     out.push('Atualizar item na lista');
     if (ctx.hasPendingAttachments) out.push('Enviar anexos');
     if (ctx.hasLinkedChildren) out.push('Sincronizar listas vinculadas');
+    if (ctx.permissionBreakWillRun) out.push('Aplicar quebra de permissões');
     if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
     out.push(finishStepLabelForTimeline(btn));
     return out;
@@ -544,7 +547,11 @@ function buildCustomButtonRunTimelineLabels(
     return out;
   }
   if (behavior === 'submit') {
-    out.push('Validar e guardar envio');
+    out.push(
+      ctx.permissionBreakWillRun
+        ? 'Validar, gravar e aplicar quebra de permissões'
+        : 'Validar e guardar envio'
+    );
     if (ctx.actionLogWillRun) out.push('Registar ação no histórico');
     out.push(finishStepLabelForTimeline(btn));
     return out;
@@ -1651,7 +1658,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     async (
       parentId: number,
       valuesForPerm: Record<string, unknown>,
-      linkedRowsSnapshot: Record<string, ILinkedChildRowState[]>
+      linkedRowsSnapshot: Record<string, ILinkedChildRowState[]>,
+      onProgress?: (detail: string) => void
     ): Promise<void> => {
       if (!formManager.permissionBreak?.enabled) return;
       await applyFormManagerPermissionBreak({
@@ -1662,6 +1670,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         mainAuthorId: pickMainAuthorId(valuesForPerm, initialItem, currentUserId),
         linkedConfigsSorted,
         linkedRowsById: linkedRowsSnapshot,
+        onProgress,
       });
     },
     [formManager, listTitle, linkedConfigsSorted, initialItem, currentUserId]
@@ -2051,6 +2060,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       hasLinkedChildren,
       actionLogWillRun: logWillRun,
       hasPendingAttachments,
+      permissionBreakWillRun: formManager.permissionBreak?.enabled === true,
     };
     const runTlTitle = `Execução: ${(btn.label || btn.id).trim() || 'Botão'}`;
     let tl: IRunTimelineCtl | null = null;
@@ -2270,12 +2280,32 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           if (tl) tl.ok(ti);
           ti++;
         }
-        try {
-          await runPermissionBreakAfterSubmit(newId, mergedValues, linkedSnapAdd);
-        } catch (pe) {
-          setFormError(
-            `Item criado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
-          );
+        if (formManager.permissionBreak?.enabled) {
+          if (tl) tl.enter(ti);
+          try {
+            await runPermissionBreakAfterSubmit(
+              newId,
+              mergedValues,
+              linkedSnapAdd,
+              tl ? (d) => tl!.setRunningDetail(d) : undefined
+            );
+            if (tl) {
+              tl.setRunningDetail(undefined);
+              tl.ok(ti);
+              ti++;
+            }
+          } catch (pe) {
+            setFormError(
+              `Item criado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
+            );
+            if (tl) {
+              tl.setRunningDetail(undefined);
+              tl.err(ti);
+              tl.closeError();
+              setSubmitUi(null);
+              return;
+            }
+          }
         }
         if (logWillRun) {
           if (tl) tl.enter(ti);
@@ -2417,12 +2447,32 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           if (tl) tl.ok(ti);
           ti++;
         }
-        try {
-          await runPermissionBreakAfterSubmit(itemId, mergedValues, linkedSnapUp);
-        } catch (pe) {
-          setFormError(
-            `Gravado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
-          );
+        if (formManager.permissionBreak?.enabled) {
+          if (tl) tl.enter(ti);
+          try {
+            await runPermissionBreakAfterSubmit(
+              itemId,
+              mergedValues,
+              linkedSnapUp,
+              tl ? (d) => tl!.setRunningDetail(d) : undefined
+            );
+            if (tl) {
+              tl.setRunningDetail(undefined);
+              tl.ok(ti);
+              ti++;
+            }
+          } catch (pe) {
+            setFormError(
+              `Gravado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
+            );
+            if (tl) {
+              tl.setRunningDetail(undefined);
+              tl.err(ti);
+              tl.closeError();
+              setSubmitUi(null);
+              return;
+            }
+          }
         }
         await onAfterItemUpdated?.();
         if (logWillRun) {

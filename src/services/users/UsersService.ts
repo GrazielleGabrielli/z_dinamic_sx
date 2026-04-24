@@ -53,18 +53,22 @@ export class UsersService {
   }
 
   async getUserGroups(loginName?: string): Promise<IUserGroupMembership[]> {
+    const loadCurrentUserGroups = async (): Promise<IUserGroupMembership[]> => {
+      const groups = await this.sp.web.currentUser.groups.select('Id', 'Title')();
+      return groups as IUserGroupMembership[];
+    };
     try {
       if (loginName) {
-        const groups = await this.sp.web.siteUsers
-          .getByLoginName(loginName)
-          .groups
-          .select('Id', 'Title')();
-        return groups as IUserGroupMembership[];
+        try {
+          const groups = await this.sp.web.siteUsers
+            .getByLoginName(loginName)
+            .groups.select('Id', 'Title')();
+          return groups as IUserGroupMembership[];
+        } catch {
+          return await loadCurrentUserGroups();
+        }
       }
-      const groups = await this.sp.web.currentUser
-        .groups
-        .select('Id', 'Title')();
-      return groups as IUserGroupMembership[];
+      return await loadCurrentUserGroups();
     } catch (e) {
       throw new Error(`UsersService.getUserGroups: ${e}`);
     }

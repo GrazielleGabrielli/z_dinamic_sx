@@ -366,6 +366,69 @@ export async function uploadFilesToAttachmentLibrary(
   }
 }
 
+export interface ILibraryFolderListItemRef {
+  id: number;
+  authorId?: number;
+}
+
+function odataCollection<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === 'object' && Array.isArray((raw as { value?: unknown[] }).value)) {
+    return (raw as { value: T[] }).value;
+  }
+  return [];
+}
+
+export async function collectLibraryFolderListItemIdsUnderItemFolder(
+  libraryTitle: string,
+  mainItemId: number
+): Promise<ILibraryFolderListItemRef[]> {
+  const sp = getSP();
+  const idFolder = sanitizeSharePointFolderLeafName(String(mainItemId));
+  if (!idFolder) return [];
+  const list = sp.web.lists.getByTitle(libraryTitle.trim());
+  let root: IFolder;
+  try {
+    root = list.rootFolder.folders.getByUrl(idFolder);
+    const meta = await root.select('Exists')();
+    if (meta.Exists === false) return [];
+  } catch {
+    return [];
+  }
+  const out: ILibraryFolderListItemRef[] = [];
+  async function walk(folder: IFolder): Promise<void> {
+    let item: { Id?: number; AuthorId?: number };
+    try {
+      item = await folder.getItem<{ Id?: number; AuthorId?: number }>('Id', 'AuthorId');
+    } catch {
+      return;
+    }
+    const id = typeof item.Id === 'number' ? item.Id : Number(item.Id);
+    if (!isFinite(id) || id <= 0) return;
+    const aid = typeof item.AuthorId === 'number' ? item.AuthorId : Number(item.AuthorId);
+    out.push({ id, authorId: isFinite(aid) && aid > 0 ? aid : undefined });
+    let subs: { Name?: string }[];
+    try {
+      subs = odataCollection<{ Name?: string }>(await folder.folders.select('Name')());
+    } catch {
+      return;
+    }
+    for (let i = 0; i < subs.length; i++) {
+      const sub = subs[i];
+      if (!sub) continue;
+      const nm = typeof sub.Name === 'string' ? sub.Name.trim() : '';
+      if (!nm) continue;
+      try {
+        await walk(folder.folders.getByUrl(nm));
+      } catch {
+        /* */
+      }
+    }
+  }
+  await walk(root);
+  return out;
+}
+
 export async function loadLibraryAttachmentRowsForMainItem(
   libraryTitle: string,
   lookupFieldInternalName: string,

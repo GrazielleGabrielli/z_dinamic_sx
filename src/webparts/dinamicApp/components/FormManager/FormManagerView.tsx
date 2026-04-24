@@ -165,8 +165,10 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         );
         return usersService.getUserGroups(user.LoginName);
       })
-      .then((groups) => setUserGroupTitles(groups.map((g) => g.Title)))
+      .then((groups) => setUserGroupTitles(groups.map((g) => String(g.Title ?? '').trim()).filter(Boolean)))
       .catch(() => {
+        setCurrentUserId(0);
+        setUserGroupTitles([]);
         setDynamicContext(buildDynamicContext({ now: new Date(), list: { title: listTitle } }));
       });
   }, [listTitle]);
