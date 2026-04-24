@@ -74,7 +74,9 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   );
   const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
   const [dynamicContext, setDynamicContext] = useState<IDynamicContext | undefined>(undefined);
-  const [listDisplayMode, setListDisplayMode] = useState<'table' | 'cards'>('table');
+  const [listDisplayMode, setListDisplayMode] = useState<'table' | 'cards'>(() =>
+    listView?.listCardViewEnabled === true && listView?.listDefaultDisplayMode === 'cards' ? 'cards' : 'table'
+  );
   const listCardViewEnabled = listView?.listCardViewEnabled === true;
 
   useEffect(() => {
@@ -82,8 +84,16 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   }, [listView?.activeViewModeId, listView?.viewModes]);
 
   useEffect(() => {
-    if (!listCardViewEnabled) setListDisplayMode('table');
-  }, [listCardViewEnabled]);
+    setColumnFilters({});
+  }, [selectedViewModeId]);
+
+  useEffect(() => {
+    if (!listCardViewEnabled) {
+      setListDisplayMode('table');
+      return;
+    }
+    setListDisplayMode(listView?.listDefaultDisplayMode === 'cards' ? 'cards' : 'table');
+  }, [listCardViewEnabled, listView?.listDefaultDisplayMode]);
 
   useEffect(() => {
     const usersService = new UsersService();

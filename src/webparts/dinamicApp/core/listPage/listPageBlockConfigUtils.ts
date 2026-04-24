@@ -7,6 +7,7 @@ import type {
   IListPageRichEditorBlockConfig,
   IListPageSectionTitleBlockConfig,
   TListPageAlertCountOp,
+  TListPageAlertCountFilterFieldOp,
   TListPageAlertVariant,
   TListPageBannerContentAlign,
   TListPageButtonActionKind,
@@ -202,6 +203,16 @@ export function sanitizeSectionTitleConfig(raw: unknown): IListPageSectionTitleB
   return d;
 }
 
+const ALERT_COUNT_FILTER_FIELD_OPS: TListPageAlertCountFilterFieldOp[] = [
+  'eq',
+  'ne',
+  'gt',
+  'ge',
+  'lt',
+  'le',
+  'contains',
+];
+
 function sanitizeAlertCountRule(raw: unknown): IListPageAlertCountRule | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
@@ -215,6 +226,17 @@ function sanitizeAlertCountRule(raw: unknown): IListPageAlertCountRule | undefin
   if (!isFinite(count)) return undefined;
   const odataFilter = typeof r.odataFilter === 'string' ? r.odataFilter.trim() : '';
   const out: IListPageAlertCountRule = { id, countOp, count, ...(odataFilter ? { odataFilter } : {}) };
+  const cf = typeof r.countFilterField === 'string' ? r.countFilterField.trim() : '';
+  if (cf) {
+    out.countFilterField = cf;
+    const cfOpRaw = typeof r.countFilterFieldOp === 'string' ? r.countFilterFieldOp : '';
+    out.countFilterFieldOp =
+      ALERT_COUNT_FILTER_FIELD_OPS.indexOf(cfOpRaw as TListPageAlertCountFilterFieldOp) !== -1
+        ? (cfOpRaw as TListPageAlertCountFilterFieldOp)
+        : 'eq';
+    if (typeof r.countFilterValue === 'string') out.countFilterValue = r.countFilterValue;
+  }
+  if (r.countFilterUseManualOdata === true) out.countFilterUseManualOdata = true;
   if (typeof r.title === 'string') out.title = r.title;
   if (typeof r.message === 'string') out.message = r.message;
   const v = typeof r.variant === 'string' ? r.variant : '';

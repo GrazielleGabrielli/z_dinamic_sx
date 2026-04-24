@@ -50,6 +50,9 @@ export function buildConfig(params: {
       activeViewModeId: params.listView?.activeViewModeId ?? defaults.listView.activeViewModeId,
       pdfExportEnabled: params.listView?.pdfExportEnabled ?? defaults.listView.pdfExportEnabled,
       listCardViewEnabled: params.listView?.listCardViewEnabled ?? defaults.listView.listCardViewEnabled ?? false,
+      ...(params.listView?.listCardViewEnabled === true && params.listView?.listDefaultDisplayMode === 'cards'
+        ? { listDefaultDisplayMode: 'cards' as const }
+        : {}),
       customTableCssSlots: params.listView?.customTableCssSlots ?? defaults.listView.customTableCssSlots,
       customTableCss: params.listView?.customTableCss ?? defaults.listView.customTableCss,
       tableRowStyleRules: params.listView?.tableRowStyleRules ?? defaults.listView.tableRowStyleRules,

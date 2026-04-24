@@ -45,6 +45,7 @@ import type {
   TPaginationLayout,
   TFilterOperator,
   TViewMode,
+  TListViewDisplayMode,
 } from '../../core/config/types';
 import { PdfTemplateEditor } from './PdfTemplateEditor';
 import {
@@ -242,6 +243,81 @@ function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
 }
 
+type TListTabListaSection = 'pagination' | 'viewModes' | 'columns';
+
+function ListTabListaCollapse(props: {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <Stack
+      styles={{
+        root: {
+          border: '1px solid #edebe9',
+          borderRadius: 10,
+          background: '#ffffff',
+          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+          overflow: 'hidden',
+          maxWidth: '100%',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
+        },
+      }}
+    >
+      <Stack
+        horizontal
+        verticalAlign="center"
+        tokens={{ childrenGap: 2 }}
+        styles={{
+          root: {
+            padding: '10px 12px',
+            background: props.isOpen ? '#faf9f8' : '#ffffff',
+            borderBottom: props.isOpen ? '1px solid #edebe9' : undefined,
+            userSelect: 'none',
+          },
+        }}
+      >
+        <IconButton
+          iconProps={{ iconName: props.isOpen ? 'ChevronDown' : 'ChevronRight' }}
+          title={props.isOpen ? 'Recolher' : 'Expandir'}
+          aria-expanded={props.isOpen}
+          onClick={(e) => {
+            e.preventDefault();
+            props.onToggle();
+          }}
+          styles={{ root: { width: 32, height: 32 } }}
+        />
+        <Text
+          variant="smallPlus"
+          styles={{ root: { fontWeight: 600, cursor: 'pointer', flex: 1, color: '#323130' } }}
+          onClick={props.onToggle}
+        >
+          {props.title}
+        </Text>
+      </Stack>
+      {props.isOpen ? (
+        <div
+          style={{
+            padding: '14px 14px 16px 18px',
+            maxWidth: '100%',
+            minWidth: 0,
+            width: '100%',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {props.children}
+        </div>
+      ) : null}
+    </Stack>
+  );
+}
+
 export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = ({
   isOpen,
   mode,
@@ -264,6 +340,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [paginationLayout, setPaginationLayout] = useState<TPaginationLayout>(pagination.layout ?? 'buttons');
   const [pdfExportEnabled, setPdfExportEnabled] = useState(listView.pdfExportEnabled ?? false);
   const [listCardViewEnabled, setListCardViewEnabled] = useState(listView.listCardViewEnabled ?? false);
+  const [listDefaultDisplayMode, setListDefaultDisplayMode] = useState<TListViewDisplayMode>(
+    listView.listDefaultDisplayMode === 'cards' ? 'cards' : 'table'
+  );
   const [layoutCssText, setLayoutCssText] = useState<string>(
     mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss)
   );
@@ -303,6 +382,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonPanelText, setJsonPanelText] = useState('');
   const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
+  const [listTabListaSectionOpen, setListTabListaSectionOpen] = useState<
+    Partial<Record<TListTabListaSection, boolean>>
+  >({});
 
   const fieldsService = useMemo(() => new FieldsService(), []);
 
@@ -355,12 +437,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
     setListCardViewEnabled(listView.listCardViewEnabled ?? false);
+    setListDefaultDisplayMode(listView.listDefaultDisplayMode === 'cards' ? 'cards' : 'table');
     setLayoutCssText(mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss));
     setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
     setRowActions([...(listView.listRowActions ?? [])]);
     setRuleColorMap({});
     setLayoutSubTab('geral');
+    setListTabListaSectionOpen({});
   }, [isOpen, listView, pagination, pdfTemplate, projectManagement]);
 
   const showPdfExcelConfigTabs = mode !== 'list';
@@ -660,8 +744,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         scope: a.scope === 'wholeRow' ? 'wholeRow' : 'icon',
       });
     }
+    const { listDefaultDisplayMode: _carryListDefault, ...carryRest } = carryListView;
     const listViewOut: IListViewConfig = {
-      ...carryListView,
+      ...carryRest,
       columns,
       viewModes,
       activeViewModeId,
@@ -671,6 +756,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
+      ...(listCardViewEnabled && listDefaultDisplayMode === 'cards' ? { listDefaultDisplayMode: 'cards' as const } : {}),
     };
     return {
       listView: listViewOut,
@@ -695,6 +781,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     activeViewModeId,
     pdfExportEnabled,
     listCardViewEnabled,
+    listDefaultDisplayMode,
     localPdfTemplate,
   ]);
 
@@ -748,12 +835,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       }
       setPdfExportEnabled(bundle.listView.pdfExportEnabled ?? false);
       setListCardViewEnabled(bundle.listView.listCardViewEnabled ?? false);
+      setListDefaultDisplayMode(bundle.listView.listDefaultDisplayMode === 'cards' ? 'cards' : 'table');
       setLayoutCssText(mergeCustomTableCss(bundle.listView.customTableCssSlots, bundle.listView.customTableCss));
       setViewModes(bundle.listView.viewModes?.length ? bundle.listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
       setActiveViewModeId(bundle.listView.activeViewModeId ?? 'all');
       setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
       setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
+      setListTabListaSectionOpen({});
       setJsonPanelText(JSON.stringify(bundle, null, 2));
     } catch (e) {
       setJsonPanelErr(e instanceof Error ? e.message : String(e));
@@ -951,45 +1040,52 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
               </>
             )}
             {mode !== 'projectManagement' && (
-            <Stack tokens={{ childrenGap: 8 }}>
-              <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
-                Paginação
-              </Text>
-              <Checkbox
-                label="Habilitar paginação"
-                checked={paginationEnabled}
-                onChange={(_, v) => setPaginationEnabled(!!v)}
-              />
-              {paginationEnabled && (
-                <>
-                  <Dropdown
-                    label="Itens por página"
-                    selectedKey={String(pageSize)}
-                    options={(pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS).map(
-                      (n) => ({ key: String(n), text: String(n) })
-                    )}
-                    onChange={(_, opt) => setPageSize(Number(opt?.key) || 10)}
-                    styles={{ root: { maxWidth: 120 } }}
+              <Stack tokens={{ childrenGap: 12 }} styles={{ root: { width: '100%', minWidth: 0 } }}>
+                <ListTabListaCollapse
+                  title="Paginação"
+                  isOpen={listTabListaSectionOpen.pagination === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      pagination: p.pagination === true ? false : true,
+                    }))
+                  }
+                >
+                  <Checkbox
+                    label="Habilitar paginação"
+                    checked={paginationEnabled}
+                    onChange={(_, v) => setPaginationEnabled(!!v)}
                   />
-                  <ChoiceGroup
-                    label="Layout da paginação"
-                    options={PAGINATION_LAYOUT_OPTIONS}
-                    selectedKey={paginationLayout}
-                    onChange={(_, opt) => opt && setPaginationLayout(opt.key as TPaginationLayout)}
-                  />
-                </>
-              )}
-            </Stack>
-            )}
-
-            {mode !== 'projectManagement' && (
-              <>
-                <Separator />
-
-                <Stack tokens={{ childrenGap: 8 }}>
-                  <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
-                    Modos de visualização
-                  </Text>
+                  {paginationEnabled && (
+                    <>
+                      <Dropdown
+                        label="Itens por página"
+                        selectedKey={String(pageSize)}
+                        options={(pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS).map(
+                          (n) => ({ key: String(n), text: String(n) })
+                        )}
+                        onChange={(_, opt) => setPageSize(Number(opt?.key) || 10)}
+                        styles={{ root: { maxWidth: 120 } }}
+                      />
+                      <ChoiceGroup
+                        label="Layout da paginação"
+                        options={PAGINATION_LAYOUT_OPTIONS}
+                        selectedKey={paginationLayout}
+                        onChange={(_, opt) => opt && setPaginationLayout(opt.key as TPaginationLayout)}
+                      />
+                    </>
+                  )}
+                </ListTabListaCollapse>
+                <ListTabListaCollapse
+                  title="Modos de visualização"
+                  isOpen={listTabListaSectionOpen.viewModes === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      viewModes: p.viewModes === true ? false : true,
+                    }))
+                  }
+                >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Ex.: Todas (sem filtro), Minhas (Author/Id eq [Me]), ou filtros customizados. O usuário alterna entre eles na lista.
                   </Text>
@@ -1064,75 +1160,149 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     </div>
                   )}
                   {viewModeEditingId === null && <DefaultButton text="Adicionar modo de visualização" onClick={startViewModeAdd} />}
-                </Stack>
-
-                <Stack tokens={{ childrenGap: 6 }}>
-                  <Checkbox
-                    label="Permitir visualização em cards na lista"
-                    checked={listCardViewEnabled}
-                    onChange={(_, v) => setListCardViewEnabled(!!v)}
-                  />
+                  <Stack tokens={{ childrenGap: 6 }}>
+                    <Checkbox
+                      label="Permitir visualização em cards na lista"
+                      checked={listCardViewEnabled}
+                      onChange={(_, v) => {
+                        const on = !!v;
+                        setListCardViewEnabled(on);
+                        if (!on) setListDefaultDisplayMode('table');
+                      }}
+                    />
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      Exibe na lista a opção Tabela ou Cards (mesmas colunas em grade de cartões).
+                    </Text>
+                    {listCardViewEnabled && (
+                      <Dropdown
+                        label="Visualização inicial"
+                        selectedKey={listDefaultDisplayMode}
+                        options={[
+                          { key: 'table', text: 'Tabela' },
+                          { key: 'cards', text: 'Cards' },
+                        ]}
+                        onChange={(_: React.FormEvent, opt?: IDropdownOption) => {
+                          const k = opt?.key as TListViewDisplayMode | undefined;
+                          if (k === 'table' || k === 'cards') setListDefaultDisplayMode(k);
+                        }}
+                        styles={{ root: { maxWidth: 280 } }}
+                      />
+                    )}
+                  </Stack>
+                </ListTabListaCollapse>
+                <ListTabListaCollapse
+                  title="Colunas da tabela"
+                  isOpen={listTabListaSectionOpen.columns === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      columns: p.columns === true ? false : true,
+                    }))
+                  }
+                >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Exibe na lista a opção Tabela ou Cards (mesmas colunas em grade de cartões).
+                    Marque as colunas que deseja exibir. Para lookups e usuários, escolha o campo de exibição.
                   </Text>
-                </Stack>
-
-                <Separator />
-              </>
+                  {options.map((o) => (
+                    <Stack
+                      key={o.meta.InternalName}
+                      horizontal
+                      wrap
+                      tokens={{ childrenGap: 12 }}
+                      verticalAlign="start"
+                      styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
+                    >
+                      <Checkbox
+                        checked={o.selected}
+                        onChange={() => toggle(o.meta.InternalName)}
+                        ariaLabel={o.meta.Title}
+                        styles={{ root: { flex: '0 0 auto', marginTop: 4 } }}
+                      />
+                      <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 240px', minWidth: 0, maxWidth: '100%' } }}>
+                        <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 2, wordBreak: 'break-word' } }}>
+                          Campo: {o.meta.InternalName}
+                        </Text>
+                        <TextField
+                          label="Rótulo (cabeçalho na tabela)"
+                          value={o.label}
+                          onChange={(_, v) => setLabel(o.meta.InternalName, v ?? '')}
+                          disabled={!o.selected}
+                          placeholder={o.meta.Title}
+                          styles={{ root: { maxWidth: '100%' } }}
+                        />
+                        {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
+                          <Dropdown
+                            label="Campo expandido (lookup/user)"
+                            selectedKey={o.expandField || 'Title'}
+                            options={getExpandFieldOptions(o.meta)}
+                            onChange={(_, opt) => setExpandField(o.meta.InternalName, (opt?.key as string) ?? 'Title')}
+                            styles={{ root: { maxWidth: '100%' } }}
+                          />
+                        )}
+                      </Stack>
+                      <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '0 0 auto', maxWidth: '100%', wordBreak: 'break-word' } }}>
+                        {o.meta.MappedType}
+                      </Text>
+                    </Stack>
+                  ))}
+                </ListTabListaCollapse>
+              </Stack>
             )}
 
-            <Stack tokens={{ childrenGap: 8 }}>
-              <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
-                {mode === 'projectManagement' ? 'Campos do card' : 'Colunas'}
-              </Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {mode === 'projectManagement'
-                  ? 'Marque os campos que deseja mostrar dentro do card. O primeiro campo selecionado vira o título do card.'
-                  : 'Marque as colunas que deseja exibir. Para lookups e usuários, escolha o campo de exibição.'}
-              </Text>
-            </Stack>
-            {options.map((o) => (
-              <Stack
-                key={o.meta.InternalName}
-                horizontal
-                wrap
-                tokens={{ childrenGap: 12 }}
-                verticalAlign="start"
-                styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
-              >
-                <Checkbox
-                  checked={o.selected}
-                  onChange={() => toggle(o.meta.InternalName)}
-                  ariaLabel={o.meta.Title}
-                  styles={{ root: { flex: '0 0 auto', marginTop: 4 } }}
-                />
-                <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 240px', minWidth: 0, maxWidth: '100%' } }}>
-                  <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 2, wordBreak: 'break-word' } }}>
-                    Campo: {o.meta.InternalName}
+            {mode === 'projectManagement' && (
+              <>
+                <Stack tokens={{ childrenGap: 8 }}>
+                  <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
+                    Campos do card
                   </Text>
-                  <TextField
-                    label="Rótulo (cabeçalho na tabela)"
-                    value={o.label}
-                    onChange={(_, v) => setLabel(o.meta.InternalName, v ?? '')}
-                    disabled={!o.selected}
-                    placeholder={o.meta.Title}
-                    styles={{ root: { maxWidth: '100%' } }}
-                  />
-                  {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
-                    <Dropdown
-                      label="Campo expandido (lookup/user)"
-                      selectedKey={o.expandField || 'Title'}
-                      options={getExpandFieldOptions(o.meta)}
-                      onChange={(_, opt) => setExpandField(o.meta.InternalName, (opt?.key as string) ?? 'Title')}
-                      styles={{ root: { maxWidth: '100%' } }}
-                    />
-                  )}
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Marque os campos que deseja mostrar dentro do card. O primeiro campo selecionado vira o título do card.
+                  </Text>
                 </Stack>
-                <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '0 0 auto', maxWidth: '100%', wordBreak: 'break-word' } }}>
-                  {o.meta.MappedType}
-                </Text>
-              </Stack>
-            ))}
+                {options.map((o) => (
+                  <Stack
+                    key={o.meta.InternalName}
+                    horizontal
+                    wrap
+                    tokens={{ childrenGap: 12 }}
+                    verticalAlign="start"
+                    styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
+                  >
+                    <Checkbox
+                      checked={o.selected}
+                      onChange={() => toggle(o.meta.InternalName)}
+                      ariaLabel={o.meta.Title}
+                      styles={{ root: { flex: '0 0 auto', marginTop: 4 } }}
+                    />
+                    <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 240px', minWidth: 0, maxWidth: '100%' } }}>
+                      <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 2, wordBreak: 'break-word' } }}>
+                        Campo: {o.meta.InternalName}
+                      </Text>
+                      <TextField
+                        label="Rótulo (cabeçalho na tabela)"
+                        value={o.label}
+                        onChange={(_, v) => setLabel(o.meta.InternalName, v ?? '')}
+                        disabled={!o.selected}
+                        placeholder={o.meta.Title}
+                        styles={{ root: { maxWidth: '100%' } }}
+                      />
+                      {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
+                        <Dropdown
+                          label="Campo expandido (lookup/user)"
+                          selectedKey={o.expandField || 'Title'}
+                          options={getExpandFieldOptions(o.meta)}
+                          onChange={(_, opt) => setExpandField(o.meta.InternalName, (opt?.key as string) ?? 'Title')}
+                          styles={{ root: { maxWidth: '100%' } }}
+                        />
+                      )}
+                    </Stack>
+                    <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '0 0 auto', maxWidth: '100%', wordBreak: 'break-word' } }}>
+                      {o.meta.MappedType}
+                    </Text>
+                  </Stack>
+                ))}
+              </>
+            )}
                 </Stack>
               </PivotItem>
               {mode !== 'projectManagement' ? (

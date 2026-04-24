@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Panel,
   PanelType,
@@ -41,6 +41,9 @@ import {
   sanitizeButtonsConfig,
 } from '../../core/listPage/listPageBlockConfigUtils';
 import { ListPageRichQuillEditor } from './ListPageRichQuillEditor';
+import { AlertCountRuleFilterFields } from './AlertCountRuleFilterFields';
+import { FieldsService, type IFieldMetadata } from '../../../../services';
+import { mergeCountRuleODataFromStructured } from '../../core/listPage/alertCountRuleFilterOData';
 
 export interface IListPageBlockConfigPanelProps {
   isOpen: boolean;
@@ -137,7 +140,9 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
   const [editorHtmlSourceMode, setEditorHtmlSourceMode] = useState(false);
   const [sectionTitle, setSectionTitle] = useState<IListPageSectionTitleBlockConfig>(defaultSectionTitleConfig);
   const [alertCfg, setAlertCfg] = useState<IListPageAlertBlockConfig>(defaultAlertConfig);
+  const [alertListFields, setAlertListFields] = useState<IFieldMetadata[] | undefined>(undefined);
   const [buttonsCfg, setButtonsCfg] = useState<IListPageButtonsBlockConfig>(() => defaultButtonsConfig());
+  const fieldsService = useMemo(() => new FieldsService(), []);
 
   useEffect(() => {
     if (!isOpen || !block) return;
@@ -166,6 +171,17 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
     }
   }, [isOpen, block]);
 
+  useEffect(() => {
+    if (!isOpen || block?.type !== 'alert' || !listTitle.trim()) {
+      setAlertListFields(undefined);
+      return;
+    }
+    fieldsService
+      .getVisibleFields(listTitle.trim())
+      .then((f) => setAlertListFields(f))
+      .catch(() => setAlertListFields([]));
+  }, [isOpen, block?.type, listTitle, fieldsService]);
+
   if (
     !block ||
     (block.type !== 'banner' &&
@@ -187,7 +203,8 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
     } else if (block.type === 'buttons') {
       onApply({ ...block, buttons: sanitizeButtonsConfig({ items: buttonsCfg.items }) });
     } else {
-      const rules = alertCfg.countRules ?? [];
+      const by = new Map((alertListFields ?? []).map((f) => [f.InternalName, f]));
+      const rules = (alertCfg.countRules ?? []).map((r) => mergeCountRuleODataFromStructured(r, by));
       const alert: IListPageAlertBlockConfig = {
         ...alertCfg,
         countRules: rules.length ? rules : undefined,
@@ -604,21 +621,21 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
                     />
                   </Stack>
                 </Stack>
-                <TextField
-                  label="Filtro OData (opcional)"
-                  multiline
-                  rows={2}
-                  value={rule.odataFilter ?? ''}
-                  onChange={(_, v) => {
-                    const s = v ?? '';
+                <AlertCountRuleFilterFields
+                  listTitle={listTitle}
+                  fields={alertListFields}
+                  rule={rule}
+                  onRuleChange={(next) => {
                     setAlertCfg((a) => {
                       const rules = [...(a.countRules ?? [])];
-                      rules[idx] = { ...rules[idx], odataFilter: s.trim() ? s : '' };
+                      rules[idx] = next;
                       return { ...a, countRules: rules };
                     });
                   }}
-                  description="Vazio = contar todos os itens (até 5000). Ex.: Status eq 'Aberto'"
                 />
+                <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+                  Sem campo selecionado = contar todos os itens (até 5000 por pedido ao SharePoint).
+                </Text>
                 <Stack horizontal tokens={{ childrenGap: 10 }}>
                   <Stack.Item grow={1} styles={{ root: { minWidth: 200 } }}>
                     <Dropdown
@@ -939,3 +956,5 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
     </Panel>
   );
 };
+
+

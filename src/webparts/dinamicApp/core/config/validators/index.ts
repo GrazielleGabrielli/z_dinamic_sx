@@ -238,6 +238,9 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     activeViewModeId: lvo.activeViewModeId ?? defaults.activeViewModeId,
     pdfExportEnabled: lvo.pdfExportEnabled ?? false,
     ...(lvo.listCardViewEnabled === true ? { listCardViewEnabled: true } : {}),
+    ...(lvo.listCardViewEnabled === true && lvo.listDefaultDisplayMode === 'cards'
+      ? { listDefaultDisplayMode: 'cards' as const }
+      : {}),
     ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
     ...(typeof lvo.customTableCss === 'string' ? { customTableCss: lvo.customTableCss } : {}),
     ...(rowRules ? { tableRowStyleRules: rowRules } : {}),

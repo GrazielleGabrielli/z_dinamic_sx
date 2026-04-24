@@ -274,8 +274,8 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     ci: number;
     bi: number;
   } | null>(null);
-  const [helpOpen, setHelpOpen] = useState(true);
-  const [paddingOpen, setPaddingOpen] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [paddingOpen, setPaddingOpen] = useState(false);
   const [contentPadding, setContentPadding] = useState('');
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({});
   const openedRef = useRef(false);
@@ -292,12 +292,8 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       const nextSections = cloneLayout(value).sections;
       setSections(nextSections);
       setContentPadding(value.contentPadding ?? '');
-      const o: Record<string, boolean> = {};
-      for (let i = 0; i < nextSections.length; i++) {
-        o[nextSections[i].id] = true;
-      }
-      setSectionOpen(o);
-      setHelpOpen(true);
+      setSectionOpen({});
+      setHelpOpen(false);
     }
   }, [isOpen, value]);
 
@@ -330,11 +326,7 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       );
       setSections(next.sections);
       setContentPadding(next.contentPadding ?? '');
-      const o: Record<string, boolean> = {};
-      for (let i = 0; i < next.sections.length; i++) {
-        o[next.sections[i].id] = true;
-      }
-      setSectionOpen(o);
+      setSectionOpen({});
       setJsonPanelText(JSON.stringify(next, null, 2));
     } catch (e) {
       setJsonPanelErr(e instanceof Error ? e.message : String(e));
@@ -344,7 +336,6 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   const addSection = (): void => {
     const id = newId('sec');
     setSections((prev) => [...prev, { id, layout: 'one', columns: [[]] }]);
-    setSectionOpen((p) => ({ ...p, [id]: true }));
   };
 
   const removeSection = (index: number): void => {
@@ -547,10 +538,10 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
           <ListPageLayoutCollapse
             key={sec.id}
             title={`Seção ${si + 1} · ${layoutLabel(sec.layout)}`}
-            isOpen={sectionOpen[sec.id] !== false}
+            isOpen={sectionOpen[sec.id] === true}
             onToggle={() =>
               setSectionOpen((p) => {
-                const wasOpen = p[sec.id] !== false;
+                const wasOpen = p[sec.id] === true;
                 return { ...p, [sec.id]: wasOpen ? false : true };
               })
             }

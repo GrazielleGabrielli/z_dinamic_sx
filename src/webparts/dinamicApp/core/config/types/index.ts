@@ -137,6 +137,9 @@ export interface IListViewModeConfig {
   filters: IListViewFilterConfig[];
 }
 
+/** Modo inicial da lista quando Tabela/Cards está ativo. */
+export type TListViewDisplayMode = 'table' | 'cards';
+
 export type TTableCssSlot =
   | 'viewRoot'
   | 'toolbar'
@@ -202,6 +205,8 @@ export interface IListViewConfig {
   pdfExportEnabled?: boolean;
   /** Quando true, a lista exibe alternância Tabela / Cards na barra de ferramentas. */
   listCardViewEnabled?: boolean;
+  /** Com `listCardViewEnabled`, modo ao carregar (omitido = tabela). */
+  listDefaultDisplayMode?: TListViewDisplayMode;
   /** Declarações CSS por região da tabela (aba Layout); cada bloco é aplicado à classe correspondente. */
   customTableCssSlots?: ITableLayoutCssSlots;
   /** CSS livre (regras completas, seletores combinados, [data-field], etc.). */
@@ -333,6 +338,16 @@ export type TListPageAlertVariant = 'info' | 'success' | 'warning' | 'error';
 /** Comparar o número de itens da lista (com filtro OData) com um valor. */
 export type TListPageAlertCountOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le';
 
+/** Operador OData no campo escolhido para a contagem (separado do `countOp` que compara o total). */
+export type TListPageAlertCountFilterFieldOp =
+  | 'eq'
+  | 'ne'
+  | 'gt'
+  | 'ge'
+  | 'lt'
+  | 'le'
+  | 'contains';
+
 /**
  * Regra por contagem na lista da vista. A primeira regra cuja contagem corresponder define o aspeto
  * (sobrepondo título, mensagem, tipo, ícone, etc. ao «padrão»).
@@ -341,6 +356,13 @@ export interface IListPageAlertCountRule {
   id: string;
   /** Filtro OData (ex.: `Status eq 'Aberto'`). Vazio = contar todos os itens (até 5000). */
   odataFilter?: string;
+  /** Construtor visual: campo interno da lista; ausente = sem filtro por campo (ou só OData manual). */
+  countFilterField?: string;
+  countFilterFieldOp?: TListPageAlertCountFilterFieldOp;
+  /** Valor do filtro no campo (texto, número, Id de lookup, etc.). */
+  countFilterValue?: string;
+  /** Quando true, mostrar e editar «odataFilter» em texto livre em vez do construtor. */
+  countFilterUseManualOdata?: boolean;
   countOp: TListPageAlertCountOp;
   count: number;
   title?: string;
