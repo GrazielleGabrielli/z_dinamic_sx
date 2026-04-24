@@ -58,6 +58,7 @@ import type {
   TFormAttachmentStorageKind,
   IAttachmentLibraryFolderTreeNode,
   IFormManagerAttachmentLibraryConfig,
+  IFormManagerPermissionBreakConfig,
   TFormBannerPlacement,
 } from '../../core/config/types/formManager';
 import {
@@ -106,7 +107,9 @@ import {
 } from './FormLoadingUi';
 import { FormManagerActionLogTabContent } from './FormManagerActionLogTab';
 import { FormManagerLinkedChildFormsTabContent } from './FormManagerLinkedChildFormsTab';
+import { FormManagerPermissionBreakTabContent } from './FormManagerPermissionBreakTab';
 import { FormManagerChainedActionsBlock } from './FormManagerChainedActionsBlock';
+import { isFormAttachmentLibraryRuntime } from '../../core/formManager/formAttachmentLibrary';
 
 function attachmentLibraryFromPanelState(
   libraryTitle: string,
@@ -134,6 +137,22 @@ function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
   const item = moved[0] as T;
   next.splice(to, 0, item);
   return next;
+}
+
+function mergePermissionBreakFromCfg(raw?: IFormManagerPermissionBreakConfig): IFormManagerPermissionBreakConfig {
+  return {
+    enabled: raw?.enabled === true,
+    copyInheritedAssignments: raw?.copyInheritedAssignments === true,
+    retainAuthor: raw?.retainAuthor !== false,
+    authorRoleDefinitionName: (raw?.authorRoleDefinitionName ?? 'Contribuir').trim().slice(0, 120),
+    targets: {
+      mainListItem: raw?.targets?.mainListItem !== false,
+      linkedChildFormIds: raw?.targets?.linkedChildFormIds?.slice(),
+      mainAttachmentLibraryFiles: raw?.targets?.mainAttachmentLibraryFiles === true,
+      linkedAttachmentLibraryFilesByFormId: raw?.targets?.linkedAttachmentLibraryFilesByFormId?.slice(),
+    },
+    assignments: (raw?.assignments ?? []).map((a) => ({ ...a })),
+  };
 }
 
 function cloneLinkedChildFormConfig(c: IFormLinkedChildFormConfig): IFormLinkedChildFormConfig {
@@ -620,6 +639,7 @@ function buildStepNavigationForSave(
  * | Botões | `customButtons` |
  * | Lista de logs | `actionLog` (lista, captação, textos por botão) |
  * | Listas vinculadas | `linkedChildForms` |
+ * | Quebra de permissões | `permissionBreak` |
  * | Regras dos campos | regras por campo (painel) + resto de `rules` no motor |
  * | JSON | mesmo modelo (JSON inválido ou regras com `action` desconhecida são descartadas no sanitize) |
  */
@@ -758,6 +778,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [linkedChildForms, setLinkedChildForms] = useState<IFormLinkedChildFormConfig[]>(() =>
     (value.linkedChildForms ?? []).map(cloneLinkedChildFormConfig)
   );
+  const [permissionBreak, setPermissionBreak] = useState<IFormManagerPermissionBreakConfig>(() =>
+    mergePermissionBreakFromCfg(value.permissionBreak)
+  );
 
   const fieldsService = useMemo(() => new FieldsService(), []);
   const groupsService = useMemo(() => new GroupsService(), []);
@@ -778,6 +801,31 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const linkedChildFormsSortedForStructure = useMemo(
     () => linkedChildForms.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [linkedChildForms]
+  );
+
+  const formManagerForPermissionBreakResolve = useMemo(
+    (): IFormManagerConfig => ({
+      ...getDefaultFormManagerConfig(),
+      attachmentStorageKind,
+      attachmentLibrary: attachmentLibraryFromPanelState(
+        attachmentLibLibraryTitle,
+        attachmentLibLookupField,
+        attachmentLibFolderTree
+      ),
+      linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig),
+    }),
+    [
+      attachmentStorageKind,
+      attachmentLibLibraryTitle,
+      attachmentLibLookupField,
+      attachmentLibFolderTree,
+      linkedChildForms,
+    ]
+  );
+
+  const mainAttachmentLibraryEnabledTab = useMemo(
+    () => isFormAttachmentLibraryRuntime(formManagerForPermissionBreakResolve),
+    [formManagerForPermissionBreakResolve]
   );
 
   const linkedMainStepDefaultKey = useMemo(() => {
@@ -858,6 +906,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setHistoryPanelSubtitle(cfg.historyPanelSubtitle ?? '');
     setHistoryGroupTitles(cfg.historyGroupTitles ?? []);
     setLinkedChildForms((cfg.linkedChildForms ?? []).map(cloneLinkedChildFormConfig));
+    setPermissionBreak(mergePermissionBreakFromCfg(cfg.permissionBreak));
   }, []);
 
   const formManagerValueRef = useRef(value);
@@ -1375,6 +1424,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           }
         : {}),
       linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig),
+      permissionBreak,
     };
     const sanitized = sanitizeFormManagerConfig(raw);
     if (!sanitized) {
@@ -1674,6 +1724,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           }
         : {}),
       linkedChildForms: linkedChildForms.map(cloneLinkedChildFormConfig),
+      permissionBreak,
     };
     return JSON.stringify(raw, null, 2);
   }, [
@@ -1684,6 +1735,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     managerColumnFields,
     customButtons,
     linkedChildForms,
+    permissionBreak,
     stepLayout,
     stepAccentPaletteSlot,
     stepNavButtons,
@@ -3254,6 +3306,20 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               attachmentLibLookupField,
               attachmentLibFolderTree
             )}
+          />
+        </PivotItem>
+        <PivotItem headerText="Quebra de permissões">
+          <FormManagerPermissionBreakTabContent
+            primaryListTitle={listTitle.trim()}
+            primaryMeta={meta}
+            linkedChildForms={linkedChildForms}
+            formManagerForResolve={formManagerForPermissionBreakResolve}
+            mainAttachmentLibraryEnabled={mainAttachmentLibraryEnabledTab}
+            value={permissionBreak}
+            onChange={setPermissionBreak}
+            siteGroups={siteGroups}
+            siteGroupsLoading={siteGroupsLoading}
+            siteGroupsErr={siteGroupsErr}
           />
         </PivotItem>
         <PivotItem headerText="Regras dos campos">

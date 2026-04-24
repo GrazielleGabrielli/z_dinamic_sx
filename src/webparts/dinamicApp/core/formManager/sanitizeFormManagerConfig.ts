@@ -37,6 +37,9 @@ import type {
   TLinkedChildRowsPresentationKind,
   TFormBannerPlacement,
   TChromePositionMode,
+  IFormManagerPermissionBreakConfig,
+  IFormPermissionBreakAssignment,
+  IFormManagerPermissionBreakTargets,
 } from '../config/types/formManager';
 import {
   FORM_BANNER_INTERNAL_PREFIX,
@@ -1000,6 +1003,99 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
   };
 }
 
+const MAX_PERMISSION_BREAK_ASSIGNMENTS = 40;
+
+function sanitizePermissionBreak(raw: unknown): IFormManagerPermissionBreakConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  if (o.enabled !== true) return undefined;
+  const copyInheritedAssignments = o.copyInheritedAssignments === true;
+  const retainAuthor = o.retainAuthor !== false;
+  const authorRoleDefinitionName =
+    typeof o.authorRoleDefinitionName === 'string' && o.authorRoleDefinitionName.trim()
+      ? o.authorRoleDefinitionName.trim().slice(0, 120)
+      : 'Contribuir';
+  let targets: IFormManagerPermissionBreakTargets;
+  const targetsRaw = o.targets;
+  if (targetsRaw && typeof targetsRaw === 'object') {
+    const t = targetsRaw as Record<string, unknown>;
+    targets = {
+      mainListItem: t.mainListItem === false ? false : true,
+    };
+    if (Array.isArray(t.linkedChildFormIds)) {
+      targets.linkedChildFormIds = (t.linkedChildFormIds as unknown[])
+        .map((x) => String(x).trim())
+        .filter(Boolean)
+        .slice(0, 20);
+    }
+    if (t.mainAttachmentLibraryFiles === true) targets.mainAttachmentLibraryFiles = true;
+    if (Array.isArray(t.linkedAttachmentLibraryFilesByFormId)) {
+      const lf = (t.linkedAttachmentLibraryFilesByFormId as unknown[])
+        .map((x) => String(x).trim())
+        .filter(Boolean)
+        .slice(0, 20);
+      if (lf.length) targets.linkedAttachmentLibraryFilesByFormId = lf;
+    }
+  } else {
+    targets = { mainListItem: true };
+  }
+  const asgRaw = Array.isArray(o.assignments) ? o.assignments : [];
+  const assignments: IFormPermissionBreakAssignment[] = [];
+  for (let i = 0; i < asgRaw.length && i < MAX_PERMISSION_BREAK_ASSIGNMENTS; i++) {
+    const ar = asgRaw[i];
+    if (!ar || typeof ar !== 'object') continue;
+    const a = ar as Record<string, unknown>;
+    const id =
+      typeof a.id === 'string' && a.id.trim() ? a.id.trim().slice(0, 80) : `pb_${String(i)}`;
+    const kind =
+      a.kind === 'siteGroup' || a.kind === 'user' || a.kind === 'field'
+        ? (a.kind as IFormPermissionBreakAssignment['kind'])
+        : undefined;
+    if (!kind) continue;
+    const roleDefinitionName =
+      typeof a.roleDefinitionName === 'string' && a.roleDefinitionName.trim()
+        ? a.roleDefinitionName.trim().slice(0, 120)
+        : '';
+    if (!roleDefinitionName) continue;
+    const entry: IFormPermissionBreakAssignment = { id, kind, roleDefinitionName };
+    if (kind === 'siteGroup') {
+      const gid =
+        typeof a.siteGroupId === 'number' && isFinite(a.siteGroupId) ? Math.round(a.siteGroupId) : undefined;
+      if (gid === undefined || gid <= 0) continue;
+      entry.siteGroupId = gid;
+      const title = typeof a.siteGroupTitle === 'string' ? a.siteGroupTitle.trim().slice(0, 200) : '';
+      if (title) entry.siteGroupTitle = title;
+    } else if (kind === 'user') {
+      const k = typeof a.userPickerKey === 'string' ? a.userPickerKey.trim() : '';
+      if (!k) continue;
+      entry.userPickerKey = k.slice(0, 500);
+      const dt = typeof a.userDisplayText === 'string' ? a.userDisplayText.trim().slice(0, 200) : '';
+      if (dt) entry.userDisplayText = dt;
+    } else {
+      const fs = a.fieldScope === 'linked' ? 'linked' : 'main';
+      entry.fieldScope = fs;
+      const fn = typeof a.fieldInternalName === 'string' ? a.fieldInternalName.trim().slice(0, 120) : '';
+      if (!fn) continue;
+      entry.fieldInternalName = fn;
+      if (fs === 'linked') {
+        const lid = typeof a.linkedFormId === 'string' ? a.linkedFormId.trim().slice(0, 80) : '';
+        if (!lid) continue;
+        entry.linkedFormId = lid;
+      }
+    }
+    assignments.push(entry);
+  }
+  const pb: IFormManagerPermissionBreakConfig = {
+    enabled: true,
+    copyInheritedAssignments,
+    retainAuthor,
+    authorRoleDefinitionName,
+    targets,
+    ...(assignments.length ? { assignments } : {}),
+  };
+  return pb;
+}
+
 export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
@@ -1175,6 +1271,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof hlRaw === 'string' && HISTORY_LAYOUT_SET.has(hlRaw)
       ? (hlRaw as TFormHistoryLayoutKind)
       : undefined;
+  const permissionBreak = sanitizePermissionBreak(o.permissionBreak);
   const customButtonsAdjusted: IFormCustomButtonConfig[] = [];
   for (let i = 0; i < customButtons.length; i++) {
     const btn = customButtons[i];
@@ -1250,5 +1347,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       }
       return { linkedChildForms };
     })(),
+    ...(permissionBreak ? { permissionBreak } : {}),
   };
 }

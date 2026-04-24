@@ -485,6 +485,8 @@ export type {
   FORM_OCULTOS_STEP_ID,
   FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
+  IFormManagerPermissionBreakConfig,
+  IFormPermissionBreakAssignment,
 } from './formManager';
 export type {
   IFormFieldConfig,

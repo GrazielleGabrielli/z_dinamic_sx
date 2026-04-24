@@ -730,6 +730,54 @@ export interface IFormLinkedChildFormConfig extends IFormBodyConfig {
   childAttachmentLibrary?: IFormManagerAttachmentLibraryConfig;
 }
 
+export type TFormPermissionBreakPrincipalKind = 'siteGroup' | 'user' | 'field';
+
+export type TFormPermissionBreakFieldScope = 'main' | 'linked';
+
+/** Uma linha de principal + nível de permissão SharePoint (nome da definição no site). */
+export interface IFormPermissionBreakAssignment {
+  id: string;
+  kind: TFormPermissionBreakPrincipalKind;
+  /** Nome exato da definição de permissão (ex.: Leitura, Contribute, Full Control). */
+  roleDefinitionName: string;
+  /** kind === siteGroup */
+  siteGroupId?: number;
+  siteGroupTitle?: string;
+  /** kind === user — resolvido com web.ensureUser(Key do clientPeoplePicker). */
+  userPickerKey?: string;
+  userDisplayText?: string;
+  /** kind === field */
+  fieldScope?: TFormPermissionBreakFieldScope;
+  /** Obrigatório quando fieldScope === linked */
+  linkedFormId?: string;
+  fieldInternalName?: string;
+}
+
+export interface IFormManagerPermissionBreakTargets {
+  mainListItem?: boolean;
+  /**
+   * Ids de `linkedChildForms` a incluir. Omitido = todas as listas vinculadas configuradas.
+   * Array vazio = nenhuma linha filha recebe ACL por este gestor.
+   */
+  linkedChildFormIds?: string[];
+  /** Itens de ficheiro na biblioteca da aba Anexos com lookup ao item principal. */
+  mainAttachmentLibraryFiles?: boolean;
+  /** Por id de lista vinculada: ficheiros na biblioteca (herdada ou custom) ligados à linha filha. */
+  linkedAttachmentLibraryFilesByFormId?: string[];
+}
+
+export interface IFormManagerPermissionBreakConfig {
+  enabled?: boolean;
+  /** true = copiar atribuições herdadas antes de limpar (raro). */
+  copyInheritedAssignments?: boolean;
+  /** Manter o autor (Created By) com um nível explícito após limpar. */
+  retainAuthor?: boolean;
+  /** Definição de permissão para o autor; omitido = Contribute. */
+  authorRoleDefinitionName?: string;
+  targets?: IFormManagerPermissionBreakTargets;
+  assignments?: IFormPermissionBreakAssignment[];
+}
+
 export interface IFormManagerConfig {
   sections: IFormSectionConfig[];
   fields: IFormFieldConfig[];
@@ -801,4 +849,6 @@ export interface IFormManagerConfig {
   attachmentFilePreview?: TFormAttachmentFilePreviewKind;
   /** Mini-formulários em listas secundárias ligadas ao item principal via Lookup. */
   linkedChildForms?: IFormLinkedChildFormConfig[];
+  /** Quebra de herança e atribuições após gravar (lista principal, vinculadas, opcional biblioteca). */
+  permissionBreak?: IFormManagerPermissionBreakConfig;
 }

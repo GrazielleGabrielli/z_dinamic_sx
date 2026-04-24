@@ -132,6 +132,20 @@ import {
   resolveFormCustomButtonPaletteSlot,
   resolveStepUiAccentColor,
 } from '../../core/formManager/formCustomButtonTheme';
+import { applyFormManagerPermissionBreak } from '../../core/formManager/applyFormPermissionBreak';
+
+function pickMainAuthorId(
+  values: Record<string, unknown>,
+  initialItem: Record<string, unknown> | null | undefined,
+  currentUserId: number
+): number | undefined {
+  const raw = values.AuthorId ?? values.authorId;
+  if (typeof raw === 'number' && raw > 0) return raw;
+  const init = initialItem?.AuthorId ?? initialItem?.authorId;
+  if (typeof init === 'number' && init > 0) return init;
+  if (typeof currentUserId === 'number' && currentUserId > 0) return currentUserId;
+  return undefined;
+}
 
 function validateValueCharLimitHint(
   len: number,
@@ -1549,7 +1563,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   };
 
   const reloadLinkedRowsForParent = useCallback(
-    async (parentId: number) => {
+    async (parentId: number): Promise<Record<string, ILinkedChildRowState[]>> => {
       const nextRows: Record<string, ILinkedChildRowState[]> = {};
       const nextBase: Record<string, number[]> = {};
       for (let i = 0; i < linkedConfigsSorted.length; i++) {
@@ -1588,13 +1602,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }
         return merged;
       });
+      return nextRows;
     },
     [linkedConfigsSorted, linkedMetaById, itemsService]
   );
 
   const performLinkedSync = useCallback(
-    async (parentId: number) => {
-      if (!linkedConfigsSorted.length) return;
+    async (parentId: number): Promise<Record<string, ILinkedChildRowState[]> | undefined> => {
+      if (!linkedConfigsSorted.length) return undefined;
       const syncedRows = await syncAllLinkedChildLists(
         itemsService,
         linkedConfigsSorted,
@@ -1616,8 +1631,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           return next;
         });
       }
-      await reloadLinkedRowsForParent(parentId);
+      const reloaded = await reloadLinkedRowsForParent(parentId);
       setLinkedRowErrorsById({});
+      return reloaded;
     },
     [
       linkedConfigsSorted,
@@ -1629,6 +1645,26 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       formManager,
       linkedPendingByKey,
     ]
+  );
+
+  const runPermissionBreakAfterSubmit = useCallback(
+    async (
+      parentId: number,
+      valuesForPerm: Record<string, unknown>,
+      linkedRowsSnapshot: Record<string, ILinkedChildRowState[]>
+    ): Promise<void> => {
+      if (!formManager.permissionBreak?.enabled) return;
+      await applyFormManagerPermissionBreak({
+        formManager,
+        listTitle,
+        mainItemId: parentId,
+        mainValues: { ...valuesForPerm, Id: parentId },
+        mainAuthorId: pickMainAuthorId(valuesForPerm, initialItem, currentUserId),
+        linkedConfigsSorted,
+        linkedRowsById: linkedRowsSnapshot,
+      });
+    },
+    [formManager, listTitle, linkedConfigsSorted, initialItem, currentUserId]
   );
 
   type IValidateFailurePayload = {
@@ -1837,11 +1873,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         flatPendingFiles,
         multiFolderAttachmentMode ? pendingFilesByFolder : undefined
       );
+      let linkedSnap = linkedRowsById;
       if (submitKind === 'submit' && linkedConfigsSorted.length > 0) {
         const parentId = savedId ?? itemId;
         if (parentId !== undefined && parentId !== null && typeof parentId === 'number' && isFinite(parentId)) {
           try {
-            await performLinkedSync(parentId);
+            const rel = await performLinkedSync(parentId);
+            if (rel) linkedSnap = rel;
           } catch (le) {
             setFormError(
               `Registo principal gravado, mas as listas vinculadas falharam: ${
@@ -1849,6 +1887,23 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               }`
             );
             return false;
+          }
+        }
+      }
+      if (submitKind === 'submit') {
+        const parentIdPb = savedId ?? itemId;
+        if (
+          parentIdPb !== undefined &&
+          parentIdPb !== null &&
+          typeof parentIdPb === 'number' &&
+          isFinite(parentIdPb)
+        ) {
+          try {
+            await runPermissionBreakAfterSubmit(parentIdPb, vals, linkedSnap);
+          } catch (pe) {
+            setFormError(
+              `Gravado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
+            );
           }
         }
       }
@@ -2195,10 +2250,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           if (tl) tl.ok(ti);
           ti++;
         }
+        let linkedSnapAdd = linkedRowsById;
         if (hasLinkedChildren) {
           if (tl) tl.enter(ti);
           try {
-            await performLinkedSync(newId);
+            const relAdd = await performLinkedSync(newId);
+            if (relAdd) linkedSnapAdd = relAdd;
           } catch (le) {
             setFormError(
               `Item criado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
@@ -2212,6 +2269,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           }
           if (tl) tl.ok(ti);
           ti++;
+        }
+        try {
+          await runPermissionBreakAfterSubmit(newId, mergedValues, linkedSnapAdd);
+        } catch (pe) {
+          setFormError(
+            `Item criado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
+          );
         }
         if (logWillRun) {
           if (tl) tl.enter(ti);
@@ -2333,10 +2397,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           if (tl) tl.ok(ti);
           ti++;
         }
+        let linkedSnapUp = linkedRowsById;
         if (hasLinkedChildren) {
           if (tl) tl.enter(ti);
           try {
-            await performLinkedSync(itemId);
+            const relUp = await performLinkedSync(itemId);
+            if (relUp) linkedSnapUp = relUp;
           } catch (le) {
             setFormError(
               `Gravado, mas as listas vinculadas falharam: ${le instanceof Error ? le.message : String(le)}`
@@ -2350,6 +2416,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           }
           if (tl) tl.ok(ti);
           ti++;
+        }
+        try {
+          await runPermissionBreakAfterSubmit(itemId, mergedValues, linkedSnapUp);
+        } catch (pe) {
+          setFormError(
+            `Gravado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
+          );
         }
         await onAfterItemUpdated?.();
         if (logWillRun) {

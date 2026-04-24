@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Stack, Text, PrimaryButton, DefaultButton, Icon } from '@fluentui/react';
 import { attachmentFileKindIconName } from './attachmentFileKindIcon';
 
@@ -56,6 +56,15 @@ export const AttachmentFileDetailModal: React.FC<IAttachmentFileDetailModalProps
   target,
 }) => {
   const [objUrl, setObjUrl] = useState<string | undefined>(undefined);
+  const [urlCopied, setUrlCopied] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) setUrlCopied(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    setUrlCopied(false);
+  }, [target]);
 
   useEffect(() => {
     if (!isOpen || !target || target.kind !== 'pending') {
@@ -89,6 +98,34 @@ export const AttachmentFileDetailModal: React.FC<IAttachmentFileDetailModalProps
           window.open(target.fileUrl, '_blank', 'noopener,noreferrer');
         }
       : undefined;
+
+  const serverUrlTrimmed =
+    target?.kind === 'server' && target.fileUrl?.trim() ? target.fileUrl.trim() : '';
+
+  const copyServerUrl = useCallback(async (): Promise<void> => {
+    if (!serverUrlTrimmed) return;
+    try {
+      await navigator.clipboard.writeText(serverUrlTrimmed);
+      setUrlCopied(true);
+      window.setTimeout(() => setUrlCopied(false), 2000);
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = serverUrlTrimmed;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setUrlCopied(true);
+        window.setTimeout(() => setUrlCopied(false), 2000);
+      } catch {
+        //
+      }
+    }
+  }, [serverUrlTrimmed]);
 
   return (
     <Modal
@@ -169,11 +206,31 @@ export const AttachmentFileDetailModal: React.FC<IAttachmentFileDetailModalProps
                 />
               ) : null}
               <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginBottom: 20 } }}>
-                {target.fileRef?.trim() ? (
-                  <DetailRow label="Referência (fileRef)" value={target.fileRef.trim()} monospace />
-                ) : null}
-                {target.fileUrl?.trim() ? (
-                  <DetailRow label="URL" value={target.fileUrl.trim()} monospace />
+                {serverUrlTrimmed ? (
+                  <Stack tokens={{ childrenGap: 6 }}>
+                    <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
+                      <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                        URL
+                      </Text>
+                      <DefaultButton
+                        text={urlCopied ? 'Copiado' : 'Copiar'}
+                        iconProps={{ iconName: 'Copy' }}
+                        onClick={() => void copyServerUrl()}
+                      />
+                    </Stack>
+                    <Text
+                      variant="small"
+                      styles={{
+                        root: {
+                          color: '#605e5c',
+                          wordBreak: 'break-all',
+                          fontFamily: 'monospace, Consolas, monospace',
+                        },
+                      }}
+                    >
+                      {serverUrlTrimmed}
+                    </Text>
+                  </Stack>
                 ) : (
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Sem URL direta para este ficheiro.

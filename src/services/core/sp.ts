@@ -13,6 +13,8 @@ import '@pnp/sp/site-users/web';
 import '@pnp/sp/site-groups/web';
 import '@pnp/sp/profiles';
 import '@pnp/sp/search';
+import '@pnp/sp/security/item';
+import '@pnp/sp/security/web';
 
 let _sp: SPFI;
 
