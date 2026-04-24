@@ -11,6 +11,7 @@ import type {
   TListPageSectionLayout,
 } from '../../core/config/types';
 import {
+  effectiveConfigForListPageBlock,
   resolveDashboardForListBlock,
   sanitizeListPageContentPadding,
 } from '../../core/listPage/listPageLayoutUtils';
@@ -44,7 +45,7 @@ export interface IListPageRendererProps {
   /** Abre o painel de configuração do bloco (banner / editor) na página. */
   onConfigureListContentBlock?: (blockId: string) => void;
   /** Exposto acima de cada bloco de tabela (modo lista). */
-  onEditTableColumns?: () => void;
+  onEditTableColumns?: (blockId: string) => void;
   editTableColumnsLabel?: string;
   /** Padding CSS da área do layout (ex. 16px 24px), já validado ao gravar. */
   contentPadding?: string;
@@ -64,6 +65,33 @@ function showDashboardBlock(dashboard: IDashboardConfig): boolean {
     dashboard.enabled &&
     (dashboard.dashboardType === 'charts' || dashboard.cardsCount > 0)
   );
+}
+
+function findBlockInSections(sections: IListPageSection[], blockId: string): IListPageBlock | null {
+  for (let si = 0; si < sections.length; si++) {
+    const cols = sections[si].columns;
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci];
+      for (let bi = 0; bi < col.length; bi++) {
+        if (col[bi].id === blockId) return col[bi];
+      }
+    }
+  }
+  return null;
+}
+
+function tableBlockReceivesDashboardFilters(
+  config: IDynamicViewConfig,
+  sections: IListPageSection[],
+  tableBlock: IListPageBlock,
+  selection: TListPageDashboardListSelection | null
+): boolean {
+  if (!selection?.filters?.length) return false;
+  const dashBlock = findBlockInSections(sections, selection.blockId);
+  if (!dashBlock || dashBlock.type !== 'dashboard') return false;
+  const tTitle = effectiveConfigForListPageBlock(config, tableBlock).dataSource.title;
+  const dTitle = effectiveConfigForListPageBlock(config, dashBlock).dataSource.title;
+  return tTitle === dTitle;
 }
 
 export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
@@ -98,11 +126,12 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
         sel?.kind === 'card' && sel.blockId === block.id ? sel.entityId : null;
       const selectedSeriesId =
         sel?.kind === 'series' && sel.blockId === block.id ? sel.entityId : null;
+      const eff = effectiveConfigForListPageBlock(config, block);
       return (
         <DashboardView
           dashboardBlockId={block.id}
           config={dashCfg}
-          dataSource={config.dataSource}
+          dataSource={eff.dataSource}
           refreshKey={dashboardRefreshKey}
           onEditCards={onEditCards}
           onEditSeries={onEditSeries}
@@ -116,13 +145,18 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
       );
     }
     if (block.type === 'list') {
+      const effList = effectiveConfigForListPageBlock(config, block);
+      const dashFilters =
+        tableBlockReceivesDashboardFilters(config, sections, block, dashboardListSelection)
+          ? dashboardListSelection?.filters
+          : undefined;
       return (
         <Stack key={block.id} tokens={{ childrenGap: 8 }}>
           {onEditTableColumns !== undefined ? (
             <Stack horizontal horizontalAlign="end" styles={{ root: { width: '100%' } }}>
               <ActionButton
                 iconProps={{ iconName: 'ColumnOptions' }}
-                onClick={onEditTableColumns}
+                onClick={() => onEditTableColumns(block.id)}
                 styles={{ root: { height: 30, color: '#0078d4' } }}
               >
                 {editTableColumnsLabel}
@@ -130,8 +164,8 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
             </Stack>
           ) : null}
           <TableView
-            config={config}
-            dashboardListFilters={dashboardListSelection?.filters}
+            config={effList}
+            dashboardListFilters={dashFilters}
             instanceScopeId={`${instanceScopeId}_${block.id}`}
           />
         </Stack>
@@ -177,11 +211,12 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
       );
     }
     if (block.type === 'alert') {
+      const effAlert = effectiveConfigForListPageBlock(config, block);
       return (
         <ListPageAlertBlock
           key={block.id}
           alert={block.alert}
-          listTitle={config.dataSource.title ?? ''}
+          listTitle={effAlert.dataSource.title ?? ''}
           onConfigure={
             onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)

@@ -53,6 +53,23 @@ export function applySnapshotToConfig(
   };
 }
 
+export function upsertConfigMemoryForListSource(
+  base: IDynamicViewConfig,
+  childDataSource: IDataSourceConfig,
+  partial: Partial<Pick<IModeConfigSnapshot, 'listView' | 'pagination' | 'tableConfig' | 'pdfTemplate'>>
+): IDynamicViewConfig {
+  const memory = base.configMemory ? cloneJson(base.configMemory) : emptyConfigMemory();
+  if (!memory.bySource) memory.bySource = {};
+  const key = sourceKey(childDataSource);
+  const prevEntry = memory.bySource[key] ?? {};
+  const prevListSnap: Partial<IModeConfigSnapshot> = { ...(prevEntry.list ?? {}) };
+  memory.bySource[key] = {
+    ...prevEntry,
+    list: { ...prevListSnap, ...partial } as IModeConfigSnapshot,
+  };
+  return { ...base, configMemory: memory };
+}
+
 function mergeWizardFormIntoConfig(
   prev: IDynamicViewConfig,
   mergedForm: IWizardFormState,

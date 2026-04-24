@@ -20,12 +20,15 @@ import {
 import {
   defaultListPageLayoutFromLegacy,
   findListPageBlockById,
+  findListPageBlockInSections,
   getDashboardForEditor,
   getEffectiveListPageSections,
+  mergeLinkedListMemoryIntoConfig,
   LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID,
   replaceBlockInListPageLayout,
   saveDashboardForListBlock,
 } from '../core/listPage/listPageLayoutUtils';
+import { upsertConfigMemoryForListSource } from '../core/config/configMemory';
 import { effectiveDashboardFilters } from '../core/dashboard/effectiveDashboardFilters';
 import {
   chartSeriesToDashboardCards,
@@ -60,6 +63,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [isEditingFormManager, setIsEditingFormManager] = useState(false);
   const [listPageContentBlockId, setListPageContentBlockId] = useState<string | null>(null);
   const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
+  const [editingTableBlockId, setEditingTableBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
@@ -91,6 +95,52 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     () => config?.formManager ?? getDefaultFormManagerConfig(),
     [config?.formManager]
   );
+
+  const tableEditorSource = useMemo(() => {
+    if (!config) {
+      return {
+        listTitle: '',
+        listView: undefined as IListViewConfig | undefined,
+        pagination: undefined as IPaginationConfig | undefined,
+        pdfTemplate: undefined as import('../core/config/types').IPdfTemplateConfig | undefined,
+      };
+    }
+    const bid = editingTableBlockId;
+    if (!bid) {
+      return {
+        listTitle: config.dataSource.title,
+        listView: config.listView,
+        pagination: config.pagination,
+        pdfTemplate: config.pdfTemplate,
+      };
+    }
+    const block = findListPageBlockInSections(getEffectiveListPageSections(config), bid);
+    const lt = block?.linkedListBinding?.listTitle?.trim();
+    if (!lt) {
+      return {
+        listTitle: config.dataSource.title,
+        listView: config.listView,
+        pagination: config.pagination,
+        pdfTemplate: config.pdfTemplate,
+      };
+    }
+    const eff = mergeLinkedListMemoryIntoConfig(config, { kind: 'list', title: lt });
+    return {
+      listTitle: eff.dataSource.title,
+      listView: eff.listView,
+      pagination: eff.pagination,
+      pdfTemplate: eff.pdfTemplate,
+    };
+  }, [config, editingTableBlockId]);
+
+  const dashboardEditorListTitle = useMemo(() => {
+    if (!config) return '';
+    const bid = editingDashboardBlockId;
+    if (!bid) return config.dataSource.title;
+    const b = findListPageBlockInSections(getEffectiveListPageSections(config), bid);
+    const lt = b?.linkedListBinding?.listTitle?.trim();
+    return lt || config.dataSource.title;
+  }, [config, editingDashboardBlockId]);
 
   useEffect(() => {
     setDashboardListSelection(null);
@@ -209,6 +259,27 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     projectManagement?: import('../core/config/types').IProjectManagementConfig
   ): void => {
     if (!config) return;
+    const bid = editingTableBlockId;
+    if (bid) {
+      const block = findListPageBlockInSections(getEffectiveListPageSections(config), bid);
+      const lt = block?.linkedListBinding?.listTitle?.trim();
+      if (lt) {
+        saveConfig(
+          upsertConfigMemoryForListSource(
+            config,
+            { kind: 'list', title: lt },
+            {
+              listView,
+              pagination,
+              ...(pdfTemplate !== undefined ? { pdfTemplate } : {}),
+            }
+          )
+        );
+        setIsEditingTableColumns(false);
+        setEditingTableBlockId(null);
+        return;
+      }
+    }
     saveConfig({
       ...config,
       listView,
@@ -217,6 +288,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       ...(pdfTemplate !== undefined && { pdfTemplate }),
     });
     setIsEditingTableColumns(false);
+    setEditingTableBlockId(null);
   };
 
   const handleSaveListPageLayout = (layout: IListPageLayoutConfig): void => {
@@ -344,7 +416,10 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardRefreshKey={dashboardRefreshKey}
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
-            onEditTableColumns={() => setIsEditingTableColumns(true)}
+            onEditTableColumns={(blockId) => {
+              setEditingTableBlockId(blockId);
+              setIsEditingTableColumns(true);
+            }}
             onEditCards={(blockId) => {
               setEditingDashboardBlockId(blockId);
               setIsEditingCards(true);
@@ -368,7 +443,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
       <CardEditorPanel
         isOpen={isEditingCards}
-        listTitle={config.dataSource.title}
+        listTitle={dashboardEditorListTitle}
         cards={activeListDashboard.cards}
         cardsCount={activeListDashboard.cardsCount}
         dashboardType={activeListDashboard.dashboardType}
@@ -382,7 +457,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
       <ChartSeriesEditorPanel
         isOpen={isEditingSeries}
-        listTitle={config.dataSource.title}
+        listTitle={dashboardEditorListTitle}
         series={activeListDashboard.chartSeries ?? []}
         dashboardType={activeListDashboard.dashboardType}
         chartType={activeListDashboard.chartType}
@@ -396,13 +471,16 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <TableColumnsEditorPanel
         isOpen={isEditingTableColumns}
         mode={config.mode}
-        listTitle={config.dataSource.title}
-        listView={config.listView}
-        pagination={config.pagination}
+        listTitle={tableEditorSource.listTitle}
+        listView={tableEditorSource.listView ?? config.listView}
+        pagination={tableEditorSource.pagination ?? config.pagination}
         projectManagement={config.projectManagement}
-        pdfTemplate={config.pdfTemplate}
+        pdfTemplate={tableEditorSource.pdfTemplate ?? config.pdfTemplate}
         onSave={handleSaveTableColumns}
-        onDismiss={() => setIsEditingTableColumns(false)}
+        onDismiss={() => {
+          setIsEditingTableColumns(false);
+          setEditingTableBlockId(null);
+        }}
       />
 
       <ListPageLayoutEditorPanel
@@ -417,7 +495,12 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <ListPageBlockConfigPanel
         isOpen={listContentBlockPanelOpen}
         block={listContentBlockPanelOpen ? editingListContentBlock : null}
-        listTitle={config.dataSource.title ?? ''}
+        listTitle={
+          editingListContentBlock?.type === 'alert' &&
+          editingListContentBlock.linkedListBinding?.listTitle?.trim()
+            ? editingListContentBlock.linkedListBinding.listTitle.trim()
+            : config.dataSource.title ?? ''
+        }
         onDismiss={() => setListPageContentBlockId(null)}
         onApply={handleApplyListContentBlock}
       />

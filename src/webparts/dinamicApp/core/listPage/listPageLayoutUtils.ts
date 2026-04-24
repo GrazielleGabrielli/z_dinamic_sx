@@ -1,14 +1,17 @@
 import type {
+  IDataSourceConfig,
   IDashboardCardConfig,
   IDashboardConfig,
   IDynamicViewConfig,
   IChartSeriesConfig,
   IListPageBlock,
   IListPageLayoutConfig,
+  IListPageLinkedListBinding,
   IListPageSection,
   TChartType,
   TListPageSectionLayout,
 } from '../config/types';
+import { sourceKey } from '../config/configMemory';
 import {
   sanitizeAlertConfig,
   sanitizeBannerConfig,
@@ -200,8 +203,16 @@ export function findListPageBlockById(
   blockId: string
 ): IListPageBlock | null {
   if (!layout) return null;
-  for (let si = 0; si < layout.sections.length; si++) {
-    const cols = layout.sections[si].columns;
+  return findListPageBlockInSections(layout.sections, blockId);
+}
+
+export function findListPageBlockInSections(
+  sections: IListPageSection[] | undefined,
+  blockId: string
+): IListPageBlock | null {
+  if (!sections) return null;
+  for (let si = 0; si < sections.length; si++) {
+    const cols = sections[si].columns;
     for (let ci = 0; ci < cols.length; ci++) {
       const col = cols[ci];
       for (let bi = 0; bi < col.length; bi++) {
@@ -314,6 +325,48 @@ const VALID_BLOCK_TYPES = new Set<string>([
   'buttons',
 ]);
 
+export function sanitizeLinkedListBinding(
+  raw: unknown,
+  blockType: IListPageBlock['type']
+): IListPageLinkedListBinding | undefined {
+  if (blockType !== 'dashboard' && blockType !== 'list' && blockType !== 'alert') return undefined;
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const listTitle = typeof o.listTitle === 'string' ? o.listTitle.trim() : '';
+  const parentLookupFieldInternalName =
+    typeof o.parentLookupFieldInternalName === 'string' ? o.parentLookupFieldInternalName.trim() : '';
+  if (!listTitle || !parentLookupFieldInternalName) return undefined;
+  return { listTitle, parentLookupFieldInternalName };
+}
+
+/** Aplica só listView / pagination / tableConfig da memória da lista filha (não dashboard global nem layout). */
+export function mergeLinkedListMemoryIntoConfig(
+  base: IDynamicViewConfig,
+  childDataSource: IDataSourceConfig
+): IDynamicViewConfig {
+  const key = sourceKey(childDataSource);
+  const snap = base.configMemory?.bySource?.[key]?.list;
+  if (!snap) return { ...base, dataSource: childDataSource };
+  return {
+    ...base,
+    dataSource: childDataSource,
+    ...(snap.listView !== undefined && { listView: snap.listView }),
+    ...(snap.pagination !== undefined && { pagination: snap.pagination }),
+    ...(snap.tableConfig !== undefined && { tableConfig: snap.tableConfig }),
+    ...(snap.pdfTemplate !== undefined && { pdfTemplate: snap.pdfTemplate }),
+  };
+}
+
+export function effectiveConfigForListPageBlock(
+  config: IDynamicViewConfig,
+  block: IListPageBlock
+): IDynamicViewConfig {
+  const b = block.linkedListBinding;
+  if (!b?.listTitle?.trim() || !b?.parentLookupFieldInternalName?.trim()) return config;
+  const childDataSource: IDataSourceConfig = { kind: 'list', title: b.listTitle.trim() };
+  return mergeLinkedListMemoryIntoConfig(config, childDataSource);
+}
+
 export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
@@ -345,6 +398,8 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
           const bt = String(bb.type ?? '');
           if (!VALID_BLOCK_TYPES.has(bt)) continue;
           const type = bt as IListPageBlock['type'];
+          const linkedListBinding = sanitizeLinkedListBinding(bb.linkedListBinding, type);
+          const bindOpt = linkedListBinding ? { linkedListBinding } : {};
           const nestedDash = type === 'dashboard' ? sanitizeBlockDashboard(bb.dashboard) : undefined;
           if (type === 'banner') {
             blocks.push({
@@ -374,6 +429,7 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
             blocks.push({
               id: bid,
               type,
+              ...bindOpt,
               alert: sanitizeAlertConfig(bb.alert),
             });
             continue;
@@ -389,6 +445,7 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
           blocks.push({
             id: bid,
             type,
+            ...bindOpt,
             ...(nestedDash ? { dashboard: nestedDash } : {}),
           });
         }

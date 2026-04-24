@@ -418,6 +418,13 @@ export interface IListPageRichEditorBlockConfig {
   allowVideoEmbed: boolean;
 }
 
+/** Lista filha usada por um bloco do layout (dados OData / metadados dessa lista). */
+export interface IListPageLinkedListBinding {
+  listTitle: string;
+  /** Lookup na lista filha que aponta para a lista principal do app. */
+  parentLookupFieldInternalName: string;
+}
+
 export interface IListPageBlock {
   id: string;
   type: TListPageBlockType;
@@ -428,6 +435,8 @@ export interface IListPageBlock {
   sectionTitle?: IListPageSectionTitleBlockConfig;
   alert?: IListPageAlertBlockConfig;
   buttons?: IListPageButtonsBlockConfig;
+  /** Blocos `dashboard` / `list` / `alert`: dados desta lista (com lookup para a principal). */
+  linkedListBinding?: IListPageLinkedListBinding;
 }
 
 export interface IListPageSection {

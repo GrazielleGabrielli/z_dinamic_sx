@@ -20,6 +20,7 @@ import type {
   IDashboardConfig,
   IListPageBlock,
   IListPageLayoutConfig,
+  IListPageLinkedListBinding,
   IListPageSection,
   TListPageBlockType,
   TListPageSectionLayout,
@@ -42,6 +43,7 @@ import {
   sanitizeListPageLayout,
 } from '../../core/listPage/listPageLayoutUtils';
 import { ListPageBlockConfigPanel } from './ListPageBlockConfigPanel';
+import { ListPageBlockLinkedBindingEditor } from './ListPageBlockLinkedBindingEditor';
 
 export interface IListPageLayoutEditorPanelProps {
   isOpen: boolean;
@@ -472,6 +474,32 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     setBlockConfigPath(null);
   };
 
+  const patchBlockLinkedBinding = (
+    si: number,
+    ci: number,
+    bi: number,
+    nextBinding: IListPageLinkedListBinding | undefined
+  ): void => {
+    setSections((prev) => {
+      const copy = prev.slice();
+      const sec = copy[si];
+      if (!sec) return prev;
+      const cols = sec.columns.map((c) => c.slice());
+      const col = cols[ci];
+      if (!col || col[bi] === undefined) return prev;
+      const b = col[bi];
+      if (b.type !== 'dashboard' && b.type !== 'list' && b.type !== 'alert') return prev;
+      const nextBlock: IListPageBlock = { ...b };
+      if (nextBinding) nextBlock.linkedListBinding = nextBinding;
+      else delete nextBlock.linkedListBinding;
+      const nextCol = col.slice();
+      nextCol[bi] = nextBlock;
+      cols[ci] = nextCol;
+      copy[si] = { ...sec, columns: cols };
+      return copy;
+    });
+  };
+
   return (
     <>
     <Panel
@@ -609,9 +637,7 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
                 {blocks.map((b, bi) => (
                   <Stack
                     key={b.id}
-                    horizontal
-                    verticalAlign="center"
-                    horizontalAlign="space-between"
+                    tokens={{ childrenGap: 6 }}
                     styles={{
                       root: {
                         padding: '8px 10px',
@@ -621,43 +647,53 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
                       },
                     }}
                   >
-                    <Text variant="small">{blockTypeLabel(b.type)}</Text>
-                    <Stack horizontal verticalAlign="center">
-                      <IconButton
-                        iconProps={{ iconName: 'ChevronUp' }}
-                        title="Subir na coluna"
-                        ariaLabel="Subir na coluna"
-                        disabled={bi === 0}
-                        onClick={() => moveBlockInColumn(si, ci, bi, -1)}
-                        styles={{ root: { width: 28, height: 28 } }}
-                      />
-                      <IconButton
-                        iconProps={{ iconName: 'ChevronDown' }}
-                        title="Descer na coluna"
-                        ariaLabel="Descer na coluna"
-                        disabled={bi >= blocks.length - 1}
-                        onClick={() => moveBlockInColumn(si, ci, bi, 1)}
-                        styles={{ root: { width: 28, height: 28 } }}
-                      />
-                      {(b.type === 'banner' ||
-                        b.type === 'editor' ||
-                        b.type === 'sectionTitle' ||
-                        b.type === 'alert' ||
-                        b.type === 'buttons') && (
+                    <Stack horizontal verticalAlign="center" horizontalAlign="space-between">
+                      <Text variant="small">{blockTypeLabel(b.type)}</Text>
+                      <Stack horizontal verticalAlign="center">
                         <IconButton
-                          iconProps={{ iconName: 'Settings' }}
-                          title="Configurar bloco"
-                          ariaLabel="Configurar bloco"
-                          onClick={() => setBlockConfigPath({ si, ci, bi })}
+                          iconProps={{ iconName: 'ChevronUp' }}
+                          title="Subir na coluna"
+                          ariaLabel="Subir na coluna"
+                          disabled={bi === 0}
+                          onClick={() => moveBlockInColumn(si, ci, bi, -1)}
+                          styles={{ root: { width: 28, height: 28 } }}
                         />
-                      )}
-                      <IconButton
-                        iconProps={{ iconName: 'Delete' }}
-                        title="Remover bloco"
-                        ariaLabel="Remover bloco"
-                        onClick={() => removeBlock(si, ci, bi)}
-                      />
+                        <IconButton
+                          iconProps={{ iconName: 'ChevronDown' }}
+                          title="Descer na coluna"
+                          ariaLabel="Descer na coluna"
+                          disabled={bi >= blocks.length - 1}
+                          onClick={() => moveBlockInColumn(si, ci, bi, 1)}
+                          styles={{ root: { width: 28, height: 28 } }}
+                        />
+                        {(b.type === 'banner' ||
+                          b.type === 'editor' ||
+                          b.type === 'sectionTitle' ||
+                          b.type === 'alert' ||
+                          b.type === 'buttons') && (
+                          <IconButton
+                            iconProps={{ iconName: 'Settings' }}
+                            title="Configurar bloco"
+                            ariaLabel="Configurar bloco"
+                            onClick={() => setBlockConfigPath({ si, ci, bi })}
+                          />
+                        )}
+                        <IconButton
+                          iconProps={{ iconName: 'Delete' }}
+                          title="Remover bloco"
+                          ariaLabel="Remover bloco"
+                          onClick={() => removeBlock(si, ci, bi)}
+                        />
+                      </Stack>
                     </Stack>
+                    {(b.type === 'dashboard' || b.type === 'list' || b.type === 'alert') && (
+                      <ListPageBlockLinkedBindingEditor
+                        layoutPanelOpen={isOpen}
+                        mainListTitle={sourceListTitle ?? ''}
+                        binding={b.linkedListBinding}
+                        onBindingChange={(nb) => patchBlockLinkedBinding(si, ci, bi, nb)}
+                      />
+                    )}
                   </Stack>
                 ))}
                 <Dropdown
@@ -679,7 +715,11 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
     <ListPageBlockConfigPanel
       isOpen={blockConfigPath !== null && editingBlock !== null}
       block={editingBlock}
-      listTitle={sourceListTitle ?? ''}
+      listTitle={
+        editingBlock?.type === 'alert' && editingBlock.linkedListBinding?.listTitle?.trim()
+          ? editingBlock.linkedListBinding.listTitle.trim()
+          : sourceListTitle ?? ''
+      }
       onDismiss={() => setBlockConfigPath(null)}
       onApply={applyBlockConfig}
     />

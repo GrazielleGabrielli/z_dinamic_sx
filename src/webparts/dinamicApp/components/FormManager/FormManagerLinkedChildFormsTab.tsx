@@ -15,6 +15,7 @@ import {
 } from '@fluentui/react';
 import { FieldsService, ListsService } from '../../../../services';
 import type { IFieldMetadata, IListSummary } from '../../../../services';
+import { listGuidFromLookupListField, normListGuid } from '../../core/listPage/sharePointLookupListGuid';
 import type {
   IFormFieldConfig,
   IFormLinkedChildFormConfig,
@@ -80,24 +81,6 @@ const MAX_ROWS_DROPDOWN: IDropdownOption[] = [
     text: String(i + 1),
   })),
 ];
-
-function normListGuid(g: string | undefined): string {
-  if (!g) return '';
-  return g.replace(/[{}]/g, '').toLowerCase();
-}
-
-/** Guid da lista referenciada por LookupList (REST pode devolver `{guid}`, URL ou só o guid). */
-function listGuidFromLookupListField(raw: string | undefined): string {
-  if (!raw) return '';
-  const t = raw.trim();
-  const inBraces = t.match(/\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}/i);
-  if (inBraces) return normListGuid(inBraces[1]);
-  const plain = t.match(
-    /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
-  );
-  if (plain) return normListGuid(plain[1]);
-  return normListGuid(t);
-}
 
 function buildParentLookupDropdownOptions(
   meta: IFieldMetadata[],
