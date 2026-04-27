@@ -70,6 +70,10 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const d = raw as Record<string, unknown>;
   if (typeof d.enabled !== 'boolean') return undefined;
+  const linkedListBlockId =
+    typeof d.linkedListBlockId === 'string' && d.linkedListBlockId.trim().length > 0
+      ? d.linkedListBlockId.trim()
+      : undefined;
   const dashCombine =
     d.combineWithActiveViewMode === true
       ? true
@@ -113,6 +117,7 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
       chartType,
       chartSeries: chartSeries ?? [],
       ...(dashCombine !== undefined && { combineWithActiveViewMode: dashCombine }),
+      ...(linkedListBlockId ? { linkedListBlockId } : {}),
     };
   }
   return {
@@ -122,6 +127,7 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
     cards,
     chartType,
     ...(dashCombine !== undefined && { combineWithActiveViewMode: dashCombine }),
+    ...(linkedListBlockId ? { linkedListBlockId } : {}),
   };
 }
 
@@ -538,4 +544,32 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
 
 export function defaultListPageLayoutFromLegacy(config: IDynamicViewConfig): IListPageLayoutConfig {
   return { sections: buildLegacyListPageSections(config) };
+}
+
+export function saveDashboardPairedListBlock(
+  config: IDynamicViewConfig,
+  dashboardBlockId: string,
+  pairedListBlockId: string | undefined
+): IDynamicViewConfig {
+  const layout = config.listPageLayout;
+  const block = layout ? findListPageBlockInSections(layout.sections, dashboardBlockId) : null;
+  if (!layout || !block || block.type !== 'dashboard') {
+    const nextDash: IDashboardConfig = { ...config.dashboard };
+    if (pairedListBlockId?.trim()) {
+      nextDash.linkedListBlockId = pairedListBlockId.trim();
+    } else {
+      delete nextDash.linkedListBlockId;
+    }
+    return { ...config, dashboard: nextDash };
+  }
+  const nextBlock: IListPageBlock = { ...block };
+  if (pairedListBlockId?.trim()) {
+    nextBlock.pairedListBlockId = pairedListBlockId.trim();
+  } else {
+    delete nextBlock.pairedListBlockId;
+  }
+  return {
+    ...config,
+    listPageLayout: replaceBlockInListPageLayout(layout, dashboardBlockId, nextBlock),
+  };
 }

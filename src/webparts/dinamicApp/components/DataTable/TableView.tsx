@@ -58,8 +58,8 @@ export interface ITableViewProps {
   instanceScopeId: string;
   /** Site da página (para avaliar grupos ao restringir modos). */
   pageWebServerRelativeUrl?: string;
-  /** Chamado quando o modo de visualização da tabela muda (para combinar com filtros do dashboard). */
-  onViewModeChange?: (modeId: string) => void;
+  /** Notifica alteração do modo de visualização (sincronizar com dashboard vinculado). */
+  onActiveViewModeChange?: (viewModeId: string) => void;
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
@@ -72,24 +72,16 @@ export const TableView: React.FC<ITableViewProps> = ({
   dashboardListFilters,
   instanceScopeId,
   pageWebServerRelativeUrl,
-  onViewModeChange,
+  onActiveViewModeChange,
 }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
   const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
 
-  const listViewStableKey = JSON.stringify(listView ?? null);
-  const tableConfigRawKey = JSON.stringify(tableConfigRaw ?? null);
-  const tableConfigFromList = useMemo(
-    () => listViewToTableConfig(listView),
-    // listView muda de referência a cada render do ListPageRenderer; a chave estabiliza o memo
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listViewStableKey]
-  );
+  const tableConfigFromList = useMemo(() => listViewToTableConfig(listView), [listView]);
   const initialTableConfig = useMemo(
     () => (tableConfigRaw && tableConfigRaw.columns?.length ? tableConfigRaw : tableConfigFromList) as Partial<ITableConfig>,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tableConfigRawKey, tableConfigFromList]
+    [tableConfigRaw, tableConfigFromList]
   );
 
   const [tableConfig, setTableConfig] = useState<ITableConfig | null>(null);
@@ -128,60 +120,22 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
   }, [fullViewModes, membership]);
 
-  const lastConfigActiveModeRef = React.useRef<string | undefined>(undefined);
-  const viewModesContentKey = JSON.stringify(
-    (listView?.viewModes ?? []).map((m) => ({ id: m.id, filters: m.filters }))
-  );
-
   useEffect(() => {
     const desired = listView?.activeViewModeId ?? fullViewModes[0]?.id ?? 'all';
-
     if (!membership) {
-      const prevStored = lastConfigActiveModeRef.current;
-      if (prevStored === undefined) {
-        lastConfigActiveModeRef.current = desired;
-        setSelectedViewModeId(desired);
-        return;
-      }
-      const configModeChanged = prevStored !== desired;
-      lastConfigActiveModeRef.current = desired;
-      if (configModeChanged) {
-        setSelectedViewModeId(desired);
-      }
+      setSelectedViewModeId(desired);
       return;
     }
-
-    const prevStored = lastConfigActiveModeRef.current;
-    const configModeChanged = prevStored !== undefined && prevStored !== desired;
-    lastConfigActiveModeRef.current = desired;
-
-    setSelectedViewModeId((prev) => {
-      const visIds = new Set(visibleViewModes.map((m) => m.id));
-      if (configModeChanged && visIds.has(desired)) {
-        return desired;
-      }
-      if (visIds.has(prev)) {
-        return prev;
-      }
-      return pickFallbackViewModeId(desired, visibleViewModes, fullViewModes);
-    });
-  }, [listView?.activeViewModeId, viewModesContentKey, membership, visibleViewModes]);
+    setSelectedViewModeId(pickFallbackViewModeId(desired, visibleViewModes, fullViewModes));
+  }, [listView?.activeViewModeId, fullViewModes, membership, visibleViewModes]);
 
   useEffect(() => {
     setColumnFilters({});
   }, [selectedViewModeId]);
 
-  const onViewModeChangeRef = React.useRef(onViewModeChange);
-  onViewModeChangeRef.current = onViewModeChange;
-  const skipNextViewModeParentNotify = React.useRef(true);
   useEffect(() => {
-    if (!onViewModeChangeRef.current) return;
-    if (skipNextViewModeParentNotify.current) {
-      skipNextViewModeParentNotify.current = false;
-      return;
-    }
-    onViewModeChangeRef.current(selectedViewModeId);
-  }, [selectedViewModeId]);
+    onActiveViewModeChange?.(selectedViewModeId);
+  }, [selectedViewModeId, onActiveViewModeChange]);
 
   useEffect(() => {
     if (!listCardViewEnabled) {

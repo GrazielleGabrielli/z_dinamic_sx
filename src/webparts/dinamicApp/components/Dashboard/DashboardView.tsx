@@ -1,13 +1,28 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Stack, Text, ActionButton, MessageBar, MessageBarType } from '@fluentui/react';
-import { FieldsService } from '../../../../services';
-import { IDashboardCardConfig, IDashboardConfig, IDataSourceConfig, IChartSeriesConfig } from '../../core/config/types';
+import { Stack, Text, ActionButton, MessageBar, MessageBarType, Dropdown, IDropdownOption } from '@fluentui/react';
+import { FieldsService, UsersService } from '../../../../services';
+import {
+  IChartSeriesConfig,
+  IDashboardCardConfig,
+  IDashboardConfig,
+  IDataSourceConfig,
+  IDynamicViewConfig,
+  IListPageBlock,
+  IListPageSection,
+} from '../../core/config/types';
 import { generateDefaultCards } from '../../core/config/utils';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
 import { IDashboardCardResult } from '../../core/dashboard/types';
+import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
+import {
+  buildLinkedViewModeOData,
+  collectCompatibleListBlocksForDashboard,
+  resolveLinkedListBlockIdForDashboard,
+} from '../../core/listPage/linkedViewModeOData';
 import { DashboardCard } from './DashboardCard';
 import { ChartView } from './ChartView';
+import type { IDynamicContext } from '../../core/dynamicTokens/types';
 
 interface IDashboardViewProps {
   dashboardBlockId: string;
@@ -23,6 +38,16 @@ interface IDashboardViewProps {
   selectedSeriesId?: string | null;
   /** Quando há filtros do dashboard aplicados na listagem (para texto auxiliar). */
   dashboardAppliesListFilter?: boolean;
+  /** Lista de página: modo ativo por bloco + config para conjugar filtros OData do modo da tabela. */
+  listPairing?: {
+    rootConfig: IDynamicViewConfig;
+    sections: IListPageSection[];
+    dashboardBlock: IListPageBlock;
+    rootDashboard: IDashboardConfig;
+    activeViewModeByBlockId: Record<string, string>;
+  };
+  /** Permite gravar vínculo bloco dashboard ↔ bloco lista (mesma fonte OData). */
+  onLinkedTableChange?: (pairedListBlockId: string | undefined) => void;
 }
 
 export const DashboardView: React.FC<IDashboardViewProps> = ({
@@ -38,6 +63,8 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   onSeriesClick,
   selectedSeriesId,
   dashboardAppliesListFilter,
+  listPairing,
+  onLinkedTableChange,
 }) => {
   if (config.dashboardType === 'charts') {
     return (
@@ -51,6 +78,8 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         }
         selectedSeriesId={selectedSeriesId}
         showListFilterHint={dashboardAppliesListFilter === true}
+        listPairing={listPairing}
+        onLinkedTableChange={onLinkedTableChange}
       />
     );
   }
@@ -63,6 +92,72 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   );
   const [globalError, setGlobalError] = useState<string | undefined>(undefined);
   const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
+  const [dynamicContext, setDynamicContext] = useState<IDynamicContext | undefined>(undefined);
+
+  const linkedResolved = listPairing
+    ? resolveLinkedListBlockIdForDashboard(listPairing.dashboardBlock, listPairing.rootDashboard)
+    : undefined;
+
+  const linkableTables = useMemo(() => {
+    if (!listPairing) return [];
+    return collectCompatibleListBlocksForDashboard(
+      listPairing.rootConfig,
+      listPairing.sections,
+      listPairing.dashboardBlock
+    );
+  }, [listPairing]);
+
+  const linkDropdownOptions: IDropdownOption[] = useMemo(() => {
+    const opts: IDropdownOption[] = [{ key: '__none__', text: 'Nenhuma (só filtros do dashboard)' }];
+    for (let i = 0; i < linkableTables.length; i++) {
+      const t = linkableTables[i];
+      opts.push({ key: t.id, text: t.label });
+    }
+    return opts;
+  }, [linkableTables]);
+
+  const mergedViewModeOData = useMemo(() => {
+    if (!listPairing || !linkedResolved || fieldMetadata === undefined) return undefined;
+    return buildLinkedViewModeOData(
+      listPairing.rootConfig,
+      listPairing.sections,
+      dataSource,
+      linkedResolved,
+      listPairing.activeViewModeByBlockId,
+      dynamicContext,
+      fieldMetadata
+    );
+  }, [
+    listPairing,
+    linkedResolved,
+    dataSource,
+    fieldMetadata,
+    dynamicContext,
+  ]);
+
+  useEffect(() => {
+    const us = new UsersService();
+    us.getCurrentUser()
+      .then((user) =>
+        setDynamicContext(
+          buildDynamicContext({
+            currentUser: {
+              id: user.Id,
+              title: user.Title,
+              name: user.Title,
+              email: user.Email,
+              loginName: user.LoginName,
+            },
+            query:
+              typeof window !== 'undefined' && window.location
+                ? parseQueryString(window.location.search)
+                : undefined,
+            now: new Date(),
+          })
+        )
+      )
+      .catch(() => setDynamicContext(buildDynamicContext({ now: new Date() })));
+  }, []);
 
   useEffect(() => {
     if (!dataSource.title.trim()) return;
@@ -79,13 +174,15 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
     setGlobalError(undefined);
 
     const run = fieldMetadata
-      ? engine.computeAll(config, dataSource, fieldMetadata)
-      : (fieldMetadata === undefined ? Promise.resolve(engine.buildLoadingResults(config)) : engine.computeAll(config, dataSource, []));
+      ? engine.computeAll(config, dataSource, fieldMetadata, dynamicContext, mergedViewModeOData)
+      : fieldMetadata === undefined
+        ? Promise.resolve(engine.buildLoadingResults(config))
+        : engine.computeAll(config, dataSource, [], dynamicContext, mergedViewModeOData);
 
     run
       .then((computed) => setResults(computed))
       .catch((err: Error) => setGlobalError(`Erro ao carregar dashboard: ${err.message}`));
-  }, [config, dataSource, fieldMetadata, refreshKey]);
+  }, [config, dataSource, fieldMetadata, refreshKey, dynamicContext, mergedViewModeOData, engine]);
 
   const cardsWithDefaults = useMemo(
     () => (config.cards.length > 0 ? config.cards : generateDefaultCards(config.cardsCount)),
@@ -114,7 +211,19 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         >
           Dashboard
         </Text>
-        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }}>
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
+          {linkableTables.length > 0 && onLinkedTableChange !== undefined && (
+            <Dropdown
+              label="Combinar com modo da tabela"
+              options={linkDropdownOptions}
+              selectedKey={linkedResolved ?? '__none__'}
+              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                const k = opt ? String(opt.key) : '__none__';
+                onLinkedTableChange(k === '__none__' ? undefined : k);
+              }}
+              styles={{ root: { minWidth: 260, maxWidth: 320 } }}
+            />
+          )}
           {onSwitchToCharts !== undefined && (
             <ActionButton
               iconProps={{ iconName: 'BarChartVertical' }}

@@ -67,8 +67,6 @@ export interface IDashboardCardConfig {
   field?: string;
   /** Para campo lookup: campo da lista de destino (ex: Title). Gera $expand e select campo/expandField */
   expandField?: string;
-  /** Se true, ao aplicar filtro na tabela pela página combina também os filtros do modo de lista ativo. */
-  combineWithActiveViewMode?: boolean;
   filter?: IDashboardCardFilter;
   filters?: IDashboardCardFilter[];
   subtitle?: string;
@@ -87,7 +85,6 @@ export interface IChartSeriesConfig {
   aggregate: TAggregateType;
   field?: string;
   expandField?: string;
-  combineWithActiveViewMode?: boolean;
   filter?: IDashboardCardFilter;
   filters?: IDashboardCardFilter[];
   color?: string;
@@ -100,7 +97,11 @@ export interface IDashboardConfig {
   cards: IDashboardCardConfig[];
   chartType?: TChartType;
   chartSeries?: IChartSeriesConfig[];
-  combineWithActiveViewMode?: boolean;
+  /**
+   * Sem layout de página: ID do bloco list a combinar com modo de visualização (ex. `legacy_list`).
+   * Com layout, prefira `pairedListBlockId` no bloco dashboard.
+   */
+  linkedListBlockId?: string;
 }
 
 // ─── Pagination ──────────────────────────────────────────────────────────────
@@ -452,7 +453,7 @@ export interface IListPageLinkedListBinding {
 export interface IListPageBlock {
   id: string;
   type: TListPageBlockType;
-  /** Só em `dashboard`: bloco `list` da mesma página cujo modo (abas) combina ao filtrar pela série/card. */
+  /** Só em `dashboard`: bloco `list` da mesma lista — filtros do modo de visualização ativo juntam ao OData dos cards/séries (AND). */
   pairedListBlockId?: string;
   /** Só em `dashboard`. Se ausente e houver um único bloco dashboard, usa `IDynamicViewConfig.dashboard`. */
   dashboard?: IDashboardConfig;

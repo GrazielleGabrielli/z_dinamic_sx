@@ -69,6 +69,11 @@ export class DashboardEngine {
     return segments.join(' and ');
   }
 
+  private combineODataParts(a?: string, b?: string): string | undefined {
+    const p = [(a ?? '').trim(), (b ?? '').trim()].filter((s) => s.length > 0);
+    return p.length ? p.join(' and ') : undefined;
+  }
+
   private cardBase(card: IDashboardCardConfig): Pick<IDashboardCardResult, 'id' | 'title' | 'subtitle' | 'aggregate' | 'style' | 'emptyValueText' | 'errorText' | 'loadingText'> {
     return {
       id: card.id,
@@ -86,13 +91,15 @@ export class DashboardEngine {
     card: IDashboardCardConfig,
     dataSource: IDataSourceConfig,
     fieldMetadata?: IFieldMetadata[],
-    dynamicContext?: IDynamicContext
+    dynamicContext?: IDynamicContext,
+    linkedViewModeOData?: string
   ): Promise<IDashboardCardResult> {
     const base = this.cardBase(card);
 
     try {
       const effectiveFilters = card.filters && card.filters.length > 0 ? card.filters : (card.filter ? [card.filter] : []);
-      const filterStr = this.buildFilterString(effectiveFilters, dynamicContext);
+      const built = this.buildFilterString(effectiveFilters, dynamicContext);
+      const filterStr = this.combineODataParts(built, linkedViewModeOData);
       const baseOptions = {
         filter: filterStr,
         top: 5000,
@@ -142,23 +149,28 @@ export class DashboardEngine {
     config: IDashboardConfig,
     dataSource: IDataSourceConfig,
     fieldMetadata?: IFieldMetadata[],
-    dynamicContext?: IDynamicContext
+    dynamicContext?: IDynamicContext,
+    linkedViewModeOData?: string
   ): Promise<IDashboardCardResult[]> {
     const cards =
       config.cards.length > 0 ? config.cards : generateDefaultCards(config.cardsCount);
 
-    return Promise.all(cards.map((card) => this.computeCard(card, dataSource, fieldMetadata, dynamicContext)));
+    return Promise.all(
+      cards.map((card) => this.computeCard(card, dataSource, fieldMetadata, dynamicContext, linkedViewModeOData))
+    );
   }
 
   async computeSeries(
     series: IChartSeriesConfig,
     dataSource: IDataSourceConfig,
     fieldMetadata?: IFieldMetadata[],
-    dynamicContext?: IDynamicContext
+    dynamicContext?: IDynamicContext,
+    linkedViewModeOData?: string
   ): Promise<IChartSeriesResult> {
     try {
       const effectiveFilters = series.filters && series.filters.length > 0 ? series.filters : (series.filter ? [series.filter] : []);
-      const filterStr = this.buildFilterString(effectiveFilters, dynamicContext);
+      const built = this.buildFilterString(effectiveFilters, dynamicContext);
+      const filterStr = this.combineODataParts(built, linkedViewModeOData);
       const baseOptions = {
         filter: filterStr,
         top: 5000,
@@ -208,10 +220,13 @@ export class DashboardEngine {
     config: IDashboardConfig,
     dataSource: IDataSourceConfig,
     fieldMetadata?: IFieldMetadata[],
-    dynamicContext?: IDynamicContext
+    dynamicContext?: IDynamicContext,
+    linkedViewModeOData?: string
   ): Promise<IChartSeriesResult[]> {
     const series = config.chartSeries ?? [];
-    return Promise.all(series.map((s) => this.computeSeries(s, dataSource, fieldMetadata, dynamicContext)));
+    return Promise.all(
+      series.map((s) => this.computeSeries(s, dataSource, fieldMetadata, dynamicContext, linkedViewModeOData))
+    );
   }
 
   buildLoadingResults(config: IDashboardConfig): IDashboardCardResult[] {

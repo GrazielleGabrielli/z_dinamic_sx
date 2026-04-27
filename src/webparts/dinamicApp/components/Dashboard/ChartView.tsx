@@ -2,11 +2,36 @@ import * as React from 'react';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
-import { Stack, Text, ActionButton, Spinner, SpinnerSize, MessageBar, MessageBarType } from '@fluentui/react';
-import { FieldsService } from '../../../../services';
-import { IDashboardConfig, IDataSourceConfig, IChartSeriesConfig, TChartType } from '../../core/config/types';
+import {
+  Stack,
+  Text,
+  ActionButton,
+  Spinner,
+  SpinnerSize,
+  MessageBar,
+  MessageBarType,
+  Dropdown,
+  IDropdownOption,
+} from '@fluentui/react';
+import { FieldsService, UsersService } from '../../../../services';
+import {
+  IDashboardConfig,
+  IDataSourceConfig,
+  IChartSeriesConfig,
+  IDynamicViewConfig,
+  IListPageBlock,
+  IListPageSection,
+  TChartType,
+} from '../../core/config/types';
 import { IChartSeriesResult } from '../../core/dashboard/types';
 import { DashboardEngine } from '../../core/dashboard/DashboardEngine';
+import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
+import type { IDynamicContext } from '../../core/dynamicTokens/types';
+import {
+  buildLinkedViewModeOData,
+  collectCompatibleListBlocksForDashboard,
+  resolveLinkedListBlockIdForDashboard,
+} from '../../core/listPage/linkedViewModeOData';
 
 const DEFAULT_COLORS = ['#0078d4', '#2b88d8', '#71afe5', '#00b294', '#ffaa44', '#d13438', '#8764b8', '#038387'];
 
@@ -71,6 +96,14 @@ interface IChartViewProps {
   onSeriesClick?: (series: IChartSeriesConfig) => void;
   selectedSeriesId?: string | null;
   showListFilterHint?: boolean;
+  listPairing?: {
+    rootConfig: IDynamicViewConfig;
+    sections: IListPageSection[];
+    dashboardBlock: IListPageBlock;
+    rootDashboard: IDashboardConfig;
+    activeViewModeByBlockId: Record<string, string>;
+  };
+  onLinkedTableChange?: (pairedListBlockId: string | undefined) => void;
 }
 
 export const ChartView: React.FC<IChartViewProps> = ({
@@ -81,6 +114,8 @@ export const ChartView: React.FC<IChartViewProps> = ({
   onSeriesClick,
   selectedSeriesId,
   showListFilterHint,
+  listPairing,
+  onLinkedTableChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
@@ -93,6 +128,66 @@ export const ChartView: React.FC<IChartViewProps> = ({
     error: undefined,
   });
   const [fieldMetadata, setFieldMetadata] = useState<Awaited<ReturnType<FieldsService['getVisibleFields']>> | undefined>(undefined);
+  const [dynamicContext, setDynamicContext] = useState<IDynamicContext | undefined>(undefined);
+
+  const linkedResolved = listPairing
+    ? resolveLinkedListBlockIdForDashboard(listPairing.dashboardBlock, listPairing.rootDashboard)
+    : undefined;
+
+  const linkableTables = useMemo(() => {
+    if (!listPairing) return [];
+    return collectCompatibleListBlocksForDashboard(
+      listPairing.rootConfig,
+      listPairing.sections,
+      listPairing.dashboardBlock
+    );
+  }, [listPairing]);
+
+  const linkDropdownOptions: IDropdownOption[] = useMemo(() => {
+    const opts: IDropdownOption[] = [{ key: '__none__', text: 'Nenhuma (só filtros do dashboard)' }];
+    for (let i = 0; i < linkableTables.length; i++) {
+      const t = linkableTables[i];
+      opts.push({ key: t.id, text: t.label });
+    }
+    return opts;
+  }, [linkableTables]);
+
+  const mergedViewModeOData = useMemo(() => {
+    if (!listPairing || !linkedResolved || fieldMetadata === undefined) return undefined;
+    return buildLinkedViewModeOData(
+      listPairing.rootConfig,
+      listPairing.sections,
+      dataSource,
+      linkedResolved,
+      listPairing.activeViewModeByBlockId,
+      dynamicContext,
+      fieldMetadata
+    );
+  }, [listPairing, linkedResolved, dataSource, fieldMetadata, dynamicContext]);
+
+  useEffect(() => {
+    const us = new UsersService();
+    us.getCurrentUser()
+      .then((user) =>
+        setDynamicContext(
+          buildDynamicContext({
+            currentUser: {
+              id: user.Id,
+              title: user.Title,
+              name: user.Title,
+              email: user.Email,
+              loginName: user.LoginName,
+            },
+            query:
+              typeof window !== 'undefined' && window.location
+                ? parseQueryString(window.location.search)
+                : undefined,
+            now: new Date(),
+          })
+        )
+      )
+      .catch(() => setDynamicContext(buildDynamicContext({ now: new Date() })));
+  }, []);
 
   useEffect(() => {
     if (!dataSource.title.trim()) return;
@@ -116,10 +211,10 @@ export const ChartView: React.FC<IChartViewProps> = ({
     }
     setChartState((s) => ({ ...s, loading: true, error: undefined }));
     engine
-      .computeAllSeries(config, dataSource, fieldMetadata)
+      .computeAllSeries(config, dataSource, fieldMetadata, dynamicContext, mergedViewModeOData)
       .then((results) => setChartState({ results, loading: false, error: undefined }))
       .catch((err: Error) => setChartState({ results: [], loading: false, error: `Erro ao carregar dados: ${err.message}` }));
-  }, [config, dataSource, fieldMetadata, refreshKey]);
+  }, [config, dataSource, fieldMetadata, refreshKey, dynamicContext, mergedViewModeOData, engine]);
 
   // container sempre montado no DOM — só visibility muda
   // assim containerRef.current nunca é null quando o effect de init roda
@@ -165,20 +260,36 @@ export const ChartView: React.FC<IChartViewProps> = ({
         horizontal
         horizontalAlign="space-between"
         verticalAlign="center"
+        wrap
+        tokens={{ childrenGap: 8 }}
         styles={{ root: { marginBottom: 12 } }}
       >
         <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
           Dashboard
         </Text>
-        {onEditSeries !== undefined && (
-          <ActionButton
-            iconProps={{ iconName: 'Edit' }}
-            onClick={onEditSeries}
-            styles={{ root: { height: 28, color: '#0078d4' } }}
-          >
-            Editar séries
-          </ActionButton>
-        )}
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
+          {linkableTables.length > 0 && onLinkedTableChange !== undefined && (
+            <Dropdown
+              label="Combinar com modo da tabela"
+              options={linkDropdownOptions}
+              selectedKey={linkedResolved ?? '__none__'}
+              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                const k = opt ? String(opt.key) : '__none__';
+                onLinkedTableChange(k === '__none__' ? undefined : k);
+              }}
+              styles={{ root: { minWidth: 260, maxWidth: 320 } }}
+            />
+          )}
+          {onEditSeries !== undefined && (
+            <ActionButton
+              iconProps={{ iconName: 'Edit' }}
+              onClick={onEditSeries}
+              styles={{ root: { height: 28, color: '#0078d4' } }}
+            >
+              Editar séries
+            </ActionButton>
+          )}
+        </Stack>
       </Stack>
 
       {chartState.error !== undefined && (

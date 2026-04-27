@@ -106,7 +106,6 @@ type TPanelView = 'list' | 'form';
 export interface IChartSeriesEditorSaveOptions {
   dashboardType?: TDashboardType;
   chartType?: TChartType;
-  combineWithActiveViewMode?: boolean;
 }
 
 interface IChartSeriesEditorPanelProps {
@@ -116,7 +115,6 @@ interface IChartSeriesEditorPanelProps {
   series: IChartSeriesConfig[];
   dashboardType: TDashboardType;
   chartType?: TChartType;
-  combineWithActiveViewModeInitial: boolean;
   onSave: (series: IChartSeriesConfig[], options?: IChartSeriesEditorSaveOptions) => void;
   onDismiss: () => void;
 }
@@ -324,14 +322,12 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
   series,
   dashboardType,
   chartType = 'bar',
-  combineWithActiveViewModeInitial,
   onSave,
   onDismiss,
 }) => {
   const [localSeries, setLocalSeries] = useState<IChartSeriesConfig[]>(() => [...series]);
   const [localDashboardType, setLocalDashboardType] = useState<TDashboardType>(dashboardType);
   const [localChartType, setLocalChartType] = useState<TChartType>(chartType);
-  const [localCombineViewMode, setLocalCombineViewMode] = useState<boolean>(combineWithActiveViewModeInitial);
   const [view, setView] = useState<TPanelView>('list');
   const [editingIndex, setEditingIndex] = useState<number | undefined>(undefined);
   const [choiceModalOpen, setChoiceModalOpen] = useState(false);
@@ -341,11 +337,10 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
       setLocalSeries([...series]);
       setLocalDashboardType(dashboardType);
       setLocalChartType(chartType ?? 'bar');
-      setLocalCombineViewMode(combineWithActiveViewModeInitial);
       setView('list');
       setEditingIndex(undefined);
     }
-  }, [isOpen, series, dashboardType, chartType, combineWithActiveViewModeInitial]);
+  }, [isOpen, series, dashboardType, chartType]);
 
   const handleEdit = (index: number): void => {
     setEditingIndex(index);
@@ -403,13 +398,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
             <>
               <PrimaryButton
                 text="Salvar"
-                onClick={() =>
-                  onSave(localSeries, {
-                    dashboardType: localDashboardType,
-                    chartType: localChartType,
-                    combineWithActiveViewMode: localCombineViewMode,
-                  })
-                }
+                onClick={() => onSave(localSeries, { dashboardType: localDashboardType, chartType: localChartType })}
               />
               <DefaultButton text="Cancelar" onClick={onDismiss} />
             </>
@@ -458,15 +447,6 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
                 </div>
               </Stack>
             )}
-            <Toggle
-              label="Ao clicar em card ou série, combinar filtros com o modo de visualização ativo na lista"
-              checked={localCombineViewMode}
-              onChange={(_: React.MouseEvent<HTMLElement>, checked?: boolean) =>
-                setLocalCombineViewMode(!!checked)
-              }
-              onText="Sim"
-              offText="Não"
-            />
             <Separator />
             <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
               Séries
