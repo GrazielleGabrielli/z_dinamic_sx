@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Stack,
   Text,
@@ -8,8 +8,7 @@ import {
   ActionButton,
   ChoiceGroup,
   IChoiceGroupOption,
-  Pivot,
-  PivotItem,
+  DefaultButton,
 } from '@fluentui/react';
 import { IDynamicViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
@@ -120,22 +119,45 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
   }, [fullViewModes, membership]);
 
+  // Reseta o modo somente quando a lista muda (novo listTitle), não por mudança de referência da config.
+  const prevListTitleRef = useRef(listTitle);
+  if (prevListTitleRef.current !== listTitle) {
+    prevListTitleRef.current = listTitle;
+    setSelectedViewModeId(listView?.activeViewModeId ?? fullViewModes[0]?.id ?? 'all');
+  }
+
+  // Quando membership chega pela primeira vez (fetch assíncrono), valida se o modo ainda é permitido.
+  const membershipInitializedRef = useRef(false);
   useEffect(() => {
-    const desired = listView?.activeViewModeId ?? fullViewModes[0]?.id ?? 'all';
-    if (!membership) {
-      setSelectedViewModeId(desired);
-      return;
-    }
-    setSelectedViewModeId(pickFallbackViewModeId(desired, visibleViewModes, fullViewModes));
-  }, [listView?.activeViewModeId, fullViewModes, membership, visibleViewModes]);
+    if (!membership) return;
+    if (membershipInitializedRef.current) return;
+    membershipInitializedRef.current = true;
+    const modes = fullViewModes;
+    const visible = filterViewModesForCurrentUser(
+      modes,
+      membership.userId,
+      membership.groupByWeb,
+      membership.pageNorm
+    );
+    setSelectedViewModeId((prev) =>
+      visible.some((m) => m.id === prev)
+        ? prev
+        : pickFallbackViewModeId(listView?.activeViewModeId ?? modes[0]?.id, visible, modes)
+    );
+  // Dependência intencional: só deve rodar na primeira chegada do membership.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [membership]);
 
   useEffect(() => {
     setColumnFilters({});
   }, [selectedViewModeId]);
 
+  const onActiveViewModeChangeRef = useRef(onActiveViewModeChange);
+  onActiveViewModeChangeRef.current = onActiveViewModeChange;
+
   useEffect(() => {
-    onActiveViewModeChange?.(selectedViewModeId);
-  }, [selectedViewModeId, onActiveViewModeChange]);
+    onActiveViewModeChangeRef.current?.(selectedViewModeId);
+  }, [selectedViewModeId]);
 
   useEffect(() => {
     if (!listCardViewEnabled) {
@@ -524,18 +546,27 @@ export const TableView: React.FC<ITableViewProps> = ({
                 <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
                   Visualização
                 </Text>
-                <Pivot
-                  selectedKey={selectedViewModeId}
-                  onLinkClick={(item) => {
-                    const k = item?.props.itemKey;
-                    if (k !== undefined && k !== null) setSelectedViewModeId(String(k));
-                  }}
+                <Stack
+                  horizontal
+                  wrap
+                  tokens={{ childrenGap: 6 }}
+                  verticalAlign="center"
+                  role="tablist"
+                  aria-label="Modos de visualização"
                   styles={{ root: { flexWrap: 'wrap' } }}
                 >
                   {visibleViewModes.map((m) => (
-                    <PivotItem key={m.id} itemKey={m.id} headerText={m.label} />
+                    <DefaultButton
+                      key={m.id}
+                      role="tab"
+                      aria-selected={selectedViewModeId === m.id}
+                      primary={selectedViewModeId === m.id}
+                      text={m.label}
+                      onClick={() => setSelectedViewModeId(m.id)}
+                      styles={{ root: { minHeight: 32 } }}
+                    />
                   ))}
-                </Pivot>
+                </Stack>
               </Stack>
             ) : (
               <Dropdown

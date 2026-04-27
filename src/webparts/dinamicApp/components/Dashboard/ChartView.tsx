@@ -163,7 +163,14 @@ export const ChartView: React.FC<IChartViewProps> = ({
       dynamicContext,
       fieldMetadata
     );
-  }, [listPairing, linkedResolved, dataSource, fieldMetadata, dynamicContext]);
+  }, [
+    listPairing,
+    listPairing?.activeViewModeByBlockId,
+    linkedResolved,
+    dataSource,
+    fieldMetadata,
+    dynamicContext,
+  ]);
 
   useEffect(() => {
     const us = new UsersService();

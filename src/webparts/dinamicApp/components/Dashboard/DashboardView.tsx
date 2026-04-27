@@ -129,6 +129,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
     );
   }, [
     listPairing,
+    listPairing?.activeViewModeByBlockId,
     linkedResolved,
     dataSource,
     fieldMetadata,

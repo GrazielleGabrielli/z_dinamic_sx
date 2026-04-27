@@ -85,6 +85,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     return { ...rawConfig, mode: forcedMode };
   }, [rawConfig, forcedMode]);
 
+  const effectiveListPageSections = useMemo(
+    () => (config ? getEffectiveListPageSections(config) : []),
+    [config]
+  );
+
   // 'pending' não bloqueia — em Edit Mode o usuário pode alterar a config múltiplas vezes antes de salvar a página
   const isSaving = persistStatus === 'saving' || persistStatus === 'persisting';
 
@@ -476,7 +481,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         ) : (
           <ListPageRenderer
             config={config}
-            sections={getEffectiveListPageSections(config)}
+            sections={effectiveListPageSections}
             instanceScopeId={instanceScopeId}
             dashboardRefreshKey={dashboardRefreshKey}
             dashboardListSelection={dashboardListSelection}
