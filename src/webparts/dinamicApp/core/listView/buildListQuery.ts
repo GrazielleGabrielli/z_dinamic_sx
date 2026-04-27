@@ -1,4 +1,4 @@
-import type { IFieldMetadata } from '../../../../services/shared/types';
+import type { IFieldMetadata, FieldMappedType } from '../../../../services/shared/types';
 import { IListViewConfig, IListViewFilterConfig, TFilterOperator } from '../config/types';
 import type { IDynamicContext } from '../dynamicTokens/types';
 import { resolveObjectTokens } from '../dynamicTokens';
@@ -99,6 +99,56 @@ export function getViewModeFiltersById(
     }
   }
   return mode.filters ?? [];
+}
+
+/**
+ * Tipos de campo que devem usar substringof/contains em vez de eq.
+ * Para choice/boolean/number usamos eq direto; para text/user/lookup usamos substringof.
+ */
+const SUBSTRING_TYPES: FieldMappedType[] = ['text', 'multiline', 'url', 'user', 'usermulti', 'lookup', 'lookupmulti'];
+
+/**
+ * Constrói OData para os filtros da barra de filtros da tabela (tableFilterFields).
+ * @param values - mapa { fieldName: valorDigitado }
+ * @param fieldMeta - metadados dos campos para determinar o tipo
+ */
+export function buildTableTopFiltersOData(
+  values: Record<string, string>,
+  fieldMeta: IFieldMetadata[]
+): string | undefined {
+  const metaByName = new Map(fieldMeta.map((m) => [m.InternalName, m]));
+  const parts: string[] = [];
+  for (const field in values) {
+    if (!Object.prototype.hasOwnProperty.call(values, field)) continue;
+    const raw = (values[field] ?? '').trim();
+    if (!raw) continue;
+
+    const isExpandPath = field.indexOf('/') !== -1;
+    const baseName = isExpandPath ? field.split('/')[0] : field;
+    const meta = metaByName.get(baseName);
+    const mappedType: FieldMappedType = meta?.MappedType ?? 'text';
+
+    if (mappedType === 'boolean') {
+      const lower = raw.toLowerCase();
+      const boolVal = lower === 'true' || lower === '1' || lower === 'sim' ? 'true' : 'false';
+      parts.push(`${field} eq ${boolVal}`);
+    } else if (mappedType === 'number' || mappedType === 'currency') {
+      const n = Number(raw);
+      if (!isNaN(n)) parts.push(`${field} eq ${n}`);
+    } else if (mappedType === 'choice' || mappedType === 'multichoice') {
+      parts.push(`${field} eq '${raw.replace(/'/g, "''")}'`);
+    } else if (mappedType === 'datetime') {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        parts.push(`${field} ge datetime'${d.toISOString()}'`);
+      }
+    } else if (SUBSTRING_TYPES.indexOf(mappedType) !== -1) {
+      parts.push(`substringof('${raw.replace(/'/g, "''")}', ${field})`);
+    } else {
+      parts.push(`substringof('${raw.replace(/'/g, "''")}', ${field})`);
+    }
+  }
+  return parts.length > 0 ? parts.join(' and ') : undefined;
 }
 
 export function buildListSelect(columns: IListViewConfig['columns']): string[] {

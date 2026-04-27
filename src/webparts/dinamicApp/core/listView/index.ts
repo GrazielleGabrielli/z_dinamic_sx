@@ -2,6 +2,7 @@ export {
   buildListQuery,
   buildListFilter,
   buildListSelect,
+  buildTableTopFiltersOData,
   getActiveViewModeFilters,
   getViewModeFiltersById,
 } from './buildListQuery';

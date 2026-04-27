@@ -9,11 +9,12 @@ import {
   ChoiceGroup,
   IChoiceGroupOption,
   DefaultButton,
+  TextField,
 } from '@fluentui/react';
 import { IDynamicViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
-import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
+import { buildListFilter, buildTableTopFiltersOData, getActiveViewModeFilters } from '../../core/listView';
 import {
   filterViewModesForCurrentUser,
   pickFallbackViewModeId,
@@ -97,6 +98,7 @@ export const TableView: React.FC<ITableViewProps> = ({
   }>({ pageIndex: 0, forwardPivots: [], resetKey: null });
   const [hasNext, setHasNext] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [topFilters, setTopFilters] = useState<Record<string, string>>({});
   const [selectedViewModeId, setSelectedViewModeId] = useState<string>(
     () => listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all'
   );
@@ -231,6 +233,11 @@ export const TableView: React.FC<ITableViewProps> = ({
   const effectiveSort = sortConfig ?? tableConfig?.defaultSort ?? null;
   const pageSize = pagination?.enabled ? pagination.pageSize : 100;
 
+  const topFiltersOData = useMemo(
+    () => buildTableTopFiltersOData(topFilters, fieldMetadata ?? []),
+    [topFilters, fieldMetadata]
+  );
+
   const pagingResetKey = useMemo(() => {
     if (!tableConfig) return `pending|${listTitle}|${listWeb ?? ''}`;
     const columns = engine.getVisibleColumns(tableConfig);
@@ -254,6 +261,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       viewModeFilterStr ?? '',
       dashboardFilterStr ?? '',
       columnFilterStr ?? '',
+      topFiltersOData ?? '',
       String(fieldMetadata?.length ?? 0),
     ].join('||');
   }, [
@@ -269,6 +277,7 @@ export const TableView: React.FC<ITableViewProps> = ({
     fieldMetadata,
     dashboardListFilters,
     columnFilters,
+    topFiltersOData,
     engine,
   ]);
 
@@ -295,7 +304,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       dashboardListFilters && dashboardListFilters.length > 0
         ? buildListFilter(dashboardListFilters, { dynamicContext, fieldsMetadata: fieldMetadata })
         : undefined;
-    const filterParts = [viewModeFilterStr, dashboardFilterStr, columnFilterStr].filter(Boolean);
+    const filterParts = [viewModeFilterStr, dashboardFilterStr, columnFilterStr, topFiltersOData].filter(Boolean);
     const combinedFilter = filterParts.length > 0 ? filterParts.join(' and ') : undefined;
     const request = engine.buildDataRequest({
       sortConfig: effectiveSort,
@@ -343,6 +352,7 @@ export const TableView: React.FC<ITableViewProps> = ({
     effectiveSort,
     pageSize,
     columnFilters,
+    topFiltersOData,
     selectedViewModeId,
     listView,
     fieldMetadata,
@@ -476,6 +486,80 @@ export const TableView: React.FC<ITableViewProps> = ({
   const viewModeOptions: IDropdownOption[] = visibleViewModes.map((m) => ({ key: m.id, text: m.label }));
   const viewModesAsTabs = listView?.viewModePicker === 'tabs';
 
+  const tableFilterFieldsMeta = useMemo(() => {
+    if (!listView?.tableFilterFields?.length || !fieldMetadata?.length) return [];
+    const metaByName = new Map((fieldMetadata as import('../../../../services/shared/types').IFieldMetadata[]).map((m) => [m.InternalName, m]));
+    return listView.tableFilterFields.map((f) => {
+      const baseName = f.field.indexOf('/') !== -1 ? f.field.split('/')[0] : f.field;
+      const meta = metaByName.get(baseName) ?? null;
+      return { config: f, meta };
+    });
+  }, [listView?.tableFilterFields, fieldMetadata]);
+
+  const hasTopFilters = tableFilterFieldsMeta.length > 0;
+
+  const activeTopFiltersCount = Object.values(topFilters).filter((v) => v.trim()).length;
+
+  const renderTopFilterControl = (fieldCfg: { config: { field: string; label?: string }; meta: import('../../../../services/shared/types').IFieldMetadata | null }): React.ReactNode => {
+    const { config: fc, meta } = fieldCfg;
+    const label = fc.label || meta?.Title || fc.field;
+    const val = topFilters[fc.field] ?? '';
+    const onChange = (v: string): void =>
+      setTopFilters((prev) => {
+        if (!v.trim()) {
+          const next = { ...prev };
+          delete next[fc.field];
+          return next;
+        }
+        return { ...prev, [fc.field]: v };
+      });
+    const mtype = meta?.MappedType ?? 'text';
+
+    if (mtype === 'choice' || mtype === 'multichoice') {
+      const choiceOptions: IDropdownOption[] = [
+        { key: '', text: `Todos` },
+        ...(meta?.Choices ?? []).map((c) => ({ key: c, text: c })),
+      ];
+      return (
+        <Dropdown
+          key={fc.field}
+          label={label}
+          selectedKey={val}
+          options={choiceOptions}
+          onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
+          styles={{ root: { minWidth: 160, maxWidth: 240 } }}
+        />
+      );
+    }
+    if (mtype === 'boolean') {
+      const boolOptions: IDropdownOption[] = [
+        { key: '', text: 'Todos' },
+        { key: 'true', text: 'Sim' },
+        { key: 'false', text: 'Não' },
+      ];
+      return (
+        <Dropdown
+          key={fc.field}
+          label={label}
+          selectedKey={val}
+          options={boolOptions}
+          onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
+          styles={{ root: { minWidth: 120, maxWidth: 180 } }}
+        />
+      );
+    }
+    return (
+      <TextField
+        key={fc.field}
+        label={label}
+        value={val}
+        onChange={(_, v) => onChange(v ?? '')}
+        placeholder="Filtrar…"
+        styles={{ root: { minWidth: 140, maxWidth: 220 } }}
+      />
+    );
+  };
+
   const listPresentationOptions: IChoiceGroupOption[] = useMemo(
     () => [
       { key: 'table', text: 'Tabela', iconProps: { iconName: 'Table' } },
@@ -596,6 +680,36 @@ export const TableView: React.FC<ITableViewProps> = ({
               onClick={handleExportPdf}
             />
           )}
+        </Stack>
+      )}
+      {hasTopFilters && (
+        <Stack
+          tokens={{ childrenGap: 8 }}
+          styles={{
+            root: {
+              padding: '10px 14px',
+              background: '#faf9f8',
+              borderRadius: 8,
+              border: '1px solid #edebe9',
+            },
+          }}
+        >
+          <Stack horizontal verticalAlign="center" horizontalAlign="space-between">
+            <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+              Filtros{activeTopFiltersCount > 0 ? ` (${activeTopFiltersCount} ativo${activeTopFiltersCount > 1 ? 's' : ''})` : ''}
+            </Text>
+            {activeTopFiltersCount > 0 && (
+              <ActionButton
+                iconProps={{ iconName: 'ClearFilter' }}
+                text="Limpar"
+                styles={{ root: { height: 28, color: '#a4262c' } }}
+                onClick={() => setTopFilters({})}
+              />
+            )}
+          </Stack>
+          <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
+            {tableFilterFieldsMeta.map((f) => renderTopFilterControl(f))}
+          </Stack>
         </Stack>
       )}
       {listDisplayMode === 'cards' && listCardViewEnabled ? (

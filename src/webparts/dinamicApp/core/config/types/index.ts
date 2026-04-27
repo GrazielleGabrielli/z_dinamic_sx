@@ -219,12 +219,21 @@ export interface IListRowActionConfig {
   scope: TListRowActionScope;
 }
 
+export interface ITableFilterFieldConfig {
+  /** Nome interno do campo (ex.: Status, Author/Id). */
+  field: string;
+  /** Rótulo exibido no controle de filtro. Padrão: Title do campo. */
+  label?: string;
+}
+
 export interface IListViewConfig {
   columns: IListViewColumnConfig[];
   filters: IListViewFilterConfig[];
   sort: IListViewSortConfig | null;
   viewModes?: IListViewModeConfig[];
   activeViewModeId?: string;
+  /** Campos expostos como controles de filtro na barra da tabela. */
+  tableFilterFields?: ITableFilterFieldConfig[];
   /** Omitido ou `dropdown`: lista suspensa. `tabs`: abas horizontais (Fluent Pivot). */
   viewModePicker?: TViewModePicker;
   pdfExportEnabled?: boolean;

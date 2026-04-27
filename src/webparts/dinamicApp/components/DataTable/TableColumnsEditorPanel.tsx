@@ -37,6 +37,7 @@ import type {
   IListViewModeConfig,
   IListViewModeAccessConfig,
   IListViewFilterConfig,
+  ITableFilterFieldConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
   IListRowActionConfig,
@@ -254,7 +255,7 @@ function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
 }
 
-type TListTabListaSection = 'pagination' | 'viewModes' | 'columns';
+type TListTabListaSection = 'pagination' | 'viewModes' | 'columns' | 'filterFields';
 
 function ListTabListaCollapse(props: {
   title: string;
@@ -368,6 +369,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     ...(listView.tableRowStyleRules ?? []),
   ]);
   const [rowActions, setRowActions] = useState<IListRowActionConfig[]>(() => [...(listView.listRowActions ?? [])]);
+  const [tableFilterFields, setTableFilterFields] = useState<ITableFilterFieldConfig[]>(
+    () => listView.tableFilterFields?.slice() ?? []
+  );
   const layoutPreviewCss = useMemo(() => {
     const layout = layoutCssText.trim();
     const rules = mergeRowStyleRulesCss(rowStyleRules).trim();
@@ -461,6 +465,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
     setRowActions([...(listView.listRowActions ?? [])]);
+    setTableFilterFields(listView.tableFilterFields?.slice() ?? []);
     setRuleColorMap({});
     setLayoutSubTab('geral');
     setListTabListaSectionOpen({});
@@ -764,6 +769,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       });
     }
     const { listDefaultDisplayMode: _carryListDefault, viewModePicker: _omitVmPicker, ...carryRest } = carryListView;
+    const nextTableFilterFields: ITableFilterFieldConfig[] = tableFilterFields
+      .filter((f) => f.field.trim())
+      .map((f) => ({ field: f.field.trim(), ...(f.label?.trim() ? { label: f.label.trim() } : {}) }));
     const listViewOut: IListViewConfig = {
       ...carryRest,
       columns,
@@ -775,6 +783,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
+      ...(nextTableFilterFields.length > 0 ? { tableFilterFields: nextTableFilterFields } : { tableFilterFields: undefined }),
       ...(listCardViewEnabled && listDefaultDisplayMode === 'cards' ? { listDefaultDisplayMode: 'cards' as const } : {}),
       ...(listViewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
     };
@@ -796,6 +805,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     projectManagement,
     rowStyleRules,
     rowActions,
+    tableFilterFields,
     carryListView,
     viewModes,
     activeViewModeId,
@@ -863,6 +873,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setListViewModePicker(bundle.listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
       setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
+      setTableFilterFields(bundle.listView.tableFilterFields?.slice() ?? []);
       setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
       setListTabListaSectionOpen({});
       setJsonPanelText(JSON.stringify(bundle, null, 2));
@@ -1254,6 +1265,79 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       />
                     )}
                   </Stack>
+                </ListTabListaCollapse>
+                <ListTabListaCollapse
+                  title="Filtros da tabela"
+                  isOpen={listTabListaSectionOpen.filterFields === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      filterFields: p.filterFields === true ? false : true,
+                    }))
+                  }
+                >
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Selecione os campos que aparecerão como controles de filtro acima da tabela. O tipo do campo determina o controle exibido (choice → lista, usuário → busca, texto → campo de texto, etc.).
+                  </Text>
+                  {options.length === 0 && <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>Carregando campos…</Text>}
+                  {options.map((o) => {
+                    const fieldKey = EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.meta.LookupField
+                      ? `${o.meta.InternalName}/${o.meta.MappedType === 'user' || o.meta.MappedType === 'usermulti' ? 'Title' : o.meta.LookupField}`
+                      : o.meta.InternalName;
+                    const isChecked = tableFilterFields.some((f) => f.field === fieldKey || f.field === o.meta.InternalName);
+                    const currentEntry = tableFilterFields.find((f) => f.field === fieldKey || f.field === o.meta.InternalName);
+                    const defaultLabel = o.meta.Title;
+                    return (
+                      <Stack
+                        key={o.meta.InternalName}
+                        horizontal
+                        wrap
+                        tokens={{ childrenGap: 12 }}
+                        verticalAlign="center"
+                        styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onChange={(_, v) => {
+                            if (v) {
+                              setTableFilterFields((prev) => [...prev, { field: fieldKey, label: defaultLabel }]);
+                            } else {
+                              setTableFilterFields((prev) => prev.filter((f) => f.field !== fieldKey && f.field !== o.meta.InternalName));
+                            }
+                          }}
+                          ariaLabel={o.meta.Title}
+                          styles={{ root: { flex: '0 0 auto' } }}
+                        />
+                        <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 200px', minWidth: 0 } }}>
+                          <Stack horizontal tokens={{ childrenGap: 6 }} verticalAlign="center">
+                            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>{o.meta.Title}</Text>
+                            <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>{o.meta.MappedType}</Text>
+                          </Stack>
+                          {isChecked && (
+                            <TextField
+                              label="Rótulo do filtro"
+                              value={currentEntry?.label ?? defaultLabel}
+                              onChange={(_, v) =>
+                                setTableFilterFields((prev) =>
+                                  prev.map((f) =>
+                                    f.field === fieldKey || f.field === o.meta.InternalName
+                                      ? { ...f, label: v ?? '' }
+                                      : f
+                                  )
+                                )
+                              }
+                              styles={{ root: { maxWidth: 280 } }}
+                            />
+                          )}
+                          {(o.meta.MappedType === 'choice' || o.meta.MappedType === 'multichoice') && o.meta.Choices && (
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              Opções: {o.meta.Choices.join(' · ')}
+                            </Text>
+                          )}
+                        </Stack>
+                      </Stack>
+                    );
+                  })}
                 </ListTabListaCollapse>
                 <ListTabListaCollapse
                   title="Colunas da tabela"
