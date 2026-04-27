@@ -20,6 +20,16 @@ export const DINAMIC_SX_TABLE_CLASS = {
   pagination: 'dinamicSxTablePagination',
 } as const;
 
+export const DINAMIC_SX_CARD_CLASS = {
+  grid: 'dinamicSxCardGrid',
+  card: 'dinamicSxCard',
+  title: 'dinamicSxCardTitle',
+  fieldRow: 'dinamicSxCardField',
+  fieldLabel: 'dinamicSxCardLabel',
+  fieldValue: 'dinamicSxCardValue',
+  actions: 'dinamicSxCardActions',
+} as const;
+
 export type TDinamicSxTableClassKey = keyof typeof DINAMIC_SX_TABLE_CLASS;
 
 export const TABLE_LAYOUT_EDITOR_ROWS: readonly {
@@ -184,6 +194,11 @@ export function mergeCustomTableCss(
   const free = (legacyFreeform ?? '').trim();
   if (free) parts.push(free);
   return parts.join('\n\n').trim();
+}
+
+export function scopeCardCssByInstance(css: string, scopeClass: string): string {
+  if (!css.trim()) return '';
+  return css.replace(/\.dinamicSxCard/g, `.${scopeClass} .dinamicSxCard`);
 }
 
 export function mergeRowStyleRulesCss(rules: ITableRowStyleRule[] | undefined): string {

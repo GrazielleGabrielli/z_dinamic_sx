@@ -312,6 +312,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
       : {}),
     ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
     ...(typeof lvo.customTableCss === 'string' ? { customTableCss: lvo.customTableCss } : {}),
+    ...(typeof lvo.customCardCss === 'string' ? { customCardCss: lvo.customCardCss } : {}),
     ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
     ...(listRowActions ? { listRowActions } : {}),
     ...(lvo.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),

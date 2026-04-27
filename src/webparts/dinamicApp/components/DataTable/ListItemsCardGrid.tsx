@@ -11,7 +11,7 @@ import { RowActionButtons } from './RowActionButtons';
 import { TableEmptyState } from './TableEmptyState';
 import { TableLoadingState } from './TableLoadingState';
 import { TableErrorState } from './TableErrorState';
-import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
+import { DINAMIC_SX_TABLE_CLASS, DINAMIC_SX_CARD_CLASS } from './tableLayoutClasses';
 
 export interface IListItemsCardGridProps {
   columns: ITableColumnConfig[];
@@ -86,6 +86,7 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
     ) : (
       <div
         role="list"
+        className={DINAMIC_SX_CARD_CLASS.grid}
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -117,6 +118,7 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
             <Stack
               key={String(key)}
               role="listitem"
+              className={DINAMIC_SX_CARD_CLASS.card}
               tokens={{ childrenGap: 8 }}
               onClick={cardClickable ? openCard : undefined}
               styles={{
@@ -137,17 +139,17 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
                 const content = Renderer({ item, column: col, resolvedValue });
                 if (ci === 0) {
                   return (
-                    <div key={col.id} style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word' }}>
+                    <div key={col.id} className={DINAMIC_SX_CARD_CLASS.title} style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word' }}>
                       {content}
                     </div>
                   );
                 }
                 return (
-                  <div key={col.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', alignItems: 'baseline', fontSize: 13 }}>
-                    <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600, flex: '0 0 auto' } }}>
+                  <div key={col.id} className={DINAMIC_SX_CARD_CLASS.fieldRow} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', alignItems: 'baseline', fontSize: 13 }}>
+                    <Text variant="small" className={DINAMIC_SX_CARD_CLASS.fieldLabel} styles={{ root: { color: '#605e5c', fontWeight: 600, flex: '0 0 auto' } }}>
                       {col.label}
                     </Text>
-                    <span style={{ flex: '1 1 auto', minWidth: 0, wordBreak: 'break-word' }}>{content}</span>
+                    <span className={DINAMIC_SX_CARD_CLASS.fieldValue} style={{ flex: '1 1 auto', minWidth: 0, wordBreak: 'break-word' }}>{content}</span>
                   </div>
                 );
               })}
@@ -156,6 +158,7 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
                   horizontal
                   verticalAlign="center"
                   horizontalAlign="end"
+                  className={DINAMIC_SX_CARD_CLASS.actions}
                   tokens={{ childrenGap: 4 }}
                   styles={{
                     root: {

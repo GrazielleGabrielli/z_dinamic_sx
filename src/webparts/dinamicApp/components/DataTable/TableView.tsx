@@ -26,7 +26,7 @@ import { ItemsService, UsersService, FieldsService } from '../../../../services'
 import { readListItemId } from '../../../../services/items/listItemId';
 import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
-import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss } from './tableLayoutClasses';
+import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss, scopeCardCssByInstance } from './tableLayoutClasses';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 
 const EMPTY_VIEW_MODES: IListViewModeConfig[] = [];
@@ -573,8 +573,11 @@ export const TableView: React.FC<ITableViewProps> = ({
   const instanceScopeClass = `dinamicSxScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const mergedLayoutCssRaw = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
   const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
+  const mergedCardCss = scopeCardCssByInstance(listView?.customCardCss ?? '', instanceScopeClass);
   const tableCustomStyle =
-    mergedLayoutCss.length > 0 ? <style type="text/css">{mergedLayoutCss}</style> : null;
+    mergedLayoutCss.length > 0 || mergedCardCss.length > 0
+      ? <style type="text/css">{[mergedLayoutCss, mergedCardCss].filter(Boolean).join('\n\n')}</style>
+      : null;
 
   const actionContext = dynamicContext ?? { now: new Date() };
   const listRowActions = listView?.listRowActions;

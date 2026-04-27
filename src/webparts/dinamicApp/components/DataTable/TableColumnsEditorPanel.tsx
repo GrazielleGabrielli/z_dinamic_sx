@@ -345,7 +345,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 }) => {
   const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [activeTab, setActiveTab] = useState<string>('lista');
-  const [layoutSubTab, setLayoutSubTab] = useState<string>('geral');
+  const [layoutSectionOpen, setLayoutSectionOpen] = useState<Partial<Record<'tableCss' | 'rowRules' | 'cardCss', boolean>>>({});
   const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<IFieldOption[]>([]);
@@ -361,7 +361,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [layoutCssText, setLayoutCssText] = useState<string>(
     mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss)
   );
+  const [cardCssText, setCardCssText] = useState<string>(listView.customCardCss ?? '');
   const [layoutColor, setLayoutColor] = useState<string>('#0078d4');
+  const [cardColor, setCardColor] = useState<string>('#0078d4');
   const [projectColumns, setProjectColumns] = useState<IProjectManagementColumnConfig[]>(
     projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS
   );
@@ -462,12 +464,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setListCardViewEnabled(listView.listCardViewEnabled ?? false);
     setListDefaultDisplayMode(listView.listDefaultDisplayMode === 'cards' ? 'cards' : 'table');
     setLayoutCssText(mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss));
+    setCardCssText(listView.customCardCss ?? '');
+    setLayoutSectionOpen({});
     setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
     setRowActions([...(listView.listRowActions ?? [])]);
     setTableFilterFields(listView.tableFilterFields?.slice() ?? []);
     setRuleColorMap({});
-    setLayoutSubTab('geral');
+    setLayoutSectionOpen({});
     setListTabListaSectionOpen({});
   }, [isOpen, listView, pagination, pdfTemplate, projectManagement]);
 
@@ -672,6 +676,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       return t ? `${t}\n${line}` : line;
     });
   };
+
+  const appendCardCssColor = (property: 'background' | 'color' | 'border-color'): void => {
+    const line = `${property}: ${cardColor};`;
+    setCardCssText((prev) => {
+      const t = prev.trim();
+      return t ? `${t}\n${line}` : line;
+    });
+  };
   const appendRuleCssColor = (ruleId: string, index: number, property: 'background' | 'color' | 'border-color'): void => {
     const c = ruleColorMap[ruleId] ?? '#0078d4';
     const line = `${property}: ${c};`;
@@ -706,6 +718,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       pageSizeOptions: pagination.pageSizeOptions?.length ? pagination.pageSizeOptions : PAGE_SIZE_OPTIONS,
     };
     const cssTrim = layoutCssText.trim();
+    const cardCssTrim = cardCssText.trim();
     const nextProjectColumns = projectColumns
       .map((col, index) => ({
         id: (col.id || `col_${index + 1}`).trim(),
@@ -781,6 +794,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       listCardViewEnabled,
       customTableCssSlots: undefined,
       ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
+      ...(cardCssTrim ? { customCardCss: cardCssTrim } : { customCardCss: undefined }),
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
       ...(nextTableFilterFields.length > 0 ? { tableFilterFields: nextTableFilterFields } : { tableFilterFields: undefined }),
@@ -800,6 +814,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     pageSize,
     paginationLayout,
     layoutCssText,
+    cardCssText,
     projectColumns,
     mode,
     projectManagement,
@@ -868,6 +883,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setListCardViewEnabled(bundle.listView.listCardViewEnabled ?? false);
       setListDefaultDisplayMode(bundle.listView.listDefaultDisplayMode === 'cards' ? 'cards' : 'table');
       setLayoutCssText(mergeCustomTableCss(bundle.listView.customTableCssSlots, bundle.listView.customTableCss));
+      setCardCssText(bundle.listView.customCardCss ?? '');
       setViewModes(bundle.listView.viewModes?.length ? bundle.listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
       setActiveViewModeId(bundle.listView.activeViewModeId ?? 'all');
       setListViewModePicker(bundle.listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
@@ -1594,80 +1610,76 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 </>
               ) : null}
               <PivotItem itemKey="layout" headerText="Layout">
-                <Pivot
-                  selectedKey={layoutSubTab}
-                  onLinkClick={(item) =>
-                    item?.props?.itemKey !== undefined &&
-                    item?.props?.itemKey !== null &&
-                    setLayoutSubTab(String(item.props.itemKey))
-                  }
-                  styles={{ root: { marginBottom: 4, flexWrap: 'wrap', maxWidth: '100%' } }}
-                >
-                  <PivotItem itemKey="geral" headerText="Geral">
-                    <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
-                      <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
-                        Use uma única caixa de CSS com seletores das classes da tabela. A pré-visualização ao lado reage ao digitar
-                        e inclui o CSS das regras de linha (aba <strong>Regras</strong>).
-                      </Text>
-                      <Stack horizontal wrap verticalAlign="start" tokens={{ childrenGap: 16 }}>
-                        <Stack styles={{ root: { flex: '1 1 480px', minWidth: 320 } }} tokens={{ childrenGap: 8 }}>
-                          <TextField
-                            label="CSS da tabela"
-                            multiline
-                            resizable
-                            rows={18}
-                            value={layoutCssText}
-                            onChange={(_, v) => setLayoutCssText(v ?? '')}
-                            placeholder={
-                              `.${DINAMIC_SX_TABLE_CLASS.headerCell} { background: #f3f2f1; }\n` +
-                              `.${DINAMIC_SX_TABLE_CLASS.row}:nth-child(even) { background: #faf9f8; }\n` +
-                              `.${DINAMIC_SX_TABLE_CLASS.cell}[data-field="Title"] { font-weight: 600; }`
-                            }
-                            styles={{ root: { maxWidth: '100%' } }}
+                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
+                  {/* ── CSS Tabela ── */}
+                  <ListTabListaCollapse
+                    title="CSS da tabela"
+                    isOpen={layoutSectionOpen.tableCss === true}
+                    onToggle={() => setLayoutSectionOpen((p) => ({ ...p, tableCss: !p.tableCss }))}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+                      Use seletores das classes da tabela. A pré-visualização reage ao digitar e inclui o CSS das regras de linha.
+                    </Text>
+                    <Stack horizontal wrap verticalAlign="start" tokens={{ childrenGap: 16 }}>
+                      <Stack styles={{ root: { flex: '1 1 480px', minWidth: 320 } }} tokens={{ childrenGap: 8 }}>
+                        <TextField
+                          label="CSS da tabela"
+                          multiline
+                          resizable
+                          rows={18}
+                          value={layoutCssText}
+                          onChange={(_, v) => setLayoutCssText(v ?? '')}
+                          placeholder={
+                            `.${DINAMIC_SX_TABLE_CLASS.headerCell} { background: #f3f2f1; }\n` +
+                            `.${DINAMIC_SX_TABLE_CLASS.row}:nth-child(even) { background: #faf9f8; }\n` +
+                            `.${DINAMIC_SX_TABLE_CLASS.cell}[data-field="Title"] { font-weight: 600; }`
+                          }
+                          styles={{ root: { maxWidth: '100%' } }}
+                        />
+                        <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                          <input
+                            type="color"
+                            value={normalizeHexColor(layoutColor, '#0078d4')}
+                            onChange={(e) => setLayoutColor(e.target.value)}
+                            aria-label="Cor para CSS da tabela"
+                            style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
                           />
-                          <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 4 } }}>
-                            <input
-                              type="color"
-                              value={normalizeHexColor(layoutColor, '#0078d4')}
-                              onChange={(e) => setLayoutColor(e.target.value)}
-                              aria-label="Selecionar cor para CSS da tabela"
-                              style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
-                            />
-                            <TextField
-                              label="Cor (hex)"
-                              value={layoutColor}
-                              onChange={(_, v) => setLayoutColor((v ?? '').trim() || '#000000')}
-                              styles={{ root: { width: 130 } }}
-                            />
-                            <DefaultButton text="Inserir background" onClick={() => appendLayoutCssColor('background')} />
-                            <DefaultButton text="Inserir color" onClick={() => appendLayoutCssColor('color')} />
-                            <DefaultButton text="Inserir border-color" onClick={() => appendLayoutCssColor('border-color')} />
-                          </Stack>
-                          <Stack
-                            tokens={{ childrenGap: 4 }}
-                            styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8', maxHeight: 220, overflowY: 'auto' } }}
-                          >
-                            {TABLE_LAYOUT_EDITOR_ROWS.map((row) => (
-                              <Text key={row.slot} variant="small" styles={{ root: { color: '#605e5c' } }}>
-                                <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{DINAMIC_SX_TABLE_CLASS[row.slot]}</span> - {row.title}
-                              </Text>
-                            ))}
-                          </Stack>
+                          <TextField
+                            label="Cor (hex)"
+                            value={layoutColor}
+                            onChange={(_, v) => setLayoutColor((v ?? '').trim() || '#000000')}
+                            styles={{ root: { width: 130 } }}
+                          />
+                          <DefaultButton text="Inserir background" onClick={() => appendLayoutCssColor('background')} />
+                          <DefaultButton text="Inserir color" onClick={() => appendLayoutCssColor('color')} />
+                          <DefaultButton text="Inserir border-color" onClick={() => appendLayoutCssColor('border-color')} />
                         </Stack>
-                        <Stack styles={{ root: { flex: '1 1 360px', minWidth: 280, maxWidth: '100%' } }}>
-                          <TableLayoutLivePreview cssText={layoutPreviewCss} rulePreviewTokens={layoutPreviewRuleTokens} />
+                        <Stack
+                          tokens={{ childrenGap: 4 }}
+                          styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8', maxHeight: 220, overflowY: 'auto' } }}
+                        >
+                          {TABLE_LAYOUT_EDITOR_ROWS.map((row) => (
+                            <Text key={row.slot} variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{DINAMIC_SX_TABLE_CLASS[row.slot]}</span> — {row.title}
+                            </Text>
+                          ))}
                         </Stack>
                       </Stack>
+                      <Stack styles={{ root: { flex: '1 1 360px', minWidth: 280, maxWidth: '100%' } }}>
+                        <TableLayoutLivePreview cssText={layoutPreviewCss} rulePreviewTokens={layoutPreviewRuleTokens} />
+                      </Stack>
                     </Stack>
-                  </PivotItem>
-                  <PivotItem itemKey="regras" headerText="Regras">
-                    <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
-                      <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.55 } }}>
-                        Quando o valor exibido de um campo atender à condição, o mesmo CSS é aplicado em <strong>todas as células da linha</strong>{' '}
-                        (marcador <span style={{ fontFamily: 'monospace' }}>data-dinamic-rules</span> em cada <span style={{ fontFamily: 'monospace' }}>&lt;td&gt;</span>, para fundo e bordas ficarem corretos com{' '}
-                        <span style={{ fontFamily: 'monospace' }}>border-collapse</span>). A comparação usa o mesmo texto da célula (incluindo lookups).
-                        Várias regras podem valer ao mesmo tempo; cada uma acrescenta um token no marcador.
-                      </Text>
+                  </ListTabListaCollapse>
+
+                  {/* ── Regras de linha ── */}
+                  <ListTabListaCollapse
+                    title="Regras de linha"
+                    isOpen={layoutSectionOpen.rowRules === true}
+                    onToggle={() => setLayoutSectionOpen((p) => ({ ...p, rowRules: !p.rowRules }))}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.55 } }}>
+                      Quando o valor de um campo atender à condição, o CSS é aplicado em todas as células da linha (marcador <span style={{ fontFamily: 'monospace' }}>data-dinamic-rules</span>).
+                    </Text>
                       {rowStyleRules.map((rule, ri) => {
                         const valueDisabled = rule.operator === 'empty' || rule.operator === 'notEmpty';
                         return (
@@ -1760,9 +1772,72 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                         );
                       })}
                       <DefaultButton text="Adicionar regra" iconProps={{ iconName: 'Add' }} onClick={addRowStyleRule} />
+                  </ListTabListaCollapse>
+
+                  {/* ── CSS Cards ── */}
+                  <ListTabListaCollapse
+                    title="CSS dos cards"
+                    isOpen={layoutSectionOpen.cardCss === true}
+                    onToggle={() => setLayoutSectionOpen((p) => ({ ...p, cardCss: !p.cardCss }))}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+                      Personaliza a visualização em cards (ativa quando o usuário alterna para Cards). Use os seletores abaixo.
+                    </Text>
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      <TextField
+                        label="CSS dos cards"
+                        multiline
+                        resizable
+                        rows={14}
+                        value={cardCssText}
+                        onChange={(_, v) => setCardCssText(v ?? '')}
+                        placeholder={
+                          `.dinamicSxCard { border-radius: 12px; }\n` +
+                          `.dinamicSxCardTitle { color: #0078d4; font-size: 15px; }\n` +
+                          `.dinamicSxCardLabel { color: #605e5c; }\n` +
+                          `.dinamicSxCardGrid { gap: 16px; }`
+                        }
+                        styles={{ root: { maxWidth: '100%' } }}
+                      />
+                      <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                        <input
+                          type="color"
+                          value={normalizeHexColor(cardColor, '#0078d4')}
+                          onChange={(e) => setCardColor(e.target.value)}
+                          aria-label="Cor para CSS dos cards"
+                          style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+                        />
+                        <TextField
+                          label="Cor (hex)"
+                          value={cardColor}
+                          onChange={(_, v) => setCardColor((v ?? '').trim() || '#000000')}
+                          styles={{ root: { width: 130 } }}
+                        />
+                        <DefaultButton text="Inserir background" onClick={() => appendCardCssColor('background')} />
+                        <DefaultButton text="Inserir color" onClick={() => appendCardCssColor('color')} />
+                        <DefaultButton text="Inserir border-color" onClick={() => appendCardCssColor('border-color')} />
+                      </Stack>
+                      <Stack
+                        tokens={{ childrenGap: 4 }}
+                        styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8' } }}
+                      >
+                        {([
+                          { cls: 'dinamicSxCardGrid', desc: 'Container da grade de cards' },
+                          { cls: 'dinamicSxCard', desc: 'Card individual' },
+                          { cls: 'dinamicSxCardTitle', desc: 'Primeiro campo (título)' },
+                          { cls: 'dinamicSxCardField', desc: 'Linha de campo (label + valor)' },
+                          { cls: 'dinamicSxCardLabel', desc: 'Rótulo do campo' },
+                          { cls: 'dinamicSxCardValue', desc: 'Valor do campo' },
+                          { cls: 'dinamicSxCardActions', desc: 'Área de botões de ação' },
+                        ] as const).map((r) => (
+                          <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}
+                          </Text>
+                        ))}
+                      </Stack>
                     </Stack>
-                  </PivotItem>
-                </Pivot>
+                  </ListTabListaCollapse>
+                </Stack>
               </PivotItem>
             </Pivot>
           </Stack>

@@ -245,6 +245,8 @@ export interface IListViewConfig {
   customTableCssSlots?: ITableLayoutCssSlots;
   /** CSS livre (regras completas, seletores combinados, [data-field], etc.). */
   customTableCss?: string;
+  /** CSS aplicado na visualização em cards (seletores .dinamicSxCard*, escopados por instância). */
+  customCardCss?: string;
   /** Estilo condicional por linha conforme valor de coluna (aba Layout → Regras). */
   tableRowStyleRules?: ITableRowStyleRule[];
   /** Ações por item (ícones e/ou clique na linha/card). Configurado na aba Ações do painel. */
