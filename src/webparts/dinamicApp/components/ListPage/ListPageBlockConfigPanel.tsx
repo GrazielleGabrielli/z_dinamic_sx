@@ -933,7 +933,6 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
                           return { ...b, items };
                         });
                       }}
-                      description="Caminho relativo ou endereço completo (https://…)."
                     />
                     <Toggle
                       label="Abrir em nova aba"

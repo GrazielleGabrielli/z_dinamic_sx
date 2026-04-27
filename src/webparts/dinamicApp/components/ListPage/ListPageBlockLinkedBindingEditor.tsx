@@ -126,9 +126,7 @@ export const ListPageBlockLinkedBindingEditor: React.FC<IListPageBlockLinkedBind
       <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
         Lista vinculada (Lookup para a principal)
       </Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
-        Dados deste bloco passam a ser da lista filha escolhida. Só aparecem listas com campo Lookup para «{mainListTitle || '…'}».
-      </Text>
+    
       <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
         <DefaultButton text="Atualizar listas" onClick={() => void load()} disabled={loading || !mainListTitle.trim()} />
         {loading ? <Spinner size={SpinnerSize.small} /> : null}

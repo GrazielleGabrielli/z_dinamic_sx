@@ -13,10 +13,20 @@ export async function discoverListsWithLookupToMain(
   listsService: ListsService,
   fieldsService: FieldsService
 ): Promise<IDiscoveredLinkedList[]> {
-  const mainMeta = await listsService.getListMetadata(mainListTitleOrId.trim());
-  const primaryIdNorm = normListGuid(mainMeta.Id);
+  const titleNorm = mainListTitleOrId.trim().toLowerCase();
   const summaries = await listsService.getLists(false);
+
+  const mainSummary = summaries.find(
+    (s) =>
+      String(s.Title ?? '').trim().toLowerCase() === titleNorm ||
+      normListGuid(s.Id) === normListGuid(mainListTitleOrId.trim())
+  );
+
+  if (!mainSummary) return [];
+
+  const primaryIdNorm = normListGuid(mainSummary.Id);
   const out: IDiscoveredLinkedList[] = [];
+
   for (let i = 0; i < summaries.length; i++) {
     const sum = summaries[i];
     if (sum.IsLibrary) continue;
