@@ -11,6 +11,7 @@ import {
   Separator,
   ChoiceGroup,
   IChoiceGroupOption,
+  Toggle,
 } from '@fluentui/react';
 import {
   IDashboardCardConfig,
@@ -32,6 +33,7 @@ const CHART_TYPES: TChartType[] = ['bar', 'line', 'area', 'pie', 'donut'];
 export interface ICardEditorSaveOptions {
   dashboardType?: TDashboardType;
   chartType?: TChartType;
+  combineWithActiveViewMode?: boolean;
 }
 
 interface ICardEditorPanelProps {
@@ -42,6 +44,7 @@ interface ICardEditorPanelProps {
   cardsCount: number;
   dashboardType: TDashboardType;
   chartType?: TChartType;
+  combineWithActiveViewModeInitial: boolean;
   onSave: (cards: IDashboardCardConfig[], options?: ICardEditorSaveOptions) => void;
   onDismiss: () => void;
 }
@@ -80,6 +83,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   cardsCount,
   dashboardType,
   chartType = 'bar',
+  combineWithActiveViewModeInitial,
   onSave,
   onDismiss,
 }) => {
@@ -88,6 +92,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   );
   const [localDashboardType, setLocalDashboardType] = useState<TDashboardType>(dashboardType);
   const [localChartType, setLocalChartType] = useState<TChartType>(chartType);
+  const [localCombineViewMode, setLocalCombineViewMode] = useState<boolean>(combineWithActiveViewModeInitial);
   const [view, setView] = useState<TPanelView>('list');
   const [editingIndex, setEditingIndex] = useState<number | undefined>(undefined);
   const [choiceModalOpen, setChoiceModalOpen] = useState(false);
@@ -97,9 +102,10 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
     setLocalCards(initLocalCards(cards, cardsCount));
     setLocalDashboardType(dashboardType);
     setLocalChartType(chartType ?? 'bar');
+    setLocalCombineViewMode(combineWithActiveViewModeInitial);
     setView('list');
     setEditingIndex(undefined);
-  }, [isOpen, cards, cardsCount, dashboardType, chartType]);
+  }, [isOpen, cards, cardsCount, dashboardType, chartType, combineWithActiveViewModeInitial]);
 
   const handleEdit = (index: number): void => {
     setEditingIndex(index);
@@ -125,7 +131,11 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   };
 
   const handleSave = (): void => {
-    onSave(localCards, { dashboardType: localDashboardType, chartType: localChartType });
+    onSave(localCards, {
+      dashboardType: localDashboardType,
+      chartType: localChartType,
+      combineWithActiveViewMode: localCombineViewMode,
+    });
   };
 
   const getEditingCard = (): IDashboardCardConfig | undefined => {
@@ -171,6 +181,15 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
           </div>
         </Stack>
       )}
+      <Toggle
+        label="Ao clicar em card ou série, combinar filtros com o modo de visualização ativo na lista"
+        checked={localCombineViewMode}
+        onChange={(_: React.MouseEvent<HTMLElement>, checked?: boolean) =>
+          setLocalCombineViewMode(!!checked)
+        }
+        onText="Sim"
+        offText="Não"
+      />
       <Separator />
       <Stack tokens={{ childrenGap: 0 }}>
       {localCards.length === 0 && (

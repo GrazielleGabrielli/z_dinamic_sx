@@ -70,6 +70,12 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const d = raw as Record<string, unknown>;
   if (typeof d.enabled !== 'boolean') return undefined;
+  const dashCombine =
+    d.combineWithActiveViewMode === true
+      ? true
+      : d.combineWithActiveViewMode === false
+        ? false
+        : undefined;
   const dtype = d.dashboardType === 'charts' ? 'charts' : 'cards';
   const cardsCount = typeof d.cardsCount === 'number' && d.cardsCount >= 0 ? d.cardsCount : 0;
   const cardsIn = Array.isArray(d.cards) ? d.cards : [];
@@ -106,6 +112,7 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
       cards,
       chartType,
       chartSeries: chartSeries ?? [],
+      ...(dashCombine !== undefined && { combineWithActiveViewMode: dashCombine }),
     };
   }
   return {
@@ -114,6 +121,7 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
     cardsCount,
     cards,
     chartType,
+    ...(dashCombine !== undefined && { combineWithActiveViewMode: dashCombine }),
   };
 }
 
@@ -302,6 +310,66 @@ export function getEffectiveListPageSections(config: IDynamicViewConfig): IListP
   return buildLegacyListPageSections(config);
 }
 
+export function findBlockInSections(sections: IListPageSection[], blockId: string): IListPageBlock | null {
+  for (let si = 0; si < sections.length; si++) {
+    const cols = sections[si].columns;
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci];
+      for (let bi = 0; bi < col.length; bi++) {
+        if (col[bi].id === blockId) return col[bi];
+      }
+    }
+  }
+  return null;
+}
+
+function flattenBlocksReadingOrder(sections: IListPageSection[]): IListPageBlock[] {
+  const out: IListPageBlock[] = [];
+  for (let si = 0; si < sections.length; si++) {
+    const cols = sections[si].columns;
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci];
+      for (let bi = 0; bi < col.length; bi++) {
+        out.push(col[bi]);
+      }
+    }
+  }
+  return out;
+}
+
+/** Bloco `list` na página que usa a mesma lista que o dashboard `dashboardBlockId`. */
+export function findMatchingListBlockIdForDashboard(
+  config: IDynamicViewConfig,
+  sections: IListPageSection[],
+  dashboardBlockId: string
+): string | undefined {
+  const dashBlock = findBlockInSections(sections, dashboardBlockId);
+  if (!dashBlock || dashBlock.type !== 'dashboard') return undefined;
+  const paired = dashBlock.pairedListBlockId?.trim();
+  if (paired) {
+    const pb = findBlockInSections(sections, paired);
+    if (pb?.type === 'list') return paired;
+  }
+  const dTitle = effectiveConfigForListPageBlock(config, dashBlock).dataSource.title?.trim();
+  if (!dTitle) return undefined;
+  const flat = flattenBlocksReadingOrder(sections);
+  const dashIdx = flat.findIndex((b) => b.id === dashboardBlockId);
+  const matching: { id: string; idx: number }[] = [];
+  for (let i = 0; i < flat.length; i++) {
+    const b = flat[i];
+    if (b.type !== 'list') continue;
+    const t = effectiveConfigForListPageBlock(config, b).dataSource.title?.trim();
+    if (t === dTitle) matching.push({ id: b.id, idx: i });
+  }
+  if (matching.length === 0) return undefined;
+  if (matching.length === 1) return matching[0].id;
+  if (dashIdx >= 0) {
+    const afterDash = matching.filter((m) => m.idx > dashIdx);
+    if (afterDash.length > 0) return afterDash[0].id;
+  }
+  return matching[0].id;
+}
+
 export function sanitizeListPageContentPadding(raw: unknown): string | undefined {
   if (typeof raw !== 'string') return undefined;
   const t = raw.trim();
@@ -401,6 +469,12 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
           const linkedListBinding = sanitizeLinkedListBinding(bb.linkedListBinding, type);
           const bindOpt = linkedListBinding ? { linkedListBinding } : {};
           const nestedDash = type === 'dashboard' ? sanitizeBlockDashboard(bb.dashboard) : undefined;
+          const pairedListBlockId =
+            type === 'dashboard' &&
+            typeof bb.pairedListBlockId === 'string' &&
+            bb.pairedListBlockId.trim().length > 0
+              ? bb.pairedListBlockId.trim()
+              : undefined;
           if (type === 'banner') {
             blocks.push({
               id: bid,
@@ -447,6 +521,7 @@ export function sanitizeListPageLayout(raw: unknown): IListPageLayoutConfig | un
             type,
             ...bindOpt,
             ...(nestedDash ? { dashboard: nestedDash } : {}),
+            ...(pairedListBlockId !== undefined ? { pairedListBlockId } : {}),
           });
         }
       }

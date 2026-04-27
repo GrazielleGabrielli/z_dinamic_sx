@@ -12,6 +12,7 @@ import type {
 } from '../../core/config/types';
 import {
   effectiveConfigForListPageBlock,
+  findBlockInSections,
   resolveDashboardForListBlock,
   sanitizeListPageContentPadding,
 } from '../../core/listPage/listPageLayoutUtils';
@@ -51,6 +52,7 @@ export interface IListPageRendererProps {
   contentPadding?: string;
   /** Site da página onde o web part está (permissões de modo de lista). */
   pageWebServerRelativeUrl?: string;
+  onListViewModeChange?: (listBlockId: string, modeId: string) => void;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -69,19 +71,6 @@ function showDashboardBlock(dashboard: IDashboardConfig): boolean {
   );
 }
 
-function findBlockInSections(sections: IListPageSection[], blockId: string): IListPageBlock | null {
-  for (let si = 0; si < sections.length; si++) {
-    const cols = sections[si].columns;
-    for (let ci = 0; ci < cols.length; ci++) {
-      const col = cols[ci];
-      for (let bi = 0; bi < col.length; bi++) {
-        if (col[bi].id === blockId) return col[bi];
-      }
-    }
-  }
-  return null;
-}
-
 function tableBlockReceivesDashboardFilters(
   config: IDynamicViewConfig,
   sections: IListPageSection[],
@@ -91,6 +80,7 @@ function tableBlockReceivesDashboardFilters(
   if (!selection?.filters?.length) return false;
   const dashBlock = findBlockInSections(sections, selection.blockId);
   if (!dashBlock || dashBlock.type !== 'dashboard') return false;
+  if (dashBlock.pairedListBlockId?.trim() === tableBlock.id) return true;
   const tTitle = effectiveConfigForListPageBlock(config, tableBlock).dataSource.title;
   const dTitle = effectiveConfigForListPageBlock(config, dashBlock).dataSource.title;
   return tTitle === dTitle;
@@ -113,6 +103,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   editTableColumnsLabel = 'Editar colunas',
   contentPadding,
   pageWebServerRelativeUrl,
+  onListViewModeChange,
 }) => {
   const rootDash = config.dashboard;
   const layoutPadding = React.useMemo(
@@ -171,6 +162,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
             dashboardListFilters={dashFilters}
             instanceScopeId={`${instanceScopeId}_${block.id}`}
             pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+            onViewModeChange={(modeId) => onListViewModeChange?.(block.id, modeId)}
           />
         </Stack>
       );

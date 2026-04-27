@@ -31,6 +31,10 @@ import {
 import { upsertConfigMemoryForListSource } from '../core/config/configMemory';
 import { effectiveDashboardFilters } from '../core/dashboard/effectiveDashboardFilters';
 import {
+  mergeDashboardClickFiltersWithViewMode,
+  resolveDashboardCombineWithViewMode,
+} from '../core/dashboard/mergeDashboardWithViewMode';
+import {
   chartSeriesToDashboardCards,
   dashboardCardsToChartSeries,
 } from '../core/dashboard/chartSeriesToDashboardCards';
@@ -75,6 +79,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [canManageListConfig, setCanManageListConfig] = useState(false);
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
+  const [listViewModeByBlockId, setListViewModeByBlockId] = useState<Record<string, string>>({});
 
   const rawConfig = useMemo(() => parseConfig(configJson ?? undefined), [configJson]);
   const config = useMemo((): IDynamicViewConfig | undefined => {
@@ -166,7 +171,12 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
   useEffect(() => {
     setDashboardListSelection(null);
+    setListViewModeByBlockId({});
   }, [config?.dataSource.title, config?.dataSource.webServerRelativeUrl]);
+
+  const handleListViewModeChange = useCallback((listBlockId: string, modeId: string) => {
+    setListViewModeByBlockId((prev) => ({ ...prev, [listBlockId]: modeId }));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -189,29 +199,53 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     };
   }, []);
 
-  const handleDashboardCardClick = useCallback((card: IDashboardCardConfig, blockId: string) => {
-    const filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];
-    setDashboardListSelection((prev) =>
-      prev !== null &&
-      prev.kind === 'card' &&
-      prev.blockId === blockId &&
-      prev.entityId === card.id
-        ? null
-        : { blockId, kind: 'card', entityId: card.id, filters }
-    );
-  }, []);
+  const handleDashboardCardClick = useCallback(
+    (card: IDashboardCardConfig, blockId: string) => {
+      if (!config) return;
+      let filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];
+      const dash = getDashboardForEditor(config, blockId);
+      filters = mergeDashboardClickFiltersWithViewMode(
+        config,
+        resolveDashboardCombineWithViewMode(dash),
+        blockId,
+        filters,
+        listViewModeByBlockId
+      );
+      setDashboardListSelection((prev) =>
+        prev !== null &&
+        prev.kind === 'card' &&
+        prev.blockId === blockId &&
+        prev.entityId === card.id
+          ? null
+          : { blockId, kind: 'card', entityId: card.id, filters }
+      );
+    },
+    [config, listViewModeByBlockId]
+  );
 
-  const handleDashboardSeriesClick = useCallback((series: IChartSeriesConfig, blockId: string) => {
-    const filters = effectiveDashboardFilters(series) as IListViewFilterConfig[];
-    setDashboardListSelection((prev) =>
-      prev !== null &&
-      prev.kind === 'series' &&
-      prev.blockId === blockId &&
-      prev.entityId === series.id
-        ? null
-        : { blockId, kind: 'series', entityId: series.id, filters }
-    );
-  }, []);
+  const handleDashboardSeriesClick = useCallback(
+    (series: IChartSeriesConfig, blockId: string) => {
+      if (!config) return;
+      let filters = effectiveDashboardFilters(series) as IListViewFilterConfig[];
+      const dash = getDashboardForEditor(config, blockId);
+      filters = mergeDashboardClickFiltersWithViewMode(
+        config,
+        resolveDashboardCombineWithViewMode(dash),
+        blockId,
+        filters,
+        listViewModeByBlockId
+      );
+      setDashboardListSelection((prev) =>
+        prev !== null &&
+        prev.kind === 'series' &&
+        prev.blockId === blockId &&
+        prev.entityId === series.id
+          ? null
+          : { blockId, kind: 'series', entityId: series.id, filters }
+      );
+    },
+    [config, listViewModeByBlockId]
+  );
 
   const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
   const canShowListConfigButtons = config?.mode !== 'list' || canManageListConfig;
@@ -242,7 +276,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
   const handleSaveCards = (
     cards: IDashboardCardConfig[],
-    options?: { dashboardType?: TDashboardType; chartType?: TChartType }
+    options?: { dashboardType?: TDashboardType; chartType?: TChartType; combineWithActiveViewMode?: boolean }
   ): void => {
     if (!config) return;
     const bid = editingDashboardBlockId ?? LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID;
@@ -254,6 +288,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       cardsCount: cards.length,
       ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
       ...(options?.chartType !== undefined && { chartType: options.chartType }),
+      ...(options?.combineWithActiveViewMode !== undefined && {
+        combineWithActiveViewMode: options.combineWithActiveViewMode,
+      }),
     };
     const dashboard =
       nextType === 'charts'
@@ -271,7 +308,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
   const handleSaveSeries = (
     chartSeries: IChartSeriesConfig[],
-    options?: { dashboardType?: TDashboardType; chartType?: TChartType }
+    options?: { dashboardType?: TDashboardType; chartType?: TChartType; combineWithActiveViewMode?: boolean }
   ): void => {
     if (!config) return;
     const bid = editingDashboardBlockId ?? LEGACY_LIST_PAGE_DASHBOARD_BLOCK_ID;
@@ -282,6 +319,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       chartSeries,
       ...(options?.dashboardType !== undefined && { dashboardType: options.dashboardType }),
       ...(options?.chartType !== undefined && { chartType: options.chartType }),
+      ...(options?.combineWithActiveViewMode !== undefined && {
+        combineWithActiveViewMode: options.combineWithActiveViewMode,
+      }),
     };
     const dashboard =
       nextType === 'cards'
@@ -464,6 +504,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
             pageWebServerRelativeUrl={siteUrl}
+            onListViewModeChange={handleListViewModeChange}
             onEditTableColumns={
               canShowListConfigButtons
                 ? (blockId) => {
@@ -509,6 +550,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         cardsCount={activeListDashboard.cardsCount}
         dashboardType={activeListDashboard.dashboardType}
         chartType={activeListDashboard.chartType}
+        combineWithActiveViewModeInitial={resolveDashboardCombineWithViewMode(activeListDashboard)}
         onSave={handleSaveCards}
         onDismiss={() => {
           setIsEditingCards(false);
@@ -523,6 +565,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         series={activeListDashboard.chartSeries ?? []}
         dashboardType={activeListDashboard.dashboardType}
         chartType={activeListDashboard.chartType}
+        combineWithActiveViewModeInitial={resolveDashboardCombineWithViewMode(activeListDashboard)}
         onSave={handleSaveSeries}
         onDismiss={() => {
           setIsEditingSeries(false);

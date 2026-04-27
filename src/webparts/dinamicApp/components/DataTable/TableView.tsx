@@ -58,6 +58,8 @@ export interface ITableViewProps {
   instanceScopeId: string;
   /** Site da página (para avaliar grupos ao restringir modos). */
   pageWebServerRelativeUrl?: string;
+  /** Chamado quando o modo de visualização da tabela muda (para combinar com filtros do dashboard). */
+  onViewModeChange?: (modeId: string) => void;
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
@@ -70,15 +72,24 @@ export const TableView: React.FC<ITableViewProps> = ({
   dashboardListFilters,
   instanceScopeId,
   pageWebServerRelativeUrl,
+  onViewModeChange,
 }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
   const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
 
-  const tableConfigFromList = useMemo(() => listViewToTableConfig(listView), [listView]);
+  const listViewStableKey = JSON.stringify(listView ?? null);
+  const tableConfigRawKey = JSON.stringify(tableConfigRaw ?? null);
+  const tableConfigFromList = useMemo(
+    () => listViewToTableConfig(listView),
+    // listView muda de referência a cada render do ListPageRenderer; a chave estabiliza o memo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listViewStableKey]
+  );
   const initialTableConfig = useMemo(
     () => (tableConfigRaw && tableConfigRaw.columns?.length ? tableConfigRaw : tableConfigFromList) as Partial<ITableConfig>,
-    [tableConfigRaw, tableConfigFromList]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tableConfigRawKey, tableConfigFromList]
   );
 
   const [tableConfig, setTableConfig] = useState<ITableConfig | null>(null);
@@ -117,17 +128,59 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
   }, [fullViewModes, membership]);
 
+  const lastConfigActiveModeRef = React.useRef<string | undefined>(undefined);
+  const viewModesContentKey = JSON.stringify(
+    (listView?.viewModes ?? []).map((m) => ({ id: m.id, filters: m.filters }))
+  );
+
   useEffect(() => {
     const desired = listView?.activeViewModeId ?? fullViewModes[0]?.id ?? 'all';
+
     if (!membership) {
-      setSelectedViewModeId(desired);
+      const prevStored = lastConfigActiveModeRef.current;
+      if (prevStored === undefined) {
+        lastConfigActiveModeRef.current = desired;
+        setSelectedViewModeId(desired);
+        return;
+      }
+      const configModeChanged = prevStored !== desired;
+      lastConfigActiveModeRef.current = desired;
+      if (configModeChanged) {
+        setSelectedViewModeId(desired);
+      }
       return;
     }
-    setSelectedViewModeId(pickFallbackViewModeId(desired, visibleViewModes, fullViewModes));
-  }, [listView?.activeViewModeId, fullViewModes, membership, visibleViewModes]);
+
+    const prevStored = lastConfigActiveModeRef.current;
+    const configModeChanged = prevStored !== undefined && prevStored !== desired;
+    lastConfigActiveModeRef.current = desired;
+
+    setSelectedViewModeId((prev) => {
+      const visIds = new Set(visibleViewModes.map((m) => m.id));
+      if (configModeChanged && visIds.has(desired)) {
+        return desired;
+      }
+      if (visIds.has(prev)) {
+        return prev;
+      }
+      return pickFallbackViewModeId(desired, visibleViewModes, fullViewModes);
+    });
+  }, [listView?.activeViewModeId, viewModesContentKey, membership, visibleViewModes]);
 
   useEffect(() => {
     setColumnFilters({});
+  }, [selectedViewModeId]);
+
+  const onViewModeChangeRef = React.useRef(onViewModeChange);
+  onViewModeChangeRef.current = onViewModeChange;
+  const skipNextViewModeParentNotify = React.useRef(true);
+  useEffect(() => {
+    if (!onViewModeChangeRef.current) return;
+    if (skipNextViewModeParentNotify.current) {
+      skipNextViewModeParentNotify.current = false;
+      return;
+    }
+    onViewModeChangeRef.current(selectedViewModeId);
   }, [selectedViewModeId]);
 
   useEffect(() => {

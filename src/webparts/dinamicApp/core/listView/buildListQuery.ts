@@ -80,9 +80,23 @@ export function getActiveViewModeFilters(listView: IListViewConfig): IListViewFi
   const modes = listView.viewModes;
   if (!modes || modes.length === 0) return listView.filters ?? [];
   const id = listView.activeViewModeId ?? modes[0].id;
+  return getViewModeFiltersById(listView, id);
+}
+
+export function getViewModeFiltersById(
+  listView: IListViewConfig | undefined,
+  modeId: string | undefined
+): IListViewFilterConfig[] {
+  if (!listView) return [];
+  const modes = listView.viewModes;
+  if (!modes || modes.length === 0) return listView.filters ?? [];
+  const id = modeId ?? listView.activeViewModeId ?? modes[0].id;
   let mode = modes[0];
   for (let i = 0; i < modes.length; i++) {
-    if (modes[i].id === id) { mode = modes[i]; break; }
+    if (modes[i].id === id) {
+      mode = modes[i];
+      break;
+    }
   }
   return mode.filters ?? [];
 }

@@ -18,6 +18,12 @@ export function useViewModeMembership(
 ): IViewModeMembershipState | null {
   const pageNorm = useMemo(() => normWebPath(pageWebServerRelativeUrl || '/'), [pageWebServerRelativeUrl]);
   const [state, setState] = useState<IViewModeMembershipState | null>(null);
+  const viewModesAccessKey = JSON.stringify(
+    viewModes.map((m) => ({
+      id: m.id,
+      access: m.access,
+    }))
+  );
 
   useEffect(() => {
     const us = new UsersService();
@@ -52,7 +58,9 @@ export function useViewModeMembership(
     return () => {
       cancelled = true;
     };
-  }, [viewModes, pageNorm]);
+    // viewModes: referência instável; viewModesAccessKey captura id/access
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewModesAccessKey, pageNorm]);
 
   return state;
 }
