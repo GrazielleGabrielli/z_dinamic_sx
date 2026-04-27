@@ -28,6 +28,7 @@ import type {
   TListPageAlertVariant,
   TListPageBannerContentAlign,
   TListPageButtonActionKind,
+  TListPageButtonVariant,
   TListPageSectionTitleSize,
 } from '../../core/config/types';
 import {
@@ -112,6 +113,17 @@ const BUTTON_ACTION_OPTIONS: IDropdownOption[] = [
   { key: 'reload', text: 'Recarregar página' },
 ];
 
+const BUTTON_VARIANT_OPTIONS: IDropdownOption[] = [
+  { key: 'default', text: 'Padrão (outline)' },
+  { key: 'primary', text: 'Primário (preenchido)' },
+];
+
+const BUTTON_ALIGN_OPTIONS: IDropdownOption[] = [
+  { key: 'left', text: 'Esquerda' },
+  { key: 'center', text: 'Centro' },
+  { key: 'right', text: 'Direita' },
+];
+
 function panelHeaderForBlockType(t: IListPageBlock['type']): string {
   if (t === 'banner') return 'Banner';
   if (t === 'editor') return 'Editor de conteúdo';
@@ -164,10 +176,13 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
       setAlertCfg(src);
     }
     if (block.type === 'buttons') {
-      const items = block.buttons?.items?.length
-        ? block.buttons.items.map((it) => ({ ...it }))
-        : defaultButtonsConfig().items.map((it) => ({ ...it }));
-      setButtonsCfg({ items });
+      const src = block.buttons ?? defaultButtonsConfig();
+      setButtonsCfg({
+        items: src.items?.length ? src.items.map((it) => ({ ...it })) : defaultButtonsConfig().items.map((it) => ({ ...it })),
+        align: src.align,
+        gap: src.gap,
+        containerCss: src.containerCss,
+      });
     }
   }, [isOpen, block]);
 
@@ -201,7 +216,7 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
     } else if (block.type === 'sectionTitle') {
       onApply({ ...block, sectionTitle });
     } else if (block.type === 'buttons') {
-      onApply({ ...block, buttons: sanitizeButtonsConfig({ items: buttonsCfg.items }) });
+      onApply({ ...block, buttons: sanitizeButtonsConfig(buttonsCfg) });
     } else {
       const by = new Map((alertListFields ?? []).map((f) => [f.InternalName, f]));
       const rules = (alertCfg.countRules ?? []).map((r) => mergeCountRuleODataFromStructured(r, by));
@@ -812,6 +827,42 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
               Tipos: abrir uma URL (mesma aba ou nova) ou recarregar a página atual. Ao aplicar, linhas sem texto ou
               redirecionamento sem URL válida são ignoradas (máximo {MAX_LIST_PAGE_BUTTONS} botões).
             </Text>
+
+            {/* Configurações do container */}
+            <Separator />
+            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>Configurações do grupo</Text>
+            <Dropdown
+              label="Alinhamento"
+              selectedKey={buttonsCfg.align ?? 'left'}
+              options={BUTTON_ALIGN_OPTIONS}
+              onChange={(_, opt) => {
+                const k = opt?.key as 'left' | 'center' | 'right' | undefined;
+                if (!k) return;
+                setButtonsCfg((b) => ({ ...b, align: k }));
+              }}
+            />
+            <TextField
+              label="Espaçamento entre botões (px)"
+              type="number"
+              value={String(buttonsCfg.gap ?? 8)}
+              onChange={(_, v) => {
+                const n = parseInt(String(v ?? ''), 10);
+                if (isNaN(n)) return;
+                setButtonsCfg((b) => ({ ...b, gap: Math.min(120, Math.max(0, n)) }));
+              }}
+            />
+            <TextField
+              label="CSS do container"
+              multiline
+              rows={4}
+              value={buttonsCfg.containerCss ?? ''}
+              onChange={(_, v) => setButtonsCfg((b) => ({ ...b, containerCss: v ?? '' }))}
+              placeholder="ex.: padding: 16px 0; background: #f3f2f1; border-radius: 8px;"
+              description="CSS aplicado na div que envolve todos os botões."
+            />
+            <Separator />
+
+            {/* Lista de botões */}
             <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
               <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
                 Botões
@@ -899,6 +950,36 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
                   }}
                 />
                 <Dropdown
+                  label="Variante"
+                  selectedKey={item.variant ?? 'default'}
+                  options={BUTTON_VARIANT_OPTIONS}
+                  onChange={(_, opt) => {
+                    const k = opt?.key as TListPageButtonVariant | undefined;
+                    if (k !== 'primary' && k !== 'default') return;
+                    setButtonsCfg((b) => {
+                      const items = [...b.items];
+                      items[idx] = { ...items[idx], variant: k };
+                      return { ...b, items };
+                    });
+                  }}
+                />
+                <TextField
+                  label="Ícone (Fluent UI)"
+                  value={item.iconName ?? ''}
+                  onChange={(_, v) => {
+                    const s = (v ?? '').trim();
+                    setButtonsCfg((b) => {
+                      const items = [...b.items];
+                      const next = { ...items[idx] };
+                      if (s) next.iconName = s;
+                      else delete next.iconName;
+                      items[idx] = next;
+                      return { ...b, items };
+                    });
+                  }}
+                  description="Ex.: Add, Refresh, ChevronRight"
+                />
+                <Dropdown
                   label="Tipo"
                   selectedKey={item.actionKind}
                   options={BUTTON_ACTION_OPTIONS}
@@ -947,6 +1028,25 @@ export const ListPageBlockConfigPanel: React.FC<IListPageBlockConfigPanelProps> 
                     />
                   </>
                 ) : null}
+                <TextField
+                  label="CSS do botão"
+                  multiline
+                  rows={3}
+                  value={item.css ?? ''}
+                  onChange={(_, v) => {
+                    const s = v ?? '';
+                    setButtonsCfg((b) => {
+                      const items = [...b.items];
+                      const next = { ...items[idx] };
+                      if (s.trim()) next.css = s;
+                      else delete next.css;
+                      items[idx] = next;
+                      return { ...b, items };
+                    });
+                  }}
+                  placeholder="ex.: background: #0078d4; color: #fff; border-radius: 20px;"
+                  description="Declarações CSS aplicadas inline neste botão."
+                />
               </Stack>
             ))}
           </>

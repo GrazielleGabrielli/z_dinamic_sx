@@ -341,6 +341,9 @@ export type TListPageBlockType =
 /** Ação de um botão no bloco «Botões» (modo lista). */
 export type TListPageButtonActionKind = 'redirect' | 'reload';
 
+/** Variante visual de um botão. */
+export type TListPageButtonVariant = 'primary' | 'default';
+
 export interface IListPageButtonItemConfig {
   id: string;
   label: string;
@@ -348,10 +351,22 @@ export interface IListPageButtonItemConfig {
   /** Obrigatório quando `actionKind` é `redirect`. */
   url?: string;
   openInNewTab?: boolean;
+  /** Variante visual: primário (preenchido) ou padrão (outline). */
+  variant?: TListPageButtonVariant;
+  /** Nome de ícone Fluent UI exibido antes do texto. */
+  iconName?: string;
+  /** CSS extra aplicado ao elemento do botão. */
+  css?: string;
 }
 
 export interface IListPageButtonsBlockConfig {
   items: IListPageButtonItemConfig[];
+  /** Alinhamento horizontal do grupo de botões. */
+  align?: 'left' | 'center' | 'right';
+  /** Espaçamento entre botões (px). */
+  gap?: number;
+  /** CSS extra aplicado ao container de botões. */
+  containerCss?: string;
 }
 
 export type TListPageBannerContentAlign = 'left' | 'center' | 'right';

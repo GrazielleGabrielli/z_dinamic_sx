@@ -11,6 +11,7 @@ import type {
   TListPageAlertVariant,
   TListPageBannerContentAlign,
   TListPageButtonActionKind,
+  TListPageButtonVariant,
   TListPageSectionTitleSize,
 } from '../config/types';
 
@@ -269,8 +270,12 @@ export function sanitizeButtonsConfig(raw: unknown): IListPageButtonsBlockConfig
     const akRaw = r.actionKind === 'reload' ? 'reload' : r.actionKind === 'redirect' ? 'redirect' : '';
     const actionKind: TListPageButtonActionKind =
       akRaw === 'reload' || akRaw === 'redirect' ? akRaw : 'redirect';
+    const variant: TListPageButtonVariant | undefined =
+      r.variant === 'primary' ? 'primary' : r.variant === 'default' ? 'default' : undefined;
+    const iconName = typeof r.iconName === 'string' && r.iconName.trim() ? r.iconName.trim() : undefined;
+    const css = typeof r.css === 'string' && r.css.trim() ? r.css.trim() : undefined;
     if (actionKind === 'reload') {
-      items.push({ id, label, actionKind: 'reload' });
+      items.push({ id, label, actionKind: 'reload', ...(variant ? { variant } : {}), ...(iconName ? { iconName } : {}), ...(css ? { css } : {}) });
       continue;
     }
     const url = typeof r.url === 'string' ? safeListPageButtonRedirectUrl(r.url) : '';
@@ -281,10 +286,26 @@ export function sanitizeButtonsConfig(raw: unknown): IListPageButtonsBlockConfig
       actionKind: 'redirect',
       url,
       openInNewTab: r.openInNewTab === true,
+      ...(variant ? { variant } : {}),
+      ...(iconName ? { iconName } : {}),
+      ...(css ? { css } : {}),
     });
   }
   if (items.length === 0) return fallback;
-  return { items };
+
+  const alignRaw = o.align;
+  const align: IListPageButtonsBlockConfig['align'] =
+    alignRaw === 'left' || alignRaw === 'center' || alignRaw === 'right' ? alignRaw : undefined;
+  const gapRaw = typeof o.gap === 'number' ? o.gap : undefined;
+  const gap = gapRaw !== undefined && gapRaw >= 0 && gapRaw <= 120 ? Math.round(gapRaw) : undefined;
+  const containerCss = typeof o.containerCss === 'string' && o.containerCss.trim() ? o.containerCss.trim() : undefined;
+
+  return {
+    items,
+    ...(align ? { align } : {}),
+    ...(gap !== undefined ? { gap } : {}),
+    ...(containerCss ? { containerCss } : {}),
+  };
 }
 
 export function sanitizeAlertConfig(raw: unknown): IListPageAlertBlockConfig {
