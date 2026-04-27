@@ -289,6 +289,16 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
   const cssSlots = sanitizeTableCssSlots(lvo.customTableCssSlots);
   const rowRules = sanitizeTableRowStyleRules(lvo.tableRowStyleRules);
   const listRowActions = sanitizeListRowActions(lvo.listRowActions);
+  const tableFilterFields = Array.isArray(lvo.tableFilterFields)
+    ? (lvo.tableFilterFields as unknown[])
+        .filter((f): f is { field: string; label?: string } =>
+          typeof f === 'object' && f !== null && typeof (f as Record<string, unknown>).field === 'string' && (f as Record<string, unknown>).field !== ''
+        )
+        .map((f) => ({
+          field: (f.field as string).trim(),
+          ...(typeof f.label === 'string' && f.label.trim() ? { label: f.label.trim() } : {}),
+        }))
+    : undefined;
   return {
     columns: lvo.columns ?? defaults.columns,
     filters: lvo.filters ?? defaults.filters,
@@ -305,6 +315,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
     ...(listRowActions ? { listRowActions } : {}),
     ...(lvo.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
+    ...(tableFilterFields?.length ? { tableFilterFields } : {}),
   };
 }
 
