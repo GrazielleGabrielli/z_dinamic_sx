@@ -207,6 +207,40 @@ export type TListRowActionIconPreset = 'view' | 'edit' | 'link' | 'custom';
 /** `icon` = só o botão; `wholeRow` = linha da tabela ou card inteiro também abre a URL desta ação. */
 export type TListRowActionScope = 'icon' | 'wholeRow';
 
+export type TListRowActionFieldRuleOp = 'eq' | 'ne';
+
+/** Regra de visibilidade baseada em campo do item (ex.: Author/Id eq [Me.Id]). */
+export interface IListRowActionFieldRule {
+  /** Campo do item a comparar. Suporta notação expandida: Author/Id, AssignedTo/Id. */
+  field: string;
+  op: TListRowActionFieldRuleOp;
+  /**
+   * Valor a comparar. Tokens suportados:
+   * `[Me.Id]` → ID numérico do usuário logado
+   * `[Me.Login]` → loginName do usuário logado
+   */
+  value: string;
+}
+
+/** Configuração de visibilidade de uma ação de linha. */
+export interface IListRowActionVisibility {
+  /**
+   * IDs numéricos de grupos SharePoint (como string). Usuário em pelo menos um → passa.
+   * Omitido = sem restrição de grupo.
+   */
+  allowedGroupIds?: string[];
+  /**
+   * Login names de usuários específicos. Usuário com login correspondente → passa.
+   * Omitido = sem restrição de usuário.
+   */
+  allowedUserLogins?: string[];
+  /**
+   * Regras de campo do item. Todas devem ser verdadeiras (AND) para a ação ser visível.
+   * Omitido = sem regras de campo.
+   */
+  fieldRules?: IListRowActionFieldRule[];
+}
+
 export interface IListRowActionConfig {
   id: string;
   title: string;
@@ -217,6 +251,8 @@ export interface IListRowActionConfig {
   urlTemplate: string;
   openInNewTab?: boolean;
   scope: TListRowActionScope;
+  /** Controle de visibilidade: grupos, usuários ou regras de campo. */
+  visibility?: IListRowActionVisibility;
 }
 
 export interface ITableFilterFieldConfig {

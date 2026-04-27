@@ -581,6 +581,7 @@ export const TableView: React.FC<ITableViewProps> = ({
 
   const actionContext = dynamicContext ?? { now: new Date() };
   const listRowActions = listView?.listRowActions;
+  const userGroupIds: Set<number> | undefined = membership?.groupByWeb?.get(membership.pageNorm) ?? (membership ? new Set<number>() : undefined);
 
   if (!tableConfig) {
     return (
@@ -596,6 +597,7 @@ export const TableView: React.FC<ITableViewProps> = ({
           rowStyleRules={listView?.tableRowStyleRules}
           rowActions={listRowActions}
           dynamicContext={actionContext}
+          userGroupIds={userGroupIds}
         />
       </>
     );
@@ -731,6 +733,7 @@ export const TableView: React.FC<ITableViewProps> = ({
           dense={tableConfig.dense}
           rowActions={listRowActions}
           dynamicContext={actionContext}
+          userGroupIds={userGroupIds}
         />
       ) : (
         <DataTable
@@ -746,6 +749,7 @@ export const TableView: React.FC<ITableViewProps> = ({
           rowStyleRules={listView?.tableRowStyleRules}
           rowActions={listRowActions}
           dynamicContext={actionContext}
+          userGroupIds={userGroupIds}
         />
       )}
       {paginationBar}

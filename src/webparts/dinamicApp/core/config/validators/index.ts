@@ -8,6 +8,7 @@ import {
   IPaginationConfig,
   IListViewConfig,
   IListRowActionConfig,
+  IListRowActionVisibility,
   IListViewFilterConfig,
   IListViewModeConfig,
   IListViewModeAccessConfig,
@@ -204,6 +205,36 @@ function sanitizeListRowActions(raw: unknown): IListRowActionConfig[] | undefine
     const scope = e.scope === 'wholeRow' ? 'wholeRow' : 'icon';
     const customIconName =
       typeof e.customIconName === 'string' && e.customIconName.trim() ? e.customIconName.trim() : undefined;
+    // visibility
+    let visibility: IListRowActionVisibility | undefined;
+    const vis = e.visibility;
+    if (vis && typeof vis === 'object') {
+      const vo = vis as Record<string, unknown>;
+      const allowedGroupIds = Array.isArray(vo.allowedGroupIds)
+        ? (vo.allowedGroupIds as unknown[]).filter((g): g is string => typeof g === 'string' && g.trim() !== '').map((g) => g.trim())
+        : undefined;
+      const allowedUserLogins = Array.isArray(vo.allowedUserLogins)
+        ? (vo.allowedUserLogins as unknown[]).filter((l): l is string => typeof l === 'string' && l.trim() !== '').map((l) => l.trim())
+        : undefined;
+      const fieldRulesRaw = Array.isArray(vo.fieldRules) ? vo.fieldRules : [];
+      const fieldRules = fieldRulesRaw
+        .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+        .map((r) => ({
+          field: typeof r.field === 'string' ? r.field.trim() : '',
+          op: r.op === 'ne' ? 'ne' as const : 'eq' as const,
+          value: typeof r.value === 'string' ? r.value.trim() : '',
+        }))
+        .filter((r) => r.field !== '');
+      const hasVis = (allowedGroupIds?.length ?? 0) > 0 || (allowedUserLogins?.length ?? 0) > 0 || (fieldRules?.length ?? 0) > 0;
+      if (hasVis) {
+        visibility = {
+          ...(allowedGroupIds?.length ? { allowedGroupIds } : {}),
+          ...(allowedUserLogins?.length ? { allowedUserLogins } : {}),
+          ...(fieldRules?.length ? { fieldRules } : {}),
+        };
+      }
+    }
+
     out.push({
       id,
       title,
@@ -212,6 +243,7 @@ function sanitizeListRowActions(raw: unknown): IListRowActionConfig[] | undefine
       urlTemplate,
       openInNewTab: e.openInNewTab === true,
       scope,
+      ...(visibility ? { visibility } : {}),
     });
   }
   return out.length > 0 ? out : undefined;

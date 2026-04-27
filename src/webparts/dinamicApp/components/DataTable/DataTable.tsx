@@ -25,6 +25,7 @@ export interface IDataTableProps {
   rowStyleRules?: ITableRowStyleRule[];
   rowActions?: IListRowActionConfig[];
   dynamicContext?: IDynamicContext;
+  userGroupIds?: Set<number>;
 }
 
 export const DataTable: React.FC<IDataTableProps> = ({
@@ -40,6 +41,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
   rowStyleRules,
   rowActions,
   dynamicContext,
+  userGroupIds,
 }) => {
   const columns = engine.getVisibleColumns(config);
   const actionContext: IDynamicContext = dynamicContext ?? { now: new Date() };
@@ -107,6 +109,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
               rowStyleRules={rowStyleRules}
               rowActions={rowActions}
               dynamicContext={actionContext}
+              userGroupIds={userGroupIds}
             />
           ))}
         </tbody>

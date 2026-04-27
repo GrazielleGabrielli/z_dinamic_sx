@@ -41,7 +41,10 @@ import type {
   IPaginationConfig,
   IPdfTemplateConfig,
   IListRowActionConfig,
+  IListRowActionFieldRule,
+  IListRowActionVisibility,
   ITableRowStyleRule,
+  TListRowActionFieldRuleOp,
   TListRowActionIconPreset,
   TTableRowRuleOperator,
   TPaginationLayout,
@@ -196,6 +199,11 @@ const LIST_ROW_ICON_PRESET_OPTIONS: IDropdownOption[] = [
 const LIST_ROW_SCOPE_OPTIONS: IChoiceGroupOption[] = [
   { key: 'icon', text: 'Somente ícone' },
   { key: 'wholeRow', text: 'Linha ou card inteiro' },
+];
+
+const ROW_ACTION_FIELD_RULE_OP_OPTIONS: IDropdownOption[] = [
+  { key: 'eq', text: 'Igual a (=)' },
+  { key: 'ne', text: 'Diferente de (≠)' },
 ];
 
 const VIEW_MODE_OPERATORS: IDropdownOption[] = [
@@ -371,6 +379,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     ...(listView.tableRowStyleRules ?? []),
   ]);
   const [rowActions, setRowActions] = useState<IListRowActionConfig[]>(() => [...(listView.listRowActions ?? [])]);
+  const [visibilitySectionOpen, setVisibilitySectionOpen] = useState<Record<string, boolean>>({});
   const [tableFilterFields, setTableFilterFields] = useState<ITableFilterFieldConfig[]>(
     () => listView.tableFilterFields?.slice() ?? []
   );
@@ -665,6 +674,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       return next;
     });
   };
+  const updateActionVisibility = (index: number, part: Partial<IListRowActionVisibility>): void => {
+    setRowActions((prev) => {
+      const next = prev.slice();
+      if (!next[index]) return prev;
+      const cur = next[index].visibility ?? {};
+      next[index] = { ...next[index], visibility: { ...cur, ...part } };
+      return next;
+    });
+  };
   const removeListRowAction = (index: number): void => {
     setRowActions((prev) => prev.filter((_, i) => i !== index));
   };
@@ -779,6 +797,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         urlTemplate,
         openInNewTab: a.openInNewTab === true,
         scope: a.scope === 'wholeRow' ? 'wholeRow' : 'icon',
+        ...(a.visibility ? { visibility: a.visibility } : {}),
       });
     }
     const { listDefaultDisplayMode: _carryListDefault, viewModePicker: _omitVmPicker, ...carryRest } = carryListView;
@@ -1578,6 +1597,155 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                             opt && updateListRowAction(ai, { scope: opt.key as IListRowActionConfig['scope'] })
                           }
                         />
+
+                        {/* Seção de Visibilidade */}
+                        <ListTabListaCollapse
+                          title={`Visibilidade${(act.visibility?.allowedGroupIds?.length ?? 0) + (act.visibility?.allowedUserLogins?.length ?? 0) + (act.visibility?.fieldRules?.length ?? 0) > 0 ? ' ✓' : ''}`}
+                          isOpen={visibilitySectionOpen[act.id] === true}
+                          onToggle={() => setVisibilitySectionOpen((p) => ({ ...p, [act.id]: !p[act.id] }))}
+                        >
+                          <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
+                            Sem configuração = visível para todos. Com configuração, o botão só aparece se <strong>identidade</strong> (grupo OU usuário) e <strong>regras de campo</strong> (AND) passarem.
+                          </Text>
+
+                          {/* Grupos */}
+                          <Text variant="smallPlus" styles={{ root: { fontWeight: 600, marginTop: 4 } }}>Grupos (IDs numéricos SharePoint)</Text>
+                          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            Usuário em qualquer um dos grupos → visível. Deixe vazio para sem restrição de grupo.
+                          </Text>
+                          {(act.visibility?.allowedGroupIds ?? []).map((gid, gi) => (
+                            <Stack key={gi} horizontal verticalAlign="center" tokens={{ childrenGap: 6 }}>
+                              <Stack.Item grow={1}>
+                                <TextField
+                                  value={gid}
+                                  placeholder="Ex.: 5"
+                                  onChange={(_, v) => {
+                                    const ids = [...(act.visibility?.allowedGroupIds ?? [])];
+                                    ids[gi] = v ?? '';
+                                    updateActionVisibility(ai, { allowedGroupIds: ids });
+                                  }}
+                                  styles={{ root: { maxWidth: '100%' } }}
+                                />
+                              </Stack.Item>
+                              <IconButton
+                                iconProps={{ iconName: 'Delete' }}
+                                title="Remover"
+                                onClick={() => {
+                                  const ids = (act.visibility?.allowedGroupIds ?? []).filter((_, i) => i !== gi);
+                                  updateActionVisibility(ai, { allowedGroupIds: ids.length ? ids : undefined });
+                                }}
+                              />
+                            </Stack>
+                          ))}
+                          <DefaultButton
+                            text="Adicionar grupo"
+                            iconProps={{ iconName: 'Add' }}
+                            styles={{ root: { alignSelf: 'flex-start' } }}
+                            onClick={() => updateActionVisibility(ai, { allowedGroupIds: [...(act.visibility?.allowedGroupIds ?? []), ''] })}
+                          />
+
+                          {/* Usuários específicos */}
+                          <Text variant="smallPlus" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>Usuários (loginName)</Text>
+                          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            Ex.: i:0#.f|membership|joao@empresa.com
+                          </Text>
+                          {(act.visibility?.allowedUserLogins ?? []).map((login, li) => (
+                            <Stack key={li} horizontal verticalAlign="center" tokens={{ childrenGap: 6 }}>
+                              <Stack.Item grow={1}>
+                                <TextField
+                                  value={login}
+                                  placeholder="i:0#.f|membership|..."
+                                  onChange={(_, v) => {
+                                    const logins = [...(act.visibility?.allowedUserLogins ?? [])];
+                                    logins[li] = v ?? '';
+                                    updateActionVisibility(ai, { allowedUserLogins: logins });
+                                  }}
+                                  styles={{ root: { maxWidth: '100%' } }}
+                                />
+                              </Stack.Item>
+                              <IconButton
+                                iconProps={{ iconName: 'Delete' }}
+                                title="Remover"
+                                onClick={() => {
+                                  const logins = (act.visibility?.allowedUserLogins ?? []).filter((_, i) => i !== li);
+                                  updateActionVisibility(ai, { allowedUserLogins: logins.length ? logins : undefined });
+                                }}
+                              />
+                            </Stack>
+                          ))}
+                          <DefaultButton
+                            text="Adicionar usuário"
+                            iconProps={{ iconName: 'Add' }}
+                            styles={{ root: { alignSelf: 'flex-start' } }}
+                            onClick={() => updateActionVisibility(ai, { allowedUserLogins: [...(act.visibility?.allowedUserLogins ?? []), ''] })}
+                          />
+
+                          {/* Regras de campo */}
+                          <Text variant="smallPlus" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>Regras de campo (AND)</Text>
+                          <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
+                            Tokens de valor: <span style={{ fontFamily: 'monospace' }}>[Me.Id]</span> = ID do usuário logado, <span style={{ fontFamily: 'monospace' }}>[Me.Login]</span> = loginName. Ex.: campo <em>Author/Id</em> igual a <em>[Me.Id]</em>.
+                          </Text>
+                          {(act.visibility?.fieldRules ?? []).map((rule, ri) => (
+                            <Stack key={ri} tokens={{ childrenGap: 6 }} styles={{ root: { padding: 8, background: '#f3f9ff', borderRadius: 6, border: '1px solid #c7e0f4' } }}>
+                              <Stack horizontal tokens={{ childrenGap: 8 }} wrap verticalAlign="end">
+                                <Stack.Item styles={{ root: { flex: '1 1 140px', minWidth: 120 } }}>
+                                  <TextField
+                                    label="Campo"
+                                    value={rule.field}
+                                    placeholder="Author/Id"
+                                    onChange={(_, v) => {
+                                      const rules = [...(act.visibility?.fieldRules ?? [])];
+                                      rules[ri] = { ...rules[ri], field: v ?? '' };
+                                      updateActionVisibility(ai, { fieldRules: rules });
+                                    }}
+                                  />
+                                </Stack.Item>
+                                <Stack.Item styles={{ root: { flex: '1 1 120px', minWidth: 100 } }}>
+                                  <Dropdown
+                                    label="Operador"
+                                    selectedKey={rule.op}
+                                    options={ROW_ACTION_FIELD_RULE_OP_OPTIONS}
+                                    onChange={(_, opt) => {
+                                      if (!opt) return;
+                                      const rules = [...(act.visibility?.fieldRules ?? [])];
+                                      rules[ri] = { ...rules[ri], op: opt.key as TListRowActionFieldRuleOp };
+                                      updateActionVisibility(ai, { fieldRules: rules });
+                                    }}
+                                  />
+                                </Stack.Item>
+                                <Stack.Item styles={{ root: { flex: '1 1 160px', minWidth: 120 } }}>
+                                  <TextField
+                                    label="Valor"
+                                    value={rule.value}
+                                    placeholder="[Me.Id]"
+                                    onChange={(_, v) => {
+                                      const rules = [...(act.visibility?.fieldRules ?? [])];
+                                      rules[ri] = { ...rules[ri], value: v ?? '' };
+                                      updateActionVisibility(ai, { fieldRules: rules });
+                                    }}
+                                  />
+                                </Stack.Item>
+                                <IconButton
+                                  iconProps={{ iconName: 'Delete' }}
+                                  title="Remover regra"
+                                  onClick={() => {
+                                    const rules = (act.visibility?.fieldRules ?? []).filter((_, i) => i !== ri);
+                                    updateActionVisibility(ai, { fieldRules: rules.length ? rules : undefined });
+                                  }}
+                                />
+                              </Stack>
+                            </Stack>
+                          ))}
+                          <DefaultButton
+                            text="Adicionar regra de campo"
+                            iconProps={{ iconName: 'Add' }}
+                            styles={{ root: { alignSelf: 'flex-start' } }}
+                            onClick={() => {
+                              const newRule: IListRowActionFieldRule = { field: '', op: 'eq', value: '[Me.Id]' };
+                              updateActionVisibility(ai, { fieldRules: [...(act.visibility?.fieldRules ?? []), newRule] });
+                            }}
+                          />
+                        </ListTabListaCollapse>
                       </Stack>
                     ))}
                     <DefaultButton text="Adicionar ação" iconProps={{ iconName: 'Add' }} onClick={addListRowAction} />

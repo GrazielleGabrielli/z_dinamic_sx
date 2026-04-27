@@ -28,6 +28,7 @@ export interface IListItemsCardGridProps {
   dense?: boolean;
   rowActions?: IListRowActionConfig[];
   dynamicContext?: IDynamicContext;
+  userGroupIds?: Set<number>;
 }
 
 export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
@@ -45,6 +46,7 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
   dense,
   rowActions,
   dynamicContext,
+  userGroupIds,
 }) => {
   const actionContext: IDynamicContext = dynamicContext ?? { now: new Date() };
   const showActionsColumn = Boolean(rowActions && rowActions.length > 0);
@@ -169,7 +171,7 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
                   }}
                   onClick={(ev) => { ev.stopPropagation(); }}
                 >
-                  <RowActionButtons actions={rowActions ?? []} item={item} dynamicContext={actionContext} />
+                  <RowActionButtons actions={rowActions ?? []} item={item} dynamicContext={actionContext} userGroupIds={userGroupIds} />
                 </Stack>
               ) : null}
             </Stack>

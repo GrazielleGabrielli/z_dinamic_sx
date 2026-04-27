@@ -16,9 +16,10 @@ export interface ITableRowProps {
   rowStyleRules?: ITableRowStyleRule[];
   rowActions?: IListRowActionConfig[];
   dynamicContext: IDynamicContext;
+  userGroupIds?: Set<number>;
 }
 
-export const TableRow: React.FC<ITableRowProps> = ({ item, columns, engine, rowStyleRules, rowActions, dynamicContext }) => {
+export const TableRow: React.FC<ITableRowProps> = ({ item, columns, engine, rowStyleRules, rowActions, dynamicContext, userGroupIds }) => {
   const matchedTokens =
     rowStyleRules
       ?.filter((r) => evaluateTableRowStyleRule(item, r, engine, columns))
@@ -68,7 +69,7 @@ export const TableRow: React.FC<ITableRowProps> = ({ item, columns, engine, rowS
             whiteSpace: 'nowrap',
           }}
         >
-          <RowActionButtons actions={rowActions} item={item} dynamicContext={dynamicContext} />
+          <RowActionButtons actions={rowActions} item={item} dynamicContext={dynamicContext} userGroupIds={userGroupIds} />
         </td>
       ) : null}
     </tr>
