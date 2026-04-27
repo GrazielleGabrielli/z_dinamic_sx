@@ -304,6 +304,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     ...(typeof lvo.customTableCss === 'string' ? { customTableCss: lvo.customTableCss } : {}),
     ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
     ...(listRowActions ? { listRowActions } : {}),
+    ...(lvo.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
   };
 }
 

@@ -47,6 +47,7 @@ import type {
   TFilterOperator,
   TViewMode,
   TListViewDisplayMode,
+  TViewModePicker,
 } from '../../core/config/types';
 import { PdfTemplateEditor } from './PdfTemplateEditor';
 import {
@@ -236,6 +237,11 @@ const DEFAULT_VIEW_MODES_FALLBACK: IListViewModeConfig[] = [
   { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
 ];
 
+const VIEW_MODE_PICKER_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'dropdown', text: 'Lista suspensa' },
+  { key: 'tabs', text: 'Abas horizontais' },
+];
+
 const DEFAULT_PROJECT_COLUMNS: IProjectManagementColumnConfig[] = [];
 
 function normalizeHexColor(input: string | undefined, fallback: string): string {
@@ -380,6 +386,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK
   );
   const [activeViewModeId, setActiveViewModeId] = useState<string>(listView.activeViewModeId ?? 'all');
+  const [listViewModePicker, setListViewModePicker] = useState<TViewModePicker>(
+    listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown'
+  );
   const [viewModeEditingId, setViewModeEditingId] = useState<string | null>(null);
   const [viewModeEditLabel, setViewModeEditLabel] = useState('');
   const [viewModeEditFilters, setViewModeEditFilters] = useState<IListViewFilterConfig[]>([]);
@@ -443,6 +452,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setPaginationLayout(pagination.layout ?? 'buttons');
     setViewModes(listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
     setActiveViewModeId(listView.activeViewModeId ?? 'all');
+    setListViewModePicker(listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
     setListCardViewEnabled(listView.listCardViewEnabled ?? false);
@@ -753,7 +763,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         scope: a.scope === 'wholeRow' ? 'wholeRow' : 'icon',
       });
     }
-    const { listDefaultDisplayMode: _carryListDefault, ...carryRest } = carryListView;
+    const { listDefaultDisplayMode: _carryListDefault, viewModePicker: _omitVmPicker, ...carryRest } = carryListView;
     const listViewOut: IListViewConfig = {
       ...carryRest,
       columns,
@@ -766,6 +776,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
       ...(listCardViewEnabled && listDefaultDisplayMode === 'cards' ? { listDefaultDisplayMode: 'cards' as const } : {}),
+      ...(listViewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
     };
     return {
       listView: listViewOut,
@@ -792,6 +803,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     listCardViewEnabled,
     listDefaultDisplayMode,
     localPdfTemplate,
+    listViewModePicker,
   ]);
 
   const tableJsonPreviewRef = useRef(buildSavePayload());
@@ -848,6 +860,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setLayoutCssText(mergeCustomTableCss(bundle.listView.customTableCssSlots, bundle.listView.customTableCss));
       setViewModes(bundle.listView.viewModes?.length ? bundle.listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
       setActiveViewModeId(bundle.listView.activeViewModeId ?? 'all');
+      setListViewModePicker(bundle.listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
       setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
       setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
@@ -1111,6 +1124,18 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Ex.: Todas (sem filtro), Minhas (Author/Id eq [Me]), ou filtros customizados. O usuário alterna entre eles na lista.
                   </Text>
+                  <ChoiceGroup
+                    label="Controlo na lista"
+                    selectedKey={listViewModePicker}
+                    options={VIEW_MODE_PICKER_OPTIONS}
+                    onChange={(_, opt) => {
+                      const k = (opt?.key as string | undefined) ?? 'dropdown';
+                      setListViewModePicker(k === 'tabs' ? 'tabs' : 'dropdown');
+                    }}
+                    styles={{
+                      flexContainer: { display: 'flex', flexWrap: 'wrap', columnGap: '12px', rowGap: '4px' },
+                    }}
+                  />
                   <Dropdown
                     label="Modo padrão"
                     options={viewModeDefaultOptions}

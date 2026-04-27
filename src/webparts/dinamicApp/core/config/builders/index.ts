@@ -57,6 +57,7 @@ export function buildConfig(params: {
       customTableCss: params.listView?.customTableCss ?? defaults.listView.customTableCss,
       tableRowStyleRules: params.listView?.tableRowStyleRules ?? defaults.listView.tableRowStyleRules,
       ...(params.listView?.listRowActions?.length ? { listRowActions: params.listView.listRowActions } : {}),
+      ...(params.listView?.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
     },
     projectManagement: params.projectManagement ?? defaults.projectManagement,
     ...(params.listPageLayout?.sections?.length ? { listPageLayout: params.listPageLayout } : {}),

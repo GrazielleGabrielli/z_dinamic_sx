@@ -1,4 +1,12 @@
-import { TSourceKind, TViewMode, IDynamicViewConfig, TDashboardType, TChartType, IListViewModeConfig } from '../../core/config/types';
+import {
+  TSourceKind,
+  TViewMode,
+  IDynamicViewConfig,
+  TDashboardType,
+  TChartType,
+  IListViewModeConfig,
+  TViewModePicker,
+} from '../../core/config/types';
 import type { TFormStepLayoutKind } from '../../core/config/types/formManager';
 
 export interface IWizardFormState {
@@ -15,6 +23,7 @@ export interface IWizardFormState {
   pageSizeOptions: number[];
   viewModes: IListViewModeConfig[];
   activeViewModeId: string;
+  viewModePicker: TViewModePicker;
   /** Layout visual das etapas (modo formulário + gestor) */
   formStepLayout: TFormStepLayoutKind;
 }
@@ -38,6 +47,7 @@ export const WIZARD_INITIAL_STATE: IWizardFormState = {
   pageSizeOptions: [5, 10, 20, 50, 100],
   viewModes: DEFAULT_VIEW_MODES,
   activeViewModeId: 'all',
+  viewModePicker: 'dropdown',
   formStepLayout: 'segmented',
 };
 
@@ -64,6 +74,7 @@ export function configToWizardState(config: IDynamicViewConfig): IWizardFormStat
     pageSizeOptions: config.pagination.pageSizeOptions,
     viewModes,
     activeViewModeId: lv?.activeViewModeId ?? viewModes[0]?.id ?? 'all',
+    viewModePicker: lv?.viewModePicker === 'tabs' ? 'tabs' : 'dropdown',
     formStepLayout: config.formManager?.stepLayout ?? 'segmented',
   };
 }

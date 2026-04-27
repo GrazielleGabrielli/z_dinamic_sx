@@ -1,6 +1,16 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Stack, Dropdown, IDropdownOption, ActionButton, ChoiceGroup, IChoiceGroupOption } from '@fluentui/react';
+import {
+  Stack,
+  Text,
+  Dropdown,
+  IDropdownOption,
+  ActionButton,
+  ChoiceGroup,
+  IChoiceGroupOption,
+  Pivot,
+  PivotItem,
+} from '@fluentui/react';
 import { IDynamicViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
@@ -435,6 +445,7 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
 
   const viewModeOptions: IDropdownOption[] = visibleViewModes.map((m) => ({ key: m.id, text: m.label }));
+  const viewModesAsTabs = listView?.viewModePicker === 'tabs';
 
   const listPresentationOptions: IChoiceGroupOption[] = useMemo(
     () => [
@@ -500,17 +511,36 @@ export const TableView: React.FC<ITableViewProps> = ({
           verticalAlign="end"
           styles={{ root: { flexWrap: 'wrap' } }}
         >
-          {viewModeOptions.length > 0 && (
-            <Dropdown
-              label="Visualização"
-              options={viewModeOptions}
-              selectedKey={selectedViewModeId}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) setSelectedViewModeId(String(opt.key));
-              }}
-              styles={{ root: { maxWidth: 220 } }}
-            />
-          )}
+          {viewModeOptions.length > 0 &&
+            (viewModesAsTabs ? (
+              <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 auto', minWidth: 0 } }}>
+                <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                  Visualização
+                </Text>
+                <Pivot
+                  selectedKey={selectedViewModeId}
+                  onLinkClick={(item) => {
+                    const k = item?.props.itemKey;
+                    if (k !== undefined && k !== null) setSelectedViewModeId(String(k));
+                  }}
+                  styles={{ root: { flexWrap: 'wrap' } }}
+                >
+                  {visibleViewModes.map((m) => (
+                    <PivotItem key={m.id} itemKey={m.id} headerText={m.label} />
+                  ))}
+                </Pivot>
+              </Stack>
+            ) : (
+              <Dropdown
+                label="Visualização"
+                options={viewModeOptions}
+                selectedKey={selectedViewModeId}
+                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                  if (opt) setSelectedViewModeId(String(opt.key));
+                }}
+                styles={{ root: { maxWidth: 220 } }}
+              />
+            ))}
           {listCardViewEnabled && (
             <ChoiceGroup
               label="Apresentação"

@@ -11,6 +11,8 @@ import {
   IconButton,
   Spinner,
   SpinnerSize,
+  ChoiceGroup,
+  IChoiceGroupOption,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../../services';
 import type { IFieldMetadata } from '../../../../../services';
@@ -19,6 +21,7 @@ import type {
   IListViewFilterConfig,
   IListViewModeAccessConfig,
   TFilterOperator,
+  TViewModePicker,
 } from '../../../core/config/types';
 import { ViewModeAccessSection, accessSummary } from '../../shared/ViewModeAccessSection';
 import { isNoteFieldMeta } from '../../../core/listView';
@@ -63,6 +66,11 @@ function filterSummary(filters: IListViewFilterConfig[]): string {
   if (!filters || filters.length === 0) return 'Sem filtros';
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
 }
+
+const VIEW_MODE_PICKER_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'dropdown', text: 'Lista suspensa' },
+  { key: 'tabs', text: 'Abas horizontais' },
+];
 
 interface IStep5Props {
   form: IWizardFormState;
@@ -214,6 +222,20 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
           Defina opções como &quot;Todas&quot;, &quot;Minhas&quot; (itens do usuário atual) e outros filtros. O usuário poderá alternar entre eles na lista.
         </Text>
       </Stack.Item>
+
+      <ChoiceGroup
+        label="Controlo na lista"
+        selectedKey={form.viewModePicker}
+        options={VIEW_MODE_PICKER_OPTIONS}
+        onChange={(_, opt) => {
+          const k = (opt?.key as string | undefined) ?? 'dropdown';
+          const next: TViewModePicker = k === 'tabs' ? 'tabs' : 'dropdown';
+          onChange({ viewModePicker: next });
+        }}
+        styles={{
+          flexContainer: { display: 'flex', flexWrap: 'wrap', columnGap: '12px', rowGap: '4px' },
+        }}
+      />
 
       <Dropdown
         label="Modo de visualização padrão"

@@ -155,6 +155,9 @@ export interface IListViewModeConfig {
 /** Modo inicial da lista quando Tabela/Cards está ativo. */
 export type TListViewDisplayMode = 'table' | 'cards';
 
+/** Como o utilizador escolhe o modo de visualização na barra da lista. */
+export type TViewModePicker = 'dropdown' | 'tabs';
+
 export type TTableCssSlot =
   | 'viewRoot'
   | 'toolbar'
@@ -217,6 +220,8 @@ export interface IListViewConfig {
   sort: IListViewSortConfig | null;
   viewModes?: IListViewModeConfig[];
   activeViewModeId?: string;
+  /** Omitido ou `dropdown`: lista suspensa. `tabs`: abas horizontais (Fluent Pivot). */
+  viewModePicker?: TViewModePicker;
   pdfExportEnabled?: boolean;
   /** Quando true, a lista exibe alternância Tabela / Cards na barra de ferramentas. */
   listCardViewEnabled?: boolean;

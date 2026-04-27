@@ -97,6 +97,7 @@ function mergeWizardFormIntoConfig(
       ...prev.listView,
       viewModes: mergedForm.viewModes,
       activeViewModeId: mergedForm.activeViewModeId,
+      ...(mergedForm.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : { viewModePicker: undefined }),
     },
     projectManagement: prev.projectManagement,
     formManager:
