@@ -35,6 +35,7 @@ import type {
   IListViewConfig,
   IListViewColumnConfig,
   IListViewModeConfig,
+  IListViewModeAccessConfig,
   IListViewFilterConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
@@ -58,12 +59,15 @@ import { isNoteFieldMeta } from '../../core/listView';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
 import { sanitizeListTableEditorBundle } from '../../core/config/validators';
+import { ViewModeAccessSection, accessSummary } from '../shared/ViewModeAccessSection';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
   mode: TViewMode;
   listTitle: string;
   listWebServerRelativeUrl?: string;
+  /** Site da página do web part (grupos para permissão de modo). */
+  pageWebServerRelativeUrl: string;
   listView: IListViewConfig;
   pagination: IPaginationConfig;
   projectManagement?: IProjectManagementConfig;
@@ -324,6 +328,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   mode,
   listTitle,
   listWebServerRelativeUrl,
+  pageWebServerRelativeUrl,
   listView,
   pagination,
   projectManagement,
@@ -378,6 +383,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [viewModeEditingId, setViewModeEditingId] = useState<string | null>(null);
   const [viewModeEditLabel, setViewModeEditLabel] = useState('');
   const [viewModeEditFilters, setViewModeEditFilters] = useState<IListViewFilterConfig[]>([]);
+  const [viewModeEditAccess, setViewModeEditAccess] = useState<IListViewModeAccessConfig | undefined>(undefined);
   const [formulasFilterIndex, setFormulasFilterIndex] = useState<number | null>(null);
   const [formulasTarget, setFormulasTarget] = useState<HTMLElement | null>(null);
   const panelWasOpenRef = useRef(false);
@@ -873,23 +879,31 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const startViewModeAdd = (): void => {
     setViewModeEditLabel('Novo modo');
     setViewModeEditFilters([]);
+    setViewModeEditAccess(undefined);
     setViewModeEditingId(`custom_${Date.now()}`);
   };
   const startViewModeEdit = (m: IListViewModeConfig): void => {
     setViewModeEditingId(m.id);
     setViewModeEditLabel(m.label);
     setViewModeEditFilters(m.filters?.length ? m.filters.slice() : []);
+    setViewModeEditAccess(m.access);
   };
   const saveViewModeEdit = (): void => {
     if (viewModeEditingId === null) return;
     const next = viewModes.slice();
     let idx = -1;
     for (let i = 0; i < next.length; i++) { if (next[i].id === viewModeEditingId) { idx = i; break; } }
-    const entry: IListViewModeConfig = { id: viewModeEditingId, label: viewModeEditLabel.trim() || viewModeEditingId, filters: viewModeEditFilters };
+    const entry: IListViewModeConfig = {
+      id: viewModeEditingId,
+      label: viewModeEditLabel.trim() || viewModeEditingId,
+      filters: viewModeEditFilters,
+      ...(viewModeEditAccess !== undefined ? { access: viewModeEditAccess } : {}),
+    };
     if (idx >= 0) next[idx] = entry;
     else next.push(entry);
     setViewModes(next);
     setViewModeEditingId(null);
+    setViewModeEditAccess(undefined);
   };
   const removeViewMode = (id: string): void => {
     if (id === 'all' || id === 'mine') return;
@@ -903,6 +917,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     const next = viewModeEditFilters.slice();
     next[i] = { ...next[i], ...part };
     setViewModeEditFilters(next);
+  };
+
+  const cancelViewModeEdit = (): void => {
+    setViewModeEditingId(null);
+    setViewModeEditAccess(undefined);
   };
 
   const openFormulas = (index: number, target: HTMLElement): void => {
@@ -1099,7 +1118,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setActiveViewModeId(String(opt.key))}
                     styles={{ root: { maxWidth: 280 } }}
                   />
-                  {viewModes.map((m) => (
+                  {viewModes.map((m) => {
+                    const accessLine = accessSummary(m.access);
+                    return (
                     <div key={m.id} style={{ padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: viewModeEditingId === m.id ? '#f3f9ff' : '#fff' }}>
                       {viewModeEditingId === m.id ? (
                         <Stack tokens={{ childrenGap: 10 }}>
@@ -1118,9 +1139,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                             </Stack>
                           ))}
                           <DefaultButton text="Adicionar filtro" onClick={addViewModeFilter} />
+                          <ViewModeAccessSection
+                            value={viewModeEditAccess}
+                            onChange={setViewModeEditAccess}
+                            pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+                            listWebServerRelativeUrl={listWebServerRelativeUrl}
+                          />
                           <Stack horizontal tokens={{ childrenGap: 8 }}>
                             <PrimaryButton text="Salvar" onClick={saveViewModeEdit} />
-                            <DefaultButton text="Cancelar" onClick={() => setViewModeEditingId(null)} />
+                            <DefaultButton text="Cancelar" onClick={cancelViewModeEdit} />
                           </Stack>
                         </Stack>
                       ) : (
@@ -1128,6 +1155,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                           <Stack tokens={{ childrenGap: 2 }}>
                             <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>{m.label}</Text>
                             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{viewModeFilterSummary(m.filters)}</Text>
+                            {accessLine ? (
+                              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{accessLine}</Text>
+                            ) : null}
                           </Stack>
                           <Stack horizontal tokens={{ childrenGap: 4 }}>
                             <IconButton iconProps={{ iconName: 'Edit' }} title="Editar" onClick={() => startViewModeEdit(m)} />
@@ -1136,7 +1166,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                         </Stack>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                   {viewModeEditingId !== null && !viewModes.some((m) => m.id === viewModeEditingId) && (
                     <div style={{ padding: 10, border: '1px solid #c7e0f4', borderRadius: 6, background: '#f3f9ff' }}>
                       <Stack tokens={{ childrenGap: 10 }}>
@@ -1155,9 +1186,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                           </Stack>
                         ))}
                         <DefaultButton text="Adicionar filtro" onClick={addViewModeFilter} />
+                        <ViewModeAccessSection
+                          value={viewModeEditAccess}
+                          onChange={setViewModeEditAccess}
+                          pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+                          listWebServerRelativeUrl={listWebServerRelativeUrl}
+                        />
                         <Stack horizontal tokens={{ childrenGap: 8 }}>
                           <PrimaryButton text="Adicionar modo" onClick={saveViewModeEdit} />
-                          <DefaultButton text="Cancelar" onClick={() => setViewModeEditingId(null)} />
+                          <DefaultButton text="Cancelar" onClick={cancelViewModeEdit} />
                         </Stack>
                       </Stack>
                     </div>

@@ -8,6 +8,9 @@ import {
   IPaginationConfig,
   IListViewConfig,
   IListRowActionConfig,
+  IListViewFilterConfig,
+  IListViewModeConfig,
+  IListViewModeAccessConfig,
   IPdfTemplateConfig,
   IPdfTemplateElement,
   TViewMode,
@@ -129,6 +132,61 @@ function isValidListView(lv: unknown): lv is IListViewConfig {
   return true;
 }
 
+function sanitizeViewModeAccessRaw(raw: unknown): IListViewModeAccessConfig | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  if (Object.keys(o).length === 0) return {};
+  const g = Array.isArray(o.allowedGroupIds)
+    ? (o.allowedGroupIds as unknown[]).filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0)
+    : [];
+  const u = Array.isArray(o.allowedUserIds)
+    ? (o.allowedUserIds as unknown[]).filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0)
+    : [];
+  const web =
+    typeof o.webServerRelativeUrl === 'string' && o.webServerRelativeUrl.trim().length > 0
+      ? o.webServerRelativeUrl.trim()
+      : undefined;
+  const acc: IListViewModeAccessConfig = {};
+  if (g.length) acc.allowedGroupIds = g;
+  if (u.length) acc.allowedUserIds = u;
+  if (web) acc.webServerRelativeUrl = web;
+  return Object.keys(acc).length ? acc : {};
+}
+
+function sanitizeViewModesList(raw: unknown, fallback: IListViewModeConfig[]): IListViewModeConfig[] {
+  if (!Array.isArray(raw)) return fallback;
+  const out: IListViewModeConfig[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i];
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id.trim() : '';
+    const label = typeof r.label === 'string' ? r.label.trim() : '';
+    if (!id || !label) continue;
+    const filtersRaw = Array.isArray(r.filters) ? r.filters : [];
+    const filters: IListViewFilterConfig[] = [];
+    for (let j = 0; j < filtersRaw.length; j++) {
+      const fr = filtersRaw[j];
+      if (!fr || typeof fr !== 'object') continue;
+      const fo = fr as Record<string, unknown>;
+      const opRaw = typeof fo.operator === 'string' ? fo.operator : 'eq';
+      filters.push({
+        field: typeof fo.field === 'string' ? fo.field : '',
+        operator: opRaw as IListViewFilterConfig['operator'],
+        value: typeof fo.value === 'string' ? fo.value : '',
+      });
+    }
+    const mode: IListViewModeConfig = { id, label, filters };
+    if (r.access !== undefined) {
+      const a = sanitizeViewModeAccessRaw(r.access);
+      if (a !== undefined) mode.access = a;
+    }
+    out.push(mode);
+  }
+  return out.length ? out : fallback;
+}
+
 function sanitizeListRowActions(raw: unknown): IListRowActionConfig[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const presets = new Set(['view', 'edit', 'link', 'custom']);
@@ -235,7 +293,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     columns: lvo.columns ?? defaults.columns,
     filters: lvo.filters ?? defaults.filters,
     sort: lvo.sort ?? defaults.sort,
-    viewModes: lvo.viewModes ?? defaults.viewModes,
+    viewModes: sanitizeViewModesList(lvo.viewModes, defaults.viewModes ?? []),
     activeViewModeId: lvo.activeViewModeId ?? defaults.activeViewModeId,
     pdfExportEnabled: lvo.pdfExportEnabled ?? false,
     ...(lvo.listCardViewEnabled === true ? { listCardViewEnabled: true } : {}),

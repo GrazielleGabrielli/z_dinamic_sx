@@ -220,6 +220,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
               form={form}
               listTitle={form.title}
               listWebServerRelativeUrl={form.dataSourceWebServerRelativeUrl}
+              pageWebServerRelativeUrl={siteUrl}
               onChange={updateForm}
             />
           );
@@ -258,6 +259,7 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
             form={form}
             listTitle={form.title}
             listWebServerRelativeUrl={form.dataSourceWebServerRelativeUrl}
+            pageWebServerRelativeUrl={siteUrl}
             onChange={updateForm}
           />
         );

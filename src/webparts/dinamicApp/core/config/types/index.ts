@@ -132,10 +132,24 @@ export interface IListViewSortConfig {
   ascending: boolean;
 }
 
+export interface IListViewModeAccessConfig {
+  /** IDs de grupos do site (`webServerRelativeUrl`) com acesso a ver este modo. */
+  allowedGroupIds?: number[];
+  /** IDs de utilizadores do site com acesso. */
+  allowedUserIds?: number[];
+  /**
+   * Web cujos `siteGroups` foram usados na configuração (validação com `currentUser.groups` nesse web).
+   * Omitido = site da página onde está o web part.
+   */
+  webServerRelativeUrl?: string;
+}
+
 export interface IListViewModeConfig {
   id: string;
   label: string;
   filters: IListViewFilterConfig[];
+  /** Presente e vazio `{}`: modo oculto para todos até configurar grupos/utilizadores (modo OU no conjunto permitido). */
+  access?: IListViewModeAccessConfig;
 }
 
 /** Modo inicial da lista quando Tabela/Cards está ativo. */

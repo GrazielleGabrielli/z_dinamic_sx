@@ -1,10 +1,15 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { Stack, Dropdown, IDropdownOption, ActionButton, ChoiceGroup, IChoiceGroupOption } from '@fluentui/react';
-import { IDynamicViewConfig, IListViewFilterConfig } from '../../core/config/types';
+import { IDynamicViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import { buildListFilter, getActiveViewModeFilters } from '../../core/listView';
+import {
+  filterViewModesForCurrentUser,
+  pickFallbackViewModeId,
+} from '../../core/listView/viewModeAccess';
+import { useViewModeMembership } from '../../core/listView/useViewModeMembership';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
 import { generateAndDownloadPdf } from '../../core/pdf';
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
@@ -13,6 +18,9 @@ import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss } from './tableLayoutClasses';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
+
+const EMPTY_VIEW_MODES: IListViewModeConfig[] = [];
+
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
   const columns = (listView.columns ?? []).map((c) => ({
     id: c.field,
@@ -38,6 +46,8 @@ export interface ITableViewProps {
   /** Filtros OData do item do dashboard (card/série) clicado; combinados com modo de visualização e filtros de coluna. */
   dashboardListFilters?: IListViewFilterConfig[];
   instanceScopeId: string;
+  /** Site da página (para avaliar grupos ao restringir modos). */
+  pageWebServerRelativeUrl?: string;
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
@@ -45,7 +55,12 @@ function scopeTableCssByInstance(css: string, scopeClass: string): string {
   return css.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`);
 }
 
-export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilters, instanceScopeId }) => {
+export const TableView: React.FC<ITableViewProps> = ({
+  config,
+  dashboardListFilters,
+  instanceScopeId,
+  pageWebServerRelativeUrl,
+}) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
   const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
@@ -80,9 +95,26 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   );
   const listCardViewEnabled = listView?.listCardViewEnabled === true;
 
+  const fullViewModes = listView?.viewModes ?? EMPTY_VIEW_MODES;
+  const membership = useViewModeMembership(fullViewModes, pageWebServerRelativeUrl);
+  const visibleViewModes = useMemo(() => {
+    if (!membership) return fullViewModes;
+    return filterViewModesForCurrentUser(
+      fullViewModes,
+      membership.userId,
+      membership.groupByWeb,
+      membership.pageNorm
+    );
+  }, [fullViewModes, membership]);
+
   useEffect(() => {
-    setSelectedViewModeId(listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all');
-  }, [listView?.activeViewModeId, listView?.viewModes]);
+    const desired = listView?.activeViewModeId ?? fullViewModes[0]?.id ?? 'all';
+    if (!membership) {
+      setSelectedViewModeId(desired);
+      return;
+    }
+    setSelectedViewModeId(pickFallbackViewModeId(desired, visibleViewModes, fullViewModes));
+  }, [listView?.activeViewModeId, fullViewModes, membership, visibleViewModes]);
 
   useEffect(() => {
     setColumnFilters({});
@@ -402,8 +434,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
       </Stack>
     );
 
-  const viewModes = listView?.viewModes ?? [];
-  const viewModeOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
+  const viewModeOptions: IDropdownOption[] = visibleViewModes.map((m) => ({ key: m.id, text: m.label }));
 
   const listPresentationOptions: IChoiceGroupOption[] = useMemo(
     () => [

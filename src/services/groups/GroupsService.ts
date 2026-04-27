@@ -1,12 +1,19 @@
-import { getSP } from '../core/sp';
+import { getSP, getSPForWeb } from '../core/sp';
 import { IGroupDetails, IGroupMember } from './types';
 
 export class GroupsService {
-  private get sp() { return getSP(); }
+  private get sp() {
+    return getSP();
+  }
 
-  async getSiteGroups(): Promise<IGroupDetails[]> {
+  private webSp(webServerRelativeUrl?: string) {
+    return webServerRelativeUrl?.trim() ? getSPForWeb(webServerRelativeUrl.trim()) : getSP();
+  }
+
+  async getSiteGroups(webServerRelativeUrl?: string): Promise<IGroupDetails[]> {
     try {
-      const groups = await this.sp.web.siteGroups
+      const sp = this.webSp(webServerRelativeUrl);
+      const groups = await sp.web.siteGroups
         .select('Id', 'Title', 'Description', 'OwnerTitle', 'AllowMembersEditMembership',
                 'OnlyAllowMembersViewMembership', 'AutoAcceptRequestToJoinLeave')();
       return groups as IGroupDetails[];

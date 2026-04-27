@@ -49,6 +49,8 @@ export interface IListPageRendererProps {
   editTableColumnsLabel?: string;
   /** Padding CSS da área do layout (ex. 16px 24px), já validado ao gravar. */
   contentPadding?: string;
+  /** Site da página onde o web part está (permissões de modo de lista). */
+  pageWebServerRelativeUrl?: string;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -110,6 +112,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   onEditTableColumns,
   editTableColumnsLabel = 'Editar colunas',
   contentPadding,
+  pageWebServerRelativeUrl,
 }) => {
   const rootDash = config.dashboard;
   const layoutPadding = React.useMemo(
@@ -167,6 +170,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
             config={effList}
             dashboardListFilters={dashFilters}
             instanceScopeId={`${instanceScopeId}_${block.id}`}
+            pageWebServerRelativeUrl={pageWebServerRelativeUrl}
           />
         </Stack>
       );

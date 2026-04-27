@@ -1,8 +1,12 @@
-import { getSP } from '../core/sp';
+import { getSP, getSPForWeb } from '../core/sp';
 import { getGraph } from '../core/graph';
 import { IUserDetails, IUserGroupMembership, IPeoplePickerResult } from './types';
 
 export class UsersService {
+  private webSp(webServerRelativeUrl?: string) {
+    return webServerRelativeUrl?.trim() ? getSPForWeb(webServerRelativeUrl.trim()) : getSP();
+  }
+
   private get sp() { return getSP(); }
   private get graph() { return getGraph(); }
 
@@ -49,6 +53,34 @@ export class UsersService {
       return results as IPeoplePickerResult[];
     } catch (e) {
       throw new Error(`UsersService.searchUsers("${searchText}"): ${e}`);
+    }
+  }
+
+  async getCurrentUserGroupIds(webServerRelativeUrl?: string): Promise<number[]> {
+    try {
+      const sp = this.webSp(webServerRelativeUrl);
+      const raw = await sp.web.currentUser.groups.select('Id')();
+      const arr = Array.isArray(raw) ? raw : [];
+      const ids: number[] = [];
+      for (let i = 0; i < arr.length; i++) {
+        const id = typeof arr[i].Id === 'number' ? arr[i].Id : Number(arr[i].Id);
+        if (isFinite(id) && id > 0) ids.push(id);
+      }
+      return ids;
+    } catch (e) {
+      throw new Error(`UsersService.getCurrentUserGroupIds: ${e}`);
+    }
+  }
+
+  async ensureUserAndGetId(keyOrLoginName: string, webServerRelativeUrl?: string): Promise<number | undefined> {
+    try {
+      const sp = this.webSp(webServerRelativeUrl);
+      const r = await sp.web.ensureUser(keyOrLoginName);
+      const o = r as { Id?: number; data?: { Id?: number } };
+      const id = o.Id ?? o.data?.Id;
+      return typeof id === 'number' && isFinite(id) && id > 0 ? id : undefined;
+    } catch {
+      return undefined;
     }
   }
 

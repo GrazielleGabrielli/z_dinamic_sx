@@ -14,7 +14,13 @@ import {
 } from '@fluentui/react';
 import { FieldsService } from '../../../../../services';
 import type { IFieldMetadata } from '../../../../../services';
-import type { IListViewModeConfig, IListViewFilterConfig, TFilterOperator } from '../../../core/config/types';
+import type {
+  IListViewModeConfig,
+  IListViewFilterConfig,
+  IListViewModeAccessConfig,
+  TFilterOperator,
+} from '../../../core/config/types';
+import { ViewModeAccessSection, accessSummary } from '../../shared/ViewModeAccessSection';
 import { isNoteFieldMeta } from '../../../core/listView';
 import { IWizardFormState } from '../types';
 
@@ -62,13 +68,21 @@ interface IStep5Props {
   form: IWizardFormState;
   listTitle: string;
   listWebServerRelativeUrl?: string;
+  pageWebServerRelativeUrl: string;
   onChange: (partial: Partial<IWizardFormState>) => void;
 }
 
-export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWebServerRelativeUrl, onChange }) => {
+export const Step5ViewModes: React.FC<IStep5Props> = ({
+  form,
+  listTitle,
+  listWebServerRelativeUrl,
+  pageWebServerRelativeUrl,
+  onChange,
+}) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editFilters, setEditFilters] = useState<IListViewFilterConfig[]>([]);
+  const [editAccess, setEditAccess] = useState<IListViewModeAccessConfig | undefined>(undefined);
   const [listFields, setListFields] = useState<IFieldMetadata[]>([]);
   const [lookupListFields, setLookupListFields] = useState<Record<string, IFieldMetadata[]>>({});
   const [fieldsLoading, setFieldsLoading] = useState(false);
@@ -140,6 +154,7 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
     const id = `custom_${Date.now()}`;
     setEditLabel('Novo modo');
     setEditFilters([]);
+    setEditAccess(undefined);
     setEditingId(id);
   };
 
@@ -147,6 +162,7 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
     setEditingId(m.id);
     setEditLabel(m.label);
     setEditFilters(m.filters?.length ? m.filters.slice() : []);
+    setEditAccess(m.access);
   };
 
   const saveEdit = (): void => {
@@ -154,14 +170,22 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
     const next = viewModes.slice();
     let idx = -1;
     for (let i = 0; i < next.length; i++) { if (next[i].id === editingId) { idx = i; break; } }
-    const entry: IListViewModeConfig = { id: editingId, label: editLabel.trim() || editingId, filters: editFilters };
+    const entry: IListViewModeConfig = {
+      id: editingId,
+      label: editLabel.trim() || editingId,
+      filters: editFilters,
+      ...(editAccess !== undefined ? { access: editAccess } : {}),
+    };
     if (idx >= 0) next[idx] = entry;
     else next.push(entry);
     onChange({ viewModes: next });
     setEditingId(null);
   };
 
-  const cancelEdit = (): void => setEditingId(null);
+  const cancelEdit = (): void => {
+    setEditingId(null);
+    setEditAccess(undefined);
+  };
 
   const removeMode = (id: string): void => {
     if (id === 'all' || id === 'mine') return;
@@ -203,7 +227,9 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
         <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
           Modos disponíveis
         </Text>
-        {viewModes.map((m) => (
+        {viewModes.map((m) => {
+          const accessLine = accessSummary(m.access);
+          return (
           <div
             key={m.id}
             style={{
@@ -257,6 +283,12 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
                   ))}
                   <DefaultButton text="Adicionar filtro" onClick={addFilter} />
                 </Stack>
+                <ViewModeAccessSection
+                  value={editAccess}
+                  onChange={setEditAccess}
+                  pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+                  listWebServerRelativeUrl={listWebServerRelativeUrl}
+                />
                 <Stack horizontal tokens={{ childrenGap: 8 }}>
                   <PrimaryButton text="Salvar" onClick={saveEdit} />
                   <DefaultButton text="Cancelar" onClick={cancelEdit} />
@@ -271,6 +303,11 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     {filterSummary(m.filters)}
                   </Text>
+                  {accessLine ? (
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      {accessLine}
+                    </Text>
+                  ) : null}
                 </Stack>
                 <Stack horizontal tokens={{ childrenGap: 4 }}>
                   <IconButton iconProps={{ iconName: 'Edit' }} title="Editar" onClick={() => startEdit(m)} />
@@ -284,7 +321,8 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
               </Stack>
             )}
           </div>
-        ))}
+        );
+        })}
         {editingId !== null && !viewModes.some((m) => m.id === editingId) && (
           <div style={{ padding: 12, border: '1px solid #c7e0f4', borderRadius: 8, background: '#f3f9ff' }}>
             <Stack tokens={{ childrenGap: 12 }}>
@@ -330,6 +368,12 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWeb
                 ))}
                 <DefaultButton text="Adicionar filtro" onClick={addFilter} />
               </Stack>
+              <ViewModeAccessSection
+                value={editAccess}
+                onChange={setEditAccess}
+                pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+                listWebServerRelativeUrl={listWebServerRelativeUrl}
+              />
               <Stack horizontal tokens={{ childrenGap: 8 }}>
                 <PrimaryButton text="Adicionar modo" onClick={saveEdit} />
                 <DefaultButton text="Cancelar" onClick={cancelEdit} />

@@ -453,6 +453,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardListFilters={dashboardListSelection?.filters}
             onItemUpdated={triggerDashboardRefresh}
             onEditTableColumns={() => setIsEditingTableColumns(true)}
+            pageWebServerRelativeUrl={siteUrl}
           />
         ) : (
           <ListPageRenderer
@@ -462,6 +463,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardRefreshKey={dashboardRefreshKey}
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
+            pageWebServerRelativeUrl={siteUrl}
             onEditTableColumns={
               canShowListConfigButtons
                 ? (blockId) => {
@@ -533,6 +535,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         mode={config.mode}
         listTitle={tableEditorSource.listTitle}
         listWebServerRelativeUrl={tableEditorSource.listWebServerRelativeUrl}
+        pageWebServerRelativeUrl={siteUrl}
         listView={tableEditorSource.listView ?? config.listView}
         pagination={tableEditorSource.pagination ?? config.pagination}
         projectManagement={config.projectManagement}
