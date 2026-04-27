@@ -46,6 +46,13 @@ import { ListPageBlockConfigPanel } from './ListPage/ListPageBlockConfigPanel';
 import { FormManagerView } from './FormManager/FormManagerView';
 import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
 import { PersistStatusBar } from './PersistStatusBar';
+import { UsersService } from '../../../services/users/UsersService';
+
+const LIST_CONFIG_MANAGERS_GROUP = 'Gerenciadores AppDinamico';
+
+function normalizeGroupTitle(v: string): string {
+  return v.trim().toLowerCase();
+}
 
 const DinamicApp: React.FC<IDinamicAppProps> = ({
   configJson,
@@ -65,6 +72,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
   const [editingTableBlockId, setEditingTableBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [canManageListConfig, setCanManageListConfig] = useState(false);
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
 
@@ -100,6 +108,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     if (!config) {
       return {
         listTitle: '',
+        listWebServerRelativeUrl: undefined as string | undefined,
         listView: undefined as IListViewConfig | undefined,
         pagination: undefined as IPaginationConfig | undefined,
         pdfTemplate: undefined as import('../core/config/types').IPdfTemplateConfig | undefined,
@@ -109,6 +118,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     if (!bid) {
       return {
         listTitle: config.dataSource.title,
+        listWebServerRelativeUrl: config.dataSource.webServerRelativeUrl?.trim() || undefined,
         listView: config.listView,
         pagination: config.pagination,
         pdfTemplate: config.pdfTemplate,
@@ -119,6 +129,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     if (!lt) {
       return {
         listTitle: config.dataSource.title,
+        listWebServerRelativeUrl: config.dataSource.webServerRelativeUrl?.trim() || undefined,
         listView: config.listView,
         pagination: config.pagination,
         pdfTemplate: config.pdfTemplate,
@@ -127,6 +138,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     const eff = mergeLinkedListMemoryIntoConfig(config, { kind: 'list', title: lt });
     return {
       listTitle: eff.dataSource.title,
+      listWebServerRelativeUrl: eff.dataSource.webServerRelativeUrl?.trim() || undefined,
       listView: eff.listView,
       pagination: eff.pagination,
       pdfTemplate: eff.pdfTemplate,
@@ -142,9 +154,40 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     return lt || config.dataSource.title;
   }, [config, editingDashboardBlockId]);
 
+  const dashboardEditorListWebServerRelativeUrl = useMemo((): string | undefined => {
+    if (!config) return undefined;
+    const bid = editingDashboardBlockId;
+    if (!bid) return config.dataSource.webServerRelativeUrl?.trim() || undefined;
+    const b = findListPageBlockInSections(getEffectiveListPageSections(config), bid);
+    const lt = b?.linkedListBinding?.listTitle?.trim();
+    if (lt) return undefined;
+    return config.dataSource.webServerRelativeUrl?.trim() || undefined;
+  }, [config, editingDashboardBlockId]);
+
   useEffect(() => {
     setDashboardListSelection(null);
-  }, [config?.dataSource.title]);
+  }, [config?.dataSource.title, config?.dataSource.webServerRelativeUrl]);
+
+  useEffect(() => {
+    let mounted = true;
+    const svc = new UsersService();
+    svc
+      .getUserGroups()
+      .then((groups) => {
+        if (!mounted) return;
+        const allowed = groups.some(
+          (g) => normalizeGroupTitle(String(g.Title ?? '')) === normalizeGroupTitle(LIST_CONFIG_MANAGERS_GROUP)
+        );
+        setCanManageListConfig(allowed);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setCanManageListConfig(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleDashboardCardClick = useCallback((card: IDashboardCardConfig, blockId: string) => {
     const filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];
@@ -171,6 +214,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   }, []);
 
   const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
+  const canShowListConfigButtons = config?.mode !== 'list' || canManageListConfig;
   const triggerDashboardRefresh = useCallback(() => {
     setDashboardRefreshKey((prev) => prev + 1);
   }, []);
@@ -354,14 +398,16 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
           borderBottom: '1px solid #f3f2f1',
         }}
       >
-        <ActionButton
-          iconProps={{ iconName: 'Settings' }}
-          onClick={() => setIsEditingWebPart(true)}
-          disabled={isSaving}
-          styles={{ root: { color: '#605e5c', fontSize: 12 } }}
-        >
-          Editar configuração
-        </ActionButton>
+        {canShowListConfigButtons ? (
+          <ActionButton
+            iconProps={{ iconName: 'Settings' }}
+            onClick={() => setIsEditingWebPart(true)}
+            disabled={isSaving}
+            styles={{ root: { color: '#605e5c', fontSize: 12 } }}
+          >
+            Editar configuração
+          </ActionButton>
+        ) : null}
       </div>
 
       <Stack styles={{ root: { padding: '20px 24px 0' } }}>
@@ -378,7 +424,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             </Text>
           )}
           <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
-            {config.mode === 'list' && (
+            {config.mode === 'list' && canShowListConfigButtons && (
               <ActionButton
                 iconProps={{ iconName: 'TripleColumn' }}
                 onClick={() => setIsEditingPageLayout(true)}
@@ -416,24 +462,36 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardRefreshKey={dashboardRefreshKey}
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
-            onEditTableColumns={(blockId) => {
-              setEditingTableBlockId(blockId);
-              setIsEditingTableColumns(true);
-            }}
-            onEditCards={(blockId) => {
-              setEditingDashboardBlockId(blockId);
-              setIsEditingCards(true);
-            }}
-            onEditSeries={(blockId) => {
-              setEditingDashboardBlockId(blockId);
-              setIsEditingSeries(true);
-            }}
+            onEditTableColumns={
+              canShowListConfigButtons
+                ? (blockId) => {
+                    setEditingTableBlockId(blockId);
+                    setIsEditingTableColumns(true);
+                  }
+                : undefined
+            }
+            onEditCards={
+              canShowListConfigButtons
+                ? (blockId) => {
+                    setEditingDashboardBlockId(blockId);
+                    setIsEditingCards(true);
+                  }
+                : undefined
+            }
+            onEditSeries={
+              canShowListConfigButtons
+                ? (blockId) => {
+                    setEditingDashboardBlockId(blockId);
+                    setIsEditingSeries(true);
+                  }
+                : undefined
+            }
             onSwitchToCharts={handleSwitchDashboardToCharts}
             onCardClick={handleDashboardCardClick}
             onSeriesClick={handleDashboardSeriesClick}
             dashboardAppliesListFilter={dashboardAppliesListFilter}
             onConfigureListContentBlock={
-              config.listPageLayout !== undefined
+              canShowListConfigButtons && config.listPageLayout !== undefined
                 ? (blockId) => setListPageContentBlockId(blockId)
                 : undefined
             }
@@ -444,6 +502,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <CardEditorPanel
         isOpen={isEditingCards}
         listTitle={dashboardEditorListTitle}
+        listWebServerRelativeUrl={dashboardEditorListWebServerRelativeUrl}
         cards={activeListDashboard.cards}
         cardsCount={activeListDashboard.cardsCount}
         dashboardType={activeListDashboard.dashboardType}
@@ -458,6 +517,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <ChartSeriesEditorPanel
         isOpen={isEditingSeries}
         listTitle={dashboardEditorListTitle}
+        listWebServerRelativeUrl={dashboardEditorListWebServerRelativeUrl}
         series={activeListDashboard.chartSeries ?? []}
         dashboardType={activeListDashboard.dashboardType}
         chartType={activeListDashboard.chartType}
@@ -472,6 +532,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         isOpen={isEditingTableColumns}
         mode={config.mode}
         listTitle={tableEditorSource.listTitle}
+        listWebServerRelativeUrl={tableEditorSource.listWebServerRelativeUrl}
         listView={tableEditorSource.listView ?? config.listView}
         pagination={tableEditorSource.pagination ?? config.pagination}
         projectManagement={config.projectManagement}
@@ -509,6 +570,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         <FormManagerConfigPanel
           isOpen={isEditingFormManager}
           listTitle={config.dataSource.title}
+          listWebServerRelativeUrl={config.dataSource.webServerRelativeUrl?.trim() || undefined}
           value={formManagerResolved}
           onSave={handleSaveFormManagerConfig}
           onDismiss={() => setIsEditingFormManager(false)}

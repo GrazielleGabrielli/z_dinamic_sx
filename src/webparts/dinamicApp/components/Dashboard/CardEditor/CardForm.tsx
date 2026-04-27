@@ -50,6 +50,7 @@ function isNumericField(f: IFieldMetadata): boolean {
 
 interface ICardFormProps {
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   card: IDashboardCardConfig | undefined;
   onConfirm: (card: IDashboardCardConfig) => void;
   onBack: () => void;
@@ -286,7 +287,8 @@ function buildCard(state: ICardFormState, existingId?: string): IDashboardCardCo
   return card;
 }
 
-export const CardForm: React.FC<ICardFormProps> = ({ listTitle, card, onConfirm, onBack }) => {
+export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRelativeUrl, card, onConfirm, onBack }) => {
+  const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [state, setState] = useState<ICardFormState>(() => initState(card));
   const [listFields, setListFields] = useState<IFieldMetadata[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
@@ -302,7 +304,7 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, card, onConfirm,
     setFieldsError(undefined);
     const svc = new FieldsService();
     svc
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), lw)
       .then((fields) => {
         setListFields(fields);
         setFieldsLoading(false);
@@ -312,7 +314,7 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, card, onConfirm,
         setFieldsError(err instanceof Error ? err.message : String(err));
         setFieldsLoading(false);
       });
-  }, [listTitle]);
+  }, [listTitle, lw]);
 
   const numericFields = useMemo(
     () => listFields.filter(isNumericField),

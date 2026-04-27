@@ -36,8 +36,8 @@ export interface IListPageRendererProps {
   instanceScopeId: string;
   dashboardRefreshKey: number;
   dashboardListSelection: TListPageDashboardListSelection | null;
-  onEditCards: (blockId: string) => void;
-  onEditSeries: (blockId: string) => void;
+  onEditCards?: (blockId: string) => void;
+  onEditSeries?: (blockId: string) => void;
   onSwitchToCharts?: (blockId: string) => void;
   onCardClick?: (card: IDashboardCardConfig, blockId: string) => void;
   onSeriesClick?: (series: IChartSeriesConfig, blockId: string) => void;

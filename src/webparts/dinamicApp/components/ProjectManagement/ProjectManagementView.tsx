@@ -90,6 +90,7 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
   const { dataSource, listView } = config;
   const pm = config.projectManagement;
   const listTitle = dataSource.title;
+  const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
   const columns = pm?.columns ?? [];
   const titleColumn = listView.columns[0] ?? { field: 'Title', label: 'Title' };
   const detailColumns = listView.columns.filter((c) => c.field !== titleColumn.field).slice(0, 3);
@@ -137,7 +138,7 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
     setLoading(true);
     setError(undefined);
     fieldsService
-      .getVisibleFields(listTitle)
+      .getVisibleFields(listTitle, listWeb)
       .then((fieldMetadata) => {
         setFieldMetadata(fieldMetadata);
         const selectExpand = buildSelectExpand(listView.columns, ruleFields);
@@ -161,6 +162,7 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
           orderBy,
           top: 500,
           fieldMetadata,
+          ...(listWeb ? { webServerRelativeUrl: listWeb } : {}),
         });
       })
       .then((result) => {
@@ -172,7 +174,7 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
         setItems([]);
         setLoading(false);
       });
-  }, [dashboardListFilters, dynamicContext, fieldsService, itemsService, listTitle, listView, ruleFields]);
+  }, [dashboardListFilters, dynamicContext, fieldsService, itemsService, listTitle, listWeb, listView, ruleFields]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, Record<string, unknown>[]> = {};
@@ -212,7 +214,7 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
     setUpdatingId(draggingId);
     setError(undefined);
     try {
-      await itemsService.updateItem(listTitle, draggingId, updateValues);
+      await itemsService.updateItem(listTitle, draggingId, updateValues, listWeb);
       setItems((prev) =>
         prev.map((item) =>
           Number(item.Id) === draggingId ? { ...item, ...updateValues } : item

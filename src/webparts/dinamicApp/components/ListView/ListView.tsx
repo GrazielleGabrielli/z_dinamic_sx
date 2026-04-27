@@ -58,6 +58,7 @@ function fieldToColumnConfig(f: IFieldMetadata): IListViewColumnConfig {
 export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) => {
   const { listView, pagination, dataSource } = config;
   const listTitle = dataSource.title;
+  const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
 
   const [defaultColumns, setDefaultColumns] = useState<IListViewColumnConfig[]>([]);
   const [defaultColumnsLoading, setDefaultColumnsLoading] = useState(false);
@@ -106,7 +107,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
       setEnrichedConfigColumns(undefined);
       setDefaultColumnsLoading(true);
       fieldsService
-        .getVisibleFields(listTitle.trim())
+        .getVisibleFields(listTitle.trim(), listWeb)
         .then((fields) => {
           setListFieldMetadata(fields);
           setDefaultColumns(fields.slice(0, DEFAULT_COLUMN_COUNT).map(fieldToColumnConfig));
@@ -116,7 +117,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
     }
     setEnrichedConfigColumns(undefined);
     fieldsService
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), listWeb)
       .then((fields) => {
         setListFieldMetadata(fields);
         const byName = new Map(fields.map((f) => [f.InternalName, f]));
@@ -130,7 +131,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
         setEnrichedConfigColumns(enriched);
       })
       .catch(() => setEnrichedConfigColumns(listView.columns ?? []));
-  }, [listTitle, hasConfigColumns, listView.columns]);
+  }, [listTitle, listWeb, hasConfigColumns, listView.columns]);
 
   const effectiveColumns = useMemo(() => {
     if (hasConfigColumns) {
@@ -157,6 +158,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
     () =>
       [
         listTitle.trim(),
+        listWeb ?? '',
         String(pagination.enabled),
         String(pagination.pageSize),
         selectedViewModeId,
@@ -170,6 +172,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
       ].join('|'),
     [
       listTitle,
+      listWeb,
       pagination.enabled,
       pagination.pageSize,
       selectedViewModeId,
@@ -213,6 +216,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
       filter: queryOptions.filter,
       orderBy: queryOptions.orderBy,
       fieldMetadata: listFieldMetadata,
+      ...(listWeb ? { webServerRelativeUrl: listWeb } : {}),
     };
 
     const afterLastItemId =
@@ -239,6 +243,7 @@ export const ListView: React.FC<{ config: IDynamicViewConfig }> = ({ config }) =
   }, [
     itemsService,
     listTitle,
+    listWeb,
     pagination.enabled,
     pagination.pageSize,
     defaultColumnsLoading,

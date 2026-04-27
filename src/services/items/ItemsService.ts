@@ -1,6 +1,7 @@
 import { fileFromServerRelativePath } from '@pnp/sp/files';
 
-import { getSP } from '../core/sp';
+import type { SPFI } from '@pnp/sp';
+import { getSPForWeb } from '../core/sp';
 import type { IFieldMetadata } from '../shared/types';
 import {
   IItemsQueryOptions,
@@ -13,7 +14,7 @@ import { readListItemId } from './listItemId';
 
 const EXPANDABLE_TYPES: Array<IFieldMetadata['MappedType']> = ['lookup', 'lookupmulti', 'user', 'usermulti'];
 
-const listRef = (sp: ReturnType<typeof getSP>, titleOrId: string) => {
+const listRef = (sp: SPFI, titleOrId: string) => {
   const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
   return isGuid
     ? sp.web.lists.getById(titleOrId)
@@ -117,7 +118,9 @@ function normalizeSelectExpand(
 }
 
 export class ItemsService {
-  private get sp() { return getSP(); }
+  private spForWeb(webServerRelativeUrl?: string): SPFI {
+    return getSPForWeb(webServerRelativeUrl);
+  }
 
   /** Monta select e expand a partir de IFieldConfig[] */
   buildSelectExpand(fieldsConfig: IFieldConfig[]): { select: string[]; expand: string[] } {
@@ -153,14 +156,15 @@ export class ItemsService {
     options: IItemsQueryOptions = {}
   ): Promise<T[]> {
     try {
-      const { fieldMetadata, ...rest } = options;
+      const { webServerRelativeUrl, fieldMetadata, ...rest } = options;
+      const sp = this.spForWeb(webServerRelativeUrl);
       const opts = fieldMetadata?.length
         ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
         : rest;
 
       const orderBy =
         opts.orderBy ?? ((opts.skip ?? 0) > 0 ? { field: 'Id', ascending: true } : undefined);
-      let query = listRef(this.sp, listTitleOrId).items as any;
+      let query = listRef(sp, listTitleOrId).items as any;
       if (opts.select?.length) query = query.select(...opts.select);
       if (opts.expand?.length) query = query.expand(...opts.expand);
       if (opts.filter) query = query.filter(opts.filter);
@@ -185,14 +189,15 @@ export class ItemsService {
     afterLastItemId?: number
   ): Promise<IPagedResult<T>> {
     try {
-      const { fieldMetadata, ...rest } = options;
+      const { webServerRelativeUrl, fieldMetadata, ...rest } = options;
+      const sp = this.spForWeb(webServerRelativeUrl);
       const opts = fieldMetadata?.length
         ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
         : rest;
 
       const top = opts.top ?? pageSize;
       const orderBy = opts.orderBy ?? { field: 'Id', ascending: true };
-      let query = listRef(this.sp, listTitleOrId).items as any;
+      let query = listRef(sp, listTitleOrId).items as any;
       if (opts.select?.length) query = query.select(...opts.select);
       if (opts.expand?.length) query = query.expand(...opts.expand);
       if (opts.filter) query = query.filter(opts.filter);
@@ -222,15 +227,16 @@ export class ItemsService {
   async getItemById<T = Record<string, unknown>>(
     listTitleOrId: string,
     itemId: number,
-    options: Pick<IItemsQueryOptions, 'select' | 'expand' | 'fieldMetadata'> = {}
+    options: Pick<IItemsQueryOptions, 'select' | 'expand' | 'fieldMetadata' | 'webServerRelativeUrl'> = {}
   ): Promise<T> {
     try {
-      const { fieldMetadata, select, expand } = options;
+      const { webServerRelativeUrl, fieldMetadata, select, expand } = options;
+      const sp = this.spForWeb(webServerRelativeUrl);
       const normalized = fieldMetadata?.length
         ? normalizeSelectExpand(select, expand, fieldMetadata)
         : { select: select ?? [], expand: expand ?? [] };
 
-      let query = listRef(this.sp, listTitleOrId).items.getById(itemId) as any;
+      let query = listRef(sp, listTitleOrId).items.getById(itemId) as any;
       if (normalized.select.length) query = query.select(...normalized.select);
       if (normalized.expand.length) query = query.expand(...normalized.expand);
 
@@ -256,10 +262,12 @@ export class ItemsService {
   async updateItem(
     listTitleOrId: string,
     itemId: number,
-    values: Record<string, unknown>
+    values: Record<string, unknown>,
+    webServerRelativeUrl?: string
   ): Promise<void> {
     try {
-      await listRef(this.sp, listTitleOrId).items.getById(itemId).update(values);
+      const sp = this.spForWeb(webServerRelativeUrl);
+      await listRef(sp, listTitleOrId).items.getById(itemId).update(values);
     } catch (e) {
       throw new Error(`ItemsService.updateItem("${listTitleOrId}", ${itemId}): ${e}`);
     }
@@ -268,10 +276,12 @@ export class ItemsService {
   async addItem(
     listTitleOrId: string,
     values: Record<string, unknown>,
-    primaryFiles?: File[]
+    primaryFiles?: File[],
+    webServerRelativeUrl?: string
   ): Promise<{ id: number; filesForAttachments: File[] }> {
     try {
-      const list = listRef(this.sp, listTitleOrId);
+      const sp = this.spForWeb(webServerRelativeUrl);
+      const list = listRef(sp, listTitleOrId);
       const listInfo = await list.select('BaseTemplate')();
       const baseTemplate = (listInfo as { BaseTemplate?: number }).BaseTemplate;
       const uploaded = primaryFiles ?? [];
@@ -289,7 +299,7 @@ export class ItemsService {
           throw new Error('Upload sem ServerRelativeUrl');
         }
 
-        const file = fileFromServerRelativePath(this.sp.web, rel);
+        const file = fileFromServerRelativePath(sp.web, rel);
         const item = await file.getItem<{ Id?: number }>('Id');
         const id = coerceListItemId(item.Id);
         if (id === undefined) {
@@ -316,18 +326,20 @@ export class ItemsService {
     }
   }
 
-  async deleteItem(listTitleOrId: string, itemId: number): Promise<void> {
+  async deleteItem(listTitleOrId: string, itemId: number, webServerRelativeUrl?: string): Promise<void> {
     try {
-      await listRef(this.sp, listTitleOrId).items.getById(itemId).delete();
+      const sp = this.spForWeb(webServerRelativeUrl);
+      await listRef(sp, listTitleOrId).items.getById(itemId).delete();
     } catch (e) {
       throw new Error(`ItemsService.deleteItem("${listTitleOrId}", ${itemId}): ${e}`);
     }
   }
 
-  async countItems(listTitleOrId: string, filter?: string): Promise<number> {
+  async countItems(listTitleOrId: string, filter?: string, webServerRelativeUrl?: string): Promise<number> {
     try {
+      const sp = this.spForWeb(webServerRelativeUrl);
       const f = (filter ?? '').trim();
-      let query = listRef(this.sp, listTitleOrId).items.select('Id').top(5000);
+      let query = listRef(sp, listTitleOrId).items.select('Id').top(5000);
       if (f) {
         query = query.filter(f);
       }
@@ -340,12 +352,14 @@ export class ItemsService {
 
   async getItemVersions(
     listTitleOrId: string,
-    itemId: number
+    itemId: number,
+    webServerRelativeUrl?: string
   ): Promise<
     { versionLabel: string; versionId: number; created?: string; isCurrentVersion?: boolean }[]
   > {
     try {
-      const raw = await listRef(this.sp, listTitleOrId)
+      const sp = this.spForWeb(webServerRelativeUrl);
+      const raw = await listRef(sp, listTitleOrId)
         .items.getById(itemId)
         .versions.select('VersionLabel', 'VersionId', 'Created', 'IsCurrentVersion')();
       const rows = Array.isArray(raw) ? raw : [];

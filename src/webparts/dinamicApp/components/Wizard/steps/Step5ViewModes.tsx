@@ -61,10 +61,11 @@ function filterSummary(filters: IListViewFilterConfig[]): string {
 interface IStep5Props {
   form: IWizardFormState;
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   onChange: (partial: Partial<IWizardFormState>) => void;
 }
 
-export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, onChange }) => {
+export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, listWebServerRelativeUrl, onChange }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editFilters, setEditFilters] = useState<IListViewFilterConfig[]>([]);
@@ -80,8 +81,9 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, onChang
     }
     setFieldsLoading(true);
     const svc = new FieldsService();
+    const lw = listWebServerRelativeUrl?.trim() || undefined;
     svc
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), lw)
       .then((fields) => {
         setListFields(fields);
         const listIds = fields
@@ -89,7 +91,7 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, onChang
           .map((f) => f.LookupList as string);
         const uniqueIds = listIds.filter((id, i) => listIds.indexOf(id) === i);
         return Promise.all(
-          uniqueIds.map((id) => svc.getFields(id).then((listFields) => ({ id, listFields })))
+          uniqueIds.map((id) => svc.getFields(id, lw).then((listFields) => ({ id, listFields })))
         );
       })
       .then((results) => {
@@ -98,7 +100,7 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({ form, listTitle, onChang
         setLookupListFields(next);
       })
       .then(() => setFieldsLoading(false), () => setFieldsLoading(false));
-  }, [listTitle]);
+  }, [listTitle, listWebServerRelativeUrl]);
 
   const filterFieldOptions = useMemo((): IDropdownOption[] => {
     const empty: IDropdownOption = { key: '', text: '— selecione —' };

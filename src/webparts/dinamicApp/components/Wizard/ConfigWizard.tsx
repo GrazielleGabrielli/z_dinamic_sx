@@ -130,7 +130,7 @@ function isStepValid(step: number, form: IWizardFormState, forcedMode?: TViewMod
 }
 
 export const ConfigWizard: React.FC<IConfigWizardProps> = ({
-  siteUrl: _siteUrl,
+  siteUrl,
   onComplete,
   initialValues,
   onCancel,
@@ -195,7 +195,9 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     if (forcedMode === 'formManager') {
       switch (step) {
         case 1:
-          return <Step1DataSource form={form} onChange={updateForm} />;
+          return (
+            <Step1DataSource form={form} onChange={updateForm} currentWebServerRelativeUrl={siteUrl} />
+          );
         case 2:
           return <Step3FormStepLayout form={form} onChange={updateForm} />;
         default:
@@ -205,13 +207,22 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     if (forcedMode === 'list' || forcedMode === 'projectManagement') {
       switch (step) {
         case 1:
-          return <Step1DataSource form={form} onChange={updateForm} />;
+          return (
+            <Step1DataSource form={form} onChange={updateForm} currentWebServerRelativeUrl={siteUrl} />
+          );
         case 2:
           return <Step3Dashboard form={form} onChange={updateForm} />;
         case 3:
           return <Step4Pagination form={form} onChange={updateForm} />;
         case 4:
-          return <Step5ViewModes form={form} listTitle={form.title} onChange={updateForm} />;
+          return (
+            <Step5ViewModes
+              form={form}
+              listTitle={form.title}
+              listWebServerRelativeUrl={form.dataSourceWebServerRelativeUrl}
+              onChange={updateForm}
+            />
+          );
         default:
           return <></>;
       }
@@ -219,7 +230,9 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     if (isFormManagerWizard(form, forcedMode)) {
       switch (step) {
         case 1:
-          return <Step1DataSource form={form} onChange={updateForm} />;
+          return (
+            <Step1DataSource form={form} onChange={updateForm} currentWebServerRelativeUrl={siteUrl} />
+          );
         case 2:
           return <Step2Mode form={form} onChange={updateForm} />;
         case 3:
@@ -230,15 +243,24 @@ export const ConfigWizard: React.FC<IConfigWizardProps> = ({
     }
     switch (step) {
       case 1:
-        return <Step1DataSource form={form} onChange={updateForm} />;
-      case 2:
+          return (
+            <Step1DataSource form={form} onChange={updateForm} currentWebServerRelativeUrl={siteUrl} />
+          );
+        case 2:
         return <Step2Mode form={form} onChange={updateForm} />;
       case 3:
         return <Step3Dashboard form={form} onChange={updateForm} />;
       case 4:
         return <Step4Pagination form={form} onChange={updateForm} />;
       case 5:
-        return <Step5ViewModes form={form} listTitle={form.title} onChange={updateForm} />;
+        return (
+          <Step5ViewModes
+            form={form}
+            listTitle={form.title}
+            listWebServerRelativeUrl={form.dataSourceWebServerRelativeUrl}
+            onChange={updateForm}
+          />
+        );
       default:
         return <></>;
     }

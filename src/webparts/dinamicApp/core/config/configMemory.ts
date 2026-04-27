@@ -11,7 +11,8 @@ import { getDefaultConfig, getDefaultFormManagerConfig } from './utils';
 import { buildConfig } from './builders';
 
 export function sourceKey(ds: IDataSourceConfig): string {
-  return `${ds.kind}::${ds.title.trim()}`;
+  const w = (ds.webServerRelativeUrl ?? '').trim();
+  return `${w}::${ds.kind}::${ds.title.trim()}`;
 }
 
 export function cloneJson<T>(x: T): T {
@@ -119,17 +120,22 @@ export function applyWizardPartial(
     ...configToWizardState(prev),
     ...partial,
   };
+  const wTrim = (mergedForm.dataSourceWebServerRelativeUrl ?? '').trim();
   const nextDs: IDataSourceConfig = {
     kind: mergedForm.kind,
     title: mergedForm.title,
+    ...(wTrim ? { webServerRelativeUrl: wTrim } : {}),
   };
   const nextMode = mergedForm.mode;
   const prevKey = sourceKey(prev.dataSource);
   const nextKey = sourceKey(nextDs);
+  const normWeb = (v?: string): string => (v ?? '').trim();
   const transition =
     (partial.mode !== undefined && partial.mode !== prev.mode) ||
     (partial.title !== undefined && partial.title.trim() !== prev.dataSource.title.trim()) ||
-    (partial.kind !== undefined && partial.kind !== prev.dataSource.kind);
+    (partial.kind !== undefined && partial.kind !== prev.dataSource.kind) ||
+    (partial.dataSourceWebServerRelativeUrl !== undefined &&
+      normWeb(partial.dataSourceWebServerRelativeUrl) !== normWeb(prev.dataSource.webServerRelativeUrl));
 
   let memory: IConfigMemory = prev.configMemory ? cloneJson(prev.configMemory) : emptyConfigMemory();
   if (!memory.bySource) memory.bySource = {};

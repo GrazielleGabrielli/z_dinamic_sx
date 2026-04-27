@@ -111,6 +111,7 @@ export interface IChartSeriesEditorSaveOptions {
 interface IChartSeriesEditorPanelProps {
   isOpen: boolean;
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   series: IChartSeriesConfig[];
   dashboardType: TDashboardType;
   chartType?: TChartType;
@@ -120,10 +121,12 @@ interface IChartSeriesEditorPanelProps {
 
 const SeriesForm: React.FC<{
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   series?: IChartSeriesConfig;
   onConfirm: (s: IChartSeriesConfig) => void;
   onBack: () => void;
-}> = ({ listTitle, series, onConfirm, onBack }) => {
+}> = ({ listTitle, listWebServerRelativeUrl, series, onConfirm, onBack }) => {
+  const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [state, setState] = useState<ISeriesFormState>(() => initSeriesState(series));
   const [listFields, setListFields] = useState<IFieldMetadata[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
@@ -138,13 +141,17 @@ const SeriesForm: React.FC<{
     setFieldsLoading(true);
     setFieldsError(undefined);
     const svc = new FieldsService();
-    svc.getVisibleFields(listTitle.trim())
-      .then((fields) => { setListFields(fields); setFieldsLoading(false); })
+    svc
+      .getVisibleFields(listTitle.trim(), lw)
+      .then((fields) => {
+        setListFields(fields);
+        setFieldsLoading(false);
+      })
       .catch((err) => {
         setFieldsError(err instanceof Error ? err.message : String(err));
         setFieldsLoading(false);
       });
-  }, [listTitle]);
+  }, [listTitle, lw]);
 
   const numericFields = useMemo(() => listFields.filter(isNumericField), [listFields]);
 
@@ -311,6 +318,7 @@ const SeriesForm: React.FC<{
 export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
   isOpen,
   listTitle,
+  listWebServerRelativeUrl,
   series,
   dashboardType,
   chartType = 'bar',
@@ -402,6 +410,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
         isOpen={choiceModalOpen}
         onDismiss={() => setChoiceModalOpen(false)}
         listTitle={listTitle}
+        listWebServerRelativeUrl={listWebServerRelativeUrl}
         target="series"
         onApply={(items, mergeMode) => {
           const next = items as IChartSeriesConfig[];
@@ -493,6 +502,7 @@ export const ChartSeriesEditorPanel: React.FC<IChartSeriesEditorPanelProps> = ({
         {view === 'form' && (
           <SeriesForm
             listTitle={listTitle}
+            listWebServerRelativeUrl={listWebServerRelativeUrl}
             series={editingSeries}
             onConfirm={handleConfirm}
             onBack={() => setView('list')}

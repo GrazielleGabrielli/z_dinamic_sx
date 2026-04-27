@@ -6,6 +6,8 @@ export { getGraph } from './core/graph';
 export { UsersService } from './users/UsersService';
 export { GroupsService } from './groups/GroupsService';
 export { ListsService } from './lists/ListsService';
+export { WebsService } from './webs/WebsService';
+export type { IWebSummary } from './webs/WebsService';
 export {
   provisionLancamentosContabeisList,
   deleteLancamentosContabeisProvisionedFields,

@@ -1,6 +1,7 @@
 import { fileFromServerRelativePath } from '@pnp/sp/files';
 
-import { getSP } from '../../../../services/core/sp';
+import type { SPFI } from '@pnp/sp';
+import { getSP, getSPForWeb } from '../../../../services/core/sp';
 import type {
   IFormLinkedChildFormConfig,
   IFormManagerConfig,
@@ -15,7 +16,7 @@ import {
 import { resolveLinkedChildAttachmentRuntime } from './linkedChildAttachmentRuntime';
 import type { ILinkedChildRowState } from './formLinkedChildSync';
 
-function listRef(sp: ReturnType<typeof getSP>, titleOrId: string) {
+function listRef(sp: SPFI, titleOrId: string) {
   const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
   return isGuid ? sp.web.lists.getById(titleOrId) : sp.web.lists.getByTitle(titleOrId);
 }
@@ -60,7 +61,7 @@ function normRoleLookupKey(s: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-async function fetchWebRoleDefinitionLookup(sp: ReturnType<typeof getSP>): Promise<Map<string, number>> {
+async function fetchWebRoleDefinitionLookup(sp: SPFI): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   try {
     const raw = await (sp.web as unknown as { roleDefinitions: { select: (...f: string[]) => { (): Promise<unknown> } } })
@@ -140,8 +141,7 @@ function roleDefinitionBindingIds(ra: Record<string, unknown>): number[] {
   return out;
 }
 
-async function clearAllRoleAssignments(listTitleOrId: string, itemId: number): Promise<void> {
-  const sp = getSP();
+async function clearAllRoleAssignments(listTitleOrId: string, itemId: number, sp: SPFI = getSP()): Promise<void> {
   const item = listRef(sp, listTitleOrId).items.getById(itemId) as unknown as {
     roleAssignments: {
       expand: (s: string) => { (): Promise<Record<string, unknown>[]> };
@@ -180,9 +180,9 @@ async function applyUniquePermissionsToListItem(
   pb: IFormManagerPermissionBreakConfig,
   principalRolePairs: { principalId: number; roleDefId: number }[],
   authorIdHint?: number,
-  siteRoleLookup?: Map<string, number>
+  siteRoleLookup?: Map<string, number>,
+  sp: SPFI = getSP()
 ): Promise<void> {
-  const sp = getSP();
   const itemAny = listRef(sp, listTitleOrId).items.getById(itemId) as unknown as {
     select: (...f: string[]) => { (): Promise<{ HasUniqueRoleAssignments?: boolean; AuthorId?: number }> };
     breakRoleInheritance: (copy: boolean, clearSubscopes?: boolean) => Promise<unknown>;
@@ -193,7 +193,7 @@ async function applyUniquePermissionsToListItem(
   if (meta.HasUniqueRoleAssignments !== true) {
     await itemAny.breakRoleInheritance(copy, false);
   }
-  await clearAllRoleAssignments(listTitleOrId, itemId);
+  await clearAllRoleAssignments(listTitleOrId, itemId, sp);
   const authorNum =
     typeof authorIdHint === 'number' && isFinite(authorIdHint) && authorIdHint > 0
       ? authorIdHint
@@ -227,9 +227,9 @@ async function applyUniquePermissionsToListItemAttachments(
   pb: IFormManagerPermissionBreakConfig,
   pairs: IApplyPermissionBreakPrincipalPair[],
   onProgress?: (detail: string) => void,
-  siteRoleLookup?: Map<string, number>
+  siteRoleLookup?: Map<string, number>,
+  sp: SPFI = getSP()
 ): Promise<void> {
-  const sp = getSP();
   const item = listRef(sp, listTitleOrId).items.getById(itemId) as unknown as {
     attachmentFiles: { (): Promise<unknown> };
   };
@@ -257,7 +257,8 @@ async function applyUniquePermissionsToListItemAttachments(
         pb,
         pairs,
         isFinite(auth) && auth > 0 ? auth : undefined,
-        siteRoleLookup
+        siteRoleLookup,
+        sp
       );
     } catch {
       /* */
@@ -349,9 +350,9 @@ async function applyToLibraryItemsByLookup(
   pb: IFormManagerPermissionBreakConfig,
   pairs: IApplyPermissionBreakPrincipalPair[],
   onProgress?: (detail: string) => void,
-  siteRoleLookup?: Map<string, number>
+  siteRoleLookup?: Map<string, number>,
+  sp: SPFI = getSP()
 ): Promise<void> {
-  const sp = getSP();
   const libLabel = libraryTitle.trim();
   onProgress?.(`Quebra · biblioteca «${libLabel}» · item-ligação ${lookupNumericId}`);
   const folderRefs = await collectLibraryFolderListItemIdsUnderItemFolder(libraryTitle, lookupNumericId);
@@ -364,7 +365,8 @@ async function applyToLibraryItemsByLookup(
       pb,
       pairs,
       fr.authorId,
-      siteRoleLookup
+      siteRoleLookup,
+      sp
     );
   }
   const fld = `${lookupFieldInternalName.trim()}Id`;
@@ -390,7 +392,8 @@ async function applyToLibraryItemsByLookup(
       pb,
       pairs,
       isFinite(aid) && aid > 0 ? aid : undefined,
-      siteRoleLookup
+      siteRoleLookup,
+      sp
     );
   }
 }
@@ -398,6 +401,7 @@ async function applyToLibraryItemsByLookup(
 export interface IApplyFormPermissionBreakInput {
   formManager: IFormManagerConfig;
   listTitle: string;
+  mainListWebServerRelativeUrl?: string;
   mainItemId: number;
   mainValues: Record<string, unknown>;
   mainAuthorId?: number;
@@ -413,8 +417,9 @@ export async function applyFormManagerPermissionBreak(input: IApplyFormPermissio
   const targets = pb.targets ?? { mainListItem: true };
   const roleIdCache = new Map<string, number>();
   const prog = input.onProgress;
-  const sp = getSP();
-  const siteRoleLookup = await fetchWebRoleDefinitionLookup(sp);
+  const spDefault = getSP();
+  const spMain = getSPForWeb(input.mainListWebServerRelativeUrl);
+  const siteRoleLookup = await fetchWebRoleDefinitionLookup(spMain);
 
   if (targets.mainListItem !== false) {
     const pairs = await buildPrincipalRolePairs(
@@ -430,7 +435,8 @@ export async function applyFormManagerPermissionBreak(input: IApplyFormPermissio
       pb,
       pairs,
       input.mainAuthorId,
-      siteRoleLookup
+      siteRoleLookup,
+      spMain
     );
     if (input.formManager.attachmentStorageKind === 'itemAttachments') {
       await applyUniquePermissionsToListItemAttachments(
@@ -439,7 +445,8 @@ export async function applyFormManagerPermissionBreak(input: IApplyFormPermissio
         pb,
         pairs,
         prog,
-        siteRoleLookup
+        siteRoleLookup,
+        spMain
       );
     }
   }
@@ -465,9 +472,9 @@ export async function applyFormManagerPermissionBreak(input: IApplyFormPermissio
       const lt = cfg.listTitle.trim();
       if (!lt) continue;
       prog?.(`Quebra · vinculada «${lt}» · item ${sid}`);
-      await applyUniquePermissionsToListItem(lt, sid, pb, pairs, undefined, siteRoleLookup);
+      await applyUniquePermissionsToListItem(lt, sid, pb, pairs, undefined, siteRoleLookup, spDefault);
       if (cfg.childAttachmentStorageKind === 'itemAttachments') {
-        await applyUniquePermissionsToListItemAttachments(lt, sid, pb, pairs, prog, siteRoleLookup);
+        await applyUniquePermissionsToListItemAttachments(lt, sid, pb, pairs, prog, siteRoleLookup, spDefault);
       }
     }
   }
@@ -483,7 +490,7 @@ export async function applyFormManagerPermissionBreak(input: IApplyFormPermissio
         roleIdCache,
         siteRoleLookup
       );
-      await applyToLibraryItemsByLookup(lt, lk, input.mainItemId, pb, pairs, prog, siteRoleLookup);
+      await applyToLibraryItemsByLookup(lt, lk, input.mainItemId, pb, pairs, prog, siteRoleLookup, spMain);
     }
   }
 
@@ -513,7 +520,7 @@ export async function applyFormManagerPermissionBreak(input: IApplyFormPermissio
           siteRoleLookup
         );
         prog?.(`Quebra · biblioteca (linha filha) «${lt}» · ligação ${sid}`);
-        await applyToLibraryItemsByLookup(lt, lk, sid, pb, pairs, prog, siteRoleLookup);
+        await applyToLibraryItemsByLookup(lt, lk, sid, pb, pairs, prog, siteRoleLookup, spDefault);
       }
     }
   }

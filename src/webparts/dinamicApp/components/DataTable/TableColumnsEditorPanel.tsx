@@ -63,6 +63,7 @@ interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
   mode: TViewMode;
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   listView: IListViewConfig;
   pagination: IPaginationConfig;
   projectManagement?: IProjectManagementConfig;
@@ -322,6 +323,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   isOpen,
   mode,
   listTitle,
+  listWebServerRelativeUrl,
   listView,
   pagination,
   projectManagement,
@@ -329,6 +331,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   onSave,
   onDismiss,
 }) => {
+  const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [activeTab, setActiveTab] = useState<string>('lista');
   const [layoutSubTab, setLayoutSubTab] = useState<string>('geral');
   const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
@@ -393,7 +396,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setLoading(true);
     setLookupListFields({});
     fieldsService
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), lw)
       .then((f) => {
         const configured = listView.columns ?? [];
         const effectiveColumns =
@@ -407,7 +410,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         const uniqueIds = listIds.filter((id, i) => listIds.indexOf(id) === i);
         return Promise.all(
           uniqueIds.map((id) =>
-            fieldsService.getFields(id).then((fields) => ({ id, fields }))
+            fieldsService.getFields(id, lw).then((fields) => ({ id, fields }))
           )
         );
       })
@@ -417,7 +420,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         setLookupListFields((prev) => ({ ...prev, ...next }));
       })
       .then(() => setLoading(false), () => setLoading(false));
-  }, [isOpen, listTitle]);
+  }, [isOpen, listTitle, lw]);
 
   useEffect(() => {
     if (!isOpen) {

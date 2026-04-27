@@ -67,7 +67,7 @@ interface IChartViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   refreshKey?: number;
-  onEditSeries: () => void;
+  onEditSeries?: () => void;
   onSeriesClick?: (series: IChartSeriesConfig) => void;
   selectedSeriesId?: string | null;
   showListFilterHint?: boolean;
@@ -97,8 +97,12 @@ export const ChartView: React.FC<IChartViewProps> = ({
   useEffect(() => {
     if (!dataSource.title.trim()) return;
     setFieldMetadata(undefined);
-    fieldsService.getVisibleFields(dataSource.title).then(setFieldMetadata).catch(() => setFieldMetadata([]));
-  }, [dataSource.title]);
+    const lw = dataSource.webServerRelativeUrl?.trim() || undefined;
+    fieldsService
+      .getVisibleFields(dataSource.title, lw)
+      .then(setFieldMetadata)
+      .catch(() => setFieldMetadata([]));
+  }, [dataSource.title, dataSource.webServerRelativeUrl]);
 
   useEffect(() => {
     const series = config.chartSeries ?? [];
@@ -166,13 +170,15 @@ export const ChartView: React.FC<IChartViewProps> = ({
         <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
           Dashboard
         </Text>
-        <ActionButton
-          iconProps={{ iconName: 'Edit' }}
-          onClick={onEditSeries}
-          styles={{ root: { height: 28, color: '#0078d4' } }}
-        >
-          Editar séries
-        </ActionButton>
+        {onEditSeries !== undefined && (
+          <ActionButton
+            iconProps={{ iconName: 'Edit' }}
+            onClick={onEditSeries}
+            styles={{ root: { height: 28, color: '#0078d4' } }}
+          >
+            Editar séries
+          </ActionButton>
+        )}
       </Stack>
 
       {chartState.error !== undefined && (
@@ -194,9 +200,11 @@ export const ChartView: React.FC<IChartViewProps> = ({
           <Text variant="medium" styles={{ root: { color: '#a19f9d', display: 'block', marginBottom: 12 } }}>
             Nenhuma série configurada ainda.
           </Text>
-          <ActionButton iconProps={{ iconName: 'Add' }} onClick={onEditSeries} styles={{ root: { color: '#0078d4' } }}>
-            Adicionar série
-          </ActionButton>
+          {onEditSeries !== undefined && (
+            <ActionButton iconProps={{ iconName: 'Add' }} onClick={onEditSeries} styles={{ root: { color: '#0078d4' } }}>
+              Adicionar série
+            </ActionButton>
+          )}
         </div>
       )}
 

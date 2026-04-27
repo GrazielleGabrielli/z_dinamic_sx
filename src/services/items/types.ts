@@ -10,6 +10,7 @@ export interface IItemsQueryOptions {
   orderBy?: { field: string; ascending: boolean };
   top?: number;
   skip?: number;
+  webServerRelativeUrl?: string;
   /** Metadados da lista: ao preencher, select/expand são normalizados para lookup/user/lookupmulti/usermulti */
   fieldMetadata?: IFieldMetadata[];
 }

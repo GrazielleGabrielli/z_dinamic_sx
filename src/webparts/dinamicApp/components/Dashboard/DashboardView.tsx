@@ -14,8 +14,8 @@ interface IDashboardViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   refreshKey?: number;
-  onEditCards: (blockId: string) => void;
-  onEditSeries: (blockId: string) => void;
+  onEditCards?: (blockId: string) => void;
+  onEditSeries?: (blockId: string) => void;
   onSwitchToCharts?: (blockId: string) => void;
   onCardClick?: (card: IDashboardCardConfig, blockId: string) => void;
   selectedCardId?: string | null;
@@ -45,7 +45,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         config={config}
         dataSource={dataSource}
         refreshKey={refreshKey}
-        onEditSeries={() => onEditSeries(dashboardBlockId)}
+        onEditSeries={onEditSeries !== undefined ? () => onEditSeries(dashboardBlockId) : undefined}
         onSeriesClick={
           onSeriesClick !== undefined ? (s) => onSeriesClick(s, dashboardBlockId) : undefined
         }
@@ -67,8 +67,12 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   useEffect(() => {
     if (!dataSource.title.trim()) return;
     setFieldMetadata(undefined);
-    fieldsService.getVisibleFields(dataSource.title).then(setFieldMetadata).catch(() => setFieldMetadata([]));
-  }, [dataSource.title]);
+    const lw = dataSource.webServerRelativeUrl?.trim() || undefined;
+    fieldsService
+      .getVisibleFields(dataSource.title, lw)
+      .then(setFieldMetadata)
+      .catch(() => setFieldMetadata([]));
+  }, [dataSource.title, dataSource.webServerRelativeUrl]);
 
   useEffect(() => {
     setResults(engine.buildLoadingResults(config));
@@ -120,13 +124,15 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
               Gráficos
             </ActionButton>
           )}
-          <ActionButton
-            iconProps={{ iconName: 'Edit' }}
-            onClick={() => onEditCards(dashboardBlockId)}
-            styles={{ root: { height: 28, color: '#0078d4' } }}
-          >
-            Editar cards
-          </ActionButton>
+          {onEditCards !== undefined && (
+            <ActionButton
+              iconProps={{ iconName: 'Edit' }}
+              onClick={() => onEditCards(dashboardBlockId)}
+              styles={{ root: { height: 28, color: '#0078d4' } }}
+            >
+              Editar cards
+            </ActionButton>
+          )}
         </Stack>
       </Stack>
 

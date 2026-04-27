@@ -91,7 +91,7 @@ import {
 } from '../../core/formManager/formActionLog';
 import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
 import { ItemsService, UsersService } from '../../../../services';
-import { getSP } from '../../../../services/core/sp';
+import { getSP, getSPForWeb } from '../../../../services/core/sp';
 import {
   isFormAttachmentLibraryRuntime,
   uploadFilesToAttachmentLibrary,
@@ -163,6 +163,7 @@ function validateValueCharLimitHint(
 
 export interface IDynamicListFormProps {
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   formManager: IFormManagerConfig;
   fieldMetadata: IFieldMetadata[];
   formMode: TFormManagerFormMode;
@@ -189,7 +190,8 @@ async function uploadListItemAttachments(
   formManager: IFormManagerConfig,
   itemFieldValues: Record<string, unknown>,
   filesByFolderNodeId?: Record<string, File[]>,
-  onUploadProgress?: (info: { folderLabel: string; fileName: string }) => void
+  onUploadProgress?: (info: { folderLabel: string; fileName: string }) => void,
+  listWebServerRelativeUrl?: string
 ): Promise<void> {
   const hasFolderBuckets =
     !!filesByFolderNodeId && Object.keys(filesByFolderNodeId).some((k) => filesByFolderNodeId[k].length > 0);
@@ -222,7 +224,7 @@ async function uploadListItemAttachments(
     );
     return;
   }
-  const sp = getSP();
+  const sp = getSPForWeb(listWebServerRelativeUrl);
   const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(listTitle);
   const list = isGuid ? sp.web.lists.getById(listTitle) : sp.web.lists.getByTitle(listTitle);
   const item = list.items.getById(itemId) as unknown as {
@@ -848,6 +850,7 @@ const FormChromeZone: React.FC<IFormChromeZoneProps> = ({ zone, fields, renderFi
 
 export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   listTitle,
+  listWebServerRelativeUrl,
   formManager,
   fieldMetadata,
   formMode,
@@ -860,6 +863,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   onDismiss,
   onAfterItemUpdated,
 }) => {
+  const listWeb = listWebServerRelativeUrl?.trim() || undefined;
   const theme = useTheme();
   const stepAccentHex = useMemo(
     () => resolveStepUiAccentColor(theme, formManager.stepAccentPaletteSlot),
@@ -906,7 +910,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     itemId !== null &&
     typeof itemId === 'number' &&
     isFinite(itemId)
-      ? `${listTitle}\t${itemId}\t${formMode}`
+      ? `${listTitle}\t${listWebServerRelativeUrl ?? ''}\t${itemId}\t${formMode}`
       : '';
   if (setComputedItemOpenKey !== setComputedExprSnapRef.current.openKey) {
     const snap: Record<string, string> = {};
@@ -1456,6 +1460,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           select: ['Id', m.LookupField || 'Title'],
           filter,
           top: 200,
+          ...(listWeb ? { webServerRelativeUrl: listWeb } : {}),
         });
         const lf = m.LookupField || 'Title';
         const opts: IDropdownOption[] = [
@@ -1470,7 +1475,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setLookupOptions((o) => ({ ...o, [fieldName]: [] }));
       }
     },
-    [itemsService, metaByName]
+    [itemsService, metaByName, listWeb]
   );
 
   const lookupFetchKey = useMemo(() => {
@@ -1665,6 +1670,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       await applyFormManagerPermissionBreak({
         formManager,
         listTitle,
+        mainListWebServerRelativeUrl: listWeb,
         mainItemId: parentId,
         mainValues: { ...valuesForPerm, Id: parentId },
         mainAuthorId: pickMainAuthorId(valuesForPerm, initialItem, currentUserId),
@@ -1673,7 +1679,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         onProgress,
       });
     },
-    [formManager, listTitle, linkedConfigsSorted, initialItem, currentUserId]
+    [formManager, listTitle, listWeb, linkedConfigsSorted, initialItem, currentUserId]
   );
 
   type IValidateFailurePayload = {
@@ -2235,7 +2241,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const { id: newId, filesForAttachments } = await itemsService.addItem(
           listTitle,
           payload,
-          multiFolderAttachmentMode ? flatPendingFiles : pendingFiles
+          multiFolderAttachmentMode ? flatPendingFiles : pendingFiles,
+          listWeb
         );
         if (tl) tl.ok(ti);
         ti++;
@@ -2255,7 +2262,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               ? (info): void => {
                   tl!.setRunningDetail(`Pasta: ${info.folderLabel} · ${info.fileName}`);
                 }
-              : undefined
+              : undefined,
+            listWeb
           );
           if (tl) tl.ok(ti);
           ti++;
@@ -2403,7 +2411,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
-        await itemsService.updateItem(listTitle, itemId, payload);
+        await itemsService.updateItem(listTitle, itemId, payload, listWeb);
         if (tl) tl.ok(ti);
         ti++;
         if (hasPendingAttachments) {
@@ -2422,7 +2430,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               ? (info): void => {
                   tl!.setRunningDetail(`Pasta: ${info.folderLabel} · ${info.fileName}`);
                 }
-              : undefined
+              : undefined,
+            listWeb
           );
           if (tl) tl.ok(ti);
           ti++;
@@ -2542,7 +2551,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
         if (tl) tl.enter(ti);
-        await itemsService.deleteItem(listTitle, itemId);
+        await itemsService.deleteItem(listTitle, itemId, listWeb);
         if (tl) tl.ok(ti);
         ti++;
         if (logWillRun) {

@@ -106,6 +106,7 @@ export interface IChoiceFieldBreakdownModalProps {
   isOpen: boolean;
   onDismiss: () => void;
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   target: TChoiceBreakdownTarget;
   onApply: (items: IDashboardCardConfig[] | IChartSeriesConfig[], mergeMode: 'append' | 'replace') => void;
 }
@@ -114,9 +115,11 @@ export const ChoiceFieldBreakdownModal: React.FC<IChoiceFieldBreakdownModalProps
   isOpen,
   onDismiss,
   listTitle,
+  listWebServerRelativeUrl,
   target,
   onApply,
 }) => {
+  const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [fields, setFields] = useState<IFieldMetadata[]>([]);
@@ -135,7 +138,7 @@ export const ChoiceFieldBreakdownModal: React.FC<IChoiceFieldBreakdownModalProps
     setLoading(true);
     setError(undefined);
     fieldsService
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), lw)
       .then((all) => {
         const choiceFields = all.filter(isChoiceLike);
         setFields(choiceFields);
@@ -147,7 +150,7 @@ export const ChoiceFieldBreakdownModal: React.FC<IChoiceFieldBreakdownModalProps
         setFields([]);
         setLoading(false);
       });
-  }, [isOpen, listTitle, fieldsService]);
+  }, [isOpen, listTitle, lw]);
 
   const dropdownOptions: IDropdownOption[] = useMemo(
     () =>

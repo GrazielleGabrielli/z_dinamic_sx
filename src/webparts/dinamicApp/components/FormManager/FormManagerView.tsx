@@ -7,7 +7,7 @@ import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens'
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { FieldsService, ItemsService, UsersService } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
-import { getSP } from '../../../../services/core/sp';
+import { getSPForWeb } from '../../../../services/core/sp';
 import { DynamicListForm } from './DynamicListForm';
 import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
 import {
@@ -40,7 +40,8 @@ async function uploadAttachments(
   itemId: number,
   files: File[],
   itemFieldValues: Record<string, unknown>,
-  filesByFolderNodeId?: Record<string, File[]>
+  filesByFolderNodeId?: Record<string, File[]>,
+  listWebServerRelativeUrl?: string
 ): Promise<void> {
   const hasBuckets =
     !!filesByFolderNodeId && Object.keys(filesByFolderNodeId).some((k) => filesByFolderNodeId[k].length > 0);
@@ -72,7 +73,7 @@ async function uploadAttachments(
     );
     return;
   }
-  const sp = getSP();
+  const sp = getSPForWeb(listWebServerRelativeUrl);
   const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(listTitle);
   const list = isGuid ? sp.web.lists.getById(listTitle) : sp.web.lists.getByTitle(listTitle);
   const item = list.items.getById(itemId) as unknown as {
@@ -125,6 +126,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     return sanitizeFormManagerConfig(raw) ?? raw;
   }, [config.formManager]);
   const listTitle = config.dataSource.title;
+  const listWeb = config.dataSource.webServerRelativeUrl?.trim() || undefined;
 
   const [fieldMeta, setFieldMeta] = useState<IFieldMetadata[]>([]);
   const [metaLoading, setMetaLoading] = useState(true);
@@ -177,7 +179,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
     if (!listTitle.trim()) return;
     setMetaLoading(true);
     fieldsService
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), listWeb)
       .then((f) => {
         setFieldMeta(f);
         setMetaLoading(false);
@@ -186,7 +188,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         setFieldMeta([]);
         setMetaLoading(false);
       });
-  }, [listTitle, fieldsService]);
+  }, [listTitle, listWeb, fieldsService]);
 
   const loadItemById = useCallback(
     async (itemId: number, modeAfterLoad: TFormManagerFormMode): Promise<void> => {
@@ -199,6 +201,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
           select,
           expand: expand.length ? expand : undefined,
           fieldMetadata: fieldMeta,
+          ...(listWeb ? { webServerRelativeUrl: listWeb } : {}),
         });
         setActiveItem(row);
         setFormMode(modeAfterLoad);
@@ -210,7 +213,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         setItemLoading(false);
       }
     },
-    [listTitle, fieldMeta, fieldNames, itemsService]
+    [listTitle, listWeb, fieldMeta, fieldNames, itemsService]
   );
 
   useEffect(() => {
@@ -250,7 +253,8 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
       const { id, filesForAttachments } = await itemsService.addItem(
         listTitle,
         payload,
-        multiLib ? Object.values(filesByFolderNodeId!).flat() : files
+        multiLib ? Object.values(filesByFolderNodeId!).flat() : files,
+        listWeb
       );
       await uploadAttachments(
         fm,
@@ -258,21 +262,23 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
         id,
         multiLib ? [] : filesForAttachments,
         { ...payload, Id: id },
-        multiLib ? filesByFolderNodeId : undefined
+        multiLib ? filesByFolderNodeId : undefined,
+        listWeb
       );
       resetToNew();
       return id;
     }
     if (formMode === 'edit' && activeItem) {
       const id = Number(activeItem.Id);
-      await itemsService.updateItem(listTitle, id, payload);
+      await itemsService.updateItem(listTitle, id, payload, listWeb);
       await uploadAttachments(
         fm,
         listTitle,
         id,
         multiLib ? [] : files,
         { ...payload, Id: id },
-        multiLib ? filesByFolderNodeId : undefined
+        multiLib ? filesByFolderNodeId : undefined,
+        listWeb
       );
       await loadItemById(id, 'edit');
       return id;
@@ -320,6 +326,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
           <DynamicListForm
             key={formKey}
             listTitle={listTitle}
+            listWebServerRelativeUrl={listWeb}
             formManager={fm}
             fieldMetadata={fieldMeta}
             formMode={formMode}

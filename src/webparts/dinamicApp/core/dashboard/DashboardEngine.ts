@@ -93,7 +93,14 @@ export class DashboardEngine {
     try {
       const effectiveFilters = card.filters && card.filters.length > 0 ? card.filters : (card.filter ? [card.filter] : []);
       const filterStr = this.buildFilterString(effectiveFilters, dynamicContext);
-      const baseOptions = { filter: filterStr, top: 5000, fieldMetadata };
+      const baseOptions = {
+        filter: filterStr,
+        top: 5000,
+        fieldMetadata,
+        ...(dataSource.webServerRelativeUrl?.trim()
+          ? { webServerRelativeUrl: dataSource.webServerRelativeUrl.trim() }
+          : {}),
+      };
 
       if (card.aggregate === 'count') {
         const items = await this.itemsService.getItems(dataSource.title, {
@@ -152,7 +159,14 @@ export class DashboardEngine {
     try {
       const effectiveFilters = series.filters && series.filters.length > 0 ? series.filters : (series.filter ? [series.filter] : []);
       const filterStr = this.buildFilterString(effectiveFilters, dynamicContext);
-      const baseOptions = { filter: filterStr, top: 5000, fieldMetadata };
+      const baseOptions = {
+        filter: filterStr,
+        top: 5000,
+        fieldMetadata,
+        ...(dataSource.webServerRelativeUrl?.trim()
+          ? { webServerRelativeUrl: dataSource.webServerRelativeUrl.trim() }
+          : {}),
+      };
 
       if (series.aggregate === 'count') {
         const items = await this.itemsService.getItems(dataSource.title, {

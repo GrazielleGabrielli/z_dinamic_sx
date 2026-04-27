@@ -48,6 +48,7 @@ function scopeTableCssByInstance(css: string, scopeClass: string): string {
 export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilters, instanceScopeId }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
+  const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
 
   const tableConfigFromList = useMemo(() => listViewToTableConfig(listView), [listView]);
   const initialTableConfig = useMemo(
@@ -129,8 +130,11 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   useEffect(() => {
     if (!listTitle.trim()) return;
     setFieldMetadata(undefined);
-    fieldsService.getVisibleFields(listTitle).then(setFieldMetadata).catch(() => setFieldMetadata([]));
-  }, [listTitle]);
+    fieldsService
+      .getVisibleFields(listTitle, listWeb)
+      .then(setFieldMetadata)
+      .catch(() => setFieldMetadata([]));
+  }, [listTitle, listWeb]);
 
   useEffect(() => {
     if (!fieldMetadata) return;
@@ -157,9 +161,9 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   const pageSize = pagination?.enabled ? pagination.pageSize : 100;
 
   const pagingResetKey = useMemo(() => {
-    if (!tableConfig) return `pending|${listTitle}`;
+    if (!tableConfig) return `pending|${listTitle}|${listWeb ?? ''}`;
     const columns = engine.getVisibleColumns(tableConfig);
-    if (columns.length === 0) return `empty|${listTitle}`;
+    if (columns.length === 0) return `empty|${listTitle}|${listWeb ?? ''}`;
     const columnFilterStr = buildColumnFilterString(columnFilters);
     const listViewWithMode = { ...listView, activeViewModeId: selectedViewModeId };
     const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
@@ -172,6 +176,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
     const colsKey = columns.map((c) => c.internalName).join(',');
     return [
       listTitle,
+      listWeb ?? '',
       String(pageSize),
       sortPart,
       colsKey,
@@ -182,6 +187,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
     ].join('||');
   }, [
     listTitle,
+    listWeb,
     pageSize,
     effectiveSort?.field,
     effectiveSort?.direction,
@@ -232,6 +238,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
       orderBy: request.orderBy,
       filter: request.filter,
       fieldMetadata,
+      ...(listWeb ? { webServerRelativeUrl: listWeb } : {}),
     };
 
     const afterLastItemId =
@@ -260,6 +267,7 @@ export const TableView: React.FC<ITableViewProps> = ({ config, dashboardListFilt
   }, [
     itemsService,
     listTitle,
+    listWeb,
     tableConfig,
     effectiveSort,
     pageSize,

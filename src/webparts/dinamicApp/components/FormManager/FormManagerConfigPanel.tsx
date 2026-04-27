@@ -646,6 +646,7 @@ function buildStepNavigationForSave(
 export interface IFormManagerConfigPanelProps {
   isOpen: boolean;
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   value: IFormManagerConfig;
   onSave: (next: IFormManagerConfig) => void;
   onDismiss: () => void;
@@ -654,10 +655,12 @@ export interface IFormManagerConfigPanelProps {
 export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   isOpen,
   listTitle,
+  listWebServerRelativeUrl,
   value,
   onSave,
   onDismiss,
 }) => {
+  const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [fields, setFields] = useState<IFormFieldConfig[]>(() => buildInitialFieldsAndSteps(value).fields);
   const [rules, setRules] = useState<TFormRule[]>(() => value.rules ?? []);
   const [steps, setSteps] = useState<IFormStepConfig[]>(() => buildInitialFieldsAndSteps(value).steps);
@@ -982,13 +985,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     if (!isOpen || !listTitle.trim()) return;
     setLoading(true);
     fieldsService
-      .getVisibleFields(listTitle.trim())
+      .getVisibleFields(listTitle.trim(), lw)
       .then((f) => {
         setMeta(f);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [isOpen, listTitle, fieldsService]);
+  }, [isOpen, listTitle, lw]);
 
   const loadSiteGroups = useCallback((): void => {
     setSiteGroupsErr(undefined);

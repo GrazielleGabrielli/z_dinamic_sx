@@ -4,6 +4,7 @@ import type { TFormStepLayoutKind } from '../../core/config/types/formManager';
 export interface IWizardFormState {
   kind: TSourceKind;
   title: string;
+  dataSourceWebServerRelativeUrl?: string;
   mode: TViewMode;
   dashboardEnabled: boolean;
   dashboardType: TDashboardType;
@@ -26,6 +27,7 @@ const DEFAULT_VIEW_MODES: IListViewModeConfig[] = [
 export const WIZARD_INITIAL_STATE: IWizardFormState = {
   kind: 'list',
   title: '',
+  dataSourceWebServerRelativeUrl: undefined,
   mode: 'list',
   dashboardEnabled: false,
   dashboardType: 'cards',
@@ -51,6 +53,7 @@ export function configToWizardState(config: IDynamicViewConfig): IWizardFormStat
   return {
     kind: config.dataSource.kind,
     title: config.dataSource.title,
+    dataSourceWebServerRelativeUrl: config.dataSource.webServerRelativeUrl,
     mode: config.mode,
     dashboardEnabled: config.dashboard.enabled,
     dashboardType: config.dashboard.dashboardType ?? 'cards',

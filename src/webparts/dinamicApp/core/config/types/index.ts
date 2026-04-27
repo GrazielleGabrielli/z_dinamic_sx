@@ -6,6 +6,7 @@ export type TSourceKind = 'list' | 'library';
 export interface IDataSourceConfig {
   kind: TSourceKind;
   title: string;
+  webServerRelativeUrl?: string;
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────

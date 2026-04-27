@@ -39,6 +39,7 @@ const VALID_LOADING_STYLE = ['skeleton', 'spinner', 'text'];
 function isValidDataSource(ds: unknown): ds is IDataSourceConfig {
   if (!ds || typeof ds !== 'object') return false;
   const d = ds as Record<string, unknown>;
+  if (d.webServerRelativeUrl !== undefined && typeof d.webServerRelativeUrl !== 'string') return false;
   return (
     (d.kind === 'list' || d.kind === 'library') &&
     typeof d.title === 'string' &&

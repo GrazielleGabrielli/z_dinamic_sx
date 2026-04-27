@@ -37,6 +37,7 @@ export interface ICardEditorSaveOptions {
 interface ICardEditorPanelProps {
   isOpen: boolean;
   listTitle: string;
+  listWebServerRelativeUrl?: string;
   cards: IDashboardCardConfig[];
   cardsCount: number;
   dashboardType: TDashboardType;
@@ -74,6 +75,7 @@ function cardFilterSummary(card: IDashboardCardConfig): string | undefined {
 export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   isOpen,
   listTitle,
+  listWebServerRelativeUrl,
   cards,
   cardsCount,
   dashboardType,
@@ -275,6 +277,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
         isOpen={choiceModalOpen}
         onDismiss={() => setChoiceModalOpen(false)}
         listTitle={listTitle}
+        listWebServerRelativeUrl={listWebServerRelativeUrl}
         target="cards"
         onApply={(items, mergeMode) => {
           const next = items as IDashboardCardConfig[];
@@ -286,6 +289,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
         {view === 'form' && (
           <CardForm
             listTitle={listTitle}
+            listWebServerRelativeUrl={listWebServerRelativeUrl}
             card={getEditingCard()}
             onConfirm={handleConfirmCard}
             onBack={() => setView('list')}

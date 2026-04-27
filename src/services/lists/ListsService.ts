@@ -1,4 +1,4 @@
-import { getSP } from '../core/sp';
+import { getSPForWeb } from '../core/sp';
 import { IListMetadata, IListSummary, ListSourceType } from './types';
 
 const LIST_SELECT = 'Id,Title,BaseTemplate,ItemCount,Description,LastItemModifiedDate,EnableVersioning,Hidden';
@@ -7,11 +7,14 @@ const LIST_SELECT = 'Id,Title,BaseTemplate,ItemCount,Description,LastItemModifie
 const LIBRARY_BASE_TEMPLATE = 101;
 
 export class ListsService {
-  private get sp() { return getSP(); }
+  private webSp(webServerRelativeUrl?: string) {
+    return getSPForWeb(webServerRelativeUrl);
+  }
 
-  async getLists(includeHidden = false): Promise<IListSummary[]> {
+  async getLists(includeHidden = false, webServerRelativeUrl?: string): Promise<IListSummary[]> {
     try {
-      let query = this.sp.web.lists
+      const sp = this.webSp(webServerRelativeUrl);
+      let query = sp.web.lists
         .select('Id', 'Title', 'BaseTemplate', 'Hidden', 'ItemCount');
 
       if (!includeHidden) {
@@ -28,9 +31,10 @@ export class ListsService {
     }
   }
 
-  async getListById(listId: string): Promise<IListMetadata> {
+  async getListById(listId: string, webServerRelativeUrl?: string): Promise<IListMetadata> {
     try {
-      const list = await this.sp.web.lists
+      const sp = this.webSp(webServerRelativeUrl);
+      const list = await sp.web.lists
         .getById(listId)
         .select(LIST_SELECT)();
       return { ...list, IsLibrary: list['BaseTemplate'] === LIBRARY_BASE_TEMPLATE } as IListMetadata;
@@ -39,9 +43,10 @@ export class ListsService {
     }
   }
 
-  async getListByTitle(title: string): Promise<IListMetadata> {
+  async getListByTitle(title: string, webServerRelativeUrl?: string): Promise<IListMetadata> {
     try {
-      const list = await this.sp.web.lists
+      const sp = this.webSp(webServerRelativeUrl);
+      const list = await sp.web.lists
         .getByTitle(title)
         .select(LIST_SELECT)();
       return { ...list, IsLibrary: list['BaseTemplate'] === LIBRARY_BASE_TEMPLATE } as IListMetadata;
@@ -50,12 +55,13 @@ export class ListsService {
     }
   }
 
-  async detectListType(titleOrId: string): Promise<ListSourceType> {
+  async detectListType(titleOrId: string, webServerRelativeUrl?: string): Promise<ListSourceType> {
     try {
+      const sp = this.webSp(webServerRelativeUrl);
       const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
       const baseQuery = isGuid
-        ? this.sp.web.lists.getById(titleOrId)
-        : this.sp.web.lists.getByTitle(titleOrId);
+        ? sp.web.lists.getById(titleOrId)
+        : sp.web.lists.getByTitle(titleOrId);
 
       const list = await baseQuery.select('BaseTemplate')();
 
@@ -67,10 +73,10 @@ export class ListsService {
     }
   }
 
-  async getListMetadata(titleOrId: string): Promise<IListMetadata> {
+  async getListMetadata(titleOrId: string, webServerRelativeUrl?: string): Promise<IListMetadata> {
     const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
     return isGuid
-      ? this.getListById(titleOrId)
-      : this.getListByTitle(titleOrId);
+      ? this.getListById(titleOrId, webServerRelativeUrl)
+      : this.getListByTitle(titleOrId, webServerRelativeUrl);
   }
 }
