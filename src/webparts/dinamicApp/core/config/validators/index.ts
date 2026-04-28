@@ -345,6 +345,8 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     ...(cssSlots ? { customTableCssSlots: cssSlots } : {}),
     ...(typeof lvo.customTableCss === 'string' ? { customTableCss: lvo.customTableCss } : {}),
     ...(typeof lvo.customCardCss === 'string' ? { customCardCss: lvo.customCardCss } : {}),
+    ...(typeof lvo.customFilterCss === 'string' ? { customFilterCss: lvo.customFilterCss } : {}),
+    ...(typeof lvo.customViewModeCss === 'string' ? { customViewModeCss: lvo.customViewModeCss } : {}),
     ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
     ...(listRowActions ? { listRowActions } : {}),
     ...(lvo.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
