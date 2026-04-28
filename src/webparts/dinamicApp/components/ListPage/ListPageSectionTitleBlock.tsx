@@ -53,7 +53,7 @@ export const ListPageSectionTitleBlock: React.FC<IListPageSectionTitleBlockProps
   return (
     <>
       {toolbar}
-      <div style={{ marginTop: mt, marginBottom: mb }}>
+      <div className="dinamicSxSectionTitle" style={{ marginTop: mt, marginBottom: mb }}>
         <div
           style={{
             display: 'flex',

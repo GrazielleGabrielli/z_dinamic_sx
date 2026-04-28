@@ -19,7 +19,7 @@ export const ListPageRichEditorBlock: React.FC<IListPageRichEditorBlockProps> = 
   const showPlaceholder = !safe.trim() && c.placeholder.trim();
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div className="dinamicSxEditor" style={{ marginBottom: 8 }}>
       {onConfigure !== undefined ? (
         <Stack
           horizontal

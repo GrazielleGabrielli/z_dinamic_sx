@@ -67,6 +67,16 @@ function scopeTableCssByInstance(css: string, scopeClass: string): string {
   return css.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`);
 }
 
+function scopeFilterCssByInstance(css: string, scopeClass: string): string {
+  if (!css.trim()) return '';
+  return css.replace(/\.dinamicSxFilter/g, `.${scopeClass} .dinamicSxFilter`);
+}
+
+function scopeViewModeCssByInstance(css: string, scopeClass: string): string {
+  if (!css.trim()) return '';
+  return css.replace(/\.dinamicSxViewMode/g, `.${scopeClass} .dinamicSxViewMode`);
+}
+
 export const TableView: React.FC<ITableViewProps> = ({
   config,
   dashboardListFilters,
@@ -520,20 +530,27 @@ export const TableView: React.FC<ITableViewProps> = ({
       });
     const mtype = meta?.MappedType ?? 'text';
 
+    const wrapperStyle: React.CSSProperties = {
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-start',
+    };
+
     if (mtype === 'choice' || mtype === 'multichoice') {
       const choiceOptions: IDropdownOption[] = [
         { key: '', text: `Todos` },
         ...(meta?.Choices ?? []).map((c) => ({ key: c, text: c })),
       ];
       return (
-        <Dropdown
-          key={fc.field}
-          label={label}
-          selectedKey={val}
-          options={choiceOptions}
-          onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
-          styles={{ root: { minWidth: 160, maxWidth: 240 } }}
-        />
+        <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 160, maxWidth: 240 }}>
+          <Dropdown
+            label={label}
+            selectedKey={val}
+            options={choiceOptions}
+            onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
+            styles={{ root: { display: 'block', margin: 0 } }}
+          />
+        </div>
       );
     }
     if (mtype === 'boolean') {
@@ -543,20 +560,21 @@ export const TableView: React.FC<ITableViewProps> = ({
         { key: 'false', text: 'Não' },
       ];
       return (
-        <Dropdown
-          key={fc.field}
-          label={label}
-          selectedKey={val}
-          options={boolOptions}
-          onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
-          styles={{ root: { minWidth: 120, maxWidth: 180 } }}
-        />
+        <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 120, maxWidth: 180 }}>
+          <Dropdown
+            label={label}
+            selectedKey={val}
+            options={boolOptions}
+            onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
+            styles={{ root: { display: 'block', margin: 0 } }}
+          />
+        </div>
       );
     }
     if (mtype === 'datetime') {
       return (
-        <div key={fc.field} style={{ minWidth: 150, maxWidth: 220 }}>
-          <label style={{ fontSize: 14, fontWeight: 600, color: '#323130', display: 'block', marginBottom: 4 }}>
+        <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 150, maxWidth: 220 }}>
+          <label style={{ fontSize: 14, fontWeight: 600, color: '#323130', display: 'block', padding: '5px 0' }}>
             {label}
           </label>
           <input
@@ -580,14 +598,15 @@ export const TableView: React.FC<ITableViewProps> = ({
       );
     }
     return (
-      <TextField
-        key={fc.field}
-        label={label}
-        value={val}
-        onChange={(_, v) => onChange(v ?? '')}
-        placeholder="Filtrar…"
-        styles={{ root: { minWidth: 140, maxWidth: 220 } }}
-      />
+      <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 140, maxWidth: 220 }}>
+        <TextField
+          label={label}
+          value={val}
+          onChange={(_, v) => onChange(v ?? '')}
+          placeholder="Filtrar…"
+          styles={{ root: { margin: 0 } }}
+        />
+      </div>
     );
   };
 
@@ -605,9 +624,11 @@ export const TableView: React.FC<ITableViewProps> = ({
   const mergedLayoutCssRaw = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
   const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
   const mergedCardCss = scopeCardCssByInstance(listView?.customCardCss ?? '', instanceScopeClass);
+  const mergedFilterCss = scopeFilterCssByInstance(listView?.customFilterCss ?? '', instanceScopeClass);
+  const mergedViewModeCss = scopeViewModeCssByInstance(listView?.customViewModeCss ?? '', instanceScopeClass);
   const tableCustomStyle =
-    mergedLayoutCss.length > 0 || mergedCardCss.length > 0
-      ? <style type="text/css">{[mergedLayoutCss, mergedCardCss].filter(Boolean).join('\n\n')}</style>
+    mergedLayoutCss.length > 0 || mergedCardCss.length > 0 || mergedFilterCss.length > 0 || mergedViewModeCss.length > 0
+      ? <style type="text/css">{[mergedLayoutCss, mergedCardCss, mergedFilterCss, mergedViewModeCss].filter(Boolean).join('\n\n')}</style>
       : null;
 
   const actionContext = dynamicContext ?? { now: new Date() };
@@ -662,7 +683,7 @@ export const TableView: React.FC<ITableViewProps> = ({
         >
           {viewModeOptions.length > 0 &&
             (viewModesAsTabs ? (
-              <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 auto', minWidth: 0 } }}>
+              <Stack className="dinamicSxViewModeBar" tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 auto', minWidth: 0 } }}>
                 <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
                   Visualização
                 </Text>
@@ -678,6 +699,7 @@ export const TableView: React.FC<ITableViewProps> = ({
                   {visibleViewModes.map((m) => (
                     <DefaultButton
                       key={m.id}
+                      className="dinamicSxViewModeTab"
                       role="tab"
                       aria-selected={selectedViewModeId === m.id}
                       primary={selectedViewModeId === m.id}
@@ -689,15 +711,17 @@ export const TableView: React.FC<ITableViewProps> = ({
                 </Stack>
               </Stack>
             ) : (
-              <Dropdown
-                label="Visualização"
-                options={viewModeOptions}
-                selectedKey={selectedViewModeId}
-                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                  if (opt) setSelectedViewModeId(String(opt.key));
-                }}
-                styles={{ root: { maxWidth: 220 } }}
-              />
+              <div className="dinamicSxViewModeBar dinamicSxViewModeDropdown">
+                <Dropdown
+                  label="Visualização"
+                  options={viewModeOptions}
+                  selectedKey={selectedViewModeId}
+                  onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                    if (opt) setSelectedViewModeId(String(opt.key));
+                  }}
+                  styles={{ root: { maxWidth: 220 } }}
+                />
+              </div>
             ))}
           {listCardViewEnabled && (
             <ChoiceGroup
@@ -720,6 +744,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       )}
       {hasTopFilters && (
         <Stack
+          className="dinamicSxFilterBar"
           tokens={{ childrenGap: 8 }}
           styles={{
             root: {
@@ -743,9 +768,9 @@ export const TableView: React.FC<ITableViewProps> = ({
               />
             )}
           </Stack>
-          <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="start">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
             {tableFilterFieldsMeta.map((f) => renderTopFilterControl(f))}
-          </Stack>
+          </div>
         </Stack>
       )}
       {listDisplayMode === 'cards' && listCardViewEnabled ? (

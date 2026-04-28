@@ -307,13 +307,28 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
     </>
   );
 
+  const blocksScopeClass = `dinamicSxLayoutScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const rawBlocksCss = config.listPageLayout?.customBlocksCss ?? '';
+  const scopedBlocksCss = rawBlocksCss.trim()
+    ? rawBlocksCss.replace(/\.dinamicSx/g, `.${blocksScopeClass} .dinamicSx`)
+    : '';
+  const blocksCssTag = scopedBlocksCss
+    ? <style type="text/css">{scopedBlocksCss}</style>
+    : null;
+
   if (layoutPadding) {
     return (
-      <div style={{ padding: layoutPadding, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+      <div className={blocksScopeClass} style={{ padding: layoutPadding, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+        {blocksCssTag}
         {inner}
       </div>
     );
   }
 
-  return inner;
+  return (
+    <div className={blocksScopeClass} style={{ width: '100%' }}>
+      {blocksCssTag}
+      {inner}
+    </div>
+  );
 };

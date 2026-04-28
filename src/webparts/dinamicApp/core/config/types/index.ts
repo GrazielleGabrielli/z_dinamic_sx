@@ -283,6 +283,10 @@ export interface IListViewConfig {
   customTableCss?: string;
   /** CSS aplicado na visualização em cards (seletores .dinamicSxCard*, escopados por instância). */
   customCardCss?: string;
+  /** CSS aplicado na barra de filtros da tabela (seletores .dinamicSxFilterBar, .dinamicSxFilterControl). */
+  customFilterCss?: string;
+  /** CSS aplicado nos modos de visualização (seletores .dinamicSxViewModeBar, .dinamicSxViewModeTab). */
+  customViewModeCss?: string;
   /** Estilo condicional por linha conforme valor de coluna (aba Layout → Regras). */
   tableRowStyleRules?: ITableRowStyleRule[];
   /** Ações por item (ícones e/ou clique na linha/card). Configurado na aba Ações do painel. */
@@ -542,6 +546,8 @@ export interface IListPageLayoutConfig {
    * Apenas valores «Npx» separados por espaços (1 a 4 valores).
    */
   contentPadding?: string;
+  /** CSS aplicado nos blocos da página (.dinamicSxBanner, .dinamicSxEditor, .dinamicSxSectionTitle, .dinamicSxAlert, .dinamicSxButtons). */
+  customBlocksCss?: string;
 }
 
 export type {

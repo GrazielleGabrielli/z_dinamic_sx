@@ -81,6 +81,7 @@ export const ListPageBannerBlock: React.FC<IListPageBannerBlockProps> = ({ banne
 
   const shell = (
     <div
+      className="dinamicSxBanner"
       style={{
         position: 'relative',
         minHeight: h,

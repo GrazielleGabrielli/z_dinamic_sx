@@ -323,7 +323,7 @@ export const ListPageAlertBlock: React.FC<IListPageAlertBlockProps> = ({
   );
 
   return (
-    <Stack tokens={{ childrenGap: 10 }}>
+    <Stack className="dinamicSxAlert" tokens={{ childrenGap: 10 }}>
       {toolbar}
       {countLoading && !dismissed ? (
         <Stack

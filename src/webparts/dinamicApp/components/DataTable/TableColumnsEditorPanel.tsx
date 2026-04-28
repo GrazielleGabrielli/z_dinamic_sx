@@ -353,7 +353,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 }) => {
   const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [activeTab, setActiveTab] = useState<string>('lista');
-  const [layoutSectionOpen, setLayoutSectionOpen] = useState<Partial<Record<'tableCss' | 'rowRules' | 'cardCss', boolean>>>({});
+  const [layoutSectionOpen, setLayoutSectionOpen] = useState<Partial<Record<'tableCss' | 'rowRules' | 'cardCss' | 'filterCss' | 'viewModeCss', boolean>>>({});
   const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<IFieldOption[]>([]);
@@ -370,8 +370,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss)
   );
   const [cardCssText, setCardCssText] = useState<string>(listView.customCardCss ?? '');
+  const [filterCssText, setFilterCssText] = useState<string>(listView.customFilterCss ?? '');
+  const [viewModeCssText, setViewModeCssText] = useState<string>(listView.customViewModeCss ?? '');
   const [layoutColor, setLayoutColor] = useState<string>('#0078d4');
   const [cardColor, setCardColor] = useState<string>('#0078d4');
+  const [filterColor, setFilterColor] = useState<string>('#0078d4');
+  const [viewModeColor, setViewModeColor] = useState<string>('#0078d4');
   const [projectColumns, setProjectColumns] = useState<IProjectManagementColumnConfig[]>(
     projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS
   );
@@ -478,6 +482,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setListDefaultDisplayMode(listView.listDefaultDisplayMode === 'cards' ? 'cards' : 'table');
     setLayoutCssText(mergeCustomTableCss(listView.customTableCssSlots, listView.customTableCss));
     setCardCssText(listView.customCardCss ?? '');
+    setFilterCssText(listView.customFilterCss ?? '');
+    setViewModeCssText(listView.customViewModeCss ?? '');
     setLayoutSectionOpen({});
     setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
@@ -706,6 +712,22 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       return t ? `${t}\n${line}` : line;
     });
   };
+
+  const appendFilterCssColor = (property: 'background' | 'color' | 'border-color'): void => {
+    const line = `${property}: ${filterColor};`;
+    setFilterCssText((prev) => {
+      const t = prev.trim();
+      return t ? `${t}\n${line}` : line;
+    });
+  };
+
+  const appendViewModeCssColor = (property: 'background' | 'color' | 'border-color'): void => {
+    const line = `${property}: ${viewModeColor};`;
+    setViewModeCssText((prev) => {
+      const t = prev.trim();
+      return t ? `${t}\n${line}` : line;
+    });
+  };
   const appendRuleCssColor = (ruleId: string, index: number, property: 'background' | 'color' | 'border-color'): void => {
     const c = ruleColorMap[ruleId] ?? '#0078d4';
     const line = `${property}: ${c};`;
@@ -741,6 +763,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     };
     const cssTrim = layoutCssText.trim();
     const cardCssTrim = cardCssText.trim();
+    const filterCssTrim = filterCssText.trim();
+    const viewModeCssTrim = viewModeCssText.trim();
     const nextProjectColumns = projectColumns
       .map((col, index) => ({
         id: (col.id || `col_${index + 1}`).trim(),
@@ -818,6 +842,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       customTableCssSlots: undefined,
       ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
       ...(cardCssTrim ? { customCardCss: cardCssTrim } : { customCardCss: undefined }),
+      ...(filterCssTrim ? { customFilterCss: filterCssTrim } : { customFilterCss: undefined }),
+      ...(viewModeCssTrim ? { customViewModeCss: viewModeCssTrim } : { customViewModeCss: undefined }),
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
       ...(nextTableFilterFields.length > 0 ? { tableFilterFields: nextTableFilterFields } : { tableFilterFields: undefined }),
@@ -838,6 +864,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     paginationLayout,
     layoutCssText,
     cardCssText,
+    filterCssText,
+    viewModeCssText,
     projectColumns,
     mode,
     projectManagement,
@@ -2001,6 +2029,128 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                           { cls: 'dinamicSxCardLabel', desc: 'Rótulo do campo' },
                           { cls: 'dinamicSxCardValue', desc: 'Valor do campo' },
                           { cls: 'dinamicSxCardActions', desc: 'Área de botões de ação' },
+                        ] as const).map((r) => (
+                          <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}
+                          </Text>
+                        ))}
+                      </Stack>
+                    </Stack>
+                  </ListTabListaCollapse>
+
+                  {/* ── CSS Filtros ── */}
+                  <ListTabListaCollapse
+                    title="CSS dos filtros"
+                    isOpen={layoutSectionOpen.filterCss === true}
+                    onToggle={() => setLayoutSectionOpen((p) => ({ ...p, filterCss: !p.filterCss }))}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+                      Personaliza a barra de filtros. Use os seletores abaixo para estilizar o container e os controles individuais.
+                    </Text>
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      <TextField
+                        label="CSS dos filtros"
+                        multiline
+                        resizable
+                        rows={12}
+                        value={filterCssText}
+                        onChange={(_, v) => setFilterCssText(v ?? '')}
+                        placeholder={
+                          `.dinamicSxFilterBar { background: #f3f2f1; border-radius: 4px; }\n` +
+                          `.dinamicSxFilterControl label { color: #0078d4; font-weight: 700; }\n` +
+                          `.dinamicSxFilterControl input { border-color: #0078d4; }`
+                        }
+                        styles={{ root: { maxWidth: '100%' } }}
+                      />
+                      <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                        <input
+                          type="color"
+                          value={normalizeHexColor(filterColor, '#0078d4')}
+                          onChange={(e) => setFilterColor(e.target.value)}
+                          aria-label="Cor para CSS dos filtros"
+                          style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+                        />
+                        <TextField
+                          label="Cor (hex)"
+                          value={filterColor}
+                          onChange={(_, v) => setFilterColor((v ?? '').trim() || '#000000')}
+                          styles={{ root: { width: 130 } }}
+                        />
+                        <DefaultButton text="Inserir background" onClick={() => appendFilterCssColor('background')} />
+                        <DefaultButton text="Inserir color" onClick={() => appendFilterCssColor('color')} />
+                        <DefaultButton text="Inserir border-color" onClick={() => appendFilterCssColor('border-color')} />
+                      </Stack>
+                      <Stack
+                        tokens={{ childrenGap: 4 }}
+                        styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8' } }}
+                      >
+                        {([
+                          { cls: 'dinamicSxFilterBar', desc: 'Container da barra de filtros' },
+                          { cls: 'dinamicSxFilterControl', desc: 'Wrapper de cada controle (label + input)' },
+                          { cls: 'dinamicSxFilterControl label', desc: 'Label do controle' },
+                          { cls: 'dinamicSxFilterControl input', desc: 'Input de texto / data' },
+                          { cls: 'dinamicSxFilterControl .ms-Dropdown', desc: 'Dropdown (choice / boolean)' },
+                        ] as const).map((r) => (
+                          <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}
+                          </Text>
+                        ))}
+                      </Stack>
+                    </Stack>
+                  </ListTabListaCollapse>
+
+                  {/* ── CSS Modos de Visualização ── */}
+                  <ListTabListaCollapse
+                    title="CSS dos modos de visualização"
+                    isOpen={layoutSectionOpen.viewModeCss === true}
+                    onToggle={() => setLayoutSectionOpen((p) => ({ ...p, viewModeCss: !p.viewModeCss }))}
+                  >
+                    <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+                      Estiliza a barra de modos de visualização (abas e dropdown). Use os seletores abaixo.
+                    </Text>
+                    <Stack tokens={{ childrenGap: 8 }}>
+                      <TextField
+                        label="CSS dos modos de visualização"
+                        multiline
+                        resizable
+                        rows={12}
+                        value={viewModeCssText}
+                        onChange={(_, v) => setViewModeCssText(v ?? '')}
+                        placeholder={
+                          `.dinamicSxViewModeBar { background: #f3f2f1; padding: 8px; border-radius: 4px; }\n` +
+                          `.dinamicSxViewModeTab { border-radius: 4px; }\n` +
+                          `.dinamicSxViewModeTab[aria-selected="true"] { background: #0078d4; color: #fff; }`
+                        }
+                        styles={{ root: { maxWidth: '100%' } }}
+                      />
+                      <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                        <input
+                          type="color"
+                          value={normalizeHexColor(viewModeColor, '#0078d4')}
+                          onChange={(e) => setViewModeColor(e.target.value)}
+                          aria-label="Cor para CSS dos modos de visualização"
+                          style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+                        />
+                        <TextField
+                          label="Cor (hex)"
+                          value={viewModeColor}
+                          onChange={(_, v) => setViewModeColor((v ?? '').trim() || '#000000')}
+                          styles={{ root: { width: 130 } }}
+                        />
+                        <DefaultButton text="Inserir background" onClick={() => appendViewModeCssColor('background')} />
+                        <DefaultButton text="Inserir color" onClick={() => appendViewModeCssColor('color')} />
+                        <DefaultButton text="Inserir border-color" onClick={() => appendViewModeCssColor('border-color')} />
+                      </Stack>
+                      <Stack
+                        tokens={{ childrenGap: 4 }}
+                        styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8' } }}
+                      >
+                        {([
+                          { cls: 'dinamicSxViewModeBar', desc: 'Container da barra de modos (abas ou dropdown)' },
+                          { cls: 'dinamicSxViewModeTab', desc: 'Cada botão de aba' },
+                          { cls: 'dinamicSxViewModeTab[aria-selected="true"]', desc: 'Aba ativa' },
+                          { cls: 'dinamicSxViewModeDropdown', desc: 'Dropdown de modos de visualização' },
+                          { cls: 'dinamicSxViewModeDropdown .ms-Dropdown', desc: 'Controle interno do dropdown' },
                         ] as const).map((r) => (
                           <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
                             <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}

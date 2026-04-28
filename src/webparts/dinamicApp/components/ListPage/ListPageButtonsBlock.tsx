@@ -81,7 +81,7 @@ export const ListPageButtonsBlock: React.FC<IListPageButtonsBlockProps> = ({
   return (
     <>
       {toolbar}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap, justifyContent: align, alignItems: 'center', ...containerStyle }}>
+      <div className="dinamicSxButtons" style={{ display: 'flex', flexWrap: 'wrap', gap, justifyContent: align, alignItems: 'center', ...containerStyle }}>
         {items.map((it) => {
           const btnStyle = parseCssToStyle(it.css);
           const iconProps = it.iconName ? { iconName: it.iconName } : undefined;

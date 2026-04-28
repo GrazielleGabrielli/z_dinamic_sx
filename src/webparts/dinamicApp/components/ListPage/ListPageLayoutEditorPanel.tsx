@@ -180,7 +180,8 @@ function ListPageLayoutCollapse(props: {
 function finalizeListPageLayoutForSave(
   sections: IListPageSection[],
   rootDashboard: IDashboardConfig,
-  contentPaddingInput: string
+  contentPaddingInput: string,
+  blocksCssInput = ''
 ): IListPageLayoutConfig {
   const cleaned: IListPageSection[] = [];
   for (let i = 0; i < sections.length; i++) {
@@ -219,15 +220,18 @@ function finalizeListPageLayoutForSave(
     cleaned.push({ id: newId('sec'), layout: 'one', columns: [[{ id: newId('blk'), type: 'list' }]] });
   }
   const pad = sanitizeListPageContentPadding(contentPaddingInput);
+  const blocksCss = blocksCssInput.trim();
   const base: IListPageLayoutConfig = {
     sections: cleaned,
     ...(pad ? { contentPadding: pad } : {}),
+    ...(blocksCss ? { customBlocksCss: blocksCss } : {}),
   };
   return normalizeListPageLayoutDashboards(base, rootDashboard);
 }
 
 function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
   const pad = v.contentPadding?.trim();
+  const blocksCss = v.customBlocksCss?.trim();
   return {
     sections: v.sections.map((s) => {
       const columnsMerged = mergeExtraListPageColumnsIntoLayout(s.layout, s.columns.map((col) => col.slice()));
@@ -256,6 +260,7 @@ function cloneLayout(v: IListPageLayoutConfig): IListPageLayoutConfig {
     };
     }),
     ...(pad ? { contentPadding: pad } : {}),
+    ...(blocksCss ? { customBlocksCss: blocksCss } : {}),
   };
 }
 
@@ -278,11 +283,16 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [paddingOpen, setPaddingOpen] = useState(false);
+  const [blocksCssOpen, setBlocksCssOpen] = useState(false);
   const [contentPadding, setContentPadding] = useState('');
+  const [blocksCssText, setBlocksCssText] = useState('');
+  const [blocksCssColor, setBlocksCssColor] = useState('#0078d4');
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({});
   const openedRef = useRef(false);
   const contentPaddingRef = useRef(contentPadding);
   contentPaddingRef.current = contentPadding;
+  const blocksCssTextRef = useRef(blocksCssText);
+  blocksCssTextRef.current = blocksCssText;
 
   useEffect(() => {
     if (!isOpen) {
@@ -294,14 +304,15 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       const nextSections = cloneLayout(value).sections;
       setSections(nextSections);
       setContentPadding(value.contentPadding ?? '');
+      setBlocksCssText(value.customBlocksCss ?? '');
       setSectionOpen({});
       setHelpOpen(false);
     }
   }, [isOpen, value]);
 
   const layoutJsonPreview = useMemo(
-    () => JSON.stringify(finalizeListPageLayoutForSave(sections, rootDashboard, contentPadding), null, 2),
-    [sections, rootDashboard, contentPadding]
+    () => JSON.stringify(finalizeListPageLayoutForSave(sections, rootDashboard, contentPadding, blocksCssText), null, 2),
+    [sections, rootDashboard, contentPadding, blocksCssText]
   );
   const layoutJsonPreviewRef = useRef(layoutJsonPreview);
   layoutJsonPreviewRef.current = layoutJsonPreview;
@@ -324,10 +335,12 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       const next = finalizeListPageLayoutForSave(
         sanitized.sections,
         rootDashboard,
-        sanitized.contentPadding ?? ''
+        sanitized.contentPadding ?? '',
+        sanitized.customBlocksCss ?? ''
       );
       setSections(next.sections);
       setContentPadding(next.contentPadding ?? '');
+      setBlocksCssText(next.customBlocksCss ?? '');
       setSectionOpen({});
       setJsonPanelText(JSON.stringify(next, null, 2));
     } catch (e) {
@@ -446,7 +459,7 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   };
 
   const handleSave = (): void => {
-    onSave(finalizeListPageLayoutForSave(sections, rootDashboard, contentPadding));
+    onSave(finalizeListPageLayoutForSave(sections, rootDashboard, contentPadding, blocksCssText));
     onDismiss();
   };
 
@@ -560,6 +573,74 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
             placeholder="ex.: 16px 24px"
             description="Formato CSS: vertical e horizontal (ex. 16px 24px). Opcional: até 4 valores «Npx» separados por espaços."
           />
+        </ListPageLayoutCollapse>
+
+        <ListPageLayoutCollapse title="CSS dos componentes" isOpen={blocksCssOpen} onToggle={() => setBlocksCssOpen((v) => !v)}>
+          <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
+            Estiliza os blocos da página usando as classes abaixo. O CSS é escopado por instância.
+          </Text>
+          <Stack tokens={{ childrenGap: 8 }}>
+            <TextField
+              label="CSS dos componentes"
+              multiline
+              resizable
+              rows={12}
+              value={blocksCssText}
+              onChange={(_, v) => setBlocksCssText(v ?? '')}
+              placeholder={
+                `.dinamicSxBanner { border-radius: 12px; }\n` +
+                `.dinamicSxSectionTitle { border-left: 4px solid #0078d4; padding-left: 12px; }\n` +
+                `.dinamicSxAlert { box-shadow: none; }\n` +
+                `.dinamicSxButtons .ms-Button { border-radius: 20px; }\n` +
+                `.dinamicSxEditor { background: #faf9f8; }`
+              }
+              styles={{ root: { maxWidth: '100%' } }}
+            />
+            <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+              <input
+                type="color"
+                value={blocksCssColor}
+                onChange={(e) => setBlocksCssColor(e.target.value)}
+                aria-label="Cor para CSS dos componentes"
+                style={{ width: 40, height: 32, border: '1px solid #edebe9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+              />
+              <TextField
+                label="Cor (hex)"
+                value={blocksCssColor}
+                onChange={(_, v) => setBlocksCssColor((v ?? '').trim() || '#000000')}
+                styles={{ root: { width: 130 } }}
+              />
+              {(['background', 'color', 'border-color'] as const).map((prop) => (
+                <DefaultButton
+                  key={prop}
+                  text={`Inserir ${prop}`}
+                  onClick={() => {
+                    const line = `${prop}: ${blocksCssColor};`;
+                    setBlocksCssText((prev) => {
+                      const t = prev.trim();
+                      return t ? `${t}\n${line}` : line;
+                    });
+                  }}
+                />
+              ))}
+            </Stack>
+            <Stack
+              tokens={{ childrenGap: 4 }}
+              styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8' } }}
+            >
+              {([
+                { cls: 'dinamicSxBanner', desc: 'Bloco Banner' },
+                { cls: 'dinamicSxEditor', desc: 'Bloco Editor de conteúdo' },
+                { cls: 'dinamicSxSectionTitle', desc: 'Bloco Título de seção' },
+                { cls: 'dinamicSxAlert', desc: 'Bloco Alerta / aviso' },
+                { cls: 'dinamicSxButtons', desc: 'Bloco Botões' },
+              ] as const).map((r) => (
+                <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}
+                </Text>
+              ))}
+            </Stack>
+          </Stack>
         </ListPageLayoutCollapse>
 
         {sections.map((sec, si) => (
