@@ -23,7 +23,7 @@ export {
 } from './lists/criarFieldsListaLancamentosContabeis';
 export type { ICriarFieldsListaLancamentosContabeisResult } from './lists/criarFieldsListaLancamentosContabeis';
 export { LibrariesService } from './libraries/LibrariesService';
-export { FieldsService } from './fields/FieldsService';
+export { FieldsService, SYSTEM_METADATA_FIELDS } from './fields/FieldsService';
 export { ViewsService } from './views/ViewsService';
 export { ItemsService } from './items/ItemsService';
 

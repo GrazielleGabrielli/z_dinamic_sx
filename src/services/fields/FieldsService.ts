@@ -2,6 +2,59 @@ import type { SPFI } from '@pnp/sp';
 import { getSPForWeb } from '../core/sp';
 import { IFieldMetadata, FieldMappedType, IRawSPField } from './types';
 
+export const SYSTEM_METADATA_FIELDS: IFieldMetadata[] = [
+  {
+    Id: 'system-created',
+    Title: 'Criado',
+    InternalName: 'Created',
+    TypeAsString: 'DateTime',
+    MappedType: 'datetime',
+    Required: false,
+    ReadOnlyField: true,
+    Hidden: false,
+    Description: '',
+    DefaultValue: null,
+  },
+  {
+    Id: 'system-modified',
+    Title: 'Modificado',
+    InternalName: 'Modified',
+    TypeAsString: 'DateTime',
+    MappedType: 'datetime',
+    Required: false,
+    ReadOnlyField: true,
+    Hidden: false,
+    Description: '',
+    DefaultValue: null,
+  },
+  {
+    Id: 'system-author',
+    Title: 'Criado por',
+    InternalName: 'Author',
+    TypeAsString: 'User',
+    MappedType: 'user',
+    Required: false,
+    ReadOnlyField: true,
+    Hidden: false,
+    Description: '',
+    DefaultValue: null,
+    LookupField: 'Title',
+  },
+  {
+    Id: 'system-editor',
+    Title: 'Modificado por',
+    InternalName: 'Editor',
+    TypeAsString: 'User',
+    MappedType: 'user',
+    Required: false,
+    ReadOnlyField: true,
+    Hidden: false,
+    Description: '',
+    DefaultValue: null,
+    LookupField: 'Title',
+  },
+];
+
 const FIELD_SELECT =
   'Id,Title,InternalName,TypeAsString,Required,ReadOnlyField,Hidden,Description,DefaultValue,Choices,LookupList,LookupField,AllowMultipleValues,MaxLength,RichText';
 

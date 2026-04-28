@@ -26,7 +26,7 @@ import {
   MessageBar,
   MessageBarType,
 } from '@fluentui/react';
-import { FieldsService } from '../../../../services';
+import { FieldsService, SYSTEM_METADATA_FIELDS } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
 import type {
   IProjectManagementColumnConfig,
@@ -428,12 +428,16 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     fieldsService
       .getVisibleFields(listTitle.trim(), lw)
       .then((f) => {
+        const extra = SYSTEM_METADATA_FIELDS.filter(
+          (sf) => !f.some((x) => x.InternalName === sf.InternalName)
+        );
+        const allFields = [...f, ...extra];
         const configured = listView.columns ?? [];
         const effectiveColumns =
-          configured.length === 0 && f.some((field) => field.InternalName === 'Title')
+          configured.length === 0 && allFields.some((field) => field.InternalName === 'Title')
             ? [{ field: 'Title' }]
             : configured;
-        setOptions(buildOptions(f, effectiveColumns));
+        setOptions(buildOptions(allFields, effectiveColumns));
         const listIds = f
           .filter((x) => EXPANDABLE.indexOf(x.MappedType) !== -1 && x.LookupList)
           .map((x) => x.LookupList as string);

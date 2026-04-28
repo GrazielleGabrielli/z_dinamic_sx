@@ -22,7 +22,7 @@ import {
 import { useViewModeMembership } from '../../core/listView/useViewModeMembership';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
 import { generateAndDownloadPdf } from '../../core/pdf';
-import { ItemsService, UsersService, FieldsService } from '../../../../services';
+import { ItemsService, UsersService, FieldsService, SYSTEM_METADATA_FIELDS } from '../../../../services';
 import { readListItemId } from '../../../../services/items/listItemId';
 import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
@@ -205,7 +205,12 @@ export const TableView: React.FC<ITableViewProps> = ({
     setFieldMetadata(undefined);
     fieldsService
       .getVisibleFields(listTitle, listWeb)
-      .then(setFieldMetadata)
+      .then((f) => {
+        const extra = SYSTEM_METADATA_FIELDS.filter(
+          (sf) => !f.some((x) => x.InternalName === sf.InternalName)
+        );
+        setFieldMetadata([...f, ...extra]);
+      })
       .catch(() => setFieldMetadata([]));
   }, [listTitle, listWeb]);
 
@@ -548,6 +553,32 @@ export const TableView: React.FC<ITableViewProps> = ({
         />
       );
     }
+    if (mtype === 'datetime') {
+      return (
+        <div key={fc.field} style={{ minWidth: 150, maxWidth: 220 }}>
+          <label style={{ fontSize: 14, fontWeight: 600, color: '#323130', display: 'block', marginBottom: 4 }}>
+            {label}
+          </label>
+          <input
+            type="date"
+            value={val}
+            onChange={(e) => onChange(e.target.value)}
+            style={{
+              height: 32,
+              border: '1px solid #605e5c',
+              borderRadius: 2,
+              padding: '0 8px',
+              fontSize: 14,
+              fontFamily: 'inherit',
+              color: '#323130',
+              background: '#fff',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      );
+    }
     return (
       <TextField
         key={fc.field}
@@ -712,7 +743,7 @@ export const TableView: React.FC<ITableViewProps> = ({
               />
             )}
           </Stack>
-          <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
+          <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="start">
             {tableFilterFieldsMeta.map((f) => renderTopFilterControl(f))}
           </Stack>
         </Stack>

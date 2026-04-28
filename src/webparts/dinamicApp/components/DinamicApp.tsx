@@ -72,6 +72,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [editingTableBlockId, setEditingTableBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [canManageListConfig, setCanManageListConfig] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
   const [activeViewModeByBlockId, setActiveViewModeByBlockId] = useState<Record<string, string>>({});
@@ -223,7 +224,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   }, []);
 
   const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
-  const canShowListConfigButtons = config?.mode !== 'list' || canManageListConfig;
+  const canShowListConfigButtons = canManageListConfig && isEditMode;
   const triggerDashboardRefresh = useCallback(() => {
     setDashboardRefreshKey((prev) => prev + 1);
   }, []);
@@ -411,25 +412,42 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <PersistStatusBar status={persistStatus} />
 
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          padding: '6px 16px 0',
-          borderBottom: '1px solid #f3f2f1',
-        }}
-      >
-        {canShowListConfigButtons ? (
+      {canManageListConfig && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 8,
+            padding: '6px 16px 0',
+            borderBottom: '1px solid #f3f2f1',
+          }}
+        >
+          {isEditMode && (
+            <ActionButton
+              iconProps={{ iconName: 'Settings' }}
+              onClick={() => setIsEditingWebPart(true)}
+              disabled={isSaving}
+              styles={{ root: { color: '#605e5c', fontSize: 12 } }}
+            >
+              Editar configuração
+            </ActionButton>
+          )}
           <ActionButton
-            iconProps={{ iconName: 'Settings' }}
-            onClick={() => setIsEditingWebPart(true)}
-            disabled={isSaving}
-            styles={{ root: { color: '#605e5c', fontSize: 12 } }}
+            iconProps={{ iconName: isEditMode ? 'EditSolidMirrored12' : 'Edit' }}
+            onClick={() => setIsEditMode((prev) => !prev)}
+            styles={{
+              root: {
+                color: isEditMode ? '#0078d4' : '#605e5c',
+                fontWeight: isEditMode ? 600 : 400,
+                fontSize: 12,
+              },
+            }}
           >
-            Editar configuração
+            {isEditMode ? 'Sair de Edição' : 'Editar'}
           </ActionButton>
-        ) : null}
-      </div>
+        </div>
+      )}
 
       <Stack styles={{ root: { padding: '20px 24px 0' } }}>
         <Stack
@@ -454,7 +472,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
                 Layout da página
               </ActionButton>
             )}
-            {config.mode === 'formManager' && (
+            {config.mode === 'formManager' && canShowListConfigButtons && (
               <ActionButton
                 iconProps={{ iconName: 'FormLibrary' }}
                 onClick={() => setIsEditingFormManager(true)}
