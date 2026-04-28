@@ -49,8 +49,6 @@ import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
 import { PersistStatusBar } from './PersistStatusBar';
 import { UsersService } from '../../../services/users/UsersService';
 
-const LIST_CONFIG_MANAGERS_GROUP = 'Gerenciadores AppDinamico';
-
 function normalizeGroupTitle(v: string): string {
   return v.trim().toLowerCase();
 }
@@ -187,7 +185,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       .then((groups) => {
         if (!mounted) return;
         const allowed = groups.some(
-          (g) => normalizeGroupTitle(String(g.Title ?? '')) === normalizeGroupTitle(LIST_CONFIG_MANAGERS_GROUP)
+          (g) => normalizeGroupTitle(String(g.Title ?? '')).includes('proprietários do')
         );
         setCanManageListConfig(allowed);
       })
