@@ -361,6 +361,10 @@ export interface IFormFieldConfig {
    * (Id incluído automaticamente; person/lookup aninhados via metadados).
    */
   lookupOptionExtraSelectFields?: string[];
+  /**
+   * Lookup / lookup multi: campos da lista ligada a mostrar em só leitura abaixo do dropdown quando há seleção.
+   */
+  lookupOptionDetailBelowFields?: string[];
 }
 
 export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName' | 'fieldKind'>): boolean {

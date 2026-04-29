@@ -119,16 +119,25 @@ export function resolveLookupFormLabelInternalName(
   return d || 'Title';
 }
 
-/** Id + etiqueta + extras (ordenado, sem repetir). */
+/** Id + etiqueta + extras + detalhe abaixo (ordenado, sem repetir). */
 export function buildLookupDropdownSelectRaw(
   meta: IFieldMetadata,
-  fc: Pick<IFormFieldConfig, 'lookupOptionLabelField' | 'lookupOptionExtraSelectFields'>
+  fc: Pick<
+    IFormFieldConfig,
+    'lookupOptionLabelField' | 'lookupOptionExtraSelectFields' | 'lookupOptionDetailBelowFields'
+  >
 ): string[] {
   const label = resolveLookupFormLabelInternalName(meta, fc);
   const extras = fc.lookupOptionExtraSelectFields ?? [];
+  const details = fc.lookupOptionDetailBelowFields ?? [];
   const set = new Set<string>(['Id', label]);
   for (let i = 0; i < extras.length; i++) {
     const x = extras[i]?.trim();
+    if (!x || x === 'Id') continue;
+    set.add(x);
+  }
+  for (let i = 0; i < details.length; i++) {
+    const x = details[i]?.trim();
     if (!x || x === 'Id') continue;
     set.add(x);
   }

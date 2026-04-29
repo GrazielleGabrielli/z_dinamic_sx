@@ -336,6 +336,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           ...rows.map((row) => ({
             key: String(row.Id),
             text: lookupRowToOptionText(row, labelFieldName, labelMeta, fc?.lookupOptionLabelSubProp),
+            data: row,
           })),
         ];
         setLookupOptions((o) => ({ ...o, [fieldName]: opts }));
@@ -357,6 +358,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       const labelDisp = resolveLookupFormLabelInternalName(m, fc ?? {});
       const extrasSig = JSON.stringify(fc?.lookupOptionExtraSelectFields ?? []);
       const subPropSig = fc?.lookupOptionLabelSubProp ?? '';
+      const detailSig = JSON.stringify(fc?.lookupOptionDetailBelowFields ?? []);
       const lf = derived.lookupFilters[fn];
       if (lf) {
         const parentVal = values[lf.parentField];
@@ -368,15 +370,49 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           typeof parentVal === 'string' ? parentVal :
           typeof parentVal === 'number' ? String(parentVal) : '';
         parts.push(
-          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${lf.parentField}\t${lf.childField ?? ''}\t${lf.filterOperator ?? ''}\t${parentSig}`
+          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t${lf.parentField}\t${lf.childField ?? ''}\t${lf.filterOperator ?? ''}\t${parentSig}`
         );
       } else {
-        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t`);
+        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t`);
       }
     }
     parts.sort();
     return parts.join('\n');
   }, [orderedFieldConfigs, metaByName, derived.lookupFilters, values]);
+
+  const lookupDetailSnapshot = useMemo(() => {
+    const out: Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined> = {};
+    for (let i = 0; i < orderedFieldConfigs.length; i++) {
+      const fc = orderedFieldConfigs[i];
+      const detailFns = fc.lookupOptionDetailBelowFields ?? [];
+      if (!detailFns.length) continue;
+      const m = metaByName.get(fc.internalName);
+      if (!m || (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti')) continue;
+      const opts = lookupOptions[fc.internalName] ?? [];
+      if (m.MappedType === 'lookup') {
+        const id = lookupIdFromValue(values[fc.internalName]);
+        if (!id) {
+          out[fc.internalName] = undefined;
+          continue;
+        }
+        const opt = opts.find((o) => String(o.key) === String(id));
+        const data =
+          opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
+        out[fc.internalName] = data;
+      } else {
+        const sel = normalizeIdTitleArray(values[fc.internalName]);
+        const many: Record<string, unknown>[] = [];
+        for (let s = 0; s < sel.length; s++) {
+          const opt = opts.find((o) => String(o.key) === String(sel[s].Id));
+          const row =
+            opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
+          if (row) many.push(row);
+        }
+        out[fc.internalName] = many.length ? many : undefined;
+      }
+    }
+    return out;
+  }, [orderedFieldConfigs, metaByName, lookupOptions, values]);
 
   useEffect(() => {
     let cancelled = false;
@@ -439,6 +475,41 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(values[name], m.MappedType);
 
     const common = { disabled: readOnly, errorMessage: err };
+
+    const renderLookupDetailsBelow = (fieldName: string, meta: IFieldMetadata): React.ReactNode => {
+      if (cell) return null;
+      const dfn = fc.lookupOptionDetailBelowFields ?? [];
+      if (!dfn.length) return null;
+      const snap = lookupDetailSnapshot[fieldName];
+      if (snap === undefined) return null;
+      const listGuid = String(meta.LookupList ?? '');
+      const linkedMeta = lookupDestMetaCacheRef.current[listGuid] ?? [];
+      const rowsArr = Array.isArray(snap) ? snap : [snap];
+      if (rowsArr.length === 0) return null;
+      return (
+        <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 2, width: '100%' } }}>
+          {dfn.map((fn) => {
+            const fm = linkedMeta.find((x) => x.InternalName === fn);
+            const fieldLabel = fm ? fm.Title : fn;
+            const parts = rowsArr.map((row) =>
+              lookupRowToOptionText(row as Record<string, unknown>, fn, fm)
+            );
+            const val = parts.join('; ');
+            return (
+              <TextField
+                key={fn}
+                label={fieldLabel}
+                value={val}
+                readOnly
+                disabled
+                multiline={val.length > 100}
+                rows={val.length > 100 ? 2 : 1}
+              />
+            );
+          })}
+        </Stack>
+      );
+    };
 
     switch (m.MappedType) {
       case 'boolean':
@@ -581,6 +652,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
                 {help}
               </Text>
             ) : null}
+            {renderLookupDetailsBelow(name, m)}
           </Stack>
         );
       }
@@ -630,6 +702,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
                 {help}
               </Text>
             ) : null}
+            {renderLookupDetailsBelow(name, m)}
           </Stack>
         );
       }

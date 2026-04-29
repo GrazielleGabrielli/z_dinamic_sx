@@ -2050,6 +2050,48 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
             </Stack>
           </FormManagerCollapseSection>
         )}
+        {(mt === 'lookup' || mt === 'lookupmulti') && meta?.LookupList && (
+          <FormManagerCollapseSection
+            title="Detalhe abaixo da seleção"
+            isOpen={isLookupRulesOpen('lookupDetailBelow')}
+            onToggle={() => toggleLookupRulesSection('lookupDetailBelow')}
+          >
+            <Stack tokens={{ childrenGap: 8 }} styles={{ root: { maxWidth: 480 } }}>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Após escolher uma opção, mostra campos da lista ligada em só leitura por baixo do lookup.
+              </Text>
+              {lookupDestLoading && <Spinner />}
+              {lookupDestErr && (
+                <MessageBar messageBarType={MessageBarType.error}>{lookupDestErr}</MessageBar>
+              )}
+              <Stack tokens={{ childrenGap: 4 }}>
+                {lookupRulesEligibleFlat.map((f) => (
+                  <Checkbox
+                    key={`det-${f.InternalName}`}
+                    label={`${f.Title} (${f.InternalName})`}
+                    checked={(fc.lookupOptionDetailBelowFields ?? []).indexOf(f.InternalName) !== -1}
+                    disabled={lookupDestLoading}
+                    onChange={(_, checked): void =>
+                      setFc((p): IFormFieldConfig => {
+                        const prev = p.lookupOptionDetailBelowFields ?? [];
+                        let next = prev.slice();
+                        const ix = next.indexOf(f.InternalName);
+                        if (checked && ix === -1) next.push(f.InternalName);
+                        if (!checked && ix !== -1) next.splice(ix, 1);
+                        next.sort();
+                        if (next.length === 0) {
+                          const { lookupOptionDetailBelowFields: _omit, ...rest } = p;
+                          return rest;
+                        }
+                        return { ...p, lookupOptionDetailBelowFields: next };
+                      })
+                    }
+                  />
+                ))}
+              </Stack>
+            </Stack>
+          </FormManagerCollapseSection>
+        )}
         {(mt === 'lookup' || mt === 'lookupmulti') && (
           <FormManagerCollapseSection
             title="Filtrar opções"

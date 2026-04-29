@@ -485,6 +485,13 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
             .filter(Boolean),
         }
       : {}),
+    ...(Array.isArray(f.lookupOptionDetailBelowFields) && f.lookupOptionDetailBelowFields.length
+      ? {
+          lookupOptionDetailBelowFields: (f.lookupOptionDetailBelowFields as unknown[])
+            .map((x) => String(x).trim())
+            .filter(Boolean),
+        }
+      : {}),
   };
   if (isBanner) {
     const bp = f.bannerPlacement;
