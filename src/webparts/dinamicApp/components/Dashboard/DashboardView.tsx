@@ -36,8 +36,10 @@ interface IDashboardViewProps {
   selectedCardId?: string | null;
   onSeriesClick?: (series: IChartSeriesConfig, blockId: string) => void;
   selectedSeriesId?: string | null;
-  /** Quando há filtros do dashboard aplicados na listagem (para texto auxiliar). */
+  /** Quando há filtros do dashboard aplicados na listagem. */
   dashboardAppliesListFilter?: boolean;
+  /** Limpa todos os filtros ativos (dashboard + tabela). */
+  onClearFilters?: () => void;
   /** Lista de página: modo ativo por bloco + config para conjugar filtros OData do modo da tabela. */
   listPairing?: {
     rootConfig: IDynamicViewConfig;
@@ -63,6 +65,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   onSeriesClick,
   selectedSeriesId,
   dashboardAppliesListFilter,
+  onClearFilters,
   listPairing,
   onLinkedTableChange,
 }) => {
@@ -78,6 +81,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         }
         selectedSeriesId={selectedSeriesId}
         showListFilterHint={dashboardAppliesListFilter === true}
+        onClearFilters={onClearFilters}
         listPairing={listPairing}
         onLinkedTableChange={onLinkedTableChange}
       />
@@ -270,10 +274,14 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
           );
         })}
       </div>
-      {selectedCardId && onCardClick && dashboardAppliesListFilter === true && (
-        <Text variant="small" styles={{ root: { color: '#605e5c', marginTop: 12, display: 'block' } }}>
-          Filtro do card ativo na listagem — clique de novo no mesmo card para remover.
-        </Text>
+      {dashboardAppliesListFilter === true && onClearFilters && (
+        <ActionButton
+          iconProps={{ iconName: 'ClearFilter' }}
+          onClick={onClearFilters}
+          styles={{ root: { color: '#a4262c', height: 28, marginTop: 4 } }}
+        >
+          Remover Filtros
+        </ActionButton>
       )}
     </div>
   );

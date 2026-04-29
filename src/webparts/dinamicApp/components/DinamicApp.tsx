@@ -75,6 +75,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [isEditMode, setIsEditMode] = useState(false);
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
+  const [clearTableFiltersSignal, setClearTableFiltersSignal] = useState(0);
   const [activeViewModeByBlockId, setActiveViewModeByBlockId] = useState<Record<string, string>>({});
 
   const rawConfig = useMemo(() => parseConfig(configJson ?? undefined), [configJson]);
@@ -240,6 +241,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     },
     [config, saveConfig]
   );
+
+  const handleClearAllFilters = useCallback(() => {
+    setDashboardListSelection(null);
+    setClearTableFiltersSignal((prev) => prev + 1);
+  }, []);
 
   const handleWizardComplete = (newConfig: IDynamicViewConfig): void => {
     saveConfig(newConfig);
@@ -508,6 +514,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             onDashboardLinkedTableChange={
               canShowListConfigButtons ? handleDashboardLinkedTableChange : undefined
             }
+            onClearAllFilters={handleClearAllFilters}
+            clearTableFiltersSignal={clearTableFiltersSignal}
             onEditTableColumns={
               canShowListConfigButtons
                 ? (blockId) => {

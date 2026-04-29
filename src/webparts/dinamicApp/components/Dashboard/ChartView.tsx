@@ -96,6 +96,7 @@ interface IChartViewProps {
   onSeriesClick?: (series: IChartSeriesConfig) => void;
   selectedSeriesId?: string | null;
   showListFilterHint?: boolean;
+  onClearFilters?: () => void;
   listPairing?: {
     rootConfig: IDynamicViewConfig;
     sections: IListPageSection[];
@@ -114,6 +115,7 @@ export const ChartView: React.FC<IChartViewProps> = ({
   onSeriesClick,
   selectedSeriesId,
   showListFilterHint,
+  onClearFilters,
   listPairing,
   onLinkedTableChange,
 }) => {
@@ -344,10 +346,14 @@ export const ChartView: React.FC<IChartViewProps> = ({
         }}
       >
         <div ref={containerRef} style={{ width: '100%', height: 320 }} />
-        {selectedSeriesId && onSeriesClick && showListFilterHint === true && (
-          <Text variant="small" styles={{ root: { color: '#605e5c', marginTop: 8, display: 'block' } }}>
-            Filtro do gráfico ativo na listagem — clique na mesma fatia/barra para remover.
-          </Text>
+        {showListFilterHint === true && onClearFilters && (
+          <ActionButton
+            iconProps={{ iconName: 'ClearFilter' }}
+            onClick={onClearFilters}
+            styles={{ root: { color: '#a4262c', height: 28, marginTop: 4 } }}
+          >
+            Remover Filtros
+          </ActionButton>
         )}
       </div>
     </div>

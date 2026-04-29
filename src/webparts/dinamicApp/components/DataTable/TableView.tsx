@@ -60,6 +60,8 @@ export interface ITableViewProps {
   pageWebServerRelativeUrl?: string;
   /** Notifica alteração do modo de visualização (sincronizar com dashboard vinculado). */
   onActiveViewModeChange?: (viewModeId: string) => void;
+  /** Incrementar para limpar todos os filtros internos (coluna + barra de filtros). */
+  clearFiltersSignal?: number;
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
@@ -83,6 +85,7 @@ export const TableView: React.FC<ITableViewProps> = ({
   instanceScopeId,
   pageWebServerRelativeUrl,
   onActiveViewModeChange,
+  clearFiltersSignal,
 }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
@@ -163,6 +166,12 @@ export const TableView: React.FC<ITableViewProps> = ({
   useEffect(() => {
     setColumnFilters({});
   }, [selectedViewModeId]);
+
+  useEffect(() => {
+    if (clearFiltersSignal === undefined) return;
+    setColumnFilters({});
+    setTopFilters({});
+  }, [clearFiltersSignal]);
 
   const onActiveViewModeChangeRef = useRef(onActiveViewModeChange);
   onActiveViewModeChangeRef.current = onActiveViewModeChange;

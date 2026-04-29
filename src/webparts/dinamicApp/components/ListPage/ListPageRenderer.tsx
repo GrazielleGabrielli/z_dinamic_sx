@@ -55,6 +55,10 @@ export interface IListPageRendererProps {
   activeViewModeByBlockId?: Record<string, string>;
   onListViewModeChange?: (listBlockId: string, viewModeId: string) => void;
   onDashboardLinkedTableChange?: (dashboardBlockId: string, pairedListBlockId: string | undefined) => void;
+  /** Limpa filtros do dashboard + tabela (passado para o botão "Remover Filtros"). */
+  onClearAllFilters?: () => void;
+  /** Sinal para resetar filtros internos da TableView. */
+  clearTableFiltersSignal?: number;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -120,6 +124,8 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   activeViewModeByBlockId = {},
   onListViewModeChange,
   onDashboardLinkedTableChange,
+  onClearAllFilters,
+  clearTableFiltersSignal,
 }) => {
   const rootDash = config.dashboard;
   const layoutPadding = React.useMemo(
@@ -151,6 +157,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           onSeriesClick={onSeriesClick}
           selectedSeriesId={selectedSeriesId}
           dashboardAppliesListFilter={dashboardAppliesListFilter}
+          onClearFilters={onClearAllFilters}
           listPairing={{
             rootConfig: config,
             sections,
@@ -195,6 +202,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
                 ? (modeId) => onListViewModeChange(block.id, modeId)
                 : undefined
             }
+            clearFiltersSignal={clearTableFiltersSignal}
           />
         </Stack>
       );
