@@ -30,6 +30,8 @@ import { applyTextTransformsToRecordValues } from '../../core/formManager/formTe
 import {
   buildLookupDropdownSelectRaw,
   buildLookupODataFilter,
+  hasConfiguredLookupFilter,
+  isParentValueReadyForLookupFilter,
   lookupRowToOptionText,
   resolveLookupFormLabelInternalName,
 } from '../../core/formManager/lookupFormDropdownHelpers';
@@ -542,6 +544,16 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         );
       }
       case 'lookup': {
+        const lfDrop = derived.lookupFilters[name];
+        const filterActive = hasConfiguredLookupFilter(lfDrop);
+        const parentMetaDrop = lfDrop ? metaByName.get(lfDrop.parentField) : undefined;
+        const parentReady =
+          !filterActive ||
+          isParentValueReadyForLookupFilter(
+            lfDrop ? values[lfDrop.parentField] : undefined,
+            parentMetaDrop
+          );
+        const lookupBlockedByParent = filterActive && !parentReady;
         const id = lookupIdFromValue(values[name]);
         const baseOpts = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const opts =
@@ -549,24 +561,40 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
             : baseOpts;
         return (
-          <Dropdown
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            placeholder={fc.placeholder}
-            options={opts}
-            selectedKey={id !== undefined ? String(id) : ''}
-            onChange={(_, o) => {
-              if (!o || o.key === '') updateField(name, null);
-              else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Dropdown
+              {...(cell ? { ariaLabel: label } : { label })}
+              placeholder={fc.placeholder}
+              options={opts}
+              selectedKey={id !== undefined ? String(id) : ''}
+              onChange={(_, o) => {
+                if (!o || o.key === '') updateField(name, null);
+                else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly || lookupBlockedByParent}
+              styles={dropdownReqStyles(showReqEmpty)}
+            />
+            {help && !cell ? (
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                {help}
+              </Text>
+            ) : null}
+          </Stack>
         );
       }
       case 'lookupmulti': {
+        const lfMulti = derived.lookupFilters[name];
+        const filterActiveMulti = hasConfiguredLookupFilter(lfMulti);
+        const parentMetaMulti = lfMulti ? metaByName.get(lfMulti.parentField) : undefined;
+        const parentReadyMulti =
+          !filterActiveMulti ||
+          isParentValueReadyForLookupFilter(
+            lfMulti ? values[lfMulti.parentField] : undefined,
+            parentMetaMulti
+          );
+        const lookupBlockedByParentMulti = filterActiveMulti && !parentReadyMulti;
         const selected = normalizeIdTitleArray(values[name]);
         const baseRaw = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const baseOpts = baseRaw.filter((o) => o.key !== '');
@@ -574,29 +602,35 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         const opts = mergeOptionsForIds(baseOpts, extra);
         const keys = selected.map((x) => String(x.Id));
         return (
-          <Dropdown
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            placeholder={fc.placeholder}
-            multiSelect
-            options={opts}
-            selectedKeys={keys}
-            onChange={(_, o) => {
-              if (!o || o.key === '') return;
-              const k = String(o.key);
-              const hit = selected.findIndex((x) => String(x.Id) === k);
-              const next =
-                hit === -1
-                  ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
-                  : selected.filter((_, i) => i !== hit);
-              updateField(name, next);
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-            styles={multiSelectDropdownStyles(showReqEmpty)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Dropdown
+              {...(cell ? { ariaLabel: label } : { label })}
+              placeholder={fc.placeholder}
+              multiSelect
+              options={opts}
+              selectedKeys={keys}
+              onChange={(_, o) => {
+                if (!o || o.key === '') return;
+                const k = String(o.key);
+                const hit = selected.findIndex((x) => String(x.Id) === k);
+                const next =
+                  hit === -1
+                    ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                    : selected.filter((_, i) => i !== hit);
+                updateField(name, next);
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly || lookupBlockedByParentMulti}
+              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
+              styles={multiSelectDropdownStyles(showReqEmpty)}
+            />
+            {help && !cell ? (
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                {help}
+              </Text>
+            ) : null}
+          </Stack>
         );
       }
       case 'user': {

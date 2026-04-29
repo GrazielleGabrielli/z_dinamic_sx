@@ -911,16 +911,18 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Vazio = todos os modos. Desmarque um para restringir.
             </Text>
-            <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
-              <DefaultButton
-                text="Modelo: data não no passado"
-                onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesDateNotPast()))}
-              />
-              <DefaultButton
-                text="Modelo: validar e-mail"
-                onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesEmail()))}
-              />
-            </Stack>
+            {mt !== 'lookup' && mt !== 'lookupmulti' ? (
+              <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
+                <DefaultButton
+                  text="Modelo: data não no passado"
+                  onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesDateNotPast()))}
+                />
+                <DefaultButton
+                  text="Modelo: validar e-mail"
+                  onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesEmail()))}
+                />
+              </Stack>
+            ) : null}
             {(mt === 'multiline' || mt === 'url') && (
               <TextField
                 label="Placeholder"

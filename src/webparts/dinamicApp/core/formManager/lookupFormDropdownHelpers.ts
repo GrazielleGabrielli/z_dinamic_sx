@@ -59,6 +59,55 @@ export function buildLookupODataFilter(
   return undefined;
 }
 
+export function hasConfiguredLookupFilter(lf: {
+  childField?: string;
+  filterOperator?: string;
+  odataFilterTemplate?: string;
+} | undefined): boolean {
+  if (!lf) return false;
+  if (lf.childField?.trim() && lf.filterOperator) return true;
+  if ((lf.odataFilterTemplate ?? '').trim()) return true;
+  return false;
+}
+
+export function isParentValueReadyForLookupFilter(
+  parentValue: unknown,
+  parentMeta: IFieldMetadata | undefined
+): boolean {
+  if (!parentMeta) {
+    if (parentValue === null || parentValue === undefined) return false;
+    if (typeof parentValue === 'string') return parentValue.trim().length > 0;
+    if (typeof parentValue === 'number') return isFinite(parentValue);
+    if (typeof parentValue === 'boolean') return true;
+    if (typeof parentValue === 'object' && parentValue !== null && 'Id' in parentValue) {
+      return extractLookupId(parentValue) !== undefined;
+    }
+    if (Array.isArray(parentValue)) return parentValue.length > 0;
+    return false;
+  }
+  const mt = parentMeta.MappedType;
+  if (mt === 'lookup' || mt === 'lookupmulti' || mt === 'user' || mt === 'usermulti') {
+    return extractLookupId(parentValue) !== undefined;
+  }
+  if (mt === 'number' || mt === 'currency') {
+    return typeof parentValue === 'number' && isFinite(parentValue);
+  }
+  if (mt === 'datetime') {
+    return parentValue !== null && parentValue !== undefined && String(parentValue).trim() !== '';
+  }
+  if (mt === 'boolean') {
+    return parentValue !== null && parentValue !== undefined;
+  }
+  if (mt === 'multichoice') {
+    if (Array.isArray(parentValue)) return parentValue.length > 0;
+    if (typeof parentValue === 'string') return parentValue.trim().length > 0;
+    return false;
+  }
+  if (typeof parentValue === 'string') return parentValue.trim().length > 0;
+  if (typeof parentValue === 'number') return isFinite(parentValue);
+  return parentValue !== null && parentValue !== undefined;
+}
+
 /** Campo na lista ligada para o texto das opções (SharePoint LookupField ou Title). */
 export function resolveLookupFormLabelInternalName(
   meta: IFieldMetadata,
