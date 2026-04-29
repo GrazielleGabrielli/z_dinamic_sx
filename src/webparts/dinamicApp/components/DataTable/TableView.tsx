@@ -62,6 +62,8 @@ export interface ITableViewProps {
   onActiveViewModeChange?: (viewModeId: string) => void;
   /** Incrementar para limpar todos os filtros internos (coluna + barra de filtros). */
   clearFiltersSignal?: number;
+  /** Limpar filtros do dashboard (seleção de card/série). */
+  onClearFilters?: () => void;
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
@@ -86,6 +88,7 @@ export const TableView: React.FC<ITableViewProps> = ({
   pageWebServerRelativeUrl,
   onActiveViewModeChange,
   clearFiltersSignal,
+  onClearFilters,
 }) => {
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
@@ -523,6 +526,17 @@ export const TableView: React.FC<ITableViewProps> = ({
   const hasTopFilters = tableFilterFieldsMeta.length > 0;
 
   const activeTopFiltersCount = Object.values(topFilters).filter((v) => v.trim()).length;
+  const hasActiveColumnFilters = Object.values(columnFilters).some((v) => v.trim().length > 0);
+  const hasAnyActiveFilter =
+    hasActiveColumnFilters ||
+    activeTopFiltersCount > 0 ||
+    (dashboardListFilters?.length ?? 0) > 0;
+
+  const handleClearAllFilters = (): void => {
+    setColumnFilters({});
+    setTopFilters({});
+    onClearFilters?.();
+  };
 
   const renderTopFilterControl = (fieldCfg: { config: { field: string; label?: string }; meta: import('../../../../services/shared/types').IFieldMetadata | null }): React.ReactNode => {
     const { config: fc, meta } = fieldCfg;
@@ -682,10 +696,11 @@ export const TableView: React.FC<ITableViewProps> = ({
       styles={{ root: { marginTop: 8 } }}
     >
       {tableCustomStyle}
-      {(viewModeOptions.length > 0 || showPdfButton || listCardViewEnabled) && (
+      {(viewModeOptions.length > 0 || showPdfButton || listCardViewEnabled || hasAnyActiveFilter) && (
         <Stack
           className={DINAMIC_SX_TABLE_CLASS.toolbar}
           horizontal
+          horizontalAlign="space-between"
           tokens={{ childrenGap: 12 }}
           verticalAlign="end"
           styles={{ root: { flexWrap: 'wrap' } }}
@@ -748,6 +763,15 @@ export const TableView: React.FC<ITableViewProps> = ({
               styles={{ root: { height: 32, color: '#0078d4' } }}
               onClick={handleExportPdf}
             />
+          )}
+          {hasAnyActiveFilter && (
+            <ActionButton
+              iconProps={{ iconName: 'ClearFilter' }}
+              styles={{ root: { height: 32, color: '#a4262c', marginLeft: 'auto' } }}
+              onClick={handleClearAllFilters}
+            >
+              Remover Filtros
+            </ActionButton>
           )}
         </Stack>
       )}

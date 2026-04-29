@@ -203,6 +203,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
                 : undefined
             }
             clearFiltersSignal={clearTableFiltersSignal}
+            onClearFilters={onClearAllFilters}
           />
         </Stack>
       );
