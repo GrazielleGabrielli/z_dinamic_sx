@@ -20,7 +20,7 @@ import {
   MessageBarType,
   Spinner,
 } from '@fluentui/react';
-import { GroupsService, type IFieldMetadata, type IGroupDetails } from '../../../../services';
+import { GroupsService, FieldsService, type IFieldMetadata, type IGroupDetails } from '../../../../services';
 import type {
   IFormFieldConfig,
   TFormFieldTextInputMaskKind,
@@ -49,6 +49,7 @@ import {
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from '../../core/formManager/formTextInputMasks';
+import { isNoteFieldMeta } from '../../core/listView';
 
 /** Portal de sugestões @ (fora do painel no DOM); ignorar em `Panel.onOuterClick`. */
 export const FORM_FIELD_RULES_MENTION_PORTAL_ATTR = 'data-dinamic-rules-mention';
@@ -88,6 +89,33 @@ function normSpGroupTitle(s: string): string {
   return s.trim().toLowerCase();
 }
 
+const LOOKUP_RULES_LABEL_TYPES: ReadonlyArray<IFieldMetadata['MappedType']> = [
+  'text',
+  'multiline',
+  'choice',
+  'multichoice',
+  'number',
+  'currency',
+  'boolean',
+  'datetime',
+  'url',
+  'lookup',
+  'lookupmulti',
+  'user',
+  'usermulti',
+];
+
+function lookupRulesEligibleTargetFields(fields: IFieldMetadata[]): IFieldMetadata[] {
+  const allow = new Set<string>(LOOKUP_RULES_LABEL_TYPES);
+  return fields.filter(
+    (f) =>
+      !isNoteFieldMeta(f) &&
+      f.InternalName !== 'Id' &&
+      !f.Hidden &&
+      allow.has(f.MappedType)
+  );
+}
+
 function newTextConditionalCondition(defaultRefField: string): ITextFieldConditionalCondition {
   return {
     id: newCardId(),
@@ -117,6 +145,8 @@ export interface IFormFieldRulesPanelProps {
   fieldOptions: IDropdownOption[];
   /** Pastas da árvore em Anexos (biblioteca); para valor calculado = URL da pasta. */
   attachmentLibraryFolderOptions?: IDropdownOption[];
+  /** Web da lista principal (lista de dados do formulário) para ler a lista ligada nos lookups. */
+  lookupFieldsWebServerRelativeUrl?: string;
   onDismiss: () => void;
   onApply: (nextField: IFormFieldConfig, editor: IFieldRuleEditorState) => void;
 }
@@ -682,6 +712,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   rules,
   fieldOptions,
   attachmentLibraryFolderOptions = [],
+  lookupFieldsWebServerRelativeUrl,
   onDismiss,
   onApply,
 }) => {
@@ -733,7 +764,58 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   }, [isOpen, internalName, fieldConfig, rules, fieldOptions]);
 
   const mt = meta?.MappedType ?? 'unknown';
+  const fieldsServiceLookup = useMemo(() => new FieldsService(), []);
+  const [lookupDestFields, setLookupDestFields] = useState<IFieldMetadata[]>([]);
+  const [lookupDestErr, setLookupDestErr] = useState<string>();
+  const [lookupDestLoading, setLookupDestLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || (mt !== 'lookup' && mt !== 'lookupmulti') || !meta?.LookupList) {
+      setLookupDestFields([]);
+      setLookupDestErr(undefined);
+      setLookupDestLoading(false);
+      return;
+    }
+    let cancel = false;
+    setLookupDestLoading(true);
+    setLookupDestErr(undefined);
+    const lw = lookupFieldsWebServerRelativeUrl?.trim() || undefined;
+    fieldsServiceLookup
+      .getFields(meta.LookupList, lw)
+      .then((fields) => {
+        if (!cancel) setLookupDestFields(fields);
+      })
+      .catch((e) => {
+        if (!cancel) {
+          setLookupDestFields([]);
+          setLookupDestErr(e instanceof Error ? e.message : String(e));
+        }
+      })
+      .finally(() => {
+        if (!cancel) setLookupDestLoading(false);
+      });
+    return (): void => {
+      cancel = true;
+    };
+  }, [isOpen, mt, meta?.LookupList, lookupFieldsWebServerRelativeUrl, fieldsServiceLookup]);
+
   const title = meta?.Title ?? internalName;
+
+  const lookupRulesEligibleFlat = useMemo(
+    (): IFieldMetadata[] => lookupRulesEligibleTargetFields(lookupDestFields),
+    [lookupDestFields]
+  );
+
+  const lookupLabelFieldOptions = useMemo((): IDropdownOption[] => {
+    const head: IDropdownOption[] = [{ key: '__default', text: '(Padrão da coluna no SharePoint)' }];
+    const list = lookupRulesEligibleFlat.slice();
+    list.sort((a, b) =>
+      `${a.Title} (${a.InternalName})`.localeCompare(`${b.Title} (${b.InternalName})`, undefined, {
+        sensitivity: 'base',
+      })
+    );
+    return head.concat(list.map((f) => ({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` })));
+  }, [lookupRulesEligibleFlat]);
 
   const toggleModeRow = useCallback((m: TFormManagerFormMode, checked: boolean) => {
     setEd((prev) => {
@@ -847,19 +929,23 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               value={fc.helpText ?? ''}
               onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
             />
-            <TextField
-              label="Valor padrão (token ou texto; aplica se vazio)"
-              value={ed.defaultValue}
-              onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
-            />
-            {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
-              <SetComputedRulesBlock
-                ed={ed}
-                setEd={setEd}
-                fieldOptions={fieldOptions}
-                attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
-              />
-            )}
+            {(mt !== 'lookup' && mt !== 'lookupmulti') ? (
+              <>
+                <TextField
+                  label="Valor padrão (token ou texto; aplica se vazio)"
+                  value={ed.defaultValue}
+                  onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
+                />
+                {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) ? (
+                  <SetComputedRulesBlock
+                    ed={ed}
+                    setEd={setEd}
+                    fieldOptions={fieldOptions}
+                    attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                  />
+                ) : null}
+              </>
+            ) : null}
             <Stack tokens={{ childrenGap: 8 }} styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 12 } }}>
               <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
                 Desativar / ativar o campo
@@ -1888,9 +1974,72 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
             texto, quando aplicável.
           </Text>
         )}
+        {(mt === 'lookup' || mt === 'lookupmulti') && meta?.LookupList && (
+          <Stack tokens={{ childrenGap: 10 }} styles={{ root: { maxWidth: 480 } }}>
+            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+              Lista ligada (texto das opções)
+            </Text>
+            {lookupDestLoading && <Spinner />}
+            {lookupDestErr && (
+              <MessageBar messageBarType={MessageBarType.error}>{lookupDestErr}</MessageBar>
+            )}
+            <Dropdown
+              label="Campo para o texto das opções"
+              options={lookupLabelFieldOptions}
+              selectedKey={fc.lookupOptionLabelField?.trim() ? fc.lookupOptionLabelField.trim() : '__default'}
+              disabled={lookupDestLoading}
+              onChange={(_, opt): void =>
+                setFc((p): IFormFieldConfig => {
+                  const k = String(opt?.key ?? '');
+                  if (!k || k === '__default') {
+                    const { lookupOptionLabelField: _omitLbl, ...rest } = p;
+                    return rest;
+                  }
+                  return { ...p, lookupOptionLabelField: k };
+                })
+              }
+            />
+            <Stack tokens={{ childrenGap: 4 }}>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Campos extras na lista ligada (Id e o campo do texto são pedidos sempre)
+              </Text>
+              {lookupRulesEligibleFlat
+                .filter((f) => {
+                  const ef =
+                    fc.lookupOptionLabelField?.trim() || meta.LookupField?.trim() || 'Title';
+                  return f.InternalName !== ef;
+                })
+                .map((f) => (
+                  <Checkbox
+                    key={f.InternalName}
+                    label={`${f.Title} (${f.InternalName})`}
+                    checked={(fc.lookupOptionExtraSelectFields ?? []).indexOf(f.InternalName) !== -1}
+                    onChange={(_, checked): void =>
+                      setFc((p): IFormFieldConfig => {
+                        const prevArr = p.lookupOptionExtraSelectFields ?? [];
+                        let nextExtra = prevArr.slice();
+                        const ix = nextExtra.indexOf(f.InternalName);
+                        if (checked && ix === -1) nextExtra.push(f.InternalName);
+                        if (!checked && ix !== -1) nextExtra.splice(ix, 1);
+                        nextExtra.sort();
+                        if (nextExtra.length === 0) {
+                          const {
+                            lookupOptionExtraSelectFields: _omitX,
+                            ...restOnly
+                          } = p;
+                          return restOnly;
+                        }
+                        return { ...p, lookupOptionExtraSelectFields: nextExtra };
+                      })
+                    }
+                  />
+                ))}
+            </Stack>
+          </Stack>
+        )}
         {(mt === 'lookup' || mt === 'lookupmulti' || mt === 'user' || mt === 'usermulti') && (
           <Stack tokens={{ childrenGap: 8 }}>
-            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>Lookup / usuário</Text>
+            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>Filtrar opções</Text>
             <Dropdown
               label="Campo pai (filtro)"
               options={[{ key: '', text: '—' }, ...fieldOptions]}

@@ -3309,6 +3309,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               attachmentLibLookupField,
               attachmentLibFolderTree
             )}
+            listWebServerRelativeUrl={lw}
           />
         </PivotItem>
         <PivotItem headerText="Quebra de permissões">
@@ -3422,6 +3423,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           rules={rules}
           fieldOptions={fieldOptions}
           attachmentLibraryFolderOptions={attachmentFolderOptionsForFieldRules}
+          lookupFieldsWebServerRelativeUrl={lw}
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
             setFields((prev) => prev.map((f) => (f.internalName === fieldPanelName ? { ...f, ...nextFc } : f)));

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
   Stack,
   Text,
@@ -27,10 +27,15 @@ import {
 } from '../../core/formManager/formRuleEngine';
 import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinkedChildSync';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
+import {
+  buildLookupDropdownSelectRaw,
+  lookupRowToOptionText,
+  resolveLookupFormLabelInternalName,
+} from '../../core/formManager/lookupFormDropdownHelpers';
 import { shouldRenderMultilineNoteAsHtml } from '../../core/formManager/sharePointNoteHtml';
 import { MultilineReadonlyHtml } from './MultilineReadonlyHtml';
 import { multiSelectDropdownStyles, renderMultiSelectDropdownTitle } from './formMultiSelectDropdownUi';
-import { ItemsService, UsersService } from '../../../../services';
+import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { IMaskInput } from 'react-imask';
 import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
 
@@ -182,6 +187,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
 }) => {
   const theme = useTheme();
   const itemsService = useMemo(() => new ItemsService(), []);
+  const fieldsService = useMemo(() => new FieldsService(), []);
+  const lookupDestMetaCacheRef = useRef<Record<string, IFieldMetadata[]>>({});
   const usersService = useMemo(() => new UsersService(), []);
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
   const [siteUserOptions, setSiteUserOptions] = useState<IDropdownOption[]>([{ key: '', text: '—' }]);
@@ -229,6 +236,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     [shell, fieldConfigs, runtimeCtx]
   );
 
+  const fieldConfigByInternalName = useMemo(
+    () => new Map(fieldConfigs.map((fc) => [fc.internalName, fc])),
+    [fieldConfigs]
+  );
+
   useEffect(() => {
     const next = applyTextTransformsToRecordValues(values, fieldConfigs, metaByName);
     if (next !== values) onChange(next);
@@ -270,19 +282,41 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     async (fieldName: string, odataFilter?: string): Promise<void> => {
       const m = metaByName.get(fieldName);
       if (!m?.LookupList) return;
+      const fc = fieldConfigByInternalName.get(fieldName);
       try {
         const filter = odataFilter?.trim() ? odataFilter : undefined;
-        const lf = m.LookupField || 'Title';
+
+        const listGuid = m.LookupList;
+        let fieldMetaList: IFieldMetadata[] | undefined = lookupDestMetaCacheRef.current[listGuid];
+        if (!fieldMetaList?.length) {
+          try {
+            const fetched = await fieldsService.getFields(listGuid);
+            lookupDestMetaCacheRef.current = {
+              ...lookupDestMetaCacheRef.current,
+              [listGuid]: fetched,
+            };
+            fieldMetaList = fetched;
+          } catch {
+            fieldMetaList = undefined;
+          }
+        }
+
+        const selectRaw = buildLookupDropdownSelectRaw(m, fc ?? {});
+        const labelFieldName = resolveLookupFormLabelInternalName(m, fc ?? {});
+        const labelMeta = fieldMetaList?.find((x) => x.InternalName === labelFieldName);
+
         const rows = await itemsService.getItems<Record<string, unknown>>(m.LookupList, {
-          select: ['Id', lf],
+          select: selectRaw,
           filter,
           top: 200,
+          ...(fieldMetaList?.length ? { fieldMetadata: fieldMetaList } : {}),
         });
+
         const opts: IDropdownOption[] = [
           { key: '', text: '—' },
           ...rows.map((row) => ({
             key: String(row.Id),
-            text: String(row[lf] ?? row.Id),
+            text: lookupRowToOptionText(row, labelFieldName, labelMeta),
           })),
         ];
         setLookupOptions((o) => ({ ...o, [fieldName]: opts }));
@@ -290,7 +324,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         setLookupOptions((o) => ({ ...o, [fieldName]: [] }));
       }
     },
-    [itemsService, metaByName]
+    [itemsService, metaByName, fieldsService, fieldConfigByInternalName]
   );
 
   const lookupFetchKey = useMemo(() => {
@@ -300,15 +334,17 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       const m = metaByName.get(fn);
       if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
       const listId = String(m.LookupList ?? '');
-      const disp = String(m.LookupField || 'Title');
+      const fc = orderedFieldConfigs[i];
+      const labelDisp = resolveLookupFormLabelInternalName(m, fc ?? {});
+      const extrasSig = JSON.stringify(fc?.lookupOptionExtraSelectFields ?? []);
       const lf = derived.lookupFilters[fn];
       if (lf) {
         const pid = lookupIdFromValue(values[lf.parentField]);
         parts.push(
-          `${fn}\t${listId}\t${disp}\t${lf.parentField}\t${lf.odataFilterTemplate}\t${pid === undefined ? '' : String(pid)}`
+          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${lf.parentField}\t${lf.odataFilterTemplate}\t${pid === undefined ? '' : String(pid)}`
         );
       } else {
-        parts.push(`${fn}\t${listId}\t${disp}\t`);
+        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t`);
       }
     }
     parts.sort();

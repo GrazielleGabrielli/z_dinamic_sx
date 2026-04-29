@@ -43,6 +43,11 @@ import { IMaskInput } from 'react-imask';
 import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
+  buildLookupDropdownSelectRaw,
+  lookupRowToOptionText,
+  resolveLookupFormLabelInternalName,
+} from '../../core/formManager/lookupFormDropdownHelpers';
+import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_OCULTOS_STEP_ID,
   FORM_FIXOS_STEP_ID,
@@ -895,6 +900,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     [fieldConfigs]
   );
   const metaByName = useMemo(() => new Map(fieldMetadata.map((f) => [f.InternalName, f])), [fieldMetadata]);
+  const fieldConfigByInternalName = useMemo(
+    () => new Map(fieldConfigs.map((fc) => [fc.internalName, fc])),
+    [fieldConfigs]
+  );
+  const lookupDestMetaCacheRef = useRef<Record<string, IFieldMetadata[]>>({});
+  useEffect(() => {
+    lookupDestMetaCacheRef.current = {};
+  }, [listWeb]);
   const fieldLabelByName = useMemo(
     () => buildFormFieldLabelMap(fieldConfigs, metaByName),
     [fieldConfigs, metaByName]
@@ -1454,20 +1467,42 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     async (fieldName: string, odataFilter?: string): Promise<void> => {
       const m = metaByName.get(fieldName);
       if (!m?.LookupList) return;
+      const fc = fieldConfigByInternalName.get(fieldName);
       try {
         const filter = odataFilter?.trim() ? odataFilter : undefined;
+
+        const listGuid = m.LookupList;
+        let fieldMetaList: IFieldMetadata[] | undefined = lookupDestMetaCacheRef.current[listGuid];
+        if (!fieldMetaList?.length) {
+          try {
+            const fetched = await fieldsService.getFields(listGuid, listWeb);
+            lookupDestMetaCacheRef.current = {
+              ...lookupDestMetaCacheRef.current,
+              [listGuid]: fetched,
+            };
+            fieldMetaList = fetched;
+          } catch {
+            fieldMetaList = undefined;
+          }
+        }
+
+        const selectRaw = buildLookupDropdownSelectRaw(m, fc ?? {});
+        const labelFieldName = resolveLookupFormLabelInternalName(m, fc ?? {});
+        const labelMeta = fieldMetaList?.find((x) => x.InternalName === labelFieldName);
+
         const rows = await itemsService.getItems<Record<string, unknown>>(m.LookupList, {
-          select: ['Id', m.LookupField || 'Title'],
+          select: selectRaw,
           filter,
           top: 200,
           ...(listWeb ? { webServerRelativeUrl: listWeb } : {}),
+          ...(fieldMetaList?.length ? { fieldMetadata: fieldMetaList } : {}),
         });
-        const lf = m.LookupField || 'Title';
+
         const opts: IDropdownOption[] = [
           { key: '', text: '—' },
           ...rows.map((row) => ({
             key: String(row.Id),
-            text: String(row[lf] ?? row.Id),
+            text: lookupRowToOptionText(row, labelFieldName, labelMeta),
           })),
         ];
         setLookupOptions((o) => ({ ...o, [fieldName]: opts }));
@@ -1475,7 +1510,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setLookupOptions((o) => ({ ...o, [fieldName]: [] }));
       }
     },
-    [itemsService, metaByName, listWeb]
+    [itemsService, metaByName, listWeb, fieldsService, fieldConfigByInternalName]
   );
 
   const lookupFetchKey = useMemo(() => {
@@ -1485,15 +1520,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const m = metaByName.get(fn);
       if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
       const listId = String(m.LookupList ?? '');
-      const disp = String(m.LookupField || 'Title');
+      const fc = fieldConfigs[i];
+      const labelDisp = resolveLookupFormLabelInternalName(m, fc ?? {});
+      const extrasSig = JSON.stringify(fc?.lookupOptionExtraSelectFields ?? []);
       const lf = derived.lookupFilters[fn];
       if (lf) {
         const pid = lookupIdFromValue(values[lf.parentField]);
         parts.push(
-          `${fn}\t${listId}\t${disp}\t${lf.parentField}\t${lf.odataFilterTemplate}\t${pid === undefined ? '' : String(pid)}`
+          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${lf.parentField}\t${lf.odataFilterTemplate}\t${pid === undefined ? '' : String(pid)}`
         );
       } else {
-        parts.push(`${fn}\t${listId}\t${disp}\t`);
+        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t`);
       }
     }
     parts.sort();

@@ -1,7 +1,7 @@
 import { fileFromServerRelativePath } from '@pnp/sp/files';
 
 import type { SPFI } from '@pnp/sp';
-import { getSPForWeb } from '../core/sp';
+import { getSPForWeb, isSharePointListGuid, normalizeListGuid, buildWebPathCandidatesForListByGuid } from '../core/sp';
 import type { IFieldMetadata } from '../shared/types';
 import {
   IItemsQueryOptions,
@@ -15,9 +15,8 @@ import { readListItemId } from './listItemId';
 const EXPANDABLE_TYPES: Array<IFieldMetadata['MappedType']> = ['lookup', 'lookupmulti', 'user', 'usermulti'];
 
 const listRef = (sp: SPFI, titleOrId: string) => {
-  const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
-  return isGuid
-    ? sp.web.lists.getById(titleOrId)
+  return isSharePointListGuid(titleOrId)
+    ? sp.web.lists.getById(normalizeListGuid(titleOrId))
     : sp.web.lists.getByTitle(titleOrId);
 };
 
@@ -91,7 +90,8 @@ function defaultPlaceholderFileName(): string {
   return `registro-${Date.now()}-${Math.random().toString(36).slice(2, 9)}.txt`;
 }
 
-function normalizeSelectExpand(
+/** Select/expand para REST com metadados da lista ($expand em lookup/pessoa/multi). */
+export function normalizeItemsQuerySelectExpand(
   select: string[] | undefined,
   expand: string[] | undefined,
   fieldMetadata: IFieldMetadata[]
@@ -151,77 +151,138 @@ export class ItemsService {
       .join(' and ');
   }
 
+  private async getItemsInternal<T = Record<string, unknown>>(
+    listTitleOrId: string,
+    options: IItemsQueryOptions
+  ): Promise<T[]> {
+    const { webServerRelativeUrl, fieldMetadata, ...rest } = options;
+    const sp = this.spForWeb(webServerRelativeUrl);
+    const opts = fieldMetadata?.length
+      ? { ...rest, ...normalizeItemsQuerySelectExpand(options.select, options.expand, fieldMetadata) }
+      : rest;
+
+    const orderBy =
+      opts.orderBy ?? ((opts.skip ?? 0) > 0 ? { field: 'Id', ascending: true } : undefined);
+    let query = listRef(sp, listTitleOrId).items as any;
+    if (opts.select?.length) query = query.select(...opts.select);
+    if (opts.expand?.length) query = query.expand(...opts.expand);
+    if (opts.filter) query = query.filter(opts.filter);
+    if (orderBy) query = query.orderBy(orderBy.field, orderBy.ascending);
+    if (opts.top) query = query.top(opts.top);
+    if (opts.skip) query = query.skip(opts.skip);
+
+    return await query() as T[];
+  }
+
   async getItems<T = Record<string, unknown>>(
     listTitleOrId: string,
     options: IItemsQueryOptions = {}
   ): Promise<T[]> {
-    try {
-      const { webServerRelativeUrl, fieldMetadata, ...rest } = options;
-      const sp = this.spForWeb(webServerRelativeUrl);
-      const opts = fieldMetadata?.length
-        ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
-        : rest;
-
-      const orderBy =
-        opts.orderBy ?? ((opts.skip ?? 0) > 0 ? { field: 'Id', ascending: true } : undefined);
-      let query = listRef(sp, listTitleOrId).items as any;
-      if (opts.select?.length) query = query.select(...opts.select);
-      if (opts.expand?.length) query = query.expand(...opts.expand);
-      if (opts.filter) query = query.filter(opts.filter);
-      if (orderBy) query = query.orderBy(orderBy.field, orderBy.ascending);
-      if (opts.top) query = query.top(opts.top);
-      if (opts.skip) query = query.skip(opts.skip);
-
-      return await query() as T[];
-    } catch (e) {
-      throw new Error(`ItemsService.getItems("${listTitleOrId}"): ${e}`);
+    if (!isSharePointListGuid(listTitleOrId)) {
+      try {
+        return await this.getItemsInternal<T>(listTitleOrId, options);
+      } catch (e) {
+        throw new Error(`ItemsService.getItems("${listTitleOrId}"): ${e}`);
+      }
     }
+    let last: unknown;
+    for (const w of buildWebPathCandidatesForListByGuid(options.webServerRelativeUrl)) {
+      try {
+        return await this.getItemsInternal<T>(listTitleOrId, { ...options, webServerRelativeUrl: w });
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw new Error(`ItemsService.getItems("${listTitleOrId}"): ${last}`);
   }
 
   /**
    * Paginação alinhada ao REST do SharePoint: `items.skip(id)` do PnP usa `$skiptoken` com `p_ID`
    * (último Id da página anterior), não deslocamento em linhas.
    */
+  private async getPagedItemsInternal<T = Record<string, unknown>>(
+    listTitleOrId: string,
+    options: IItemsQueryOptions = {},
+    pageSize = 30,
+    afterLastItemId?: number
+  ): Promise<IPagedResult<T>> {
+    const { webServerRelativeUrl, fieldMetadata, ...rest } = options;
+    const sp = this.spForWeb(webServerRelativeUrl);
+    const opts = fieldMetadata?.length
+      ? { ...rest, ...normalizeItemsQuerySelectExpand(options.select, options.expand, fieldMetadata) }
+      : rest;
+
+    const top = opts.top ?? pageSize;
+    const orderBy = opts.orderBy ?? { field: 'Id', ascending: true };
+    let query = listRef(sp, listTitleOrId).items as any;
+    if (opts.select?.length) query = query.select(...opts.select);
+    if (opts.expand?.length) query = query.expand(...opts.expand);
+    if (opts.filter) query = query.filter(opts.filter);
+    query = query.orderBy(orderBy.field, orderBy.ascending);
+    if (afterLastItemId !== undefined && afterLastItemId > 0) {
+      query = query.skip(afterLastItemId);
+    }
+    query = query.top(top + 1);
+
+    const items: T[] = await query();
+    const hasNext = items.length > top;
+    const slice = (hasNext ? items.slice(0, top) : items) as Record<string, unknown>[];
+    const firstItemId = readListItemId(slice[0]);
+    const lastItemId = readListItemId(slice[slice.length - 1]);
+
+    return {
+      items: slice as T[],
+      hasNext,
+      firstItemId,
+      lastItemId,
+    };
+  }
+
   async getPagedItems<T = Record<string, unknown>>(
     listTitleOrId: string,
     options: IItemsQueryOptions = {},
     pageSize = 30,
     afterLastItemId?: number
   ): Promise<IPagedResult<T>> {
-    try {
-      const { webServerRelativeUrl, fieldMetadata, ...rest } = options;
-      const sp = this.spForWeb(webServerRelativeUrl);
-      const opts = fieldMetadata?.length
-        ? { ...rest, ...normalizeSelectExpand(options.select, options.expand, fieldMetadata) }
-        : rest;
-
-      const top = opts.top ?? pageSize;
-      const orderBy = opts.orderBy ?? { field: 'Id', ascending: true };
-      let query = listRef(sp, listTitleOrId).items as any;
-      if (opts.select?.length) query = query.select(...opts.select);
-      if (opts.expand?.length) query = query.expand(...opts.expand);
-      if (opts.filter) query = query.filter(opts.filter);
-      query = query.orderBy(orderBy.field, orderBy.ascending);
-      if (afterLastItemId !== undefined && afterLastItemId > 0) {
-        query = query.skip(afterLastItemId);
+    if (!isSharePointListGuid(listTitleOrId)) {
+      try {
+        return await this.getPagedItemsInternal<T>(listTitleOrId, options, pageSize, afterLastItemId);
+      } catch (e) {
+        throw new Error(`ItemsService.getPagedItems("${listTitleOrId}"): ${e}`);
       }
-      query = query.top(top + 1);
-
-      const items: T[] = await query();
-      const hasNext = items.length > top;
-      const slice = (hasNext ? items.slice(0, top) : items) as Record<string, unknown>[];
-      const firstItemId = readListItemId(slice[0]);
-      const lastItemId = readListItemId(slice[slice.length - 1]);
-
-      return {
-        items: slice as T[],
-        hasNext,
-        firstItemId,
-        lastItemId,
-      };
-    } catch (e) {
-      throw new Error(`ItemsService.getPagedItems("${listTitleOrId}"): ${e}`);
     }
+    let last: unknown;
+    for (const w of buildWebPathCandidatesForListByGuid(options.webServerRelativeUrl)) {
+      try {
+        return await this.getPagedItemsInternal<T>(
+          listTitleOrId,
+          { ...options, webServerRelativeUrl: w },
+          pageSize,
+          afterLastItemId
+        );
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw new Error(`ItemsService.getPagedItems("${listTitleOrId}"): ${last}`);
+  }
+
+  private async getItemByIdInternal<T = Record<string, unknown>>(
+    listTitleOrId: string,
+    itemId: number,
+    options: Pick<IItemsQueryOptions, 'select' | 'expand' | 'fieldMetadata' | 'webServerRelativeUrl'> = {}
+  ): Promise<T> {
+    const { webServerRelativeUrl, fieldMetadata, select, expand } = options;
+    const sp = this.spForWeb(webServerRelativeUrl);
+    const normalized = fieldMetadata?.length
+      ? normalizeItemsQuerySelectExpand(select, expand, fieldMetadata)
+      : { select: select ?? [], expand: expand ?? [] };
+
+    let query = listRef(sp, listTitleOrId).items.getById(itemId) as any;
+    if (normalized.select.length) query = query.select(...normalized.select);
+    if (normalized.expand.length) query = query.expand(...normalized.expand);
+
+    return await query() as T;
   }
 
   async getItemById<T = Record<string, unknown>>(
@@ -229,21 +290,22 @@ export class ItemsService {
     itemId: number,
     options: Pick<IItemsQueryOptions, 'select' | 'expand' | 'fieldMetadata' | 'webServerRelativeUrl'> = {}
   ): Promise<T> {
-    try {
-      const { webServerRelativeUrl, fieldMetadata, select, expand } = options;
-      const sp = this.spForWeb(webServerRelativeUrl);
-      const normalized = fieldMetadata?.length
-        ? normalizeSelectExpand(select, expand, fieldMetadata)
-        : { select: select ?? [], expand: expand ?? [] };
-
-      let query = listRef(sp, listTitleOrId).items.getById(itemId) as any;
-      if (normalized.select.length) query = query.select(...normalized.select);
-      if (normalized.expand.length) query = query.expand(...normalized.expand);
-
-      return await query() as T;
-    } catch (e) {
-      throw new Error(`ItemsService.getItemById("${listTitleOrId}", ${itemId}): ${e}`);
+    if (!isSharePointListGuid(listTitleOrId)) {
+      try {
+        return await this.getItemByIdInternal<T>(listTitleOrId, itemId, options);
+      } catch (e) {
+        throw new Error(`ItemsService.getItemById("${listTitleOrId}", ${itemId}): ${e}`);
+      }
     }
+    let last: unknown;
+    for (const w of buildWebPathCandidatesForListByGuid(options.webServerRelativeUrl)) {
+      try {
+        return await this.getItemByIdInternal<T>(listTitleOrId, itemId, { ...options, webServerRelativeUrl: w });
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw new Error(`ItemsService.getItemById("${listTitleOrId}", ${itemId}): ${last}`);
   }
 
   /** Aplica múltiplos filtros ao options existente */

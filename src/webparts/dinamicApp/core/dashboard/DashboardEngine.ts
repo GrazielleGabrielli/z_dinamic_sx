@@ -20,9 +20,27 @@ function normalizeDashboardOperator(op: unknown): TFilterOperator {
 export class DashboardEngine {
   private readonly itemsService = new ItemsService();
 
+  private lookupMetaForFilter(
+    rawField: string,
+    fieldMetadata?: IFieldMetadata[]
+  ): IFieldMetadata | undefined {
+    const f = rawField.trim();
+    if (!f || !fieldMetadata?.length) return undefined;
+    const byName = new Map(fieldMetadata.map((m) => [m.InternalName, m]));
+    const direct = byName.get(f);
+    if (direct && (direct.MappedType === 'lookup' || direct.MappedType === 'user')) return direct;
+    if (f.length > 2 && f.endsWith('Id')) {
+      const base = f.slice(0, -2);
+      const meta = byName.get(base);
+      if (meta && (meta.MappedType === 'lookup' || meta.MappedType === 'user')) return meta;
+    }
+    return undefined;
+  }
+
   private buildOneFilterSegment(
     filter: IDashboardCardFilter,
-    dynamicContext?: IDynamicContext
+    dynamicContext?: IDynamicContext,
+    fieldMetadata?: IFieldMetadata[]
   ): string | undefined {
     if (!filter || !filter.field.trim()) return undefined;
     let resolved: IDashboardCardFilter = filter;
@@ -39,6 +57,17 @@ export class DashboardEngine {
     }
     const op = normalizeDashboardOperator(resolved.operator);
     const value = resolved.value;
+    const fieldName = resolved.field.trim();
+
+    const lk = this.lookupMetaForFilter(fieldName, fieldMetadata);
+    if (lk) {
+      if (op === 'contains') return undefined;
+      const idNum = parseInt(String(value).trim(), 10);
+      if (Number.isNaN(idNum)) return undefined;
+      const idField = `${lk.InternalName}Id`;
+      return `${idField} ${op} ${idNum}`;
+    }
+
     const isNumeric = !isNaN(Number(value));
     const val =
       NUMERIC_OPERATORS.indexOf(op) !== -1 && isNumeric
@@ -46,14 +75,15 @@ export class DashboardEngine {
         : `'${String(value).replace(/'/g, "''")}'`;
 
     if (op === 'contains') {
-      return `substringof(${val}, ${resolved.field})`;
+      return `substringof(${val}, ${fieldName})`;
     }
-    return `${resolved.field} ${op} ${val}`;
+    return `${fieldName} ${op} ${val}`;
   }
 
   private buildFilterString(
     filterOrFilters: IDashboardCardFilter | IDashboardCardFilter[] | undefined,
-    dynamicContext?: IDynamicContext
+    dynamicContext?: IDynamicContext,
+    fieldMetadata?: IFieldMetadata[]
   ): string | undefined {
     const list: IDashboardCardFilter[] = !filterOrFilters
       ? []
@@ -62,7 +92,7 @@ export class DashboardEngine {
         : [filterOrFilters];
     const segments: string[] = [];
     for (let i = 0; i < list.length; i++) {
-      const seg = this.buildOneFilterSegment(list[i], dynamicContext);
+      const seg = this.buildOneFilterSegment(list[i], dynamicContext, fieldMetadata);
       if (seg) segments.push(seg);
     }
     if (segments.length === 0) return undefined;
@@ -98,7 +128,7 @@ export class DashboardEngine {
 
     try {
       const effectiveFilters = card.filters && card.filters.length > 0 ? card.filters : (card.filter ? [card.filter] : []);
-      const built = this.buildFilterString(effectiveFilters, dynamicContext);
+      const built = this.buildFilterString(effectiveFilters, dynamicContext, fieldMetadata);
       const filterStr = this.combineODataParts(built, linkedViewModeOData);
       const baseOptions = {
         filter: filterStr,
@@ -169,7 +199,7 @@ export class DashboardEngine {
   ): Promise<IChartSeriesResult> {
     try {
       const effectiveFilters = series.filters && series.filters.length > 0 ? series.filters : (series.filter ? [series.filter] : []);
-      const built = this.buildFilterString(effectiveFilters, dynamicContext);
+      const built = this.buildFilterString(effectiveFilters, dynamicContext, fieldMetadata);
       const filterStr = this.combineODataParts(built, linkedViewModeOData);
       const baseOptions = {
         filter: filterStr,

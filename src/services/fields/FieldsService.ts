@@ -1,5 +1,5 @@
 import type { SPFI } from '@pnp/sp';
-import { getSPForWeb } from '../core/sp';
+import { getSPForWeb, isSharePointListGuid, normalizeListGuid, buildWebPathCandidatesForListByGuid } from '../core/sp';
 import { IFieldMetadata, FieldMappedType, IRawSPField } from './types';
 
 export const SYSTEM_METADATA_FIELDS: IFieldMetadata[] = [
@@ -78,9 +78,8 @@ const SP_TYPE_MAP: Record<string, FieldMappedType> = {
 };
 
 const listRef = (sp: SPFI, titleOrId: string) => {
-  const isGuid = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(titleOrId);
-  return isGuid
-    ? sp.web.lists.getById(titleOrId)
+  return isSharePointListGuid(titleOrId)
+    ? sp.web.lists.getById(normalizeListGuid(titleOrId))
     : sp.web.lists.getByTitle(titleOrId);
 };
 
@@ -100,27 +99,69 @@ export class FieldsService {
     };
   }
 
+  private async execGetFieldsAll(listTitleOrId: string, webServerRelativeUrl?: string): Promise<IFieldMetadata[]> {
+    const sp = this.spFor(webServerRelativeUrl);
+    const fields = await listRef(sp, listTitleOrId).fields
+      .select(FIELD_SELECT)() as IRawSPField[];
+    return fields.map(f => this.toFieldMetadata(f));
+  }
+
   async getFields(listTitleOrId: string, webServerRelativeUrl?: string): Promise<IFieldMetadata[]> {
     try {
-      const sp = this.spFor(webServerRelativeUrl);
-      const fields = await listRef(sp, listTitleOrId).fields
-        .select(FIELD_SELECT)() as IRawSPField[];
-      return fields.map(f => this.toFieldMetadata(f));
+      if (!isSharePointListGuid(listTitleOrId)) {
+        return await this.execGetFieldsAll(listTitleOrId, webServerRelativeUrl);
+      }
+      let last: unknown;
+      for (const w of buildWebPathCandidatesForListByGuid(webServerRelativeUrl)) {
+        try {
+          return await this.execGetFieldsAll(listTitleOrId, w);
+        } catch (e) {
+          last = e;
+        }
+      }
+      throw last;
     } catch (e) {
       throw new Error(`FieldsService.getFields("${listTitleOrId}"): ${e}`);
     }
   }
 
+  private async execGetVisibleFields(listTitleOrId: string, webServerRelativeUrl?: string): Promise<IFieldMetadata[]> {
+    const sp = this.spFor(webServerRelativeUrl);
+    const fields = await listRef(sp, listTitleOrId).fields
+      .filter('Hidden eq false and ReadOnlyField eq false')
+      .select(FIELD_SELECT)() as IRawSPField[];
+    return fields.map(f => this.toFieldMetadata(f));
+  }
+
   async getVisibleFields(listTitleOrId: string, webServerRelativeUrl?: string): Promise<IFieldMetadata[]> {
     try {
-      const sp = this.spFor(webServerRelativeUrl);
-      const fields = await listRef(sp, listTitleOrId).fields
-        .filter('Hidden eq false and ReadOnlyField eq false')
-        .select(FIELD_SELECT)() as IRawSPField[];
-      return fields.map(f => this.toFieldMetadata(f));
+      if (!isSharePointListGuid(listTitleOrId)) {
+        return await this.execGetVisibleFields(listTitleOrId, webServerRelativeUrl);
+      }
+      let last: unknown;
+      for (const w of buildWebPathCandidatesForListByGuid(webServerRelativeUrl)) {
+        try {
+          return await this.execGetVisibleFields(listTitleOrId, w);
+        } catch (e) {
+          last = e;
+        }
+      }
+      throw last;
     } catch (e) {
       throw new Error(`FieldsService.getVisibleFields("${listTitleOrId}"): ${e}`);
     }
+  }
+
+  private async execGetFieldByInternalName(
+    listTitleOrId: string,
+    internalName: string,
+    webServerRelativeUrl?: string
+  ): Promise<IFieldMetadata> {
+    const sp = this.spFor(webServerRelativeUrl);
+    const field = await listRef(sp, listTitleOrId).fields
+      .getByInternalNameOrTitle(internalName)
+      .select(FIELD_SELECT)() as IRawSPField;
+    return this.toFieldMetadata(field);
   }
 
   async getFieldByInternalName(
@@ -129,11 +170,18 @@ export class FieldsService {
     webServerRelativeUrl?: string
   ): Promise<IFieldMetadata> {
     try {
-      const sp = this.spFor(webServerRelativeUrl);
-      const field = await listRef(sp, listTitleOrId).fields
-        .getByInternalNameOrTitle(internalName)
-        .select(FIELD_SELECT)() as IRawSPField;
-      return this.toFieldMetadata(field);
+      if (!isSharePointListGuid(listTitleOrId)) {
+        return await this.execGetFieldByInternalName(listTitleOrId, internalName, webServerRelativeUrl);
+      }
+      let last: unknown;
+      for (const w of buildWebPathCandidatesForListByGuid(webServerRelativeUrl)) {
+        try {
+          return await this.execGetFieldByInternalName(listTitleOrId, internalName, w);
+        } catch (e) {
+          last = e;
+        }
+      }
+      throw last;
     } catch (e) {
       throw new Error(`FieldsService.getFieldByInternalName("${listTitleOrId}", "${internalName}"): ${e}`);
     }

@@ -49,3 +49,55 @@ export function getSPForWeb(webServerRelativeUrl?: string | null): SPFI {
   const targetAbs = `${prefix}${target.startsWith('/') ? target : `/${target}`}`;
   return spfi(targetAbs).using(SPFx(_ctx));
 }
+
+/** Identificador GUID de lista SharePoint (lista ligada por Id). Aceita com ou sem chaves. */
+export function isSharePointListGuid(titleOrId: string): boolean {
+  return /^\{?[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}\}?$/i.test((titleOrId || '').trim());
+}
+
+/** Remove chaves opcionais do GUID retornado pelo SP REST ({guid} → guid). */
+export function normalizeListGuid(titleOrId: string): string {
+  return (titleOrId || '').trim().replace(/^\{|\}$/g, '');
+}
+
+function parentServerRelativeWebSegment(pathNorm: string): string | undefined {
+  const t = (pathNorm || '').trim().replace(/\/+$/, '');
+  if (t === '' || t === '/') return undefined;
+  const i = t.lastIndexOf('/');
+  if (i <= 0) return '/';
+  const p = t.slice(0, i).replace(/\/+$/, '') || '/';
+  return p;
+}
+
+/**
+ * Webs a experimentar para localizar uma lista por GUID (site / subsites).
+ * Lista ligada pode viver no web pai; não no subsite da lista principal.
+ */
+export function buildWebPathCandidatesForListByGuid(
+  preferredWebServerRelativeUrl?: string | null
+): (string | undefined)[] {
+  const out: (string | undefined)[] = [];
+  const seen = new Set<string | undefined>();
+  const push = (v: string | undefined): void => {
+    if (seen.has(v)) return;
+    seen.add(v);
+    out.push(v);
+  };
+
+  const prefTrim = (preferredWebServerRelativeUrl ?? '').trim();
+  if (!prefTrim) {
+    push(undefined);
+    return out;
+  }
+
+  let cur: string | undefined = normWebPath(prefTrim);
+  while (cur !== undefined) {
+    push(cur);
+    const next = parentServerRelativeWebSegment(cur);
+    if (next === undefined) break;
+    if (next === cur) break;
+    cur = next;
+  }
+  push(undefined);
+  return out;
+}

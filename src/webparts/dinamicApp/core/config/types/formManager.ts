@@ -339,6 +339,16 @@ export interface IFormFieldConfig {
   textInputMaskCustomPattern?: string;
   /** Regras condicionais de visibilidade (só aplicadas a campos texto na UI de regras). */
   textConditionalVisibility?: ITextFieldConditionalVisibility;
+  /**
+   * Lookup / lookup multi: campo interno na lista de destino para o texto das opções na lista suspensa.
+   * Omitido: usa LookupField definido na coluna SharePoint, ou Title.
+   */
+  lookupOptionLabelField?: string;
+  /**
+   * Lookup / lookup multi: outros campos internos a solicitar ao REST na lista de destino
+   * (Id incluído automaticamente; person/lookup aninhados via metadados).
+   */
+  lookupOptionExtraSelectFields?: string[];
 }
 
 export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName' | 'fieldKind'>): boolean {

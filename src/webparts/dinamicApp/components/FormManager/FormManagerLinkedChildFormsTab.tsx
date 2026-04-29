@@ -187,6 +187,7 @@ export interface IFormManagerLinkedChildFormsTabProps {
   onLinkedChildFormsChange: React.Dispatch<React.SetStateAction<IFormLinkedChildFormConfig[]>>;
   mainAttachmentStorageKind: TFormAttachmentStorageKind | undefined;
   mainAttachmentLibraryFromPanel: IFormManagerAttachmentLibraryConfig | undefined;
+  listWebServerRelativeUrl?: string;
 }
 
 function childFolderStepOptions(cfg: IFormLinkedChildFormConfig): { id: string; title: string }[] {
@@ -275,6 +276,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
     onLinkedChildFormsChange,
     mainAttachmentStorageKind,
     mainAttachmentLibraryFromPanel,
+    listWebServerRelativeUrl,
   } = props;
   const fieldsService = useMemo(() => new FieldsService(), []);
   const listsService = useMemo(() => new ListsService(), []);
@@ -1143,6 +1145,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
             meta={fieldMeta}
             rules={lc.rules ?? []}
             fieldOptions={fieldOpts.length ? fieldOpts : [{ key: 'Title', text: 'Title' }]}
+            lookupFieldsWebServerRelativeUrl={listWebServerRelativeUrl?.trim() || undefined}
             onDismiss={() => setLinkedFieldRuleTarget(null)}
             onApply={(nextFc, editor) => {
               onLinkedChildFormsChange((prev) =>
