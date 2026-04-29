@@ -60,7 +60,7 @@ export interface IFormDerivedUiState {
   fieldReadOnly: Record<string, boolean>;
   effectiveSectionByField: Record<string, string>;
   messages: { variant: 'info' | 'warning' | 'error'; text: string; ruleId: string }[];
-  lookupFilters: Record<string, { parentField: string; odataFilterTemplate: string }>;
+  lookupFilters: Record<string, { parentField: string; childField?: string; filterOperator?: string; odataFilterTemplate?: string }>;
   computedDisplay: Record<string, unknown>;
   dynamicHelpByField: Record<string, string>;
 }
@@ -776,7 +776,12 @@ export function buildFormDerivedState(
       case 'clearFields':
         break;
       case 'filterLookupOptions':
-        lookupFilters[rule.field] = { parentField: rule.parentField, odataFilterTemplate: rule.odataFilterTemplate };
+        lookupFilters[rule.field] = {
+          parentField: rule.parentField,
+          ...(rule.childField ? { childField: rule.childField } : {}),
+          ...(rule.filterOperator ? { filterOperator: rule.filterOperator } : {}),
+          ...(rule.odataFilterTemplate ? { odataFilterTemplate: rule.odataFilterTemplate } : {}),
+        };
         break;
       case 'setComputed': {
         let v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);

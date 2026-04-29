@@ -719,6 +719,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const [fc, setFc] = useState<IFormFieldConfig>(fieldConfig);
   const [ed, setEd] = useState<IFieldRuleEditorState>(() => emptyFieldRuleEditorState());
   const [textRulesOpen, setTextRulesOpen] = useState<Record<string, boolean>>({});
+  const [lookupRulesOpen, setLookupRulesOpen] = useState<Record<string, boolean>>({});
   const groupsService = useMemo(() => new GroupsService(), []);
   const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
@@ -866,6 +867,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
     setTextRulesOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
   const isTextRulesOpen = useCallback((id: string): boolean => textRulesOpen[id] === true, [textRulesOpen]);
+
+  const toggleLookupRulesSection = useCallback((id: string): void => {
+    setLookupRulesOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+  const isLookupRulesOpen = useCallback((id: string): boolean => lookupRulesOpen[id] === true, [lookupRulesOpen]);
 
   const handleApply = (): void => {
     onApply(fc, ed);
@@ -1975,95 +1981,147 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
           </Text>
         )}
         {(mt === 'lookup' || mt === 'lookupmulti') && meta?.LookupList && (
-          <Stack tokens={{ childrenGap: 10 }} styles={{ root: { maxWidth: 480 } }}>
-            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-              Lista ligada (texto das opções)
-            </Text>
-            {lookupDestLoading && <Spinner />}
-            {lookupDestErr && (
-              <MessageBar messageBarType={MessageBarType.error}>{lookupDestErr}</MessageBar>
-            )}
-            <Dropdown
-              label="Campo para o texto das opções"
-              options={lookupLabelFieldOptions}
-              selectedKey={fc.lookupOptionLabelField?.trim() ? fc.lookupOptionLabelField.trim() : '__default'}
-              disabled={lookupDestLoading}
-              onChange={(_, opt): void =>
-                setFc((p): IFormFieldConfig => {
-                  const k = String(opt?.key ?? '');
-                  if (!k || k === '__default') {
-                    const { lookupOptionLabelField: _omitLbl, ...rest } = p;
-                    return rest;
-                  }
-                  return { ...p, lookupOptionLabelField: k };
-                })
-              }
-            />
-            <Stack tokens={{ childrenGap: 4 }}>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Campos extras na lista ligada (Id e o campo do texto são pedidos sempre)
-              </Text>
-              {lookupRulesEligibleFlat
-                .filter((f) => {
-                  const ef =
-                    fc.lookupOptionLabelField?.trim() || meta.LookupField?.trim() || 'Title';
-                  return f.InternalName !== ef;
-                })
-                .map((f) => (
-                  <Checkbox
-                    key={f.InternalName}
-                    label={`${f.Title} (${f.InternalName})`}
-                    checked={(fc.lookupOptionExtraSelectFields ?? []).indexOf(f.InternalName) !== -1}
-                    onChange={(_, checked): void =>
-                      setFc((p): IFormFieldConfig => {
-                        const prevArr = p.lookupOptionExtraSelectFields ?? [];
-                        let nextExtra = prevArr.slice();
-                        const ix = nextExtra.indexOf(f.InternalName);
-                        if (checked && ix === -1) nextExtra.push(f.InternalName);
-                        if (!checked && ix !== -1) nextExtra.splice(ix, 1);
-                        nextExtra.sort();
-                        if (nextExtra.length === 0) {
-                          const {
-                            lookupOptionExtraSelectFields: _omitX,
-                            ...restOnly
-                          } = p;
-                          return restOnly;
-                        }
-                        return { ...p, lookupOptionExtraSelectFields: nextExtra };
-                      })
-                    }
-                  />
-                ))}
+          <FormManagerCollapseSection
+            title="Lista ligada (texto das opções)"
+            isOpen={isLookupRulesOpen('lookupLabel')}
+            onToggle={() => toggleLookupRulesSection('lookupLabel')}
+          >
+            <Stack tokens={{ childrenGap: 10 }} styles={{ root: { maxWidth: 480 } }}>
+              {lookupDestLoading && <Spinner />}
+              {lookupDestErr && (
+                <MessageBar messageBarType={MessageBarType.error}>{lookupDestErr}</MessageBar>
+              )}
+              <Dropdown
+                label="Campo para o texto das opções"
+                options={lookupLabelFieldOptions}
+                selectedKey={fc.lookupOptionLabelField?.trim() ? fc.lookupOptionLabelField.trim() : '__default'}
+                disabled={lookupDestLoading}
+                onChange={(_, opt): void =>
+                  setFc((p): IFormFieldConfig => {
+                    const k = String(opt?.key ?? '');
+                    const { lookupOptionLabelField: _l, lookupOptionLabelSubProp: _s, ...rest } = p;
+                    if (!k || k === '__default') return rest;
+                    return { ...rest, lookupOptionLabelField: k };
+                  })
+                }
+              />
+              {(() => {
+                const selName = fc.lookupOptionLabelField?.trim() || meta.LookupField?.trim() || 'Title';
+                const labelMeta = lookupRulesEligibleFlat.find((f) => f.InternalName === selName);
+                const isUser = labelMeta?.MappedType === 'user' || labelMeta?.MappedType === 'usermulti';
+                const isLookupSub = labelMeta?.MappedType === 'lookup' || labelMeta?.MappedType === 'lookupmulti';
+                const isMulti = labelMeta?.MappedType === 'usermulti' || labelMeta?.MappedType === 'lookupmulti';
+                if (!isUser && !isLookupSub) return null;
+                const subPropOptions: IDropdownOption[] = isUser
+                  ? [
+                      { key: '', text: '(Padrão — Nome)' },
+                      { key: 'Title', text: 'Nome (Title)' },
+                      { key: 'EMail', text: 'E-mail (EMail)' },
+                    ]
+                  : [
+                      { key: '', text: '(Padrão — Title)' },
+                      { key: 'Title', text: 'Valor do lookup (Title)' },
+                    ];
+                return (
+                  <Stack tokens={{ childrenGap: 6 }}>
+                    <Dropdown
+                      label="Propriedade a exibir"
+                      options={subPropOptions}
+                      selectedKey={fc.lookupOptionLabelSubProp ?? ''}
+                      onChange={(_, o): void =>
+                        setFc((p): IFormFieldConfig => {
+                          const k = String(o?.key ?? '');
+                          const { lookupOptionLabelSubProp: _omit, ...rest } = p;
+                          if (!k) return rest;
+                          return { ...rest, lookupOptionLabelSubProp: k };
+                        })
+                      }
+                    />
+                    {isMulti && (
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Campo multi-valor — valores concatenados com "; " no texto da opção.
+                      </Text>
+                    )}
+                  </Stack>
+                );
+              })()}
             </Stack>
-          </Stack>
+          </FormManagerCollapseSection>
         )}
-        {(mt === 'lookup' || mt === 'lookupmulti' || mt === 'user' || mt === 'usermulti') && (
-          <Stack tokens={{ childrenGap: 8 }}>
-            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>Filtrar opções</Text>
-            <Dropdown
-              label="Campo pai (filtro)"
-              options={[{ key: '', text: '—' }, ...fieldOptions]}
-              selectedKey={ed.filterLookup.parentField || ''}
-              onChange={(_, o) =>
-                setEd((p) => ({
-                  ...p,
-                  filterLookup: { ...p.filterLookup, parentField: o ? String(o.key) : '' },
-                }))
-              }
-            />
-            <TextField
-              label="Modelo OData (use {'{parent}'} para o Id do pai)"
-              multiline
-              rows={2}
-              value={ed.filterLookup.odataFilterTemplate}
-              onChange={(_, v) =>
-                setEd((p) => ({
-                  ...p,
-                  filterLookup: { ...p.filterLookup, odataFilterTemplate: v ?? '' },
-                }))
-              }
-            />
-          </Stack>
+        {(mt === 'lookup' || mt === 'lookupmulti') && (
+          <FormManagerCollapseSection
+            title="Filtrar opções"
+            isOpen={isLookupRulesOpen('lookupFilter')}
+            onToggle={() => toggleLookupRulesSection('lookupFilter')}
+          >
+            <Stack tokens={{ childrenGap: 8 }}>
+              <Dropdown
+                label="Campo pai (filtro)"
+                options={[{ key: '', text: '—' }, ...fieldOptions]}
+                selectedKey={ed.filterLookup.parentField || ''}
+                onChange={(_, o) =>
+                  setEd((p) => ({
+                    ...p,
+                    filterLookup: { ...p.filterLookup, parentField: o ? String(o.key) : '', childField: '', filterOperator: '' },
+                  }))
+                }
+              />
+              <Dropdown
+                label="Comparador"
+                options={[
+                  { key: '', text: '—' },
+                  { key: 'eq', text: 'Igual a (eq)' },
+                  { key: 'ne', text: 'Diferente de (ne)' },
+                  { key: 'lt', text: 'Menor que (lt)' },
+                  { key: 'le', text: 'Menor ou igual (le)' },
+                  { key: 'gt', text: 'Maior que (gt)' },
+                  { key: 'ge', text: 'Maior ou igual (ge)' },
+                  { key: 'contains', text: 'Contém (substringof)' },
+                  { key: 'startsWith', text: 'Começa com (startswith)' },
+                ]}
+                selectedKey={ed.filterLookup.filterOperator || ''}
+                disabled={!ed.filterLookup.parentField}
+                onChange={(_, o) =>
+                  setEd((p) => ({
+                    ...p,
+                    filterLookup: { ...p.filterLookup, filterOperator: (o ? String(o.key) : '') as typeof p.filterLookup.filterOperator },
+                  }))
+                }
+              />
+              {meta?.LookupList && lookupRulesEligibleFlat.length > 0 ? (
+                <Dropdown
+                  label="Campo na lista filho"
+                  options={[
+                    { key: '', text: '—' },
+                    ...lookupRulesEligibleFlat.map((f) => ({
+                      key: f.InternalName,
+                      text: `${f.Title} (${f.InternalName})`,
+                    })),
+                  ]}
+                  selectedKey={ed.filterLookup.childField || ''}
+                  disabled={!ed.filterLookup.parentField || !ed.filterLookup.filterOperator}
+                  onChange={(_, o) =>
+                    setEd((p) => ({
+                      ...p,
+                      filterLookup: { ...p.filterLookup, childField: o ? String(o.key) : '' },
+                    }))
+                  }
+                />
+              ) : (
+                <TextField
+                  label="Campo na lista filho"
+                  value={ed.filterLookup.childField}
+                  disabled={!ed.filterLookup.parentField || !ed.filterLookup.filterOperator}
+                  onChange={(_, v) =>
+                    setEd((p) => ({
+                      ...p,
+                      filterLookup: { ...p.filterLookup, childField: v ?? '' },
+                    }))
+                  }
+                />
+              )}
+            </Stack>
+          </FormManagerCollapseSection>
         )}
         {mt === 'boolean' && (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>

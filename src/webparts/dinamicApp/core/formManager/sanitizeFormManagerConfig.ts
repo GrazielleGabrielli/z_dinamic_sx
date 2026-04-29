@@ -40,6 +40,7 @@ import type {
   IFormManagerPermissionBreakConfig,
   IFormPermissionBreakAssignment,
   IFormManagerPermissionBreakTargets,
+  TLookupFilterOperator,
 } from '../config/types/formManager';
 import {
   FORM_BANNER_INTERNAL_PREFIX,
@@ -325,9 +326,24 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
     case 'filterLookupOptions': {
       const field = typeof r.field === 'string' ? r.field.trim() : '';
       const parentField = typeof r.parentField === 'string' ? r.parentField.trim() : '';
-      const odataFilterTemplate = typeof r.odataFilterTemplate === 'string' ? r.odataFilterTemplate : '';
-      if (!field || !parentField || !odataFilterTemplate.trim()) return undefined;
-      return { ...base, action: 'filterLookupOptions', field, parentField, odataFilterTemplate };
+      if (!field || !parentField) return undefined;
+      const childField = typeof r.childField === 'string' ? r.childField.trim() : '';
+      const FILTER_OPS = new Set(['eq', 'ne', 'lt', 'le', 'gt', 'ge', 'contains', 'startsWith']);
+      const filterOperator = typeof r.filterOperator === 'string' && FILTER_OPS.has(r.filterOperator)
+        ? (r.filterOperator as TLookupFilterOperator)
+        : undefined;
+      const odataFilterTemplate = typeof r.odataFilterTemplate === 'string' ? r.odataFilterTemplate.trim() : '';
+      const hasVisual = !!(childField && filterOperator);
+      const hasLegacy = !!odataFilterTemplate;
+      if (!hasVisual && !hasLegacy) return undefined;
+      return {
+        ...base,
+        action: 'filterLookupOptions',
+        field,
+        parentField,
+        ...(hasVisual ? { childField, filterOperator } : {}),
+        ...(hasLegacy ? { odataFilterTemplate } : {}),
+      };
     }
     case 'setComputed': {
       const field = typeof r.field === 'string' ? r.field.trim() : '';
@@ -456,6 +472,19 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(textInputMaskKind ? { textInputMaskKind } : {}),
     ...(textInputMaskCustomPattern ? { textInputMaskCustomPattern } : {}),
     ...(textConditionalVisibility ? { textConditionalVisibility } : {}),
+    ...(typeof f.lookupOptionLabelField === 'string' && f.lookupOptionLabelField.trim()
+      ? { lookupOptionLabelField: f.lookupOptionLabelField.trim() }
+      : {}),
+    ...(typeof f.lookupOptionLabelSubProp === 'string' && f.lookupOptionLabelSubProp.trim()
+      ? { lookupOptionLabelSubProp: f.lookupOptionLabelSubProp.trim() }
+      : {}),
+    ...(Array.isArray(f.lookupOptionExtraSelectFields) && f.lookupOptionExtraSelectFields.length
+      ? {
+          lookupOptionExtraSelectFields: (f.lookupOptionExtraSelectFields as unknown[])
+            .map((x) => String(x).trim())
+            .filter(Boolean),
+        }
+      : {}),
   };
   if (isBanner) {
     const bp = f.bannerPlacement;

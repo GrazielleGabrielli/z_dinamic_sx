@@ -108,7 +108,11 @@ export function normalizeItemsQuerySelectExpand(
     const meta = byName.get(f);
     if (meta && EXPANDABLE_TYPES.indexOf(meta.MappedType) !== -1) {
       if (expandArr.indexOf(f) === -1) expandArr.push(f);
-      newSelect.push(`${f}/Id`, `${f}/Title`);
+      if (meta.MappedType === 'user' || meta.MappedType === 'usermulti') {
+        newSelect.push(`${f}/Id`, `${f}/Title`, `${f}/EMail`);
+      } else {
+        newSelect.push(`${f}/Id`, `${f}/Title`);
+      }
     } else {
       newSelect.push(f);
     }

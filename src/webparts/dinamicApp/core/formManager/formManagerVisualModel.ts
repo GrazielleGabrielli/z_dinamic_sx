@@ -10,6 +10,7 @@ import {
   type ITextFieldConditionalCondition,
   type ITextFieldConditionalGroup,
   type ITextFieldConditionalVisibility,
+  type TLookupFilterOperator,
 } from '../config/types/formManager';
 
 export const CONDITION_OP_OPTIONS: { key: TFormConditionOp; text: string }[] = [
@@ -346,7 +347,8 @@ export interface IFieldRuleEditorState {
   };
   filterLookup: {
     parentField: string;
-    odataFilterTemplate: string;
+    childField: string;
+    filterOperator: TLookupFilterOperator | '';
   };
   computedExpression: string;
   /** Id do nó na árvore de pastas (Anexos); gera expressão `attfolder:id`. */
@@ -394,7 +396,7 @@ export function emptyFieldRuleEditorState(): IFieldRuleEditorState {
       lteField: '',
       message: '',
     },
-    filterLookup: { parentField: '', odataFilterTemplate: '' },
+    filterLookup: { parentField: '', childField: '', filterOperator: '' },
     computedExpression: '',
     computedAttachmentFolderNodeId: '',
     computedLiveInEditView: false,
@@ -433,7 +435,8 @@ export function fieldRuleStateFromRules(
     }
     if (r.action === 'filterLookupOptions' && r.field === internalName) {
       st.filterLookup.parentField = r.parentField;
-      st.filterLookup.odataFilterTemplate = r.odataFilterTemplate;
+      st.filterLookup.childField = r.childField ?? '';
+      st.filterLookup.filterOperator = r.filterOperator ?? '';
     }
     if (r.action === 'setComputed' && r.field === internalName) {
       const ex = String(r.expression ?? '').trim();
@@ -599,13 +602,14 @@ export function buildFieldUiRules(
   }
 
   const fl = st.filterLookup;
-  if (fl.parentField.trim() && fl.odataFilterTemplate.trim()) {
+  if (fl.parentField.trim() && fl.childField.trim() && fl.filterOperator) {
     out.push({
       id: id('lk'),
       action: 'filterLookupOptions',
       field: internalName,
       parentField: fl.parentField.trim(),
-      odataFilterTemplate: fl.odataFilterTemplate.trim(),
+      childField: fl.childField.trim(),
+      filterOperator: fl.filterOperator as TLookupFilterOperator,
       ...baseModes,
     });
   }

@@ -44,6 +44,7 @@ import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInpu
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
   buildLookupDropdownSelectRaw,
+  buildLookupODataFilter,
   lookupRowToOptionText,
   resolveLookupFormLabelInternalName,
 } from '../../core/formManager/lookupFormDropdownHelpers';
@@ -675,6 +676,7 @@ function lookupIdFromValue(v: unknown): number | undefined {
   }
   return undefined;
 }
+
 
 function normalizeIdTitleArray(v: unknown): { Id: number; Title: string }[] {
   if (v === null || v === undefined) return [];
@@ -1464,12 +1466,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [values, clearRules]);
 
   const loadLookupOptions = useCallback(
-    async (fieldName: string, odataFilter?: string): Promise<void> => {
+    async (fieldName: string, lf?: { parentField: string; childField?: string; filterOperator?: string; odataFilterTemplate?: string }): Promise<void> => {
       const m = metaByName.get(fieldName);
       if (!m?.LookupList) return;
       const fc = fieldConfigByInternalName.get(fieldName);
       try {
-        const filter = odataFilter?.trim() ? odataFilter : undefined;
+        let filter: string | undefined;
 
         const listGuid = m.LookupList;
         let fieldMetaList: IFieldMetadata[] | undefined = lookupDestMetaCacheRef.current[listGuid];
@@ -1483,6 +1485,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             fieldMetaList = fetched;
           } catch {
             fieldMetaList = undefined;
+          }
+        }
+
+        if (lf) {
+          if (lf.childField && lf.filterOperator) {
+            const parentVal = values[lf.parentField];
+            const parentMeta = metaByName.get(lf.parentField);
+            const childFieldMeta = fieldMetaList?.find((x) => x.InternalName === lf.childField);
+            filter = buildLookupODataFilter(lf.childField, lf.filterOperator, parentVal, parentMeta, childFieldMeta);
+          } else if (lf.odataFilterTemplate) {
+            const pid = lookupIdFromValue(values[lf.parentField]);
+            if (pid !== undefined) filter = lf.odataFilterTemplate.split('{parent}').join(String(pid));
           }
         }
 
@@ -1502,7 +1516,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           { key: '', text: '—' },
           ...rows.map((row) => ({
             key: String(row.Id),
-            text: lookupRowToOptionText(row, labelFieldName, labelMeta),
+            text: lookupRowToOptionText(row, labelFieldName, labelMeta, fc?.lookupOptionLabelSubProp),
           })),
         ];
         setLookupOptions((o) => ({ ...o, [fieldName]: opts }));
@@ -1510,7 +1524,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setLookupOptions((o) => ({ ...o, [fieldName]: [] }));
       }
     },
-    [itemsService, metaByName, listWeb, fieldsService, fieldConfigByInternalName]
+    [itemsService, metaByName, listWeb, fieldsService, fieldConfigByInternalName, values]
   );
 
   const lookupFetchKey = useMemo(() => {
@@ -1523,14 +1537,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const fc = fieldConfigs[i];
       const labelDisp = resolveLookupFormLabelInternalName(m, fc ?? {});
       const extrasSig = JSON.stringify(fc?.lookupOptionExtraSelectFields ?? []);
+      const subPropSig = fc?.lookupOptionLabelSubProp ?? '';
       const lf = derived.lookupFilters[fn];
       if (lf) {
-        const pid = lookupIdFromValue(values[lf.parentField]);
+        const parentVal = values[lf.parentField];
+        const parentId = lookupIdFromValue(parentVal);
+        const parentSig = parentId !== undefined ? String(parentId) :
+          typeof parentVal === 'string' ? parentVal :
+          typeof parentVal === 'number' ? String(parentVal) : '';
         parts.push(
-          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${lf.parentField}\t${lf.odataFilterTemplate}\t${pid === undefined ? '' : String(pid)}`
+          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${lf.parentField}\t${lf.childField ?? ''}\t${lf.filterOperator ?? ''}\t${parentSig}`
         );
       } else {
-        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t`);
+        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t`);
       }
     }
     parts.sort();
@@ -1546,12 +1565,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const m = metaByName.get(fn);
         if (m?.MappedType === 'lookup' || m?.MappedType === 'lookupmulti') {
           const lf = derived.lookupFilters[fn];
-          let filter: string | undefined;
-          if (lf) {
-            const pid = lookupIdFromValue(values[lf.parentField]);
-            if (pid !== undefined) filter = lf.odataFilterTemplate.split('{parent}').join(String(pid));
-          }
-          await loadLookupOptions(fn, filter);
+          await loadLookupOptions(fn, lf);
         }
       }
     })();

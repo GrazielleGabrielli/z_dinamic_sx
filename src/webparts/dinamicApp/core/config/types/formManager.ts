@@ -136,12 +136,18 @@ export interface IFormRuleShowMessage extends IFormRuleBase {
   text: string;
 }
 
+export type TLookupFilterOperator = 'eq' | 'ne' | 'lt' | 'le' | 'gt' | 'ge' | 'contains' | 'startsWith';
+
 export interface IFormRuleFilterLookup extends IFormRuleBase {
   action: 'filterLookupOptions';
   field: string;
   parentField: string;
-  /** OData filter com `{parent}` substituído pelo Id do pai */
-  odataFilterTemplate: string;
+  /** Campo na lista ligada a comparar com o valor do campo pai. */
+  childField?: string;
+  /** Operador OData para a comparação visual. */
+  filterOperator?: TLookupFilterOperator;
+  /** Legado: modelo OData com `{parent}` substituído pelo Id numérico do campo pai. */
+  odataFilterTemplate?: string;
 }
 
 export interface IFormRuleSetComputed extends IFormRuleBase {
@@ -344,6 +350,12 @@ export interface IFormFieldConfig {
    * Omitido: usa LookupField definido na coluna SharePoint, ou Title.
    */
   lookupOptionLabelField?: string;
+  /**
+   * Sub-propriedade a extrair quando o campo de etiqueta é do tipo user/usermulti/lookup/lookupmulti.
+   * Omitido: usa Title (ou EMail / LookupValue como fallback automático).
+   * Exemplos: 'Title', 'EMail', 'LoginName' (user); 'Title' (lookup).
+   */
+  lookupOptionLabelSubProp?: string;
   /**
    * Lookup / lookup multi: outros campos internos a solicitar ao REST na lista de destino
    * (Id incluído automaticamente; person/lookup aninhados via metadados).
