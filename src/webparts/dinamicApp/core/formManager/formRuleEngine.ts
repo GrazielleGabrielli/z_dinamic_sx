@@ -71,6 +71,8 @@ const DATE_DEFAULT_COMPOUND_RE =
   /^((?:\[[^\]]+\]|\{\{[^}]+\}\}))\s*([+-])\s*(\d+)(?:\s+(dias?|days?|semanas?|weeks?))?$/i;
 
 const DATE_DEFAULT_SINGLE_PLACEHOLDER_RE = /^\{\{([^}]+)\}\}$/;
+const DEFAULT_PLACEHOLDER_RE = /\{\{([^}]+)\}\}/g;
+const DEFAULT_INLINE_TOKEN_RE = /\[(.+?)\]/g;
 
 function normalizeDateDefaultExpression(expr: string): string {
   let t = expr.trim().replace(/\s+/g, ' ');
@@ -182,6 +184,95 @@ function isEmptyish(v: unknown): boolean {
     if (id === null || id === undefined || id === '') return true;
   }
   return false;
+}
+
+function tryGetObjectProp(obj: Record<string, unknown>, key: string): unknown {
+  if (key in obj) return obj[key];
+  const low = key.toLowerCase();
+  const keys = Object.keys(obj);
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() === low) return obj[keys[i]];
+  }
+  return undefined;
+}
+
+function readPathValue(root: unknown, path: string[]): unknown {
+  if (!path.length) return root;
+  if (root === null || root === undefined) return undefined;
+  if (Array.isArray(root)) {
+    const mapped = root
+      .map((item) => readPathValue(item, path))
+      .filter((x) => x !== undefined && x !== null && String(x).trim() !== '');
+    return mapped.length ? mapped.join('; ') : undefined;
+  }
+  if (typeof root === 'object') {
+    const obj = root as Record<string, unknown>;
+    const head = path[0];
+    const next = tryGetObjectProp(obj, head);
+    return readPathValue(next, path.slice(1));
+  }
+  return undefined;
+}
+
+function toScalarString(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number') return isFinite(v) ? String(v) : '';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (Array.isArray(v)) return v.map((x) => toScalarString(x)).filter(Boolean).join('; ');
+  if (typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    const title = tryGetObjectProp(o, 'Title');
+    if (title !== undefined && title !== null) return String(title);
+    const id = tryGetObjectProp(o, 'Id');
+    if (id !== undefined && id !== null) return String(id);
+  }
+  return String(v);
+}
+
+function resolveDefaultTemplateValue(
+  raw: string,
+  values: Record<string, unknown>,
+  dynamicContext: IDynamicContext
+): { usedTemplate: boolean; value: unknown } {
+  const trimmed = raw.trim();
+  const hasPlaceholder = DEFAULT_PLACEHOLDER_RE.test(trimmed);
+  DEFAULT_PLACEHOLDER_RE.lastIndex = 0;
+  const hasInlineToken = DEFAULT_INLINE_TOKEN_RE.test(trimmed);
+  DEFAULT_INLINE_TOKEN_RE.lastIndex = 0;
+  if (!hasPlaceholder && !hasInlineToken) return { usedTemplate: false, value: raw };
+
+  let replaced = trimmed.replace(DEFAULT_PLACEHOLDER_RE, (_full, innerRaw: string) => {
+    const inner = String(innerRaw).trim();
+    if (!inner) return '';
+    const path = inner.split('/').map((p) => p.trim()).filter(Boolean);
+    if (!path.length) return '';
+    const rootName = path[0];
+    const rootVal = values[rootName];
+    const resolved = path.length > 1 ? readPathValue(rootVal, path.slice(1)) : rootVal;
+    return toScalarString(resolved);
+  });
+
+  replaced = replaced.replace(DEFAULT_INLINE_TOKEN_RE, (full, innerRaw: string) => {
+    const tok = `[${String(innerRaw).trim()}]`;
+    if (!isDynamicToken(tok)) return full;
+    const resolved = tokenResolver.resolveStringToken(tok, dynamicContext);
+    return resolved === undefined || resolved === null ? '' : toScalarString(resolved);
+  });
+
+  const single = DATE_DEFAULT_SINGLE_PLACEHOLDER_RE.exec(trimmed);
+  if (single) {
+    const inner = single[1].trim();
+    const path = inner.split('/').map((p) => p.trim()).filter(Boolean);
+    if (path.length) {
+      const rootName = path[0];
+      const rootVal = values[rootName];
+      const resolved = path.length > 1 ? readPathValue(rootVal, path.slice(1)) : rootVal;
+      if (resolved !== undefined && resolved !== null) return { usedTemplate: true, value: resolved };
+    }
+  }
+
+  return { usedTemplate: true, value: replaced };
 }
 
 function coerceBool(v: unknown): boolean | undefined {
@@ -587,6 +678,27 @@ function evalArithmetic(expr: string): number | undefined {
   return v;
 }
 
+function resolvePlaceholderScalarFromValues(innerRaw: string, values: Record<string, unknown>): string {
+  const inner = String(innerRaw).trim();
+  if (!inner || inner.indexOf('DAYS:') === 0) return '';
+  const path = inner.split('/').map((p) => p.trim()).filter(Boolean);
+  if (!path.length) return '';
+  const rootVal = values[path[0]];
+  const resolved = path.length > 1 ? readPathValue(rootVal, path.slice(1)) : rootVal;
+  return toScalarString(resolved);
+}
+
+function resolvePlaceholderNumberFromValues(innerRaw: string, values: Record<string, unknown>): number | undefined {
+  const inner = String(innerRaw).trim();
+  if (!inner || inner.indexOf('DAYS:') === 0) return undefined;
+  const path = inner.split('/').map((p) => p.trim()).filter(Boolean);
+  if (!path.length) return undefined;
+  const rootVal = values[path[0]];
+  const resolved = path.length > 1 ? readPathValue(rootVal, path.slice(1)) : rootVal;
+  const n = coerceNumber(resolved);
+  return typeof n === 'number' && isFinite(n) ? n : undefined;
+}
+
 export function evaluateFormValueExpression(
   expr: string,
   values: Record<string, unknown>,
@@ -613,10 +725,8 @@ export function evaluateFormValueExpression(
   if (t.indexOf('str:') === 0) {
     let s = t.slice(4).replace(/\{\{([^}]+)\}\}/g, (_, name) => {
       const key = String(name).trim();
-      const v = values[key];
-      if (v === null || v === undefined) return '';
-      if (typeof v === 'object' && v !== null && 'Title' in (v as object)) return String((v as Record<string, unknown>).Title ?? '');
-      return String(v);
+      if (key.indexOf('DAYS:') === 0) return '';
+      return resolvePlaceholderScalarFromValues(key, values);
     });
     if (dynamicContext) {
       s = s.replace(/\[(.+?)\]/g, (full, inner: string) => {
@@ -639,10 +749,7 @@ export function evaluateFormValueExpression(
     const withFields = daysFirst.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
       const key = String(name).trim();
       if (key.indexOf('DAYS:') === 0) return '';
-      const v = values[key];
-      if (v === null || v === undefined) return '';
-      if (typeof v === 'object' && v !== null && 'Title' in (v as object)) return String((v as Record<string, unknown>).Title ?? '');
-      return String(v);
+      return resolvePlaceholderScalarFromValues(key, values);
     });
     const withTok = withFields.replace(/\[(.+?)\]/g, (full, inner: string) => {
       const tok = `[${String(inner).trim()}]`;
@@ -661,7 +768,9 @@ export function evaluateFormValueExpression(
     return String(Math.round(ms / 86400000));
   });
   const replaced = withDays.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
-    const n = coerceNumber(values[String(name).trim()]);
+    const key = String(name).trim();
+    if (key.indexOf('DAYS:') === 0) return '0';
+    const n = resolvePlaceholderNumberFromValues(key, values);
     return typeof n === 'number' && isFinite(n) ? String(n) : '0';
   });
   if (!/^[-+*/().0-9]+$/.test(replaced)) return undefined;
@@ -1399,7 +1508,14 @@ export function getDefaultValuesFromRules(
       if (dr.kind === 'resolved') resolved = dr.value;
       else resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
     } else {
-      resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+      if (typeof rule.value === 'string') {
+        const templateResolved = resolveDefaultTemplateValue(rule.value, next, dynamicContext);
+        resolved = templateResolved.usedTemplate
+          ? templateResolved.value
+          : tokenResolver.resolveValue(rule.value, dynamicContext);
+      } else {
+        resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+      }
     }
 
     if (resolved !== undefined && isEmptyish(next[rule.field])) next[rule.field] = resolved;

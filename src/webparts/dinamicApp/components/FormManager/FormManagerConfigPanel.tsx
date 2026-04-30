@@ -1955,22 +1955,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 {requiredFieldsMissingFromSteps.map((f) => `${f.Title} (${f.InternalName})`).join(', ')}
               </MessageBar>
             )}
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Arraste campos para dentro de cada etapa e reordene-os pela alça. O id da etapa é gravado como seção no JSON. Reordene etapas pela alça no cabeçalho. Obrigatórios na lista: verde só quando incluídos no formulário (marcados); com campos nas etapas, têm de estar numa etapa. Layout do passador e botões anterior/próximo: aba Componentes.
-            </Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              <span style={{ fontWeight: 600 }}>Anexos (ficheiros):</span> ao incluir o campo virtual «Anexos ao item» numa etapa, escolhe-se{' '}
-              <em>só em que passo do formulário</em> o utilizador vê e envia ficheiros. Se a gravação vai para os anexos nativos do item na lista principal ou para uma biblioteca (e qual) é definido na aba «Anexos», uma vez para o formulário inteiro — não varia por etapa.
-            </Text>
+        
             <FormManagerCollapseSection
               title="Layout do formulário (vista)"
               isOpen={isEstruturaOpen(ESTRUTURA_COLLAPSE_IDS.formLayout)}
               onToggle={() => toggleEstruturaSection(ESTRUTURA_COLLAPSE_IDS.formLayout)}
             >
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Largura e alinhamento do bloco do formulário na página (título «Novo registro», campos e botões),
-                relativamente à área da web part.
-              </Text>
+           
               <Dropdown
                 label="Largura"
                 options={FORM_ROOT_WIDTH_OPTIONS}
@@ -2005,9 +1996,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               isOpen={isEstruturaOpen(ESTRUTURA_COLLAPSE_IDS.stepNav)}
               onToggle={() => toggleEstruturaSection(ESTRUTURA_COLLAPSE_IDS.stepNav)}
             >
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Regras ao avançar ou recuar entre etapas.
-              </Text>
+          
               <Toggle
                 label="Exigir obrigatórios preenchidos para avançar (Próximo / etapa à frente)"
                 checked={stepRequireFilledToAdvance}
@@ -2025,9 +2014,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 onChange={(_, c) => setStepAllowBackWithoutVal(!!c)}
                 disabled={!stepRequireFilledToAdvance}
               />
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Ideias futuras: etapa de revisão antes de enviar; desativar salto direto no passador; barra de progresso por etapa.
-              </Text>
+   
             </FormManagerCollapseSection>
             <Stack horizontal tokens={{ childrenGap: 8 }}>
               <PrimaryButton text="Nova etapa" onClick={addStep} />
@@ -2782,12 +2769,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         </PivotItem>
         <PivotItem headerText="Botões">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Botões extra no rodapé do formulário. Ao clicar, as ações executam por ordem (mostrar/ocultar campos,
-              preencher valores). Para texto composto a partir de campos, use o prefixo str: e placeholders no formato
-              {' {{NomeInterno}} '} (igual à expressão de texto da regra de valor calculado). Visibilidade por grupo e
-              por uma ou várias condições sobre os dados do formulário.
-            </Text>
+         
             <PrimaryButton text="Adicionar botão" onClick={addCustomButton} />
             {customButtons.map((btn, bi) => {
               const chk = checkboxesFromModes(btn.modes);
@@ -2914,7 +2896,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     <Stack tokens={{ childrenGap: 10 }}>
                       <TextField
                         label="URL de destino"
-                        description="Escreva o endereço. Use {{}} vazio para escolher um campo na lista abaixo, ou o menu «Inserir valor dinâmico»."
+                        description="Escreva o endereço. Use {{}} vazio para escolher um campo na lista abaixo."
                         multiline
                         rows={3}
                         value={btn.redirectUrlTemplate ?? ''}
@@ -2983,16 +2965,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       )}
                     </Stack>
                   )}
-                  {(btn.operation ?? 'legacy') === 'add' && (
-                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                      Cria um novo item na lista com os valores atuais do formulário (validação completa ao gravar).
-                    </Text>
-                  )}
-                  {(btn.operation ?? 'legacy') === 'update' && (
-                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                      Atualiza o item aberto. O sistema usa o contexto da página (ex.: FormID na query). Modo novo não aplica.
-                    </Text>
-                  )}
+              
+               
                   {(btn.operation ?? 'legacy') === 'delete' && (
                     <Stack tokens={{ childrenGap: 8 }}>
                       <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
@@ -3158,9 +3132,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Último passo (após tudo concluir com sucesso)
                   </Text>
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    {`Corre depois das ações, gravar, log, etc. Redirecionar usa o mesmo modelo de URL que a operação «Redirecionar» ({{campo}}, {{FormID}}, {{Form}}).`}
-                  </Text>
+                  
                   <Dropdown
                     label="Quando o fluxo do botão terminar sem erro"
                     options={BUTTON_FINISH_AFTER_OPTIONS}
@@ -3219,10 +3191,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Grupos do SharePoint
                   </Text>
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão. Vazio = todos. Os
-                    títulos coincidem com os grupos devolvidos ao formulário em tempo de execução.
-                  </Text>
+         
                   <TextField
                     placeholder="Filtrar grupos por nome"
                     value={customButtonGroupNameFilter}
@@ -3487,10 +3456,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         </PivotItem>
         <PivotItem headerText="Regras dos campos">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Por campo: visibilidade, obrigatoriedade condicional, valor por defeito e validações. As regras gravam-se
-              no JSON pelo nome interno do campo.
-            </Text>
+         
             {!fieldsListedForRulesTab.length ? (
               <Text>Adicione campos ao formulário na aba Estrutura.</Text>
             ) : (
@@ -3584,6 +3550,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           attachmentLibraryFolderOptions={attachmentFolderOptionsForFieldRules}
           lookupFieldsWebServerRelativeUrl={lw}
           listFieldMetadata={meta}
+          allFieldConfigs={fields}
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
             setFields((prev) =>

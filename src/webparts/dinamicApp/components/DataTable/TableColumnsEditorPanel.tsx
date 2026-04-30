@@ -1528,26 +1528,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       tokens={{ childrenGap: 10 }}
                       styles={{ root: { width: '100%', flexShrink: 0, minHeight: 0 } }}
                     >
-                      <Text
-                        variant="small"
-                        block
-                        styles={{
-                          root: {
-                            display: 'block',
-                            width: '100%',
-                            margin: 0,
-                            color: '#605e5c',
-                            lineHeight: 1.55,
-                            whiteSpace: 'normal',
-                            wordBreak: 'break-word',
-                            overflowWrap: 'break-word',
-                          },
-                        }}
-                      >
-                        {
-                          'Botões por item na tabela e nos cards. Opcionalmente a linha ou o card inteiro abre a URL da ação marcada como "Linha ou card inteiro" (usa a primeira ação assim na lista).'
-                        }
-                      </Text>
+           
                       <Text
                         variant="small"
                         block

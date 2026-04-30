@@ -88,6 +88,7 @@ import {
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
 } from '../../core/formManager/formRuleEngine';
+import { collectFormManagerReferencedPayloadFieldNames } from '../../core/formManager/collectFormManagerReferencedPayloadFieldNames';
 import { formValuesToSharePointPayload } from '../../core/formManager/formSharePointValues';
 import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
 import { FormAttachmentUploader } from './FormAttachmentUploader';
@@ -1069,13 +1070,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       : fieldMetadata
           .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
           .map((f) => ({ internalName: f.InternalName, sectionId: FORM_OCULTOS_STEP_ID }));
-  const names = useMemo(
-    () =>
-      fieldConfigs
-        .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
-        .map((f) => f.internalName),
-    [fieldConfigs]
+  const referencedPayloadOnlyNames = useMemo(
+    () => collectFormManagerReferencedPayloadFieldNames(formManager),
+    [formManager]
   );
+  const names = useMemo(() => {
+    const base = fieldConfigs
+      .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
+      .map((f) => f.internalName);
+    const baseSet = new Set(base);
+    const extras = referencedPayloadOnlyNames.filter((n) => !baseSet.has(n));
+    if (extras.length === 0) return base;
+    extras.sort();
+    return [...base, ...extras];
+  }, [fieldConfigs, referencedPayloadOnlyNames]);
   const ocultosNullFieldNames = useMemo(
     () =>
       fieldConfigs
@@ -3864,7 +3872,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               selectedKey={id !== undefined ? String(id) : ''}
               onChange={(_, o) => {
                 if (!o || o.key === '') updateField(name, null);
-                else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+                else {
+                  const raw =
+                    o && typeof o === 'object' && 'data' in o ? (o as { data?: Record<string, unknown> }).data : undefined;
+                  if (raw && typeof raw === 'object' && typeof raw.Id === 'number') {
+                    updateField(name, raw);
+                  } else {
+                    updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+                  }
+                }
               }}
               required={isRequired}
               errorMessage={err}
@@ -3909,9 +3925,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 if (!o || o.key === '') return;
                 const k = String(o.key);
                 const hit = selected.findIndex((x) => String(x.Id) === k);
+                const raw =
+                  o && typeof o === 'object' && 'data' in o ? (o as { data?: Record<string, unknown> }).data : undefined;
+                const nextItem =
+                  raw && typeof raw === 'object' && typeof raw.Id === 'number'
+                    ? raw
+                    : { Id: Number(o.key), Title: String(o.text ?? '') };
                 const next =
                   hit === -1
-                    ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                    ? [...selected, nextItem]
                     : selected.filter((_, i) => i !== hit);
                 updateField(name, next);
               }}

@@ -213,19 +213,14 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
 
   return (
     <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12 } }}>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Expanda cada secção para configurar. O botão de histórico e a forma de abrir (painel, modal, secção)
-        configuram-se na aba «Componentes». Por defeito as secções aqui vêm fechadas.
-      </Text>
+
 
       <FormManagerCollapseSection
         title="Lista de registo e captação"
         isOpen={isSectionOpen(LOG_SECTION_IDS.list)}
         onToggle={() => toggleSection(LOG_SECTION_IDS.list)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Lista SharePoint, campo multilinhas, lookup à lista principal e ativar gravação de logs.
-        </Text>
+   
         {listsLoading && <Spinner label="A carregar listas…" />}
         {listsErr && <MessageBar messageBarType={MessageBarType.error}>{listsErr}</MessageBar>}
         <Dropdown
@@ -317,9 +312,7 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
         isOpen={isSectionOpen(LOG_SECTION_IDS.texts)}
         onToggle={() => toggleSection(LOG_SECTION_IDS.texts)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Editor HTML por botão (histórico integrado e botões personalizados) quando a captação está ativa.
-        </Text>
+ 
         {!logDescBlocks ? (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
             {captureEnabled

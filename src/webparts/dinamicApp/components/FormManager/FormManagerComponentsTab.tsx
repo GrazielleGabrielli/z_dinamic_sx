@@ -501,18 +501,14 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
   );
   return (
     <Stack tokens={{ childrenGap: 10 }}>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Expanda cada secção para configurar. Por defeito todas vêm fechadas.
-      </Text>
+  
 
       <FormManagerCollapseSection
         title="Carregar formulário / dados"
         isOpen={isOpen(SECTION_IDS.loadData)}
         onToggle={() => toggleSection(SECTION_IDS.loadData)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Ao carregar campos da lista ou ao abrir um item para editar.
-        </Text>
+    
         <Dropdown
           label="Estilo de loading (dados)"
           options={FORM_DATA_LOADING_DROPDOWN_OPTIONS}
@@ -545,10 +541,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         isOpen={isOpen(SECTION_IDS.submitLoading)}
         onToggle={() => toggleSection(SECTION_IDS.submitLoading)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Usado em botões personalizados sem override. Cada botão pode definir outro estilo na aba
-          Botões.
-        </Text>
+      
         <Dropdown
           label="Estilo de loading ao gravar (padrão)"
           options={FORM_SUBMIT_LOADING_DROPDOWN_OPTIONS}
@@ -564,14 +557,9 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         isOpen={isOpen(SECTION_IDS.steps)}
         onToggle={() => toggleSection(SECTION_IDS.steps)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Com mais do que uma etapa (aba Estrutura), o passador usa o layout escolhido. Os botões «anterior» /
-          «próxima» no rodapé são independentes do passador.
-        </Text>
+      
         <Text variant="small" styles={{ root: { fontWeight: 600 } }}>Layout das etapas no formulário</Text>
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Navegação visual entre etapas (quando existir mais de uma).
-        </Text>
+      
         <ThemePaletteSlotDropdown
           label="Cor de destaque (passador e botões de etapa)"
           selectedKey={props.stepAccentPaletteSlot ?? 'themePrimary'}
@@ -585,9 +573,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
           Botões «Etapa anterior» / «Próxima etapa»
         </Text>
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Estilo apenas dos botões de navegação no rodapé.
-        </Text>
+    
         <FormStepNavButtonsPicker
           value={props.stepNavButtons}
           onChange={props.onStepNavButtonsChange}
@@ -600,10 +586,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
         isOpen={isOpen(SECTION_IDS.historyAudit)}
         onToggle={() => toggleSection(SECTION_IDS.historyAudit)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Botão integrado no formulário, forma de abrir o histórico e aspeto. A lista SharePoint e a captação de logs
-          configuram-se na aba «Lista de logs».
-        </Text>
+     
         <Toggle
           label="Ativar botão de histórico de auditoria"
           checked={props.historyEnabled}
@@ -670,10 +653,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
             <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
               Grupos do SharePoint
             </Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão de histórico. Vazio =
-              todos.
-            </Text>
+      
             <TextField
               placeholder="Filtrar grupos por nome"
               value={historyGroupNameFilter}
@@ -760,12 +740,8 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
                 )}
               </Stack>
             ) : null}
-            <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 12 } }}>
-              Estilo da lista de registos (dentro do painel)
-            </Text>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Aplica-se ao conteúdo do histórico (registos da lista de log filtrados pelo lookup).
-            </Text>
+  
+        
             <Dropdown
               label="Estilo da lista de registos"
               options={FORM_HISTORY_LAYOUT_DROPDOWN_OPTIONS}

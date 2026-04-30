@@ -267,10 +267,7 @@ export function FormManagerPermissionBreakTabContent(props: IFormManagerPermissi
       <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
         Quebra de permissões
       </Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Após gravar com sucesso (criar ou editar), aplica permissões únicas nos alvos selecionados. Anexos nativos
-        seguem o item da lista. Requer permissões para gerir acessos nos destinos.
-      </Text>
+   
       <Toggle
         label="Ativar"
         checked={value.enabled === true}

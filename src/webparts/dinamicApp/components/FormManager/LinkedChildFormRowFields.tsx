@@ -641,7 +641,15 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               selectedKey={id !== undefined ? String(id) : ''}
               onChange={(_, o) => {
                 if (!o || o.key === '') updateField(name, null);
-                else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+                else {
+                  const raw =
+                    o && typeof o === 'object' && 'data' in o ? (o as { data?: Record<string, unknown> }).data : undefined;
+                  if (raw && typeof raw === 'object' && typeof raw.Id === 'number') {
+                    updateField(name, raw);
+                  } else {
+                    updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+                  }
+                }
               }}
               required={isRequired}
               errorMessage={err}
@@ -686,9 +694,15 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
                 if (!o || o.key === '') return;
                 const k = String(o.key);
                 const hit = selected.findIndex((x) => String(x.Id) === k);
+                const raw =
+                  o && typeof o === 'object' && 'data' in o ? (o as { data?: Record<string, unknown> }).data : undefined;
+                const nextItem =
+                  raw && typeof raw === 'object' && typeof raw.Id === 'number'
+                    ? raw
+                    : { Id: Number(o.key), Title: String(o.text ?? '') };
                 const next =
                   hit === -1
-                    ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                    ? [...selected, nextItem]
                     : selected.filter((_, i) => i !== hit);
                 updateField(name, next);
               }}

@@ -219,12 +219,6 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
 
   return (
     <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12, width: '100%', maxWidth: '100%' } }}>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Aqui define-se <span style={{ fontWeight: 600 }}>onde</span> os ficheiros são gravados (anexos do item na lista
-        principal ou biblioteca com lookup) e o aspeto do controlo. <span style={{ fontWeight: 600 }}>Em que etapa</span>{' '}
-        o upload aparece no formulário define-se na aba «Estrutura», ao colocar o campo virtual «Anexos ao item» na etapa
-        certa.
-      </Text>
 
       <FormManagerCollapseSection
         title="Destino do upload"
@@ -360,9 +354,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
         isOpen={isOpen(SECTION_IDS.ui)}
         onToggle={() => toggleSection(SECTION_IDS.ui)}
       >
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Quando incluir «Anexos ao item» na Estrutura, o controlo de ficheiros usa estes estilos.
-        </Text>
+   
         <Dropdown
           label="Tipo de layout do input de anexos"
           options={FORM_ATTACHMENT_LAYOUT_DROPDOWN_OPTIONS}
@@ -414,8 +406,7 @@ export function FormManagerAttachmentsTabContent(props: IFormManagerAttachmentsT
         onToggle={() => toggleSection(SECTION_IDS.ext)}
       >
         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Nenhuma selecionada = qualquer tipo de ficheiro. Com uma ou mais marcadas, só essas extensões são aceites no
-          formulário e na validação ao gravar.
+          Nenhuma selecionada = qualquer tipo de anexo.
         </Text>
         <Stack tokens={{ childrenGap: 10 }}>
           {FORM_ATTACHMENT_EXTENSION_GROUPS.map((group) => (

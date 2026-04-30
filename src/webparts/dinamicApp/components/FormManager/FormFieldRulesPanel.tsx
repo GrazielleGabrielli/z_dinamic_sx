@@ -164,6 +164,8 @@ export interface IFormFieldRulesPanelProps {
   lookupFieldsWebServerRelativeUrl?: string;
   /** Colunas da lista (valor padrão em campo data: @ inclui outros campos data). */
   listFieldMetadata?: IFieldMetadata[];
+  /** Configuração completa dos campos para sugerir paths de lookup no valor padrão. */
+  allFieldConfigs?: IFormFieldConfig[];
   onDismiss: () => void;
   onApply: (nextField: IFormFieldConfig, editor: IFieldRuleEditorState) => void;
 }
@@ -243,7 +245,8 @@ function getActiveMentionRange(
 function buildMentionItems(
   filter: string,
   fieldOptions: IDropdownOption[],
-  attachmentLibraryFolderOptions: IDropdownOption[]
+  attachmentLibraryFolderOptions: IDropdownOption[],
+  lookupPathOptions?: IDropdownOption[]
 ): TMentionItem[] {
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
@@ -287,6 +290,22 @@ function buildMentionItems(
       });
     }
   }
+  if (lookupPathOptions !== undefined) {
+    for (let i = 0; i < lookupPathOptions.length; i++) {
+      const opt = lookupPathOptions[i];
+      const k = String(opt.key);
+      const ins = `{{${k}}}`;
+      const lab = String(opt.text ?? k);
+      if (match(k) || match(lab) || match(ins)) {
+        out.push({
+          key: `lk-${k}-${i}`,
+          insert: ins,
+          primary: lab,
+          secondary: `Lookup/campo · ${ins}`,
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -310,7 +329,8 @@ const DATE_DEFAULT_MENTION_SUFFIX_PRESETS: { insert: string; primary: string; se
 
 function buildDefaultValueMentionItems(
   filter: string,
-  dateFields?: IDropdownOption[]
+  dateFields?: IDropdownOption[],
+  lookupFields?: IDropdownOption[]
 ): TMentionItem[] {
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
@@ -354,6 +374,22 @@ function buildDefaultValueMentionItems(
       }
     }
   }
+  if (lookupFields !== undefined) {
+    for (let i = 0; i < lookupFields.length; i++) {
+      const opt = lookupFields[i];
+      const k = String(opt.key);
+      const ins = `{{${k}}}`;
+      const lab = String(opt.text ?? k);
+      if (match(k) || match(lab) || match(ins)) {
+        out.push({
+          key: `dv-lk-${k}-${i}`,
+          insert: ins,
+          primary: lab,
+          secondary: `Lookup/campo · ${ins}`,
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -387,6 +423,8 @@ type TFieldRulesDefaultValueTextFieldProps = {
   onChange: (next: string) => void;
   /** Quando definido (ex.: campo data), inclui outros campos data e sufixos +N no @. */
   dateFieldMentionOptions?: IDropdownOption[];
+  /** Quando definido, inclui referências {{Lookup/Campo}} no @. */
+  lookupFieldMentionOptions?: IDropdownOption[];
 };
 
 function FieldRulesDefaultValueTextField({
@@ -395,6 +433,7 @@ function FieldRulesDefaultValueTextField({
   value,
   onChange,
   dateFieldMentionOptions,
+  lookupFieldMentionOptions,
 }: TFieldRulesDefaultValueTextFieldProps): JSX.Element {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionRange, setMentionRange] = useState<{ from: number; to: number; filter: string } | null>(null);
@@ -427,9 +466,10 @@ function FieldRulesDefaultValueTextField({
     if (!mentionOpen || !mentionRange) return [];
     return buildDefaultValueMentionItems(
       mentionRange.filter,
-      dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined
+      dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
+      lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined
     );
-  }, [mentionOpen, mentionRange, dateFieldMentionOptions]);
+  }, [mentionOpen, mentionRange, dateFieldMentionOptions, lookupFieldMentionOptions]);
 
   useLayoutEffect(() => {
     const p = pendingCaretRef.current;
@@ -513,7 +553,8 @@ function FieldRulesDefaultValueTextField({
       if (range) {
         const items = buildDefaultValueMentionItems(
           range.filter,
-          dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined
+          dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
+          lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined
         );
         if (items.length > 0) {
           setMentionRange(range);
@@ -529,7 +570,7 @@ function FieldRulesDefaultValueTextField({
       }
       onChange(raw);
     },
-    [onChange, dateFieldMentionOptions]
+    [onChange, dateFieldMentionOptions, lookupFieldMentionOptions]
   );
 
   const handleKeyDown = useCallback(
@@ -633,6 +674,7 @@ type TSetComputedRulesBlockProps = {
   setEd: React.Dispatch<React.SetStateAction<IFieldRuleEditorState>>;
   fieldOptions: IDropdownOption[];
   attachmentLibraryFolderOptions: IDropdownOption[];
+  lookupPathMentionOptions?: IDropdownOption[];
   bordered?: boolean;
 };
 
@@ -641,6 +683,7 @@ function SetComputedRulesBlock({
   setEd,
   fieldOptions,
   attachmentLibraryFolderOptions,
+  lookupPathMentionOptions,
   bordered,
 }: TSetComputedRulesBlockProps): JSX.Element {
   const [formsExprOpen, setFormsExprOpen] = useState(false);
@@ -673,8 +716,13 @@ function SetComputedRulesBlock({
 
   const mentionItems = useMemo(() => {
     if (!mentionOpen || !mentionRange) return [];
-    return buildMentionItems(mentionRange.filter, fieldOptions, attachmentLibraryFolderOptions);
-  }, [mentionOpen, mentionRange, fieldOptions, attachmentLibraryFolderOptions]);
+    return buildMentionItems(
+      mentionRange.filter,
+      fieldOptions,
+      attachmentLibraryFolderOptions,
+      lookupPathMentionOptions
+    );
+  }, [mentionOpen, mentionRange, fieldOptions, attachmentLibraryFolderOptions, lookupPathMentionOptions]);
 
   useLayoutEffect(() => {
     const p = pendingCaretRef.current;
@@ -774,7 +822,12 @@ function SetComputedRulesBlock({
         typeof el.selectionStart === 'number' ? el.selectionStart : raw.length;
       const range = getActiveMentionRange(raw, caret);
       if (range) {
-        const items = buildMentionItems(range.filter, fieldOptions, attachmentLibraryFolderOptions);
+        const items = buildMentionItems(
+          range.filter,
+          fieldOptions,
+          attachmentLibraryFolderOptions,
+          lookupPathMentionOptions
+        );
         if (items.length > 0) {
           setMentionRange(range);
           setMentionOpen(true);
@@ -793,7 +846,7 @@ function SetComputedRulesBlock({
         computedAttachmentFolderNodeId: '',
       }));
     },
-    [fieldOptions, attachmentLibraryFolderOptions, setEd]
+    [fieldOptions, attachmentLibraryFolderOptions, lookupPathMentionOptions, setEd]
   );
 
   const handleExprKeyDown = useCallback(
@@ -951,7 +1004,7 @@ function SetComputedRulesBlock({
           description={
             ed.computedAttachmentFolderNodeId
               ? undefined
-              : 'Digite @ para sugestões (tokens, campos numéricos, pastas de anexos).'
+              : 'Digite @ para sugestões (tokens, campos, lookup {{Campo/Sub}}, pastas de anexos).'
           }
           multiline
           rows={3}
@@ -1204,6 +1257,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   attachmentLibraryFolderOptions = [],
   lookupFieldsWebServerRelativeUrl,
   listFieldMetadata,
+  allFieldConfigs,
   onDismiss,
   onApply,
 }) => {
@@ -1279,6 +1333,63 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
       .filter((m) => m.MappedType === 'datetime' && m.InternalName !== internalName)
       .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
   }, [mt, listFieldMetadata, internalName]);
+
+  const defaultValueLookupFieldMentions = useMemo((): IDropdownOption[] | undefined => {
+    const all = listFieldMetadata ?? [];
+    if (!all.length) return undefined;
+    const metaByInternal = new Map(all.map((m) => [m.InternalName, m]));
+    const configByInternal = new Map((allFieldConfigs ?? []).map((f) => [f.internalName, f]));
+    const out: IDropdownOption[] = [];
+    const unique = new Set<string>();
+    const push = (k: string, txt: string): void => {
+      const kk = k.trim();
+      if (!kk || unique.has(kk)) return;
+      unique.add(kk);
+      out.push({ key: kk, text: txt });
+    };
+    for (let i = 0; i < all.length; i++) {
+      const f = all[i];
+      if (f.InternalName === internalName) continue;
+      const mtf = (f.MappedType ?? '').toLowerCase();
+      if (mtf !== 'lookup' && mtf !== 'lookupmulti' && mtf !== 'user' && mtf !== 'usermulti') continue;
+      const title = f.Title?.trim() || f.InternalName;
+      push(`${f.InternalName}/Title`, `${title} / Title`);
+      push(`${f.InternalName}/Id`, `${title} / Id`);
+      if (mtf === 'user' || mtf === 'usermulti') {
+        push(`${f.InternalName}/EMail`, `${title} / EMail`);
+        push(`${f.InternalName}/LoginName`, `${title} / LoginName`);
+      }
+      const cfg = configByInternal.get(f.InternalName);
+      const dynamicFields = new Set<string>();
+      const labelField = cfg?.lookupOptionLabelField?.trim();
+      if (labelField) dynamicFields.add(labelField);
+      const extras = cfg?.lookupOptionExtraSelectFields ?? [];
+      for (let j = 0; j < extras.length; j++) {
+        const x = extras[j]?.trim();
+        if (x) dynamicFields.add(x);
+      }
+      const details = cfg?.lookupOptionDetailBelowFields ?? [];
+      for (let j = 0; j < details.length; j++) {
+        const x = details[j]?.trim();
+        if (x) dynamicFields.add(x);
+      }
+      dynamicFields.forEach((sub) => {
+        if (sub !== 'Id' && sub !== 'Title') {
+          push(`${f.InternalName}/${sub}`, `${title} / ${sub}`);
+        }
+      });
+      const subProp = cfg?.lookupOptionLabelSubProp?.trim();
+      if (labelField && subProp) {
+        const labelMeta = metaByInternal.get(labelField);
+        const labelTitle = labelMeta?.Title?.trim() || labelField;
+        push(
+          `${f.InternalName}/${labelField}/${subProp}`,
+          `${title} / ${labelTitle} / ${subProp}`
+        );
+      }
+    }
+    return out.length ? out : undefined;
+  }, [listFieldMetadata, internalName, allFieldConfigs]);
   const isTextRulesLikeText = mt === 'text' || mt === 'multiline';
   const fieldsServiceLookup = useMemo(() => new FieldsService(), []);
   const [lookupDestFields, setLookupDestFields] = useState<IFieldMetadata[]>([]);
@@ -1423,9 +1534,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 />
               ))}
             </Stack>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              Vazio = todos os modos. Desmarque um para restringir.
-            </Text>
+        
             {mt !== 'lookup' && mt !== 'lookupmulti' ? (
               <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
                 <DefaultButton
@@ -1458,11 +1567,12 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 description={
                   mt === 'datetime'
                     ? 'Ex.: {{OutraData}} + 7, [today] + 14. @ lista tokens, outros campos data e sufixos +N dias.'
-                    : 'Digite @ para listar só tokens de data ([today], [now], …). Outros valores escreva manualmente.'
+                    : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
                 }
                 value={ed.defaultValue}
                 onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
                 dateFieldMentionOptions={defaultValueDateFieldMentions}
+                lookupFieldMentionOptions={defaultValueLookupFieldMentions}
               />
             ) : null}
             <FormManagerCollapseSection
@@ -1496,9 +1606,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   />
                 ))}
               </Stack>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Vazio = todos os modos. Desmarque um para restringir.
-              </Text>
+         
               <TextField
                 label="Placeholder"
                 value={fc.placeholder ?? ''}
@@ -1536,9 +1644,10 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               />
               <FieldRulesDefaultValueTextField
                 label="Valor padrão (token ou texto; aplica se vazio)"
-                description="Digite @ para listar só tokens de data ([today], [now], …). Outros valores escreva manualmente."
+                description="Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}})."
                 value={ed.defaultValue}
                 onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
+                lookupFieldMentionOptions={defaultValueLookupFieldMentions}
               />
               {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
                 <SetComputedRulesBlock
@@ -1546,6 +1655,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   setEd={setEd}
                   fieldOptions={fieldOptions}
                   attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                  lookupPathMentionOptions={defaultValueLookupFieldMentions}
                   bordered={false}
                 />
               )}
@@ -1808,9 +1918,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                       />
                     ))}
                   </Stack>
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Vazio = todos os modos. Desmarque um para restringir.
-                  </Text>
+                
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Grupos do SharePoint
                   </Text>

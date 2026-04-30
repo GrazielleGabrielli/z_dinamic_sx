@@ -553,10 +553,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
   return (
     <>
     <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Listas secundárias com Lookup para a lista principal. A ordem na etapa «Geral» define cada mini-formulário.
-        Em «Estrutura», escolha em que etapa do passador cada bloco aparece.
-      </Text>
+  
       {!primaryListTitle.trim() && (
         <MessageBar messageBarType={MessageBarType.warning}>
           Defina primeiro a lista principal na configuração da vista (origem de dados).
@@ -1148,6 +1145,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
             fieldOptions={fieldOpts.length ? fieldOpts : [{ key: 'Title', text: 'Title' }]}
             lookupFieldsWebServerRelativeUrl={listWebServerRelativeUrl?.trim() || undefined}
             listFieldMetadata={childMeta}
+            allFieldConfigs={lc.fields}
             onDismiss={() => setLinkedFieldRuleTarget(null)}
             onApply={(nextFc, editor) => {
               onLinkedChildFormsChange((prev) =>

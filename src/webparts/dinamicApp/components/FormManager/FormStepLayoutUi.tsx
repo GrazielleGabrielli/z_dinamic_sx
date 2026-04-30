@@ -346,9 +346,7 @@ export const FormStepLayoutPicker: React.FC<IFormStepLayoutPickerProps> = ({ val
 
   return (
     <Stack tokens={{ childrenGap: 12 }}>
-      <Text variant="small" styles={{ root: { color: muted } }}>
-        Sugestões rápidas — o layout escolhido aplica-se ao passador de etapas no formulário.
-      </Text>
+   
       <Stack horizontal wrap tokens={{ childrenGap: 10 }}>
         {FORM_STEP_LAYOUT_QUICK_IDS.map((id) => {
           const opt = FORM_STEP_LAYOUT_OPTIONS.find((o) => o.id === id);
@@ -1325,9 +1323,7 @@ export const FormStepNavButtonsPicker: React.FC<IFormStepNavButtonsPickerProps> 
 
   return (
     <Stack tokens={{ childrenGap: 12 }}>
-      <Text variant="small" styles={{ root: { color: muted } }}>
-        Botões no rodapé do formulário (com mais do que uma etapa). Sugestões rápidas:
-      </Text>
+  
       <Stack horizontal wrap tokens={{ childrenGap: 10 }}>
         {FORM_STEP_NAV_BUTTONS_QUICK_IDS.map((id) => {
           const opt = FORM_STEP_NAV_BUTTONS_OPTIONS.find((o) => o.id === id);
