@@ -17,6 +17,7 @@ import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_BANNER_INTERNAL_PREFIX,
   isFormBannerFieldConfig,
+  resolveTextareaRows,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
@@ -881,7 +882,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             key={name}
             {...(cell ? { ariaLabel: label } : { label })}
             multiline
-            rows={cell ? 2 : 3}
+            rows={resolveTextareaRows(fc, cell ? 2 : 3)}
             placeholder={fc.placeholder}
             value={raw}
             onChange={(_, v) => updateField(name, v ?? '')}

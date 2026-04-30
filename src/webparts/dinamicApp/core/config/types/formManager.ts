@@ -327,6 +327,8 @@ export interface IFormFieldConfig {
   label?: string;
   helpText?: string;
   placeholder?: string;
+  /** Linhas visíveis do textarea (coluna Nota / multiline). */
+  textareaRows?: number;
   sectionId?: string;
   visible?: boolean;
   required?: boolean;
@@ -399,6 +401,14 @@ export function resolveChromePositionMode(fc: IFormFieldConfig): TChromePosition
   const m = fc.chromePositionMode;
   if (m === 'sticky' || m === 'absolute' || m === 'flow') return m;
   return 'sticky';
+}
+
+export function resolveTextareaRows(fc: Pick<IFormFieldConfig, 'textareaRows'>, fallback: number): number {
+  const n = fc.textareaRows;
+  if (typeof n !== 'number' || !isFinite(n)) return fallback;
+  const r = Math.floor(n);
+  if (r < 1) return fallback;
+  return Math.min(50, r);
 }
 
 export interface IFormSectionConfig {

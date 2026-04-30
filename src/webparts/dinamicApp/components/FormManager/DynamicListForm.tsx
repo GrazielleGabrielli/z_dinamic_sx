@@ -61,6 +61,7 @@ import {
   resolveBannerHeightPercent,
   resolveFixedPlacement,
   resolveChromePositionMode,
+  resolveTextareaRows,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { isDynamicToken } from '../../core/dynamicTokens';
@@ -4027,7 +4028,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <TextField
               label={label}
               multiline
-              rows={4}
+              rows={resolveTextareaRows(fc, 4)}
               placeholder={fc.placeholder}
               value={raw}
               onChange={(_, v) => {

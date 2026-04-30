@@ -453,6 +453,14 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
       : '';
   const textInputMaskCustomPattern = patSan || undefined;
   const textConditionalVisibility = sanitizeTextConditionalVisibility(f.textConditionalVisibility);
+  const trRaw = f.textareaRows;
+  const textareaRows =
+    typeof trRaw === 'number' && isFinite(trRaw)
+      ? (() => {
+          const r = Math.floor(trRaw);
+          return r >= 1 && r <= 50 ? r : undefined;
+        })()
+      : undefined;
   const common: IFormFieldConfig = {
     internalName,
     ...(fixedPl ? { fixedPlacement: fixedPl } : {}),
@@ -460,6 +468,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(typeof f.label === 'string' ? { label: f.label } : {}),
     ...(typeof f.helpText === 'string' ? { helpText: f.helpText } : {}),
     ...(typeof f.placeholder === 'string' ? { placeholder: f.placeholder } : {}),
+    ...(textareaRows !== undefined ? { textareaRows } : {}),
     ...(typeof f.sectionId === 'string' ? { sectionId: f.sectionId.trim() } : {}),
     ...(f.visible === false ? { visible: false } : {}),
     ...(f.required === true ? { required: true } : {}),

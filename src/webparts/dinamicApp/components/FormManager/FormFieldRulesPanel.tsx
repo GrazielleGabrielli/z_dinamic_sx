@@ -68,6 +68,8 @@ const TEXT_RULES_COLLAPSE_IDS = {
   conditionals: 'textRulesConditionals',
 } as const;
 
+const FIELD_RULES_DISABLE_ENABLE_SECTION_ID = 'fieldRulesDisableEnable';
+
 const TEXT_MASK_CHOICE_OPTIONS: IChoiceGroupOption[] = [
   { key: 'none', text: 'Nenhuma' },
   { key: 'cpf', text: 'CPF' },
@@ -710,6 +712,164 @@ function SetComputedRulesBlock({
   );
 }
 
+function FieldRulesDisableEnableCollapseContent(props: {
+  ed: IFieldRuleEditorState;
+  setEd: React.Dispatch<React.SetStateAction<IFieldRuleEditorState>>;
+  fieldOptions: IDropdownOption[];
+}): JSX.Element {
+  const { ed, setEd, fieldOptions } = props;
+  return (
+    <Stack tokens={{ childrenGap: 8 }}>
+      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        Condição no mesmo estilo das regras condicionais. Se ambas forem verdadeiras, «Tornar editável quando»
+        prevalece sobre «Desativar quando».
+      </Text>
+      <Checkbox
+        label="Desativar este campo quando a condição for verdadeira"
+        checked={ed.disableWhenActive}
+        onChange={(_, c) => setEd((p) => ({ ...p, disableWhenActive: !!c }))}
+      />
+      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+        <Dropdown
+          label="Campo"
+          options={fieldOptions}
+          selectedKey={ed.disableWhenUi.field}
+          disabled={!ed.disableWhenActive}
+          onChange={(_, o) =>
+            o &&
+            setEd((p) => ({
+              ...p,
+              disableWhenUi: { ...p.disableWhenUi, field: String(o.key) },
+            }))
+          }
+          styles={{ dropdown: { width: 160 } }}
+        />
+        <Dropdown
+          label="Operador"
+          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+          selectedKey={ed.disableWhenUi.op}
+          disabled={!ed.disableWhenActive}
+          onChange={(_, o) =>
+            o &&
+            setEd((p) => ({
+              ...p,
+              disableWhenUi: { ...p.disableWhenUi, op: o.key as TFormConditionOp },
+            }))
+          }
+          styles={{ dropdown: { width: 150 } }}
+        />
+        <Dropdown
+          label="Comparar"
+          options={[
+            { key: 'literal', text: 'Texto fixo' },
+            { key: 'field', text: 'Campo' },
+            { key: 'token', text: 'Token' },
+          ]}
+          selectedKey={ed.disableWhenUi.compareKind}
+          disabled={!ed.disableWhenActive}
+          onChange={(_, o) =>
+            o &&
+            setEd((p) => ({
+              ...p,
+              disableWhenUi: { ...p.disableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
+            }))
+          }
+          styles={{ dropdown: { width: 112 } }}
+        />
+        <TextField
+          label="Valor"
+          value={ed.disableWhenUi.compareValue}
+          disabled={
+            !ed.disableWhenActive ||
+            ed.disableWhenUi.op === 'isEmpty' ||
+            ed.disableWhenUi.op === 'isFilled' ||
+            ed.disableWhenUi.op === 'isTrue' ||
+            ed.disableWhenUi.op === 'isFalse'
+          }
+          onChange={(_, v) =>
+            setEd((p) => ({
+              ...p,
+              disableWhenUi: { ...p.disableWhenUi, compareValue: v ?? '' },
+            }))
+          }
+          styles={{ fieldGroup: { minWidth: 120 } }}
+        />
+      </Stack>
+      <Checkbox
+        label="Tornar editável quando a condição for verdadeira (sobrepor desativação acima)"
+        checked={ed.enableWhenActive}
+        onChange={(_, c) => setEd((p) => ({ ...p, enableWhenActive: !!c }))}
+      />
+      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+        <Dropdown
+          label="Campo"
+          options={fieldOptions}
+          selectedKey={ed.enableWhenUi.field}
+          disabled={!ed.enableWhenActive}
+          onChange={(_, o) =>
+            o &&
+            setEd((p) => ({
+              ...p,
+              enableWhenUi: { ...p.enableWhenUi, field: String(o.key) },
+            }))
+          }
+          styles={{ dropdown: { width: 160 } }}
+        />
+        <Dropdown
+          label="Operador"
+          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+          selectedKey={ed.enableWhenUi.op}
+          disabled={!ed.enableWhenActive}
+          onChange={(_, o) =>
+            o &&
+            setEd((p) => ({
+              ...p,
+              enableWhenUi: { ...p.enableWhenUi, op: o.key as TFormConditionOp },
+            }))
+          }
+          styles={{ dropdown: { width: 150 } }}
+        />
+        <Dropdown
+          label="Comparar"
+          options={[
+            { key: 'literal', text: 'Texto fixo' },
+            { key: 'field', text: 'Campo' },
+            { key: 'token', text: 'Token' },
+          ]}
+          selectedKey={ed.enableWhenUi.compareKind}
+          disabled={!ed.enableWhenActive}
+          onChange={(_, o) =>
+            o &&
+            setEd((p) => ({
+              ...p,
+              enableWhenUi: { ...p.enableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
+            }))
+          }
+          styles={{ dropdown: { width: 112 } }}
+        />
+        <TextField
+          label="Valor"
+          value={ed.enableWhenUi.compareValue}
+          disabled={
+            !ed.enableWhenActive ||
+            ed.enableWhenUi.op === 'isEmpty' ||
+            ed.enableWhenUi.op === 'isFilled' ||
+            ed.enableWhenUi.op === 'isTrue' ||
+            ed.enableWhenUi.op === 'isFalse'
+          }
+          onChange={(_, v) =>
+            setEd((p) => ({
+              ...p,
+              enableWhenUi: { ...p.enableWhenUi, compareValue: v ?? '' },
+            }))
+          }
+          styles={{ fieldGroup: { minWidth: 120 } }}
+        />
+      </Stack>
+    </Stack>
+  );
+}
+
 export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   isOpen,
   internalName,
@@ -777,6 +937,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   }, [isOpen, internalName, fieldConfig, rules, fieldOptions]);
 
   const mt = meta?.MappedType ?? 'unknown';
+  const isTextRulesLikeText = mt === 'text' || mt === 'multiline';
   const fieldsServiceLookup = useMemo(() => new FieldsService(), []);
   const [lookupDestFields, setLookupDestFields] = useState<IFieldMetadata[]>([]);
   const [lookupDestErr, setLookupDestErr] = useState<string>();
@@ -903,7 +1064,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
       }}
     >
       <Stack tokens={{ childrenGap: 12 }}>
-        {mt !== 'text' && (
+        {!isTextRulesLikeText && (
           <>
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               {internalName} · {mt}
@@ -935,7 +1096,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 />
               </Stack>
             ) : null}
-            {(mt === 'multiline' || mt === 'url') && (
+            {mt === 'url' && (
               <TextField
                 label="Placeholder"
                 value={fc.placeholder ?? ''}
@@ -966,160 +1127,16 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 ) : null}
               </>
             ) : null}
-            <Stack tokens={{ childrenGap: 8 }} styles={{ root: { borderTop: '1px solid #edebe9', paddingTop: 12 } }}>
-              <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-                Desativar / ativar o campo
-              </Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Condição no mesmo estilo das regras condicionais. Se ambas forem verdadeiras, «Tornar editável quando»
-                prevalece sobre «Desativar quando».
-              </Text>
-              <Checkbox
-                label="Desativar este campo quando a condição for verdadeira"
-                checked={ed.disableWhenActive}
-                onChange={(_, c) => setEd((p) => ({ ...p, disableWhenActive: !!c }))}
-              />
-              <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                <Dropdown
-                  label="Campo"
-                  options={fieldOptions}
-                  selectedKey={ed.disableWhenUi.field}
-                  disabled={!ed.disableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, field: String(o.key) },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 160 } }}
-                />
-                <Dropdown
-                  label="Operador"
-                  options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                  selectedKey={ed.disableWhenUi.op}
-                  disabled={!ed.disableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, op: o.key as TFormConditionOp },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 150 } }}
-                />
-                <Dropdown
-                  label="Comparar"
-                  options={[
-                    { key: 'literal', text: 'Texto fixo' },
-                    { key: 'field', text: 'Campo' },
-                    { key: 'token', text: 'Token' },
-                  ]}
-                  selectedKey={ed.disableWhenUi.compareKind}
-                  disabled={!ed.disableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 112 } }}
-                />
-                <TextField
-                  label="Valor"
-                  value={ed.disableWhenUi.compareValue}
-                  disabled={
-                    !ed.disableWhenActive ||
-                    ed.disableWhenUi.op === 'isEmpty' ||
-                    ed.disableWhenUi.op === 'isFilled' ||
-                    ed.disableWhenUi.op === 'isTrue' ||
-                    ed.disableWhenUi.op === 'isFalse'
-                  }
-                  onChange={(_, v) =>
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, compareValue: v ?? '' },
-                    }))
-                  }
-                  styles={{ fieldGroup: { minWidth: 120 } }}
-                />
-              </Stack>
-              <Checkbox
-                label="Tornar editável quando a condição for verdadeira (sobrepor desativação acima)"
-                checked={ed.enableWhenActive}
-                onChange={(_, c) => setEd((p) => ({ ...p, enableWhenActive: !!c }))}
-              />
-              <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                <Dropdown
-                  label="Campo"
-                  options={fieldOptions}
-                  selectedKey={ed.enableWhenUi.field}
-                  disabled={!ed.enableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, field: String(o.key) },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 160 } }}
-                />
-                <Dropdown
-                  label="Operador"
-                  options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                  selectedKey={ed.enableWhenUi.op}
-                  disabled={!ed.enableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, op: o.key as TFormConditionOp },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 150 } }}
-                />
-                <Dropdown
-                  label="Comparar"
-                  options={[
-                    { key: 'literal', text: 'Texto fixo' },
-                    { key: 'field', text: 'Campo' },
-                    { key: 'token', text: 'Token' },
-                  ]}
-                  selectedKey={ed.enableWhenUi.compareKind}
-                  disabled={!ed.enableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 112 } }}
-                />
-                <TextField
-                  label="Valor"
-                  value={ed.enableWhenUi.compareValue}
-                  disabled={
-                    !ed.enableWhenActive ||
-                    ed.enableWhenUi.op === 'isEmpty' ||
-                    ed.enableWhenUi.op === 'isFilled' ||
-                    ed.enableWhenUi.op === 'isTrue' ||
-                    ed.enableWhenUi.op === 'isFalse'
-                  }
-                  onChange={(_, v) =>
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, compareValue: v ?? '' },
-                    }))
-                  }
-                  styles={{ fieldGroup: { minWidth: 120 } }}
-                />
-              </Stack>
-            </Stack>
+            <FormManagerCollapseSection
+              title="Desativar / ativar o campo"
+              isOpen={isTextRulesOpen(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
+              onToggle={() => toggleTextRulesSection(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
+            >
+              <FieldRulesDisableEnableCollapseContent ed={ed} setEd={setEd} fieldOptions={fieldOptions} />
+            </FormManagerCollapseSection>
           </>
         )}
-        {mt === 'text' && (
+        {isTextRulesLikeText && (
           <Stack tokens={{ childrenGap: 10 }}>
             <FormManagerCollapseSection
               title="Exibição"
@@ -1149,6 +1166,29 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 value={fc.placeholder ?? ''}
                 onChange={(_, v) => setFc((p) => ({ ...p, placeholder: v || undefined }))}
               />
+              {mt === 'multiline' ? (
+                <TextField
+                  label="Linhas do textarea (altura inicial)"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={fc.textareaRows !== undefined ? String(fc.textareaRows) : ''}
+                  onChange={(_, v) =>
+                    setFc((p) => {
+                      const next: IFormFieldConfig = { ...p };
+                      const t = (v ?? '').trim();
+                      if (!t) {
+                        delete next.textareaRows;
+                        return next;
+                      }
+                      const n = Number(t);
+                      if (!isFinite(n)) return next;
+                      next.textareaRows = Math.min(50, Math.max(1, Math.floor(n)));
+                      return next;
+                    })
+                  }
+                />
+              ) : null}
               <TextField
                 label="Texto de ajuda (campo)"
                 multiline
@@ -1347,12 +1387,19 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               ) : null}
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
+              title="Desativar / ativar o campo"
+              isOpen={isTextRulesOpen(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
+              onToggle={() => toggleTextRulesSection(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
+            >
+              <FieldRulesDisableEnableCollapseContent ed={ed} setEd={setEd} fieldOptions={fieldOptions} />
+            </FormManagerCollapseSection>
+            <FormManagerCollapseSection
               title="Condicionais"
               isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.conditionals)}
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.conditionals)}
             >
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {internalName} · text
+                {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
               <Text variant="small">
@@ -1735,159 +1782,10 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   />
                 </Stack>
               ))}
-              <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 14 } }}>
-                Desativar / editável consoante outro campo
-              </Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Se ambas as condições abaixo forem verdadeiras, «Tornar editável quando» prevalece sobre «Desativar
-                quando».
-              </Text>
-              <Checkbox
-                label="Desativar este campo quando a condição for verdadeira"
-                checked={ed.disableWhenActive}
-                onChange={(_, c) => setEd((p) => ({ ...p, disableWhenActive: !!c }))}
-              />
-              <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                <Dropdown
-                  label="Campo"
-                  options={fieldOptions}
-                  selectedKey={ed.disableWhenUi.field}
-                  disabled={!ed.disableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, field: String(o.key) },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 160 } }}
-                />
-                <Dropdown
-                  label="Operador"
-                  options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                  selectedKey={ed.disableWhenUi.op}
-                  disabled={!ed.disableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, op: o.key as TFormConditionOp },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 150 } }}
-                />
-                <Dropdown
-                  label="Comparar"
-                  options={[
-                    { key: 'literal', text: 'Texto fixo' },
-                    { key: 'field', text: 'Campo' },
-                    { key: 'token', text: 'Token' },
-                  ]}
-                  selectedKey={ed.disableWhenUi.compareKind}
-                  disabled={!ed.disableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 112 } }}
-                />
-                <TextField
-                  label="Valor"
-                  value={ed.disableWhenUi.compareValue}
-                  disabled={
-                    !ed.disableWhenActive ||
-                    ed.disableWhenUi.op === 'isEmpty' ||
-                    ed.disableWhenUi.op === 'isFilled' ||
-                    ed.disableWhenUi.op === 'isTrue' ||
-                    ed.disableWhenUi.op === 'isFalse'
-                  }
-                  onChange={(_, v) =>
-                    setEd((p) => ({
-                      ...p,
-                      disableWhenUi: { ...p.disableWhenUi, compareValue: v ?? '' },
-                    }))
-                  }
-                  styles={{ fieldGroup: { minWidth: 120 } }}
-                />
-              </Stack>
-              <Checkbox
-                label="Tornar editável quando a condição for verdadeira (sobrepor desativação acima)"
-                checked={ed.enableWhenActive}
-                onChange={(_, c) => setEd((p) => ({ ...p, enableWhenActive: !!c }))}
-              />
-              <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                <Dropdown
-                  label="Campo"
-                  options={fieldOptions}
-                  selectedKey={ed.enableWhenUi.field}
-                  disabled={!ed.enableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, field: String(o.key) },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 160 } }}
-                />
-                <Dropdown
-                  label="Operador"
-                  options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                  selectedKey={ed.enableWhenUi.op}
-                  disabled={!ed.enableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, op: o.key as TFormConditionOp },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 150 } }}
-                />
-                <Dropdown
-                  label="Comparar"
-                  options={[
-                    { key: 'literal', text: 'Texto fixo' },
-                    { key: 'field', text: 'Campo' },
-                    { key: 'token', text: 'Token' },
-                  ]}
-                  selectedKey={ed.enableWhenUi.compareKind}
-                  disabled={!ed.enableWhenActive}
-                  onChange={(_, o) =>
-                    o &&
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
-                    }))
-                  }
-                  styles={{ dropdown: { width: 112 } }}
-                />
-                <TextField
-                  label="Valor"
-                  value={ed.enableWhenUi.compareValue}
-                  disabled={
-                    !ed.enableWhenActive ||
-                    ed.enableWhenUi.op === 'isEmpty' ||
-                    ed.enableWhenUi.op === 'isFilled' ||
-                    ed.enableWhenUi.op === 'isTrue' ||
-                    ed.enableWhenUi.op === 'isFalse'
-                  }
-                  onChange={(_, v) =>
-                    setEd((p) => ({
-                      ...p,
-                      enableWhenUi: { ...p.enableWhenUi, compareValue: v ?? '' },
-                    }))
-                  }
-                  styles={{ fieldGroup: { minWidth: 120 } }}
-                />
-              </Stack>
             </FormManagerCollapseSection>
           </Stack>
         )}
-        {(mt === 'multiline' || mt === 'url' || mt === 'unknown') && (
+        {(mt === 'url' || mt === 'unknown') && (
           <Stack tokens={{ childrenGap: 8 }}>
             <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>Validação de texto</Text>
             <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
@@ -2198,7 +2096,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
             Use valor padrão acima (true/false). Visibilidade condicional: opções neste painel ou JSON do gestor.
           </Text>
         )}
-        {mt !== 'text' && (
+        {mt !== 'text' && mt !== 'multiline' && (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
             Pré-visualização: {buildFieldUiRules(internalName, ed, fc).length} regra(s) gerada(s) para este campo.
           </Text>
