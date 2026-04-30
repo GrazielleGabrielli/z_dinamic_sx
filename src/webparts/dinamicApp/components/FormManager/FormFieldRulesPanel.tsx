@@ -70,6 +70,12 @@ const TEXT_RULES_COLLAPSE_IDS = {
 
 const FIELD_RULES_DISABLE_ENABLE_SECTION_ID = 'fieldRulesDisableEnable';
 
+const DATE_RULES_COLLAPSE_IDS = {
+  relativeToToday: 'dateRulesRelativeToToday',
+  compareFields: 'dateRulesCompareFields',
+  errorMessage: 'dateRulesErrorMessage',
+} as const;
+
 const TEXT_MASK_CHOICE_OPTIONS: IChoiceGroupOption[] = [
   { key: 'none', text: 'Nenhuma' },
   { key: 'cpf', text: 'CPF' },
@@ -1844,60 +1850,86 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
           </Stack>
         )}
         {mt === 'datetime' && (
-          <Stack tokens={{ childrenGap: 8 }}>
-            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>Validação de data</Text>
-            <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-              <TextField
-                label="Mín. dias a partir de hoje"
-                value={ed.validateDate.minDaysFromToday}
-                onChange={(_, v) =>
-                  setEd((p) => ({ ...p, validateDate: { ...p.validateDate, minDaysFromToday: v ?? '' } }))
+          <Stack tokens={{ childrenGap: 10 }}>
+            <FormManagerCollapseSection
+              title="Limites em relação a hoje"
+              isOpen={isTextRulesOpen(DATE_RULES_COLLAPSE_IDS.relativeToToday)}
+              onToggle={() => toggleTextRulesSection(DATE_RULES_COLLAPSE_IDS.relativeToToday)}
+            >
+              <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+                Intervalo permitido contado em dias a partir da data de hoje (vazio = sem limite nesse sentido).
+              </Text>
+              <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
+                <TextField
+                  label="Mín. dias a partir de hoje"
+                  value={ed.validateDate.minDaysFromToday}
+                  onChange={(_, v) =>
+                    setEd((p) => ({ ...p, validateDate: { ...p.validateDate, minDaysFromToday: v ?? '' } }))
+                  }
+                />
+                <TextField
+                  label="Máx. dias a partir de hoje"
+                  value={ed.validateDate.maxDaysFromToday}
+                  onChange={(_, v) =>
+                    setEd((p) => ({ ...p, validateDate: { ...p.validateDate, maxDaysFromToday: v ?? '' } }))
+                  }
+                />
+              </Stack>
+              <Checkbox
+                label="Bloquear fins de semana"
+                checked={ed.validateDate.blockWeekends}
+                onChange={(_, c) =>
+                  setEd((p) => ({ ...p, validateDate: { ...p.validateDate, blockWeekends: !!c } }))
                 }
               />
-              <TextField
-                label="Máx. dias a partir de hoje"
-                value={ed.validateDate.maxDaysFromToday}
-                onChange={(_, v) =>
-                  setEd((p) => ({ ...p, validateDate: { ...p.validateDate, maxDaysFromToday: v ?? '' } }))
+            </FormManagerCollapseSection>
+            <FormManagerCollapseSection
+              title="Comparação com outros campos"
+              isOpen={isTextRulesOpen(DATE_RULES_COLLAPSE_IDS.compareFields)}
+              onToggle={() => toggleTextRulesSection(DATE_RULES_COLLAPSE_IDS.compareFields)}
+            >
+              <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+                O valor deste campo deve ser maior ou igual / menor ou igual ao valor de outro campo de data da mesma
+                lista.
+              </Text>
+              <Dropdown
+                label="Data &gt;= campo"
+                options={[{ key: '', text: '—' }, ...fieldOptions]}
+                selectedKey={ed.validateDate.gteField || ''}
+                onChange={(_, o) =>
+                  setEd((p) => ({
+                    ...p,
+                    validateDate: { ...p.validateDate, gteField: o ? String(o.key) : '' },
+                  }))
                 }
               />
-            </Stack>
-            <Checkbox
-              label="Bloquear fins de semana"
-              checked={ed.validateDate.blockWeekends}
-              onChange={(_, c) =>
-                setEd((p) => ({ ...p, validateDate: { ...p.validateDate, blockWeekends: !!c } }))
-              }
-            />
-            <Dropdown
-              label="Data &gt;= campo"
-              options={[{ key: '', text: '—' }, ...fieldOptions]}
-              selectedKey={ed.validateDate.gteField || ''}
-              onChange={(_, o) =>
-                setEd((p) => ({
-                  ...p,
-                  validateDate: { ...p.validateDate, gteField: o ? String(o.key) : '' },
-                }))
-              }
-            />
-            <Dropdown
-              label="Data &lt;= campo"
-              options={[{ key: '', text: '—' }, ...fieldOptions]}
-              selectedKey={ed.validateDate.lteField || ''}
-              onChange={(_, o) =>
-                setEd((p) => ({
-                  ...p,
-                  validateDate: { ...p.validateDate, lteField: o ? String(o.key) : '' },
-                }))
-              }
-            />
-            <TextField
-              label="Mensagem de erro"
-              value={ed.validateDate.message}
-              onChange={(_, v) =>
-                setEd((p) => ({ ...p, validateDate: { ...p.validateDate, message: v ?? '' } }))
-              }
-            />
+              <Dropdown
+                label="Data &lt;= campo"
+                options={[{ key: '', text: '—' }, ...fieldOptions]}
+                selectedKey={ed.validateDate.lteField || ''}
+                onChange={(_, o) =>
+                  setEd((p) => ({
+                    ...p,
+                    validateDate: { ...p.validateDate, lteField: o ? String(o.key) : '' },
+                  }))
+                }
+              />
+            </FormManagerCollapseSection>
+            <FormManagerCollapseSection
+              title="Mensagem de erro"
+              isOpen={isTextRulesOpen(DATE_RULES_COLLAPSE_IDS.errorMessage)}
+              onToggle={() => toggleTextRulesSection(DATE_RULES_COLLAPSE_IDS.errorMessage)}
+            >
+              <TextField
+                label="Texto quando a validação falhar"
+                multiline
+                rows={3}
+                value={ed.validateDate.message}
+                onChange={(_, v) =>
+                  setEd((p) => ({ ...p, validateDate: { ...p.validateDate, message: v ?? '' } }))
+                }
+              />
+            </FormManagerCollapseSection>
           </Stack>
         )}
         {(mt === 'choice' || mt === 'multichoice') && (
