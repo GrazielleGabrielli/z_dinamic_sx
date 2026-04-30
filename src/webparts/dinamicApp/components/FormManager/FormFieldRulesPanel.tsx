@@ -1294,10 +1294,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.masks)}
             >
               <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
-                Uma máscara de cada vez. O valor guardado na lista é o texto formatado tal como no input. Padrão
-                personalizado usa a sintaxe IMask (ex.: <code style={{ fontSize: 12 }}>0</code> dígito,{' '}
-                <code style={{ fontSize: 12 }}>a</code> letra, <code style={{ fontSize: 12 }}>*</code> alfanumérico,
-                literais fixos). Guia:{' '}
+                Guia:{' '}
                 <Link href="https://imask.js.org/guide" target="_blank" rel="noopener noreferrer">
                   imask.js.org/guide
                 </Link>
