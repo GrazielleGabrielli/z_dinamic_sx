@@ -1081,10 +1081,7 @@ function SetComputedRulesBlock({
         checked={ed.computedLiveInEditView}
         onChange={(_, c) => setEd((p) => ({ ...p, computedLiveInEditView: !!c }))}
       />
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Por omissão mantém-se o valor gravado ao abrir o item; se alterar a expressão aqui, o resultado calculado
-        volta a aparecer até gravar outra vez.
-      </Text>
+
     </Stack>
   );
 }
@@ -1097,10 +1094,7 @@ function FieldRulesDisableEnableCollapseContent(props: {
   const { ed, setEd, fieldOptions } = props;
   return (
     <Stack tokens={{ childrenGap: 8 }}>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Condição no mesmo estilo das regras condicionais. Se ambas forem verdadeiras, «Tornar editável quando»
-        prevalece sobre «Desativar quando».
-      </Text>
+
       <Checkbox
         label="Desativar este campo quando a condição for verdadeira"
         checked={ed.disableWhenActive}
@@ -1747,10 +1741,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.transform)}
               onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.transform)}
             >
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Aplica a colunas de texto e múltiplas linhas, para valor digitado, predefinido por regras e
-                resultados de expressão (p. ex. regra «Valor calculado»).
-              </Text>
+       
               <Stack tokens={{ childrenGap: 4 }}>
                 <Checkbox
                   label="Maiúsculas"
@@ -1852,10 +1843,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
-              <Text variant="small">
-                Visibilidade dinâmica deste campo: pode haver vários grupos; cada grupo é avaliado de forma
-                independente. Se mais do que um se aplicar e as ações divergirem, prevalece ocultar.
-              </Text>
+          
               <PrimaryButton
                 text="Adicionar grupo de regra"
                 disabled={!refFieldOptions.length}
@@ -1923,8 +1911,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                     Grupos do SharePoint
                   </Text>
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Vazio = a regra aplica-se a todos. Se marcar grupos, só quem pertencer a pelo menos um deles (e
-                    cumprir as condições acima) fica abrangido.
+                    Vazio = a regra aplica-se a todos.
                   </Text>
                   <TextField
                     placeholder="Filtrar grupos por nome"
@@ -2330,10 +2317,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               isOpen={isTextRulesOpen(DATE_RULES_COLLAPSE_IDS.compareFields)}
               onToggle={() => toggleTextRulesSection(DATE_RULES_COLLAPSE_IDS.compareFields)}
             >
-              <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
-                O valor deste campo deve ser maior ou igual / menor ou igual ao valor de outro campo de data da mesma
-                lista.
-              </Text>
+          
               <Dropdown
                 label="Data &gt;= campo"
                 options={[{ key: '', text: '—' }, ...fieldOptions]}
@@ -2455,9 +2439,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
             onToggle={() => toggleLookupRulesSection('lookupDetailBelow')}
           >
             <Stack tokens={{ childrenGap: 8 }} styles={{ root: { maxWidth: 480 } }}>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Após escolher uma opção, mostra campos da lista ligada em só leitura por baixo do lookup.
-              </Text>
+        
               {lookupDestLoading && <Spinner />}
               {lookupDestErr && (
                 <MessageBar messageBarType={MessageBarType.error}>{lookupDestErr}</MessageBar>

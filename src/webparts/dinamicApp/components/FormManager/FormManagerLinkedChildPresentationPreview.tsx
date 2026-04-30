@@ -177,10 +177,7 @@ export const FormManagerLinkedChildPresentationPreview: React.FC<
 
   return (
     <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 8 } }}>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Pré-visualização do modo selecionado (esboço com os primeiros campos da etapa «Geral»; o formulário real
-        segue regras e visibilidade).
-      </Text>
+  
       <PreviewBlock title={title} kind={presentationKind} labels={labels} />
     </Stack>
   );

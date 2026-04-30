@@ -178,15 +178,7 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
       <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
         Regras condicionais (só campos desta lista filha)
       </Text>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        As condições avaliam apenas os valores da linha atual do mini-formulário (não usa campos do formulário
-        principal).
-      </Text>
-      {!fieldOptions.length && (
-        <Text variant="small" styles={{ root: { color: '#a4262c' } }}>
-          Adicione campos à etapa «Geral» desta lista para escolher colunas nas regras.
-        </Text>
-      )}
+    
       <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
         <PrimaryButton text="Nova regra" onClick={addConditionalCard} disabled={!fieldOptions.length} />
         <DefaultButton
@@ -215,10 +207,7 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
           disabled={!fieldOptions.length}
         />
       </Stack>
-      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-        Em cada regra, o campo «Operador» inclui: igual, diferente, contém, começa/termina com, maior/menor (ou
-        igual), vazio, preenchido, verdadeiro/falso.
-      </Text>
+  
       {conditionalCards.map((card, ci) => (
         <Stack
           key={card.id}

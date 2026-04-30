@@ -635,10 +635,7 @@ export function FormManagerFolderTreeEditor(props: IFormManagerFolderTreeEditorP
         <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
           Estrutura de pastas
         </Text>
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Sob a pasta do ID pode haver várias pastas ao mesmo nível; dentro de cada uma use + para subpastas e a linha
-          para irmãs. O ícone define onde o upload grava.
-        </Text>
+     
         {renderStructureChildren(nodes, 0)}
         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
           {nodes.length === 0 && (
