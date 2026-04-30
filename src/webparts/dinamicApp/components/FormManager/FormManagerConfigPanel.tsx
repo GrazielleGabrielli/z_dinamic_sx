@@ -388,6 +388,34 @@ function defaultWhenUi(meta: IFieldMetadata[]): IWhenUi {
   return { field: f, op: 'eq', compareKind: 'literal', compareValue: '' };
 }
 
+function parseButtonWhenToRows(
+  w: TFormConditionNode | undefined,
+  meta: IFieldMetadata[]
+): { combiner: 'all' | 'any'; rows: IWhenUi[] } {
+  if (!w) return { combiner: 'all', rows: [defaultWhenUi(meta)] };
+  if (w.kind === 'leaf') {
+    const u = whenNodeToUi(w);
+    return { combiner: 'all', rows: u ? [u] : [defaultWhenUi(meta)] };
+  }
+  if (w.kind === 'all' || w.kind === 'any') {
+    const rows: IWhenUi[] = [];
+    for (let i = 0; i < w.children.length; i++) {
+      const u = whenNodeToUi(w.children[i]);
+      if (u) rows.push(u);
+    }
+    return { combiner: w.kind, rows: rows.length ? rows : [defaultWhenUi(meta)] };
+  }
+  return { combiner: 'all', rows: [defaultWhenUi(meta)] };
+}
+
+function buildButtonWhenFromRows(combiner: 'all' | 'any', rows: IWhenUi[]): TFormConditionNode | undefined {
+  const valid = rows.filter((r) => r.field.trim());
+  if (valid.length === 0) return undefined;
+  const nodes = valid.map(whenUiToNode);
+  if (nodes.length === 1) return nodes[0];
+  return { kind: combiner, children: nodes };
+}
+
 function normSpGroupTitle(s: string): string {
   return s.trim().toLowerCase();
 }
@@ -1548,14 +1576,50 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setCustomButtons((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   };
 
-  const patchButtonWhenUi = (bi: number, partial: Partial<IWhenUi>): void => {
+  const patchButtonWhenRow = (bi: number, ri: number, partial: Partial<IWhenUi>): void => {
     setCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
-        const baseLeaf = b.when ? whenNodeToUi(b.when) : undefined;
-        const base: IWhenUi = baseLeaf ?? defaultWhenUi(meta);
-        const merged: IWhenUi = { ...base, ...partial };
-        return { ...b, when: whenUiToNode(merged) };
+        const { combiner, rows } = parseButtonWhenToRows(b.when, meta);
+        const nextRows = rows.map((r, i) => (i === ri ? { ...r, ...partial } : r));
+        const when = buildButtonWhenFromRows(combiner, nextRows);
+        return { ...b, when };
+      })
+    );
+  };
+
+  const setButtonWhenCombiner = (bi: number, combiner: 'all' | 'any'): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) => {
+        if (j !== bi) return b;
+        const { rows } = parseButtonWhenToRows(b.when, meta);
+        const when = buildButtonWhenFromRows(combiner, rows);
+        return { ...b, when };
+      })
+    );
+  };
+
+  const addButtonWhenRow = (bi: number): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) => {
+        if (j !== bi) return b;
+        const { combiner, rows } = parseButtonWhenToRows(b.when, meta);
+        const nextRows = rows.concat([defaultWhenUi(meta)]);
+        const when = buildButtonWhenFromRows(combiner, nextRows);
+        return { ...b, when };
+      })
+    );
+  };
+
+  const removeButtonWhenRow = (bi: number, ri: number): void => {
+    setCustomButtons((prev) =>
+      prev.map((b, j) => {
+        if (j !== bi) return b;
+        const { combiner, rows } = parseButtonWhenToRows(b.when, meta);
+        if (rows.length <= 1) return b;
+        const nextRows = rows.filter((_, i) => i !== ri);
+        const when = buildButtonWhenFromRows(combiner, nextRows);
+        return { ...b, when };
       })
     );
   };
@@ -2722,13 +2786,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               Botões extra no rodapé do formulário. Ao clicar, as ações executam por ordem (mostrar/ocultar campos,
               preencher valores). Para texto composto a partir de campos, use o prefixo str: e placeholders no formato
               {' {{NomeInterno}} '} (igual à expressão de texto da regra de valor calculado). Visibilidade por grupo e
-              por condição em dados (ex.: coluna Status) usa os campos abaixo em cada botão. Condições compostas
-              (várias cláusulas) só em JSON avançado.
+              por uma ou várias condições sobre os dados do formulário.
             </Text>
             <PrimaryButton text="Adicionar botão" onClick={addCustomButton} />
             {customButtons.map((btn, bi) => {
               const chk = checkboxesFromModes(btn.modes);
-              const leafWhen = btn.when ? whenNodeToUi(btn.when) : undefined;
+              const whenRowsState = parseButtonWhenToRows(btn.when, meta);
               const panelOpen = buttonSectionOpen[btn.id] === true;
               return (
                 <Stack
@@ -3248,61 +3311,92 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     </Stack>
                   ) : null}
                   <Checkbox
-                    label="Mostrar só quando a condição abaixo for verdadeira"
+                    label="Mostrar só quando as condições abaixo forem verdadeiras"
                     checked={!!btn.when}
                     onChange={(_, c) => {
                       if (c) patchCustomButton(bi, { when: whenUiToNode(defaultWhenUi(meta)) });
                       else patchCustomButton(bi, { when: undefined });
                     }}
                   />
-                  {btn.when && !leafWhen && (
-                    <MessageBar messageBarType={MessageBarType.warning}>
-                      Condição composta (várias cláusulas). Edição completa: JSON avançado. Desmarque a caixa acima
-                      para remover a condição.
-                    </MessageBar>
-                  )}
-                  {btn.when && leafWhen && (
-                    <Stack tokens={{ childrenGap: 8 }}>
+                  {btn.when && (
+                    <Stack tokens={{ childrenGap: 10 }}>
+                      <Dropdown
+                        label="Lógica entre condições"
+                        options={[
+                          { key: 'all', text: 'Todas (E)' },
+                          { key: 'any', text: 'Pelo menos uma (OU)' },
+                        ]}
+                        selectedKey={whenRowsState.rows.length <= 1 ? 'all' : whenRowsState.combiner}
+                        disabled={whenRowsState.rows.length <= 1}
+                        onChange={(_, o) => o && setButtonWhenCombiner(bi, String(o.key) as 'all' | 'any')}
+                      />
                       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                        Condição nos dados do formulário
+                        Condições nos dados do formulário
                       </Text>
-                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-                        <Dropdown
-                          label="Campo"
-                          options={fieldOptions}
-                          selectedKey={leafWhen.field}
-                          onChange={(_, o) => o && patchButtonWhenUi(bi, { field: String(o.key) })}
-                        />
-                        <Dropdown
-                          label="Operador"
-                          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                          selectedKey={leafWhen.op}
-                          onChange={(_, o) => o && patchButtonWhenUi(bi, { op: o.key as TFormConditionOp })}
-                        />
-                        <Dropdown
-                          label="Comparar com"
-                          options={[
-                            { key: 'literal', text: 'Texto fixo' },
-                            { key: 'field', text: 'Outro campo' },
-                            { key: 'token', text: 'Token' },
-                          ]}
-                          selectedKey={leafWhen.compareKind}
-                          onChange={(_, o) =>
-                            o && patchButtonWhenUi(bi, { compareKind: o.key as IWhenUi['compareKind'] })
-                          }
-                        />
-                        <TextField
-                          label="Valor"
-                          value={leafWhen.compareValue}
-                          onChange={(_, v) => patchButtonWhenUi(bi, { compareValue: v ?? '' })}
-                          disabled={
-                            leafWhen.op === 'isEmpty' ||
-                            leafWhen.op === 'isFilled' ||
-                            leafWhen.op === 'isTrue' ||
-                            leafWhen.op === 'isFalse'
-                          }
-                        />
-                      </Stack>
+                      {whenRowsState.rows.map((row, ri) => (
+                        <Stack
+                          key={`btn-${btn.id}-when-${ri}`}
+                          tokens={{ childrenGap: 8 }}
+                          styles={{
+                            root: {
+                              border: '1px solid #edebe9',
+                              borderRadius: 4,
+                              padding: 10,
+                              background: '#faf9f8',
+                            },
+                          }}
+                        >
+                          <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                            <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                              Condição {ri + 1}
+                            </Text>
+                            <IconButton
+                              iconProps={{ iconName: 'Delete' }}
+                              title="Remover condição"
+                              disabled={whenRowsState.rows.length <= 1}
+                              onClick={() => removeButtonWhenRow(bi, ri)}
+                            />
+                          </Stack>
+                          <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                            <Dropdown
+                              label="Campo"
+                              options={fieldOptions}
+                              selectedKey={row.field || undefined}
+                              onChange={(_, o) => o && patchButtonWhenRow(bi, ri, { field: String(o.key) })}
+                            />
+                            <Dropdown
+                              label="Operador"
+                              options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                              selectedKey={row.op}
+                              onChange={(_, o) => o && patchButtonWhenRow(bi, ri, { op: o.key as TFormConditionOp })}
+                            />
+                            <Dropdown
+                              label="Comparar com"
+                              options={[
+                                { key: 'literal', text: 'Texto fixo' },
+                                { key: 'field', text: 'Outro campo' },
+                                { key: 'token', text: 'Token' },
+                              ]}
+                              selectedKey={row.compareKind}
+                              onChange={(_, o) =>
+                                o && patchButtonWhenRow(bi, ri, { compareKind: o.key as IWhenUi['compareKind'] })
+                              }
+                            />
+                            <TextField
+                              label="Valor"
+                              value={row.compareValue}
+                              onChange={(_, v) => patchButtonWhenRow(bi, ri, { compareValue: v ?? '' })}
+                              disabled={
+                                row.op === 'isEmpty' ||
+                                row.op === 'isFilled' ||
+                                row.op === 'isTrue' ||
+                                row.op === 'isFalse'
+                              }
+                            />
+                          </Stack>
+                        </Stack>
+                      ))}
+                      <DefaultButton text="Adicionar condição" onClick={() => addButtonWhenRow(bi)} />
                     </Stack>
                   )}
                   {(btn.operation ?? 'legacy') !== 'redirect' && (btn.operation ?? 'legacy') !== 'history' && (
