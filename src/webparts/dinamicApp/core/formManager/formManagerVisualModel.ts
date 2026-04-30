@@ -1,3 +1,4 @@
+import type { FieldMappedType } from '../../../../services/shared/types';
 import {
   FORM_VISIBILITY_PREFER_HIDE_TAG,
   type TFormConditionNode,
@@ -12,6 +13,10 @@ import {
   type ITextFieldConditionalVisibility,
   type TLookupFilterOperator,
 } from '../config/types/formManager';
+
+export function isSetComputedAllowedForMappedType(mt: FieldMappedType | 'unknown' | undefined): boolean {
+  return mt === 'text' || mt === 'multiline';
+}
 
 export const CONDITION_OP_OPTIONS: { key: TFormConditionOp; text: string }[] = [
   { key: 'eq', text: 'é igual a' },
@@ -537,10 +542,15 @@ export function compileTextFieldConditionalVisibilityRules(
   return out;
 }
 
+export interface IBuildFieldUiRulesOptions {
+  mappedType?: FieldMappedType | 'unknown';
+}
+
 export function buildFieldUiRules(
   internalName: string,
   st: IFieldRuleEditorState,
-  fieldConfig?: Pick<IFormFieldConfig, 'textConditionalVisibility'>
+  fieldConfig?: Pick<IFormFieldConfig, 'textConditionalVisibility'>,
+  opts?: IBuildFieldUiRulesOptions
 ): TFormRule[] {
   const seg = safeIdSegment(internalName);
   const id = (s: string): string => `ui_f_${seg}_${s}`;
@@ -616,7 +626,7 @@ export function buildFieldUiRules(
 
   const attFolderId = st.computedAttachmentFolderNodeId.trim();
   const cmpExpr = attFolderId ? `attfolder:${attFolderId}` : st.computedExpression.trim();
-  if (cmpExpr) {
+  if (cmpExpr && isSetComputedAllowedForMappedType(opts?.mappedType)) {
     out.push({
       id: id('cmp'),
       action: 'setComputed',

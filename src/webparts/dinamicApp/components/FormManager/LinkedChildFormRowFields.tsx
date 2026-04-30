@@ -236,8 +236,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
   );
 
   const derived = useMemo(
-    () => buildFormDerivedState(shell, fieldConfigs, runtimeCtx, undefined),
-    [shell, fieldConfigs, runtimeCtx]
+    () => buildFormDerivedState(shell, fieldConfigs, runtimeCtx, undefined, metaByName),
+    [shell, fieldConfigs, runtimeCtx, metaByName]
   );
 
   const fieldConfigByInternalName = useMemo(

@@ -1089,6 +1089,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     [fieldConfigs]
   );
   const metaByName = useMemo(() => new Map(fieldMetadata.map((f) => [f.InternalName, f])), [fieldMetadata]);
+  const isDateTimeFieldFromMeta = useCallback(
+    (internalName: string): boolean => metaByName.get(internalName)?.MappedType === 'datetime',
+    [metaByName]
+  );
   const fieldConfigByInternalName = useMemo(
     () => new Map(fieldConfigs.map((fc) => [fc.internalName, fc])),
     [fieldConfigs]
@@ -1483,10 +1487,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   useEffect(() => {
     if (formMode !== 'create') return;
     setValues((prev) => {
-      const merged = getDefaultValuesFromRules(formManager, prev, dynamicContext);
+      const merged = getDefaultValuesFromRules(formManager, prev, dynamicContext, {
+        isDateTimeField: isDateTimeFieldFromMeta,
+      });
       return merged;
     });
-  }, [formManager, formMode, dynamicContext]);
+  }, [formManager, formMode, dynamicContext, isDateTimeFieldFromMeta]);
 
   useEffect(() => {
     setValues((prev) => applyTextTransformsToRecordValues(prev, fieldConfigs, metaByName));
@@ -1550,10 +1556,16 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 
   const derived = useMemo(
     () =>
-      buildFormDerivedState(formManager, fieldConfigs, runtimeCtx(), {
-        show: buttonOverlay.show,
-        hide: buttonOverlay.hide,
-      }),
+      buildFormDerivedState(
+        formManager,
+        fieldConfigs,
+        runtimeCtx(),
+        {
+          show: buttonOverlay.show,
+          hide: buttonOverlay.hide,
+        },
+        metaByName
+      ),
     [
       formManager,
       fieldConfigs,
@@ -1566,6 +1578,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       dynamicContext,
       attachmentFolderUrl,
       buttonOverlay,
+      metaByName,
     ]
   );
 
@@ -2141,6 +2154,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           },
           buttonOverlay: { show: ov.show, hide: ov.hide },
           fieldLabelByName: fieldLabelByName,
+          mainFieldMetaByName: metaByName,
           linkedConfigs: linkedConfigsSorted,
           linkedRowErrorsById: validationOutcome.linkedRowErrorsById,
           linkedRowsById,
@@ -2334,7 +2348,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setFormError(undefined);
         flushSync(() => {
           const empty = itemToFormValues(undefined, names);
-          setValues(getDefaultValuesFromRules(formManager, empty, dynamicContext));
+          setValues(
+            getDefaultValuesFromRules(formManager, empty, dynamicContext, {
+              isDateTimeField: isDateTimeFieldFromMeta,
+            })
+          );
           setButtonOverlay({ show: new Set<string>(), hide: new Set<string>() });
           setPendingFiles([]);
           setPendingFilesByFolder({});
@@ -2362,7 +2380,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
       return 'none';
     },
-    [names, formManager, dynamicContext, itemId, formMode, linkedConfigsSorted]
+    [names, formManager, dynamicContext, itemId, formMode, linkedConfigsSorted, isDateTimeFieldFromMeta]
   );
 
   useEffect(() => {
@@ -2564,6 +2582,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             },
             buttonOverlay: { show: mergedOverlay.show, hide: mergedOverlay.hide },
             fieldLabelByName: fieldLabelByName,
+            mainFieldMetaByName: metaByName,
             linkedConfigs: linkedConfigsSorted,
             linkedRowErrorsById: validationOutcome.linkedRowErrorsById,
             linkedRowsById,
@@ -2736,6 +2755,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             },
             buttonOverlay: { show: mergedOverlay.show, hide: mergedOverlay.hide },
             fieldLabelByName: fieldLabelByName,
+            mainFieldMetaByName: metaByName,
             linkedConfigs: linkedConfigsSorted,
             linkedRowErrorsById: validationOutcome.linkedRowErrorsById,
             linkedRowsById,

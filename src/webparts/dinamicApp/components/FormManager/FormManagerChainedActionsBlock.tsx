@@ -35,6 +35,14 @@ const BUTTON_ACTION_KIND_OPTIONS: IDropdownOption[] = [
   { key: 'joinFields', text: 'Juntar vários campos num campo' },
 ];
 
+const CHAINED_ACTION_DROPDOWN_MIN_ROOT = 280;
+const CHAINED_ACTION_DROPDOWN_PANEL_WIDTH = 360;
+
+const chainedActionFieldDropdownProps = {
+  styles: { root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } },
+  dropdownWidth: CHAINED_ACTION_DROPDOWN_PANEL_WIDTH,
+} as const;
+
 function reorderByIndex<T>(arr: T[], from: number, to: number): T[] {
   if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr.slice();
   const next = arr.slice();
@@ -189,6 +197,8 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
           <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
             <Dropdown
               label="Tipo"
+              styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
+              dropdownWidth={CHAINED_ACTION_DROPDOWN_PANEL_WIDTH}
               options={BUTTON_ACTION_KIND_OPTIONS}
               selectedKey={act.kind}
               onChange={(_, o) => {
@@ -267,6 +277,8 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
               </Text>
               <Dropdown
                 label="Etapa onde mostrar"
+                styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
+                dropdownWidth={CHAINED_ACTION_DROPDOWN_PANEL_WIDTH}
                 options={[
                   { key: '', text: '— escolher —' },
                   ...steps
@@ -294,6 +306,7 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                 <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
                   <Dropdown
                     label="Campo"
+                    {...chainedActionFieldDropdownProps}
                     options={[{ key: '', text: '—' }, ...fieldOptions]}
                     selectedKey={act.field || ''}
                     onChange={(_, o) =>
@@ -306,7 +319,8 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                   {choiceVal ? (
                     <Dropdown
                       label="Valor"
-                      styles={{ root: { minWidth: 280 } }}
+                      styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
+                      dropdownWidth={CHAINED_ACTION_DROPDOWN_PANEL_WIDTH}
                       options={choiceVal.options}
                       selectedKey={choiceVal.selectedKey}
                       onChange={(_, o) =>
@@ -319,7 +333,7 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                   ) : (
                     <TextField
                       label="Valor fixo ou str:{{Campo}}"
-                      styles={{ root: { minWidth: 280 } }}
+                      styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
                       value={act.valueTemplate}
                       onChange={(_, v) => patchAction(ai, { ...act, valueTemplate: v ?? '' })}
                     />
@@ -331,6 +345,7 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
             <Stack tokens={{ childrenGap: 10 }}>
               <Dropdown
                 label="Campo destino"
+                {...chainedActionFieldDropdownProps}
                 options={[{ key: '', text: '—' }, ...fieldOptions]}
                 selectedKey={act.targetField || ''}
                 onChange={(_, o) =>
@@ -354,6 +369,7 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
               <Dropdown
                 key={`join-add-${reactKeysPrefix}-${ai}-${act.sourceFields.join('|')}`}
                 label="Adicionar campo à ordem"
+                {...chainedActionFieldDropdownProps}
                 options={[
                   { key: '', text: '—' },
                   ...metaSortedForPool

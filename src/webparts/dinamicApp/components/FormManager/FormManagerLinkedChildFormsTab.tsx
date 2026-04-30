@@ -1147,6 +1147,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
             rules={lc.rules ?? []}
             fieldOptions={fieldOpts.length ? fieldOpts : [{ key: 'Title', text: 'Title' }]}
             lookupFieldsWebServerRelativeUrl={listWebServerRelativeUrl?.trim() || undefined}
+            listFieldMetadata={childMeta}
             onDismiss={() => setLinkedFieldRuleTarget(null)}
             onApply={(nextFc, editor) => {
               onLinkedChildFormsChange((prev) =>
@@ -1155,7 +1156,9 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                   const rulesNext = mergeFieldRules(
                     c.rules ?? [],
                     name,
-                    buildFieldUiRules(name, editor, nextFc)
+                    buildFieldUiRules(name, editor, nextFc, {
+                      mappedType: fieldMeta?.MappedType ?? 'unknown',
+                    })
                   );
                   const has = c.fields.some((f) => f.internalName === name);
                   const fieldsNext = has

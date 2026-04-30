@@ -46,6 +46,7 @@ import {
   CONDITION_OP_OPTIONS,
   emptyFieldRuleEditorState,
   fieldRuleStateFromRules,
+  isSetComputedAllowedForMappedType,
   mergeFieldRuleEditorState,
   newCardId,
   type IFieldRuleEditorState,
@@ -161,6 +162,8 @@ export interface IFormFieldRulesPanelProps {
   attachmentLibraryFolderOptions?: IDropdownOption[];
   /** Web da lista principal (lista de dados do formulário) para ler a lista ligada nos lookups. */
   lookupFieldsWebServerRelativeUrl?: string;
+  /** Colunas da lista (valor padrão em campo data: @ inclui outros campos data). */
+  listFieldMetadata?: IFieldMetadata[];
   onDismiss: () => void;
   onApply: (nextField: IFormFieldConfig, editor: IFieldRuleEditorState) => void;
 }
@@ -287,6 +290,73 @@ function buildMentionItems(
   return out;
 }
 
+const DEFAULT_VALUE_MENTION_DATE_TOKENS: { literal: string; hint: string }[] = [
+  { literal: '[today]', hint: 'Data de hoje (ISO)' },
+  { literal: '[now]', hint: 'Data e hora atuais (ISO)' },
+  { literal: '[tomorrow]', hint: 'Dia seguinte (ISO)' },
+  { literal: '[yesterday]', hint: 'Dia anterior (ISO)' },
+  { literal: '[startOfMonth]', hint: 'Primeiro dia do mês corrente' },
+  { literal: '[endOfMonth]', hint: 'Último dia do mês corrente' },
+  { literal: '[startOfYear]', hint: 'Primeiro dia do ano corrente' },
+  { literal: '[endOfYear]', hint: 'Último dia do ano corrente' },
+];
+
+const DATE_DEFAULT_MENTION_SUFFIX_PRESETS: { insert: string; primary: string; secondary: string }[] = [
+  { insert: ' + 1', primary: '+ 1 dia', secondary: 'Após token ou {{campo}} de data' },
+  { insert: ' + 7', primary: '+ 7 dias', secondary: '' },
+  { insert: ' + 14', primary: '+ 14 dias', secondary: '' },
+  { insert: ' + 30', primary: '+ 30 dias', secondary: '' },
+];
+
+function buildDefaultValueMentionItems(
+  filter: string,
+  dateFields?: IDropdownOption[]
+): TMentionItem[] {
+  const f = filter.trim().toLowerCase();
+  const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
+  const out: TMentionItem[] = [];
+  for (let i = 0; i < DEFAULT_VALUE_MENTION_DATE_TOKENS.length; i++) {
+    const row = DEFAULT_VALUE_MENTION_DATE_TOKENS[i];
+    if (match(row.literal) || match(row.hint)) {
+      out.push({
+        key: `dv-${row.literal}-${i}`,
+        insert: row.literal,
+        primary: row.literal,
+        secondary: row.hint,
+      });
+    }
+  }
+  if (dateFields !== undefined) {
+    for (let i = 0; i < DATE_DEFAULT_MENTION_SUFFIX_PRESETS.length; i++) {
+      const p = DATE_DEFAULT_MENTION_SUFFIX_PRESETS[i];
+      const sec = p.secondary || 'Sufixo para somar dias';
+      if (match(p.insert.trim()) || match(p.primary) || match(sec)) {
+        out.push({
+          key: `dv-sfx-${i}`,
+          insert: p.insert,
+          primary: p.primary,
+          secondary: sec,
+        });
+      }
+    }
+    for (let i = 0; i < dateFields.length; i++) {
+      const opt = dateFields[i];
+      const k = String(opt.key);
+      const ins = `{{${k}}}`;
+      const lab = String(opt.text ?? k);
+      if (match(k) || match(lab) || match(ins)) {
+        out.push({
+          key: `dv-df-${k}-${i}`,
+          insert: ins,
+          primary: lab,
+          secondary: `Campo de data · ${ins}`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 function overflowScrollAncestors(start: HTMLElement | null): HTMLElement[] {
   const seen = new Set<HTMLElement>();
   const out: HTMLElement[] = [];
@@ -308,6 +378,254 @@ function overflowScrollAncestors(start: HTMLElement | null): HTMLElement[] {
   const root = document.documentElement;
   if (!seen.has(root)) out.push(root);
   return out;
+}
+
+type TFieldRulesDefaultValueTextFieldProps = {
+  label: string;
+  description?: string;
+  value: string;
+  onChange: (next: string) => void;
+  /** Quando definido (ex.: campo data), inclui outros campos data e sufixos +N no @. */
+  dateFieldMentionOptions?: IDropdownOption[];
+};
+
+function FieldRulesDefaultValueTextField({
+  label,
+  description,
+  value,
+  onChange,
+  dateFieldMentionOptions,
+}: TFieldRulesDefaultValueTextFieldProps): JSX.Element {
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionRange, setMentionRange] = useState<{ from: number; to: number; filter: string } | null>(null);
+  const [mentionHighlight, setMentionHighlight] = useState(0);
+  const [mentionListPos, setMentionListPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const tfRef = useRef<ITextField | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const mentionPortalRef = useRef<HTMLDivElement | null>(null);
+  const pendingCaretRef = useRef<number | undefined>(undefined);
+  const mentionRangeRef = useRef<{ from: number; to: number; filter: string } | undefined>(undefined);
+
+  mentionRangeRef.current = mentionRange ?? undefined;
+
+  const measureMentionListPos = useCallback((): void => {
+    const w = wrapRef.current;
+    if (!w) return;
+    const r = w.getBoundingClientRect();
+    setMentionListPos({
+      top: r.bottom + 4,
+      left: r.left,
+      width: r.width,
+    });
+  }, []);
+
+  const mentionItems = useMemo(() => {
+    if (!mentionOpen || !mentionRange) return [];
+    return buildDefaultValueMentionItems(
+      mentionRange.filter,
+      dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined
+    );
+  }, [mentionOpen, mentionRange, dateFieldMentionOptions]);
+
+  useLayoutEffect(() => {
+    const p = pendingCaretRef.current;
+    if (p === undefined || !tfRef.current) return;
+    pendingCaretRef.current = undefined;
+    const tf = tfRef.current;
+    tf.focus();
+    requestAnimationFrame(() => {
+      try {
+        tf.setSelectionRange(p, p);
+      } catch {
+        //
+      }
+    });
+  }, [value]);
+
+  useLayoutEffect(() => {
+    const show = mentionOpen && mentionItems.length > 0;
+    if (!show) {
+      setMentionListPos(null);
+      return;
+    }
+    measureMentionListPos();
+  }, [mentionOpen, mentionItems.length, value, measureMentionListPos]);
+
+  useEffect(() => {
+    const show = mentionOpen && mentionItems.length > 0;
+    if (!show) return;
+    measureMentionListPos();
+    const roots = overflowScrollAncestors(wrapRef.current);
+    const upd = (): void => {
+      measureMentionListPos();
+    };
+    roots.forEach((el) => el.addEventListener('scroll', upd, true));
+    window.addEventListener('resize', upd);
+    return () => {
+      roots.forEach((el) => el.removeEventListener('scroll', upd, true));
+      window.removeEventListener('resize', upd);
+    };
+  }, [mentionOpen, mentionItems.length, measureMentionListPos]);
+
+  useEffect(() => {
+    const onDocDown = (e: MouseEvent): void => {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || mentionPortalRef.current?.contains(t)) return;
+      setMentionOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, []);
+
+  useEffect(() => {
+    if (mentionOpen && mentionItems.length === 0) setMentionOpen(false);
+  }, [mentionOpen, mentionItems.length]);
+
+  useEffect(() => {
+    setMentionHighlight(0);
+  }, [mentionRange?.filter]);
+
+  const applyMentionInsert = useCallback(
+    (insertText: string): void => {
+      const r = mentionRangeRef.current;
+      if (!r) return;
+      const cur = value;
+      const next = cur.slice(0, r.from) + insertText + cur.slice(r.to);
+      pendingCaretRef.current = r.from + insertText.length;
+      setMentionOpen(false);
+      setMentionRange(null);
+      onChange(next);
+    },
+    [value, onChange]
+  );
+
+  const handleChange = useCallback(
+    (ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v: string | undefined): void => {
+      const raw = v ?? '';
+      const el = ev.target as HTMLTextAreaElement;
+      const caret =
+        typeof el.selectionStart === 'number' ? el.selectionStart : raw.length;
+      const range = getActiveMentionRange(raw, caret);
+      if (range) {
+        const items = buildDefaultValueMentionItems(
+          range.filter,
+          dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined
+        );
+        if (items.length > 0) {
+          setMentionRange(range);
+          setMentionOpen(true);
+          setMentionHighlight(0);
+        } else {
+          setMentionOpen(false);
+          setMentionRange(null);
+        }
+      } else {
+        setMentionOpen(false);
+        setMentionRange(null);
+      }
+      onChange(raw);
+    },
+    [onChange, dateFieldMentionOptions]
+  );
+
+  const handleKeyDown = useCallback(
+    (ev: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
+      if (!mentionOpen || mentionItems.length === 0) return;
+      if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        setMentionHighlight((h) => Math.min(mentionItems.length - 1, h + 1));
+      } else if (ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        setMentionHighlight((h) => Math.max(0, h - 1));
+      } else if (ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault();
+        const it = mentionItems[mentionHighlight];
+        if (it) applyMentionInsert(it.insert);
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        setMentionOpen(false);
+        setMentionRange(null);
+      }
+    },
+    [mentionOpen, mentionItems, mentionHighlight, applyMentionInsert]
+  );
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
+      <TextField
+        label={label}
+        description={description}
+        multiline
+        rows={2}
+        value={value}
+        componentRef={tfRef}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+      />
+      {mentionOpen && mentionItems.length > 0 && mentionListPos
+        ? createPortal(
+            <div
+              ref={mentionPortalRef}
+              {...{ [FORM_FIELD_RULES_MENTION_PORTAL_ATTR]: '' }}
+              role="listbox"
+              aria-label="Sugestões de data (tokens)"
+              style={{
+                position: 'fixed',
+                left: mentionListPos.left,
+                top: mentionListPos.top,
+                width: mentionListPos.width,
+                maxWidth:
+                  typeof window !== 'undefined'
+                    ? Math.max(0, window.innerWidth - mentionListPos.left - 8)
+                    : mentionListPos.width,
+                zIndex: 10000000,
+                minWidth: 280,
+                maxHeight: 280,
+                overflowY: 'auto',
+                border: '1px solid #edebe9',
+                borderRadius: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                background: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {mentionItems.map((it, idx) => (
+                <div
+                  key={it.key}
+                  role="option"
+                  aria-selected={idx === mentionHighlight}
+                  style={{
+                    padding: '8px 10px',
+                    cursor: 'pointer',
+                    background: idx === mentionHighlight ? '#edebe9' : 'transparent',
+                    borderBottom:
+                      idx < mentionItems.length - 1 ? '1px solid #f3f2f1' : undefined,
+                  }}
+                  onMouseEnter={() => setMentionHighlight(idx)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applyMentionInsert(it.insert);
+                  }}
+                >
+                  <Text variant="small" styles={{ root: { fontWeight: 600, display: 'block' } }}>
+                    {it.primary}
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c', fontSize: 11 } }}>
+                    {it.secondary}
+                  </Text>
+                </div>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
 }
 
 type TSetComputedRulesBlockProps = {
@@ -885,6 +1203,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   fieldOptions,
   attachmentLibraryFolderOptions = [],
   lookupFieldsWebServerRelativeUrl,
+  listFieldMetadata,
   onDismiss,
   onApply,
 }) => {
@@ -933,16 +1252,33 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setFc({ ...fieldConfig });
-    const st = fieldRuleStateFromRules(internalName, rules);
+    const st0 = fieldRuleStateFromRules(internalName, rules);
+    const mtp = meta?.MappedType ?? 'unknown';
+    const st =
+      isSetComputedAllowedForMappedType(mtp)
+        ? st0
+        : {
+            ...st0,
+            computedExpression: '',
+            computedAttachmentFolderNodeId: '',
+            computedLiveInEditView: false,
+          };
     const df = String(fieldOptions[0]?.key ?? 'Title');
     if (!st.disableWhenActive && !st.enableWhenActive) {
       st.disableWhenUi = { ...st.disableWhenUi, field: df };
       st.enableWhenUi = { ...st.enableWhenUi, field: df };
     }
     setEd(st);
-  }, [isOpen, internalName, fieldConfig, rules, fieldOptions]);
+  }, [isOpen, internalName, fieldConfig, rules, fieldOptions, meta?.MappedType]);
 
   const mt = meta?.MappedType ?? 'unknown';
+  const defaultValueDateFieldMentions = useMemo((): IDropdownOption[] | undefined => {
+    if (mt !== 'datetime') return undefined;
+    const list = listFieldMetadata ?? [];
+    return list
+      .filter((m) => m.MappedType === 'datetime' && m.InternalName !== internalName)
+      .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+  }, [mt, listFieldMetadata, internalName]);
   const isTextRulesLikeText = mt === 'text' || mt === 'multiline';
   const fieldsServiceLookup = useMemo(() => new FieldsService(), []);
   const [lookupDestFields, setLookupDestFields] = useState<IFieldMetadata[]>([]);
@@ -1117,21 +1453,17 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
             />
             {(mt !== 'lookup' && mt !== 'lookupmulti') ? (
-              <>
-                <TextField
-                  label="Valor padrão (token ou texto; aplica se vazio)"
-                  value={ed.defaultValue}
-                  onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
-                />
-                {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) ? (
-                  <SetComputedRulesBlock
-                    ed={ed}
-                    setEd={setEd}
-                    fieldOptions={fieldOptions}
-                    attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
-                  />
-                ) : null}
-              </>
+              <FieldRulesDefaultValueTextField
+                label="Valor padrão (token ou texto; aplica se vazio)"
+                description={
+                  mt === 'datetime'
+                    ? 'Ex.: {{OutraData}} + 7, [today] + 14. @ lista tokens, outros campos data e sufixos +N dias.'
+                    : 'Digite @ para listar só tokens de data ([today], [now], …). Outros valores escreva manualmente.'
+                }
+                value={ed.defaultValue}
+                onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
+                dateFieldMentionOptions={defaultValueDateFieldMentions}
+              />
             ) : null}
             <FormManagerCollapseSection
               title="Desativar / ativar o campo"
@@ -1202,10 +1534,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 value={fc.helpText ?? ''}
                 onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
               />
-              <TextField
+              <FieldRulesDefaultValueTextField
                 label="Valor padrão (token ou texto; aplica se vazio)"
+                description="Digite @ para listar só tokens de data ([today], [now], …). Outros valores escreva manualmente."
                 value={ed.defaultValue}
-                onChange={(_, v) => setEd((p) => ({ ...p, defaultValue: v ?? '' }))}
+                onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
               />
               {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
                 <SetComputedRulesBlock
@@ -1295,7 +1628,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 }
               />
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                Pré-visualização: {buildFieldUiRules(internalName, ed, fc).length} regra(s) gerada(s) para este campo.
+                Pré-visualização: {buildFieldUiRules(internalName, ed, fc, { mappedType: mt }).length} regra(s)
+                gerada(s) para este campo.
               </Text>
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
@@ -2130,7 +2464,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
         )}
         {mt !== 'text' && mt !== 'multiline' && (
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            Pré-visualização: {buildFieldUiRules(internalName, ed, fc).length} regra(s) gerada(s) para este campo.
+            Pré-visualização: {buildFieldUiRules(internalName, ed, fc, { mappedType: mt }).length} regra(s) gerada(s)
+            para este campo.
           </Text>
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }}>

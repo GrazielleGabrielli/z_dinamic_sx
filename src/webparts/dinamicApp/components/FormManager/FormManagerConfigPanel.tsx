@@ -3489,6 +3489,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           fieldOptions={fieldOptions}
           attachmentLibraryFolderOptions={attachmentFolderOptionsForFieldRules}
           lookupFieldsWebServerRelativeUrl={lw}
+          listFieldMetadata={meta}
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
             setFields((prev) =>
@@ -3499,7 +3500,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               )
             );
             setRules((r) =>
-              mergeFieldRules(r, fieldPanelName, buildFieldUiRules(fieldPanelName, editor, nextFc))
+              mergeFieldRules(
+                r,
+                fieldPanelName,
+                buildFieldUiRules(fieldPanelName, editor, nextFc, {
+                  mappedType: fieldPanelMeta?.MappedType ?? 'unknown',
+                })
+              )
             );
           }}
         />

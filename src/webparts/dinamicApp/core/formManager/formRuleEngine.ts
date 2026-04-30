@@ -1,6 +1,6 @@
 import type { IDynamicContext } from '../dynamicTokens/types';
 import { DynamicTokenResolver } from '../dynamicTokens/services/DynamicTokenResolver';
-import { isDynamicToken, resolveStringToken } from '../dynamicTokens';
+import { isDynamicToken, resolveStringToken, toIsoDateString } from '../dynamicTokens';
 import type {
   IAttachmentLibraryFolderTreeNode,
   IFormManagerConfig,
@@ -66,6 +66,87 @@ export interface IFormDerivedUiState {
 }
 
 const tokenResolver = new DynamicTokenResolver();
+
+const DATE_DEFAULT_COMPOUND_RE =
+  /^((?:\[[^\]]+\]|\{\{[^}]+\}\}))\s*([+-])\s*(\d+)(?:\s+(dias?|days?|semanas?|weeks?))?$/i;
+
+const DATE_DEFAULT_SINGLE_PLACEHOLDER_RE = /^\{\{([^}]+)\}\}$/;
+
+function normalizeDateDefaultExpression(expr: string): string {
+  let t = expr.trim().replace(/\s+/g, ' ');
+  if (!t) return '';
+  t = t.replace(/\bhoje\b/gi, '[today]');
+  t = t.replace(/\bontem\b/gi, '[yesterday]');
+  t = t.replace(/\bamanhã\b/gi, '[tomorrow]');
+  t = t.replace(/\bamanha\b/gi, '[tomorrow]');
+  t = t.replace(/\btoday\b/gi, '[today]');
+  t = t.replace(/\btomorrow\b/gi, '[tomorrow]');
+  t = t.replace(/\byesterday\b/gi, '[yesterday]');
+  t = t.replace(/\bagora\b/gi, '[now]');
+  return t;
+}
+
+export type TResolveDateFieldDefaultResult =
+  | { kind: 'resolved'; value: unknown }
+  | { kind: 'generic' }
+  | { kind: 'skip' };
+
+export function resolveDateFieldDefaultValue(
+  expr: string,
+  dynamicContext: IDynamicContext,
+  values?: Record<string, unknown>
+): TResolveDateFieldDefaultResult {
+  const normalized = normalizeDateDefaultExpression(expr);
+  if (!normalized) return { kind: 'generic' };
+
+  if (isDynamicToken(normalized)) {
+    return { kind: 'resolved', value: tokenResolver.resolveStringToken(normalized, dynamicContext) };
+  }
+
+  const normStr = String(normalized).trim();
+  const singlePh = DATE_DEFAULT_SINGLE_PLACEHOLDER_RE.exec(normStr);
+  if (singlePh && values) {
+    const name = singlePh[1].trim();
+    const raw = values[name];
+    if (raw === undefined || raw === null) return { kind: 'skip' };
+    const baseStr = typeof raw === 'string' ? raw : String(raw);
+    const d = parseIsoDate(baseStr);
+    if (!d) return { kind: 'skip' };
+    return { kind: 'resolved', value: toIsoDateString(startOfDay(d)) };
+  }
+
+  const m = normStr.match(DATE_DEFAULT_COMPOUND_RE);
+  if (!m) return { kind: 'generic' };
+
+  const baseTok = m[1];
+  const sign = m[2] === '-' ? -1 : 1;
+  let n = parseInt(m[3], 10);
+  const unit = (m[4] ?? '').toLowerCase();
+  if (unit.startsWith('sem') || unit.startsWith('week')) n *= 7;
+
+  let baseResolved: unknown;
+  if (baseTok.indexOf('{{') === 0 && baseTok.indexOf('}}') === baseTok.length - 2) {
+    const inner = baseTok.slice(2, -2).trim();
+    const raw = values?.[inner];
+    if (raw === undefined || raw === null) return { kind: 'skip' };
+    baseResolved = typeof raw === 'string' ? raw : String(raw);
+  } else {
+    baseResolved = tokenResolver.resolveStringToken(baseTok, dynamicContext);
+  }
+  if (baseResolved === undefined || baseResolved === null) return { kind: 'skip' };
+
+  const baseStr = typeof baseResolved === 'string' ? baseResolved : String(baseResolved);
+  const d = parseIsoDate(baseStr);
+  if (!d) return { kind: 'skip' };
+
+  const s = startOfDay(d);
+  s.setDate(s.getDate() + sign * n);
+  return { kind: 'resolved', value: toIsoDateString(s) };
+}
+
+export interface IGetDefaultValuesFromRulesOptions {
+  isDateTimeField?: (internalName: string) => boolean;
+}
 
 function normGroupTitle(s: string): string {
   return s.trim().toLowerCase();
@@ -343,7 +424,7 @@ export function areAllRequiredFieldsFilled(
   attachmentCtx?: IFormValidationAttachmentContext
 ): boolean {
   const ctxSubmit: IFormRuleRuntimeContext = { ...ctx, submitKind: 'submit' };
-  const derived = buildFormDerivedState(cfg, fieldConfigs, ctxSubmit, buttonOverlay);
+  const derived = buildFormDerivedState(cfg, fieldConfigs, ctxSubmit, buttonOverlay, metaByName);
   const fv = (n: string): boolean => derived.fieldVisible[n] !== false;
   const { values, formMode } = ctx;
 
@@ -699,7 +780,8 @@ export function buildFormDerivedState(
   cfg: IFormManagerConfig,
   fieldConfigs: IFormFieldConfig[],
   ctx: IFormRuleRuntimeContext,
-  buttonOverlay?: IFormButtonVisibilityOverlay
+  buttonOverlay?: IFormButtonVisibilityOverlay,
+  fieldMetaByName?: ReadonlyMap<string, IFieldMetadata>
 ): IFormDerivedUiState {
   const { values, formMode, dynamicContext, attachmentFolderUrl } = ctx;
   const fieldVisible: Record<string, boolean> = {};
@@ -784,6 +866,10 @@ export function buildFormDerivedState(
         };
         break;
       case 'setComputed': {
+        if (fieldMetaByName) {
+          const mtc = fieldMetaByName.get(rule.field)?.MappedType;
+          if (mtc !== 'text' && mtc !== 'multiline') break;
+        }
         let v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);
         if (v !== undefined) {
           const fc = fieldConfigs.find((f) => f.internalName === rule.field);
@@ -883,7 +969,7 @@ export function collectFormValidationErrors(
   const { values, formMode, submitKind, dynamicContext } = ctx;
   if (formMode === 'view') return errors;
 
-  const derived = buildFormDerivedState(cfg, fieldConfigs, ctx, buttonOverlay);
+  const derived = buildFormDerivedState(cfg, fieldConfigs, ctx, buttonOverlay, metaByName);
   const rules = cfg.rules ?? [];
   const fieldVisible = (name: string): boolean => derived.fieldVisible[name] !== false;
   const isDraft = submitKind === 'draft';
@@ -1103,6 +1189,7 @@ export function buildValidationModalSections(args: {
   ctx: IFormRuleRuntimeContext;
   buttonOverlay?: IFormButtonVisibilityOverlay;
   fieldLabelByName: ReadonlyMap<string, string>;
+  mainFieldMetaByName?: ReadonlyMap<string, IFieldMetadata>;
   linkedConfigs?: readonly IFormLinkedChildFormConfig[];
   linkedRowErrorsById?: Record<string, Record<string, string>[]>;
   linkedRowsById?: Record<string, { values: Record<string, unknown> }[]>;
@@ -1116,13 +1203,20 @@ export function buildValidationModalSections(args: {
     ctx,
     buttonOverlay,
     fieldLabelByName,
+    mainFieldMetaByName,
     linkedConfigs = [],
     linkedRowErrorsById = {},
     linkedRowsById = {},
     linkedMetaById = {},
     mainListLabel,
   } = args;
-  const derivedMain = buildFormDerivedState(formManager, fieldConfigs, ctx, buttonOverlay);
+  const derivedMain = buildFormDerivedState(
+    formManager,
+    fieldConfigs,
+    ctx,
+    buttonOverlay,
+    mainFieldMetaByName
+  );
   const map = new Map<string, string[]>();
   const push = (heading: string, line: string): void => {
     const arr = map.get(heading) ?? [];
@@ -1171,7 +1265,8 @@ export function buildValidationModalSections(args: {
       const rowVals = rows[ri]?.values ?? {};
       const ctxL: IFormRuleRuntimeContext = { ...ctx, values: rowVals };
       const shell = linkedChildAsManagerShell(cfg);
-      const derivedL = buildFormDerivedState(shell, cfg.fields, ctxL, undefined);
+      const linkedMetaMap = new Map(meta.map((m) => [m.InternalName, m]));
+      const derivedL = buildFormDerivedState(shell, cfg.fields, ctxL, undefined, linkedMetaMap);
       const rowSuffix = multi ? ` — Linha ${ri + 1}` : '';
       for (const [fk, fraw] of Object.entries(cell)) {
         const v = String(fraw ?? '').trim();
@@ -1286,15 +1381,27 @@ export function pickRequiredStyleStepErrors(filtered: Record<string, string>): R
 export function getDefaultValuesFromRules(
   cfg: IFormManagerConfig,
   values: Record<string, unknown>,
-  dynamicContext: IDynamicContext
+  dynamicContext: IDynamicContext,
+  opts?: IGetDefaultValuesFromRulesOptions
 ): Record<string, unknown> {
   const next = { ...values };
   const rules = cfg.rules ?? [];
+  const isDt = opts?.isDateTimeField;
   for (let i = 0; i < rules.length; i++) {
     const rule = rules[i];
     if (rule.action !== 'setDefault' || rule.enabled === false) continue;
     if (!evaluateCondition(rule.when, next, dynamicContext)) continue;
-    const resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+
+    let resolved: unknown;
+    if (isDt?.(rule.field) === true && typeof rule.value === 'string') {
+      const dr = resolveDateFieldDefaultValue(rule.value, dynamicContext, next);
+      if (dr.kind === 'skip') continue;
+      if (dr.kind === 'resolved') resolved = dr.value;
+      else resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+    } else {
+      resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+    }
+
     if (resolved !== undefined && isEmptyish(next[rule.field])) next[rule.field] = resolved;
   }
   return next;
