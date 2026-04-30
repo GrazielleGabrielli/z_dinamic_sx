@@ -20,7 +20,7 @@ import {
   MessageBarType,
 } from '@fluentui/react';
 import { Dropdown } from '@fluentui/react';
-import type { IGroupDetails } from '../../../../services';
+import { filterSiteGroupsByNameQuery, type IGroupDetails } from '../../../../services';
 import type {
   TFormStepLayoutKind,
   TFormStepNavButtonsKind,
@@ -476,6 +476,7 @@ export interface IFormManagerComponentsTabContentProps {
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [historyGroupNameFilter, setHistoryGroupNameFilter] = useState('');
 
   const toggleSection = (id: string): void => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -494,6 +495,10 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
   const showIconFields = props.historyButtonKind === 'icon' || props.historyButtonKind === 'iconAndText';
   const showLabelField = props.historyButtonKind === 'text' || props.historyButtonKind === 'iconAndText';
   const showAriaOnlyLabel = props.historyButtonKind === 'icon';
+  const historySiteGroupsFiltered = useMemo(
+    () => filterSiteGroupsByNameQuery(props.siteGroupsSorted, historyGroupNameFilter),
+    [props.siteGroupsSorted, historyGroupNameFilter]
+  );
   return (
     <Stack tokens={{ childrenGap: 10 }}>
       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -669,6 +674,12 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
               Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão de histórico. Vazio =
               todos.
             </Text>
+            <TextField
+              placeholder="Filtrar grupos por nome"
+              value={historyGroupNameFilter}
+              onChange={(_: unknown, v?: string) => setHistoryGroupNameFilter(v ?? '')}
+              styles={{ root: { maxWidth: 420 } }}
+            />
             {props.siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
             {props.siteGroupsErr && (
               <>
@@ -695,6 +706,10 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
                     (t) =>
                       !props.siteGroups.some((g) => normSpGroupTitle(g.Title) === normSpGroupTitle(t))
                   )
+                  .filter((t) => {
+                    const q = historyGroupNameFilter.trim().toLowerCase();
+                    return !q || t.toLowerCase().includes(q);
+                  })
                   .map((t, oi) => (
                     <Checkbox
                       key={`hist-orphan-grp-${oi}-${t}`}
@@ -709,7 +724,7 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
                       }}
                     />
                   ))}
-                {props.siteGroupsSorted.map((g) => {
+                {historySiteGroupsFiltered.map((g) => {
                   const cur = props.historyGroupTitles ?? [];
                   const n = normSpGroupTitle(g.Title);
                   const checked = cur.some((x) => normSpGroupTitle(x) === n);
@@ -731,6 +746,13 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
                     />
                   );
                 })}
+                {props.siteGroupsSorted.length > 0 &&
+                  !historySiteGroupsFiltered.length &&
+                  historyGroupNameFilter.trim() && (
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      Nenhum grupo corresponde ao filtro.
+                    </Text>
+                  )}
                 {!props.siteGroupsSorted.length && !(props.historyGroupTitles ?? []).length && (
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Nenhum grupo no site.

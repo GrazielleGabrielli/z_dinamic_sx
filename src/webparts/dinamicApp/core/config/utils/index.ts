@@ -11,6 +11,10 @@ import {
   type IFormLinkedChildFormConfig,
 } from '../types/formManager';
 import { getDefaultDashboardCardStyle } from '../../dashboard/utils';
+import {
+  DEFAULT_FORM_MANAGER_NAV_BUTTONS,
+  DEFAULT_LIST_VIEW_ROW_NAV_ACTIONS,
+} from '../defaultFormNavButtons';
 
 export function getDefaultFormManagerConfig(): IFormManagerConfig {
   return {
@@ -28,6 +32,7 @@ export function getDefaultFormManagerConfig(): IFormManagerConfig {
     ],
     stepLayout: 'segmented',
     linkedChildForms: [],
+    customButtons: DEFAULT_FORM_MANAGER_NAV_BUTTONS.map((b) => ({ ...b, actions: [...b.actions] })),
   };
 }
 
@@ -90,6 +95,7 @@ export function getDefaultConfig(): IDynamicViewConfig {
       ],
       activeViewModeId: 'all',
       listCardViewEnabled: false,
+      listRowActions: DEFAULT_LIST_VIEW_ROW_NAV_ACTIONS.map((a) => ({ ...a })),
     },
     projectManagement: {
       columns: [],

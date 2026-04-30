@@ -13,7 +13,7 @@ import {
   Spinner,
   type IDropdownOption,
 } from '@fluentui/react';
-import type { IGroupDetails } from '../../../../services';
+import { filterSiteGroupsByNameQuery, type IGroupDetails } from '../../../../services';
 import type {
   IAttachmentLibraryFolderTreeNode,
   TFormConditionOp,
@@ -146,6 +146,12 @@ function FolderVisibilityRules(props: {
     onReloadSiteGroups,
   } = editor;
 
+  const [folderGroupNameFilter, setFolderGroupNameFilter] = useState('');
+  const siteGroupsSortedFiltered = useMemo(
+    () => filterSiteGroupsByNameQuery(siteGroupsSorted, folderGroupNameFilter),
+    [siteGroupsSorted, folderGroupNameFilter]
+  );
+
   const patchNode = (updater: (n: IAttachmentLibraryFolderTreeNode) => IAttachmentLibraryFolderTreeNode): void => {
     onTreeChange(updateAttachmentFolderNode(treeNodes, node.id, updater));
   };
@@ -205,6 +211,12 @@ function FolderVisibilityRules(props: {
         Grupos
         <span style={{ fontWeight: 400, color: '#a19f9d' }}> · vazio = qualquer utilizador</span>
       </Text>
+      <TextField
+        placeholder="Filtrar grupos por nome"
+        value={folderGroupNameFilter}
+        onChange={(_: unknown, v?: string) => setFolderGroupNameFilter(v ?? '')}
+        styles={{ root: { maxWidth: 420 } }}
+      />
       {siteGroupsLoading && <Spinner label="Grupos…" />}
       {siteGroupsErr && (
         <Stack tokens={{ childrenGap: 6 }}>
@@ -227,6 +239,10 @@ function FolderVisibilityRules(props: {
         >
           {(node.showUploaderGroupTitles ?? [])
             .filter((t) => !siteGroups.some((g) => normFolderRuleGroupTitle(g.Title) === normFolderRuleGroupTitle(t)))
+            .filter((t) => {
+              const q = folderGroupNameFilter.trim().toLowerCase();
+              return !q || t.toLowerCase().includes(q);
+            })
             .map((t, oi) => (
               <Checkbox
                 key={`orphan-grp-${node.id}-${oi}-${t}`}
@@ -248,7 +264,7 @@ function FolderVisibilityRules(props: {
                 }}
               />
             ))}
-          {siteGroupsSorted.map((g) => {
+          {siteGroupsSortedFiltered.map((g) => {
             const cur = node.showUploaderGroupTitles ?? [];
             const n = normFolderRuleGroupTitle(g.Title);
             const checked = cur.some((x) => normFolderRuleGroupTitle(x) === n);
@@ -277,6 +293,13 @@ function FolderVisibilityRules(props: {
               />
             );
           })}
+          {siteGroupsSorted.length > 0 &&
+            !siteGroupsSortedFiltered.length &&
+            folderGroupNameFilter.trim() && (
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Nenhum grupo corresponde ao filtro.
+              </Text>
+            )}
           {!siteGroupsSorted.length && !(node.showUploaderGroupTitles ?? []).length && (
             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
               Nenhum grupo no site.

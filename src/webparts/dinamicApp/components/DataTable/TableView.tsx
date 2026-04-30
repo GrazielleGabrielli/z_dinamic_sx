@@ -201,11 +201,25 @@ export const TableView: React.FC<ITableViewProps> = ({
             currentUser: { id: user.Id, title: user.Title, name: user.Title, email: user.Email, loginName: user.LoginName },
             query: typeof window !== 'undefined' && window.location ? parseQueryString(window.location.search) : undefined,
             now: new Date(),
+            site:
+              pageWebServerRelativeUrl?.trim().length
+                ? { url: pageWebServerRelativeUrl.trim() }
+                : undefined,
           })
         );
       })
-      .catch(() => setDynamicContext(buildDynamicContext({ now: new Date() })));
-  }, []);
+      .catch(() =>
+        setDynamicContext(
+          buildDynamicContext({
+            now: new Date(),
+            site:
+              pageWebServerRelativeUrl?.trim().length
+                ? { url: pageWebServerRelativeUrl.trim() }
+                : undefined,
+          })
+        )
+      );
+  }, [pageWebServerRelativeUrl]);
 
   function buildColumnFilterString(filters: Record<string, string>): string | undefined {
     const parts: string[] = [];

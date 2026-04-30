@@ -14,7 +14,7 @@ import {
   DefaultButton,
   IconButton,
 } from '@fluentui/react';
-import { FieldsService, UsersService } from '../../../../services';
+import { FieldsService, UsersService, filterSiteGroupsByNameQuery } from '../../../../services';
 import type { IFieldMetadata, IGroupDetails, IPeoplePickerResult } from '../../../../services';
 import type {
   IFormLinkedChildFormConfig,
@@ -140,6 +140,7 @@ export function FormManagerPermissionBreakTabContent(props: IFormManagerPermissi
   const usersService = useMemo(() => new UsersService(), []);
   const [linkedMetaById, setLinkedMetaById] = useState<Record<string, IFieldMetadata[]>>({});
   const [linkedMetaLoading, setLinkedMetaLoading] = useState(false);
+  const [siteGroupPickFilter, setSiteGroupPickFilter] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -168,14 +169,22 @@ export function FormManagerPermissionBreakTabContent(props: IFormManagerPermissi
     };
   }, [linkedChildForms, fieldsService]);
 
-  const siteGroupOpts: IDropdownOption[] = useMemo(
-    () =>
-      siteGroups.map((g) => ({
-        key: String(g.Id),
-        text: g.Title,
-      })),
-    [siteGroups]
-  );
+  const siteGroupOpts: IDropdownOption[] = useMemo(() => {
+    let visible = filterSiteGroupsByNameQuery(siteGroups, siteGroupPickFilter);
+    const need = new Set<number>();
+    for (const a of value.assignments ?? []) {
+      if (a.kind === 'siteGroup' && typeof a.siteGroupId === 'number' && isFinite(a.siteGroupId)) {
+        need.add(a.siteGroupId);
+      }
+    }
+    Array.from(need).forEach((id) => {
+      if (!visible.some((g) => g.Id === id)) {
+        const g = siteGroups.find((x) => x.Id === id);
+        if (g) visible = visible.concat([g]);
+      }
+    });
+    return visible.map((g) => ({ key: String(g.Id), text: g.Title }));
+  }, [siteGroups, siteGroupPickFilter, value.assignments]);
 
   const mainUserFields = useMemo(() => userFieldsFromMeta(primaryMeta), [primaryMeta]);
 
@@ -372,6 +381,12 @@ export function FormManagerPermissionBreakTabContent(props: IFormManagerPermissi
           <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
             Principais e níveis
           </Text>
+          <TextField
+            placeholder="Filtrar grupos por nome (dropdown «Grupo»)"
+            value={siteGroupPickFilter}
+            onChange={(_: unknown, v?: string) => setSiteGroupPickFilter(v ?? '')}
+            styles={{ root: { maxWidth: 420 } }}
+          />
           {linkedMetaLoading && <Spinner label="A carregar campos das listas vinculadas…" />}
           {(value.assignments ?? []).map((a) => (
             <Stack

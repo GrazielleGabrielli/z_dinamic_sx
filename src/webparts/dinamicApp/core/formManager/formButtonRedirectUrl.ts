@@ -1,4 +1,6 @@
 import type { TFormManagerFormMode } from '../config/types/formManager';
+import type { IDynamicContext } from '../dynamicTokens/types';
+import { resolveValue } from '../dynamicTokens';
 
 function formatValueForUrl(v: unknown): string {
   if (v === null || v === undefined) return '';
@@ -15,12 +17,12 @@ function formModeToSharePointFormParam(mode: TFormManagerFormMode): string {
 }
 
 /**
- * Substitui {{Campo}}, {{FormID}}, {{Form}} no URL. Valores são codificados para uso em query/caminho.
+ * Substitui {{Campo}}, {{FormID}}, {{Form}} no URL; com contexto, também tokens [siteurl] etc.
  */
 export function interpolateFormButtonRedirectUrl(
   template: string,
   values: Record<string, unknown>,
-  opts: { itemId?: number; formMode: TFormManagerFormMode }
+  opts: { itemId?: number; formMode: TFormManagerFormMode; dynamicContext?: IDynamicContext }
 ): string {
   let out = template;
   const id = opts.itemId;
@@ -32,5 +34,13 @@ export function interpolateFormButtonRedirectUrl(
     const v = values[name];
     return encodeURIComponent(formatValueForUrl(v));
   });
+  const ctx = opts.dynamicContext;
+  if (ctx) {
+    out = out.replace(/\[[^\]]+\]/gi, (match) => {
+      const resolved = resolveValue(match, ctx);
+      if (resolved === undefined || resolved === null) return '';
+      return String(resolved);
+    });
+  }
   return out;
 }

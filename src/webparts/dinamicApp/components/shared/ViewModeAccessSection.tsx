@@ -14,7 +14,13 @@ import {
   Spinner,
   SpinnerSize,
 } from '@fluentui/react';
-import { GroupsService, UsersService, WebsService, IWebSummary } from '../../../../services';
+import {
+  GroupsService,
+  UsersService,
+  WebsService,
+  IWebSummary,
+  filterSiteGroupsByNameQuery,
+} from '../../../../services';
 import type { IGroupDetails } from '../../../../services/groups/types';
 import type { IListViewModeAccessConfig } from '../../core/config/types';
 import { normWebPath } from '../../core/listView/viewModeAccess';
@@ -58,6 +64,7 @@ export const ViewModeAccessSection: React.FC<IViewModeAccessSectionProps> = ({
   const [groups, setGroups] = useState<IGroupDetails[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [groupListNameFilter, setGroupListNameFilter] = useState('');
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [userPicks, setUserPicks] = useState<{ id: number; label: string }[]>([]);
 
@@ -68,6 +75,11 @@ export const ViewModeAccessSection: React.FC<IViewModeAccessSectionProps> = ({
     if (listNorm && v === listNorm) return LIST_KEY;
     return v;
   }, [value?.webServerRelativeUrl, pageNorm, listNorm]);
+
+  const groupsFilteredForList = useMemo(
+    () => filterSiteGroupsByNameQuery(groups, groupListNameFilter),
+    [groups, groupListNameFilter]
+  );
 
   const groupIdSet = useMemo(() => new Set(value?.allowedGroupIds ?? []), [value?.allowedGroupIds]);
   const userIdSet = useMemo(() => new Set(value?.allowedUserIds ?? []), [value?.allowedUserIds]);
@@ -264,8 +276,15 @@ export const ViewModeAccessSection: React.FC<IViewModeAccessSectionProps> = ({
               <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                 Grupos permitidos
               </Text>
+              <TextField
+                placeholder="Filtrar grupos por nome"
+                value={groupListNameFilter}
+                onChange={(_: unknown, v?: string) => setGroupListNameFilter(v ?? '')}
+                disabled={disabled}
+                styles={{ root: { maxWidth: 420 } }}
+              />
               <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #edebe9', borderRadius: 6, padding: 8 }}>
-                {groups.map((g) => {
+                {groupsFilteredForList.map((g) => {
                   const id = typeof g.Id === 'number' ? g.Id : Number(g.Id);
                   return (
                     <Checkbox
@@ -278,11 +297,16 @@ export const ViewModeAccessSection: React.FC<IViewModeAccessSectionProps> = ({
                   );
                 })}
               </div>
-              {groups.length === 0 && (
-                <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
-                  Sem grupos neste site ou sem permissão de leitura.
-                </Text>
-              )}
+                {groups.length > 0 && !groupsFilteredForList.length && groupListNameFilter.trim() ? (
+                  <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
+                    Nenhum grupo corresponde ao filtro.
+                  </Text>
+                ) : null}
+                {groups.length === 0 && (
+                  <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>
+                    Sem grupos neste site ou sem permissão de leitura.
+                  </Text>
+                )}
             </Stack>
           )}
           <Stack tokens={{ childrenGap: 6 }}>

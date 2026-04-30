@@ -1,4 +1,5 @@
 import { getSP, getSPForWeb } from '../core/sp';
+import { filterSiteGroupsForPicker } from './siteGroupsFilter';
 import { IGroupDetails, IGroupMember } from './types';
 
 export class GroupsService {
@@ -16,7 +17,7 @@ export class GroupsService {
       const groups = await sp.web.siteGroups
         .select('Id', 'Title', 'Description', 'OwnerTitle', 'AllowMembersEditMembership',
                 'OnlyAllowMembersViewMembership', 'AutoAcceptRequestToJoinLeave')();
-      return groups as IGroupDetails[];
+      return filterSiteGroupsForPicker(groups as IGroupDetails[]);
     } catch (e) {
       throw new Error(`GroupsService.getSiteGroups: ${e}`);
     }

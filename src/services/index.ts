@@ -43,6 +43,11 @@ export type {
 // Domain types
 export type { IUserDetails, IUserGroupMembership, IPeoplePickerResult } from './users/types';
 export type { IGroupDetails, IGroupMember } from './groups/types';
+export {
+  filterSiteGroupsByNameQuery,
+  filterSiteGroupsForPicker,
+  isExcludedNativeSharePointSiteGroupTitle,
+} from './groups/siteGroupsFilter';
 export type { IListSummary } from './lists/types';
 export type { ILibraryMetadata, ILibrarySummary, IDocumentField } from './libraries/types';
 export type { IRawSPField } from './fields/types';

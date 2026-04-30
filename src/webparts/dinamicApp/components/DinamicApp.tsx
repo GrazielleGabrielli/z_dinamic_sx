@@ -491,7 +491,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         </Stack>
 
         {config.mode === 'formManager' ? (
-          <FormManagerView config={config} />
+          <FormManagerView config={config} pageWebServerRelativeUrl={siteUrl} />
         ) : config.mode === 'projectManagement' ? (
           <ProjectManagementView
             config={config}

@@ -20,7 +20,13 @@ import {
   MessageBarType,
   Spinner,
 } from '@fluentui/react';
-import { GroupsService, FieldsService, type IFieldMetadata, type IGroupDetails } from '../../../../services';
+import {
+  GroupsService,
+  FieldsService,
+  filterSiteGroupsByNameQuery,
+  type IFieldMetadata,
+  type IGroupDetails,
+} from '../../../../services';
 import type {
   IFormFieldConfig,
   TFormFieldTextInputMaskKind,
@@ -724,6 +730,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
   const [siteGroupsErr, setSiteGroupsErr] = useState<string>();
+  const [spGroupRuleNameFilter, setSpGroupRuleNameFilter] = useState('');
 
   const loadSiteGroups = useCallback((): void => {
     setSiteGroupsErr(undefined);
@@ -751,6 +758,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
     g.sort((a, b) => (a.Title < b.Title ? -1 : a.Title > b.Title ? 1 : 0));
     return g;
   }, [siteGroups]);
+
+  const siteGroupsSortedForRules = useMemo(
+    () => filterSiteGroupsByNameQuery(siteGroupsSorted, spGroupRuleNameFilter),
+    [siteGroupsSorted, spGroupRuleNameFilter]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1419,6 +1431,12 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                     Vazio = a regra aplica-se a todos. Se marcar grupos, só quem pertencer a pelo menos um deles (e
                     cumprir as condições acima) fica abrangido.
                   </Text>
+                  <TextField
+                    placeholder="Filtrar grupos por nome"
+                    value={spGroupRuleNameFilter}
+                    onChange={(_: unknown, v?: string) => setSpGroupRuleNameFilter(v ?? '')}
+                    styles={{ root: { maxWidth: 420 } }}
+                  />
                   {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
                   {siteGroupsErr ? (
                     <>
@@ -1446,6 +1464,10 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                               (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
                             )
                         )
+                        .filter((t) => {
+                          const q = spGroupRuleNameFilter.trim().toLowerCase();
+                          return !q || t.toLowerCase().includes(q);
+                        })
                         .map((t, oi) => (
                           <Checkbox
                             key={`tx-orphan-${g.id}-${oi}-${t}`}
@@ -1471,7 +1493,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                             }}
                           />
                         ))}
-                      {siteGroupsSorted.map((sg) => {
+                      {siteGroupsSortedForRules.map((sg) => {
                         const cur = g.groupTitles ?? [];
                         const n = normSpGroupTitle(sg.Title);
                         const checked = cur.some((x) => normSpGroupTitle(x) === n);
@@ -1505,6 +1527,13 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                           />
                         );
                       })}
+                      {siteGroupsSorted.length > 0 &&
+                      !siteGroupsSortedForRules.length &&
+                      spGroupRuleNameFilter.trim() ? (
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          Nenhum grupo corresponde ao filtro.
+                        </Text>
+                      ) : null}
                       {!siteGroupsSorted.length && !(g.groupTitles ?? []).length ? (
                         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                           Nenhum grupo no site.

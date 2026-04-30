@@ -19,7 +19,6 @@ import {
   Dialog,
   DialogFooter,
   DialogType,
-  Separator,
   Spinner,
   SpinnerSize,
   useTheme,
@@ -466,43 +465,26 @@ function confirmKindToIconSpec(kind: TFormCustomButtonConfirmKind | undefined): 
   }
 }
 
-function confirmKindToDialogVisuals(kind: TFormCustomButtonConfirmKind | undefined): {
-  bandBg: string;
-  bandBorder: string;
-  iconTileBg: string;
+/** Modal centrado: círculo do ícone + botão principal destaque (vermelho) para ações críticas. */
+function confirmKindToCenteredModalPalette(kind: TFormCustomButtonConfirmKind | undefined): {
+  circleBg: string;
+  iconName: string;
+  iconColor: string;
+  confirmDanger: boolean;
 } {
+  const base = confirmKindToIconSpec(kind);
   switch (kind) {
-    case 'success':
-      return {
-        bandBg: 'linear-gradient(180deg, #e8f5e9 0%, #f4fbf4 100%)',
-        bandBorder: 'rgba(16, 124, 16, 0.2)',
-        iconTileBg: '#ffffff',
-      };
     case 'warning':
-      return {
-        bandBg: 'linear-gradient(180deg, #fff4e5 0%, #fffaf4 100%)',
-        bandBorder: 'rgba(216, 59, 1, 0.18)',
-        iconTileBg: '#ffffff',
-      };
+      return { circleBg: '#FEE2E2', iconName: base.iconName, iconColor: '#DC2626', confirmDanger: true };
     case 'error':
-      return {
-        bandBg: 'linear-gradient(180deg, #fde7e9 0%, #fff5f5 100%)',
-        bandBorder: 'rgba(164, 38, 44, 0.2)',
-        iconTileBg: '#ffffff',
-      };
+      return { circleBg: '#FEE2E2', iconName: base.iconName, iconColor: '#DC2626', confirmDanger: true };
+    case 'success':
+      return { circleBg: '#DCFCE7', iconName: base.iconName, iconColor: '#15803D', confirmDanger: false };
     case 'blocked':
-      return {
-        bandBg: 'linear-gradient(180deg, #f3f2f1 0%, #faf9f8 100%)',
-        bandBorder: 'rgba(96, 94, 92, 0.2)',
-        iconTileBg: '#ffffff',
-      };
+      return { circleBg: '#F3F4F6', iconName: base.iconName, iconColor: '#4B5563', confirmDanger: false };
     case 'info':
     default:
-      return {
-        bandBg: 'linear-gradient(180deg, #e5f1fb 0%, #f5f9fd 100%)',
-        bandBorder: 'rgba(0, 120, 212, 0.2)',
-        iconTileBg: '#ffffff',
-      };
+      return { circleBg: '#DBEAFE', iconName: base.iconName, iconColor: '#2563EB', confirmDanger: false };
   }
 }
 
@@ -905,14 +887,20 @@ const FormChromeZone: React.FC<IFormChromeZoneProps> = ({ zone, fields, renderFi
   );
 };
 
-const ConfirmPromptFieldEditor: React.FC<{
+function ConfirmPromptFieldEditor(props: {
   meta: IFieldMetadata;
   editor: IConfirmPromptEditorState;
   onChange: (next: IConfirmPromptEditorState) => void;
-}> = ({ meta, editor, onChange }) => {
+  /** Campos alinhados ao modal centrado (largura total, entre texto e botões). */
+  modalSurface?: boolean;
+}): React.ReactElement {
+  const { meta, editor, onChange, modalSurface } = props;
   const theme = useTheme();
   const tfStyles = {
-    root: { marginBottom: 0 },
+    root: {
+      marginBottom: 0,
+      ...(modalSurface ? { width: '100%' } : {}),
+    },
     label: {
       root: {
         fontWeight: '600',
@@ -930,6 +918,7 @@ const ConfirmPromptFieldEditor: React.FC<{
       },
     },
     field: { borderRadius: 10 },
+    ...(modalSurface ? { wrapper: { width: '100%' } } : {}),
   };
   const ddStyles = {
     dropdown: {
@@ -943,9 +932,17 @@ const ConfirmPromptFieldEditor: React.FC<{
       },
     },
   };
+  const wrapModal = (node: React.ReactElement): React.ReactElement =>
+    modalSurface ? (
+      <Stack styles={{ root: { width: '100%' } }} tokens={{ childrenGap: 10 }}>
+        {node}
+      </Stack>
+    ) : (
+      node
+    );
   switch (meta.MappedType) {
     case 'boolean':
-      return (
+      return wrapModal(
         <Stack
           horizontal
           verticalAlign="center"
@@ -956,6 +953,8 @@ const ConfirmPromptFieldEditor: React.FC<{
               borderRadius: 10,
               border: `1px solid ${theme.palette.neutralLight}`,
               backgroundColor: theme.palette.white,
+              width: modalSurface ? '100%' : undefined,
+              boxSizing: 'border-box',
             },
           }}
         >
@@ -972,7 +971,7 @@ const ConfirmPromptFieldEditor: React.FC<{
       );
     case 'number':
     case 'currency':
-      return (
+      return wrapModal(
         <TextField
           label={meta.Title}
           type="number"
@@ -982,8 +981,8 @@ const ConfirmPromptFieldEditor: React.FC<{
         />
       );
     case 'datetime':
-      return (
-        <Stack tokens={{ childrenGap: 8 }}>
+      return wrapModal(
+        <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: modalSurface ? '100%' : undefined } }}>
           <Label styles={{ root: tfStyles.label.root }}>{meta.Title}</Label>
           <DatePicker
             value={editor.dateIso ? new Date(editor.dateIso) : undefined}
@@ -992,6 +991,7 @@ const ConfirmPromptFieldEditor: React.FC<{
               styles: {
                 fieldGroup: tfStyles.fieldGroup,
                 field: tfStyles.field,
+                wrapper: { width: '100%' },
               },
             }}
           />
@@ -1000,18 +1000,21 @@ const ConfirmPromptFieldEditor: React.FC<{
     case 'choice': {
       const raw = (meta.Choices ?? []).map((c) => ({ key: c, text: c }));
       const opts: IDropdownOption[] = raw.length ? raw : [{ key: '', text: '—' }];
-      return (
+      return wrapModal(
         <Dropdown
           label={meta.Title}
           options={opts}
           selectedKey={editor.choiceKey ? editor.choiceKey : undefined}
           onChange={(_, o) => onChange({ ...editor, choiceKey: o ? String(o.key) : '' })}
-          styles={ddStyles}
+          styles={{
+            ...ddStyles,
+            dropdown: { ...ddStyles.dropdown, width: '100%' },
+          }}
         />
       );
     }
     case 'multiline':
-      return (
+      return wrapModal(
         <TextField
           label={meta.Title}
           multiline
@@ -1027,7 +1030,7 @@ const ConfirmPromptFieldEditor: React.FC<{
         />
       );
     default:
-      return (
+      return wrapModal(
         <TextField
           label={meta.Title}
           value={editor.text}
@@ -1036,7 +1039,7 @@ const ConfirmPromptFieldEditor: React.FC<{
         />
       );
   }
-};
+}
 
 export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   listTitle,
@@ -2318,7 +2321,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           setFormError('Configure o URL em «Último passo» (redirecionar).');
           return 'none';
         }
-        const url = interpolateFormButtonRedirectUrl(tpl, valuesForUrl, { itemId: id, formMode });
+        const url = interpolateFormButtonRedirectUrl(tpl, valuesForUrl, {
+          itemId: id,
+          formMode,
+          dynamicContext,
+        });
         window.location.assign(url);
         return 'redirect';
       }
@@ -2502,7 +2509,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         }
         return;
       }
-      const url = interpolateFormButtonRedirectUrl(tpl, mergedValues, { itemId, formMode });
+      const url = interpolateFormButtonRedirectUrl(tpl, mergedValues, {
+        itemId,
+        formMode,
+        dynamicContext,
+      });
       if (logWillRun) {
         if (tl) tl.enter(ti);
         try {
@@ -4484,95 +4495,128 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             showCloseButton: false,
             styles: {
               title: {
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: '-0.02em',
-                lineHeight: 1.25,
-                paddingBottom: 4,
+                position: 'absolute',
+                width: 1,
+                height: 1,
+                margin: -1,
+                padding: 0,
+                overflow: 'hidden',
+                clip: 'rect(0,0,0,0)',
+                whiteSpace: 'nowrap',
+                border: 0,
               },
-              inner: {
-                paddingBottom: 0,
-              },
-              subText: { paddingBottom: 0 },
+              inner: { padding: 0 },
+              subText: { padding: 0 },
             },
           }}
           modalProps={{
             isBlocking: true,
             styles: {
               root: {
-                backgroundColor: 'rgba(32, 33, 36, 0.42)',
-                backdropFilter: 'blur(4px)',
+                backgroundColor: 'rgba(15, 23, 42, 0.45)',
+                backdropFilter: 'blur(6px)',
               },
             },
           }}
           styles={{
             root: { selectors: { '& .ms-Modal-scrollableContent': { overflow: 'hidden' } } },
             main: {
-              maxWidth: 440,
+              maxWidth: 560,
               borderRadius: 16,
               overflow: 'hidden',
-              boxShadow: theme.effects.elevation64,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.22)',
               border: `1px solid ${theme.palette.neutralLight}`,
             },
           }}
         >
           {confirmDialogView ? (
-            <>
-              <Stack styles={{ root: { marginTop: 8 } }} tokens={{ childrenGap: 0 }}>
+            (() => {
+              const pal = confirmKindToCenteredModalPalette(confirmDialogView.kind);
+              const confirmBtnStyles =
+                pal.confirmDanger === true
+                  ? {
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      borderRadius: 10,
+                      height: 44,
+                      backgroundColor: '#DC2626',
+                      borderColor: '#DC2626',
+                      borderWidth: 1,
+                    }
+                  : {
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      borderRadius: 10,
+                      height: 44,
+                    };
+              const confirmBtnHovered =
+                pal.confirmDanger === true
+                  ? { backgroundColor: '#B91C1C', borderColor: '#B91C1C' }
+                  : undefined;
+              const cancelBtnStyles = {
+                flex: '1 1 0',
+                minWidth: 0,
+                borderRadius: 10,
+                height: 44,
+                border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
+                backgroundColor: theme.palette.white,
+              };
+              return (
                 <Stack
+                  horizontalAlign="center"
+                  tokens={{ childrenGap: 16 }}
                   styles={{
                     root: {
-                      ...(() => {
-                        const v = confirmKindToDialogVisuals(confirmDialogView.kind);
-                        return {
-                          padding: '18px 20px',
-                          borderRadius: 12,
-                          background: v.bandBg,
-                          border: `1px solid ${v.bandBorder}`,
-                          marginBottom: confirmPromptMetaForDialog && confirmPromptEditor ? 16 : 4,
-                        };
-                      })(),
+                      padding: '28px 28px 24px',
+                      boxSizing: 'border-box',
                     },
                   }}
-                  horizontal
-                  verticalAlign="center"
-                  tokens={{ childrenGap: 16 }}
-                  wrap
                 >
                   <div
                     style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 14,
-                      background: confirmKindToDialogVisuals(confirmDialogView.kind).iconTileBg,
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                      width: 72,
+                      height: 72,
+                      borderRadius: '50%',
+                      background: pal.circleBg,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
+                      marginTop: 4,
                     }}
                   >
                     <Icon
-                      iconName={confirmKindToIconSpec(confirmDialogView.kind).iconName}
-                      styles={{
-                        root: {
-                          fontSize: 28,
-                          lineHeight: 1,
-                          color: confirmKindToIconSpec(confirmDialogView.kind).color,
-                        },
-                      }}
+                      iconName={pal.iconName}
+                      styles={{ root: { fontSize: 34, lineHeight: 1, color: pal.iconColor } }}
                     />
                   </div>
+                  <Text
+                    as="h2"
+                    variant="xLarge"
+                    styles={{
+                      root: {
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        color: theme.palette.neutralPrimary,
+                        margin: 0,
+                        padding: '0 4px',
+                        lineHeight: 1.25,
+                      },
+                    }}
+                  >
+                    {confirmDialogView.title}
+                  </Text>
                   {confirmDialogView.message.trim() ? (
                     <Text
                       variant="medium"
                       styles={{
                         root: {
-                          whiteSpace: 'pre-wrap',
-                          flex: 1,
-                          minWidth: 200,
-                          color: theme.palette.neutralPrimary,
+                          textAlign: 'center',
+                          color: theme.palette.neutralSecondary,
                           lineHeight: 1.55,
+                          whiteSpace: 'pre-wrap',
+                          maxWidth: 520,
+                          margin: '0 auto',
                         },
                       }}
                     >
@@ -4580,72 +4624,89 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                     </Text>
                   ) : !(confirmPromptMetaForDialog && confirmPromptEditor) ? (
                     <Text
-                      variant="small"
+                      variant="medium"
                       styles={{
                         root: {
-                          flex: 1,
+                          textAlign: 'center',
                           color: theme.palette.neutralSecondary,
-                          fontStyle: 'italic',
+                          lineHeight: 1.5,
+                          maxWidth: 520,
                         },
                       }}
                     >
-                      Confirme para continuar.
+                      Tem a certeza que deseja continuar?
                     </Text>
                   ) : null}
-                </Stack>
-                {confirmPromptMetaForDialog && confirmPromptEditor ? (
-                  <>
-                    <Separator styles={{ root: { padding: '4px 0' } }} />
+                  {confirmPromptMetaForDialog && confirmPromptEditor ? (
                     <Stack
-                      tokens={{ childrenGap: 12 }}
+                      tokens={{ childrenGap: 10 }}
                       styles={{
                         root: {
-                          padding: 18,
-                          borderRadius: 12,
-                          backgroundColor: theme.palette.neutralLighterAlt,
-                          border: `1px solid ${theme.palette.neutralLight}`,
-                          boxShadow: theme.effects.elevation4,
+                          width: '100%',
+                          maxWidth: 520,
+                          marginTop: 4,
+                          textAlign: 'left',
                         },
                       }}
                     >
                       <ConfirmPromptFieldEditor
+                        modalSurface
                         meta={confirmPromptMetaForDialog}
                         editor={confirmPromptEditor}
                         onChange={setConfirmPromptEditor}
                       />
                       {confirmPrimaryDisabled ? (
-                        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
-                          <Icon
-                            iconName="InfoSolid"
-                            styles={{ root: { fontSize: 14, color: theme.palette.redDark } }}
-                          />
-                          <Text variant="small" styles={{ root: { color: theme.palette.redDark } }}>
-                            Preencha o campo acima para continuar.
-                          </Text>
-                        </Stack>
+                        <Text
+                          variant="small"
+                          styles={{
+                            root: { color: theme.palette.redDark, textAlign: 'center' },
+                          }}
+                        >
+                          Preencha o campo acima para continuar.
+                        </Text>
                       ) : null}
                     </Stack>
-                  </>
-                ) : null}
-              </Stack>
-              <DialogFooter
-                styles={{
-                  actions: { marginTop: 20, paddingTop: 16, borderTop: `1px solid ${theme.palette.neutralLight}` },
-                }}
-              >
-                <DefaultButton
-                  text="Cancelar"
-                  onClick={() => closeButtonConfirmDialog(false)}
-                  styles={{ root: { borderRadius: 8, minWidth: 100 } }}
-                />
-                <PrimaryButton
-                  text="Confirmar"
-                  onClick={() => closeButtonConfirmDialog(true)}
-                  disabled={confirmPrimaryDisabled}
-                  styles={{ root: { borderRadius: 8, minWidth: 120 } }}
-                />
-              </DialogFooter>
-            </>
+                  ) : null}
+                  <Stack
+                    horizontal
+                    tokens={{ childrenGap: 12 }}
+                    styles={{
+                      root: {
+                        width: '100%',
+                        maxWidth: 520,
+                        marginTop: 8,
+                        justifyContent: 'stretch',
+                      },
+                    }}
+                  >
+                    <DefaultButton
+                      text="Cancelar"
+                      onClick={() => closeButtonConfirmDialog(false)}
+                      styles={{
+                        root: cancelBtnStyles,
+                        flexContainer: { height: 44 },
+                        label: { fontWeight: 600 },
+                      }}
+                    />
+                    <PrimaryButton
+                      text="Confirmar"
+                      onClick={() => closeButtonConfirmDialog(true)}
+                      disabled={confirmPrimaryDisabled}
+                      styles={{
+                        root: confirmBtnStyles,
+                        rootHovered: confirmBtnHovered,
+                        rootPressed:
+                          pal.confirmDanger === true
+                            ? { backgroundColor: '#991B1B', borderColor: '#991B1B' }
+                            : undefined,
+                        flexContainer: { height: 44 },
+                        label: { fontWeight: 600 },
+                      }}
+                    />
+                  </Stack>
+                </Stack>
+              );
+            })()
           ) : null}
         </Dialog>
         <Dialog

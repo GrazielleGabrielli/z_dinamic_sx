@@ -24,7 +24,7 @@ import {
   DialogFooter,
   DialogType,
 } from '@fluentui/react';
-import { FieldsService, GroupsService } from '../../../../services';
+import { FieldsService, GroupsService, filterSiteGroupsByNameQuery } from '../../../../services';
 import type { IFieldMetadata, IGroupDetails } from '../../../../services';
 import type {
   IFormManagerConfig,
@@ -757,6 +757,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
   const [siteGroupsErr, setSiteGroupsErr] = useState<string | undefined>(undefined);
+  const [customButtonGroupNameFilter, setCustomButtonGroupNameFilter] = useState('');
   const [actionLogCaptureEnabled, setActionLogCaptureEnabled] = useState(false);
   const [actionLogListTitle, setActionLogListTitle] = useState('');
   const [actionLogFieldInternalName, setActionLogFieldInternalName] = useState('');
@@ -1021,6 +1022,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     g.sort((a, b) => (a.Title < b.Title ? -1 : a.Title > b.Title ? 1 : 0));
     return g;
   }, [siteGroups]);
+
+  const siteGroupsSortedForCustomButtons = useMemo(
+    () => filterSiteGroupsByNameQuery(siteGroupsSorted, customButtonGroupNameFilter),
+    [siteGroupsSorted, customButtonGroupNameFilter]
+  );
 
   const buttonOperationDropdownOptions = useMemo((): IDropdownOption[] => {
     const opts = BUTTON_OPERATION_OPTIONS_BASE.slice();
@@ -3154,6 +3160,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     Só utilizadores que pertençam a pelo menos um dos grupos marcados vêem o botão. Vazio = todos. Os
                     títulos coincidem com os grupos devolvidos ao formulário em tempo de execução.
                   </Text>
+                  <TextField
+                    placeholder="Filtrar grupos por nome"
+                    value={customButtonGroupNameFilter}
+                    onChange={(_: unknown, v?: string) => setCustomButtonGroupNameFilter(v ?? '')}
+                    styles={{ root: { maxWidth: 420 } }}
+                  />
                   {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
                   {siteGroupsErr && (
                     <>
@@ -3181,6 +3193,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               (g) => normSpGroupTitle(g.Title) === normSpGroupTitle(t)
                             )
                         )
+                        .filter((t) => {
+                          const q = customButtonGroupNameFilter.trim().toLowerCase();
+                          return !q || t.toLowerCase().includes(q);
+                        })
                         .map((t, oi) => (
                           <Checkbox
                             key={`orphan-grp-${bi}-${oi}-${t}`}
@@ -3195,7 +3211,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             }}
                           />
                         ))}
-                      {siteGroupsSorted.map((g) => {
+                      {siteGroupsSortedForCustomButtons.map((g) => {
                         const cur = btn.groupTitles ?? [];
                         const n = normSpGroupTitle(g.Title);
                         const checked = cur.some((x) => normSpGroupTitle(x) === n);
@@ -3217,6 +3233,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                           />
                         );
                       })}
+                      {siteGroupsSorted.length > 0 &&
+                        !siteGroupsSortedForCustomButtons.length &&
+                        customButtonGroupNameFilter.trim() && (
+                          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            Nenhum grupo corresponde ao filtro.
+                          </Text>
+                        )}
                       {!siteGroupsSorted.length && !(btn.groupTitles ?? []).length && (
                         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                           Nenhum grupo no site.

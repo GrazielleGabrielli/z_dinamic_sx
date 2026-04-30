@@ -32,6 +32,8 @@ import {
 
 export interface IFormManagerViewProps {
   config: IDynamicViewConfig;
+  /** Caminho do web do site (ex.: SPFx `site.serverRelativeUrl`) para `[siteurl]` nos URLs dos botões. */
+  pageWebServerRelativeUrl?: string;
 }
 
 async function uploadAttachments(
@@ -120,7 +122,7 @@ function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetad
   return { select, expand };
 }
 
-export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => {
+export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageWebServerRelativeUrl }) => {
   const fm = useMemo(() => {
     const raw = config.formManager ?? getDefaultFormManagerConfig();
     return sanitizeFormManagerConfig(raw) ?? raw;
@@ -163,6 +165,10 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
             query: typeof window !== 'undefined' && window.location ? parseQueryString(window.location.search) : undefined,
             now: new Date(),
             list: { title: listTitle },
+            site:
+              pageWebServerRelativeUrl?.trim().length
+                ? { url: pageWebServerRelativeUrl.trim() }
+                : undefined,
           })
         );
         return usersService.getUserGroups(user.LoginName);
@@ -171,9 +177,18 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config }) => 
       .catch(() => {
         setCurrentUserId(0);
         setUserGroupTitles([]);
-        setDynamicContext(buildDynamicContext({ now: new Date(), list: { title: listTitle } }));
+        setDynamicContext(
+          buildDynamicContext({
+            now: new Date(),
+            list: { title: listTitle },
+            site:
+              pageWebServerRelativeUrl?.trim().length
+                ? { url: pageWebServerRelativeUrl.trim() }
+                : undefined,
+          })
+        );
       });
-  }, [listTitle]);
+  }, [listTitle, pageWebServerRelativeUrl]);
 
   useEffect(() => {
     if (!listTitle.trim()) return;
