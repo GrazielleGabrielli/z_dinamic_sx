@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogFooter,
   DialogType,
+  Separator,
   Spinner,
   SpinnerSize,
   useTheme,
@@ -98,6 +99,13 @@ import {
   type IFormActionLogRuntimeContext,
 } from '../../core/formManager/formActionLog';
 import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
+import {
+  initConfirmPromptEditor,
+  confirmPromptEditorToValue,
+  confirmPromptEditorIsFilled,
+  isConfirmPromptEligibleField,
+  type IConfirmPromptEditorState,
+} from '../../core/formManager/confirmPromptFieldHelpers';
 import { ItemsService, UsersService } from '../../../../services';
 import { getSP, getSPForWeb } from '../../../../services/core/sp';
 import {
@@ -455,6 +463,46 @@ function confirmKindToIconSpec(kind: TFormCustomButtonConfirmKind | undefined): 
     case 'info':
     default:
       return { iconName: 'InfoSolid', color: '#0078d4' };
+  }
+}
+
+function confirmKindToDialogVisuals(kind: TFormCustomButtonConfirmKind | undefined): {
+  bandBg: string;
+  bandBorder: string;
+  iconTileBg: string;
+} {
+  switch (kind) {
+    case 'success':
+      return {
+        bandBg: 'linear-gradient(180deg, #e8f5e9 0%, #f4fbf4 100%)',
+        bandBorder: 'rgba(16, 124, 16, 0.2)',
+        iconTileBg: '#ffffff',
+      };
+    case 'warning':
+      return {
+        bandBg: 'linear-gradient(180deg, #fff4e5 0%, #fffaf4 100%)',
+        bandBorder: 'rgba(216, 59, 1, 0.18)',
+        iconTileBg: '#ffffff',
+      };
+    case 'error':
+      return {
+        bandBg: 'linear-gradient(180deg, #fde7e9 0%, #fff5f5 100%)',
+        bandBorder: 'rgba(164, 38, 44, 0.2)',
+        iconTileBg: '#ffffff',
+      };
+    case 'blocked':
+      return {
+        bandBg: 'linear-gradient(180deg, #f3f2f1 0%, #faf9f8 100%)',
+        bandBorder: 'rgba(96, 94, 92, 0.2)',
+        iconTileBg: '#ffffff',
+      };
+    case 'info':
+    default:
+      return {
+        bandBg: 'linear-gradient(180deg, #e5f1fb 0%, #f5f9fd 100%)',
+        bandBorder: 'rgba(0, 120, 212, 0.2)',
+        iconTileBg: '#ffffff',
+      };
   }
 }
 
@@ -855,6 +903,139 @@ const FormChromeZone: React.FC<IFormChromeZoneProps> = ({ zone, fields, renderFi
       </div>
     </Stack>
   );
+};
+
+const ConfirmPromptFieldEditor: React.FC<{
+  meta: IFieldMetadata;
+  editor: IConfirmPromptEditorState;
+  onChange: (next: IConfirmPromptEditorState) => void;
+}> = ({ meta, editor, onChange }) => {
+  const theme = useTheme();
+  const tfStyles = {
+    root: { marginBottom: 0 },
+    label: {
+      root: {
+        fontWeight: '600',
+        color: theme.palette.neutralPrimary,
+        marginBottom: 6,
+      },
+    },
+    fieldGroup: {
+      borderRadius: 10,
+      border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
+      backgroundColor: theme.palette.white,
+      ':hover': { borderColor: theme.palette.neutralTertiaryAlt },
+      selectors: {
+        '&.ms-TextField-fieldGroup': { borderRadius: 10 },
+      },
+    },
+    field: { borderRadius: 10 },
+  };
+  const ddStyles = {
+    dropdown: {
+      borderRadius: 10,
+      border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
+    },
+    title: {
+      root: {
+        fontWeight: '600',
+        color: theme.palette.neutralPrimary,
+      },
+    },
+  };
+  switch (meta.MappedType) {
+    case 'boolean':
+      return (
+        <Stack
+          horizontal
+          verticalAlign="center"
+          horizontalAlign="space-between"
+          styles={{
+            root: {
+              padding: '12px 14px',
+              borderRadius: 10,
+              border: `1px solid ${theme.palette.neutralLight}`,
+              backgroundColor: theme.palette.white,
+            },
+          }}
+        >
+          <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+            {meta.Title}
+          </Text>
+          <Toggle
+            checked={editor.bool}
+            onText="Sim"
+            offText="Não"
+            onChange={(_, c) => onChange({ ...editor, bool: !!c })}
+          />
+        </Stack>
+      );
+    case 'number':
+    case 'currency':
+      return (
+        <TextField
+          label={meta.Title}
+          type="number"
+          value={editor.text}
+          onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
+          styles={tfStyles}
+        />
+      );
+    case 'datetime':
+      return (
+        <Stack tokens={{ childrenGap: 8 }}>
+          <Label styles={{ root: tfStyles.label.root }}>{meta.Title}</Label>
+          <DatePicker
+            value={editor.dateIso ? new Date(editor.dateIso) : undefined}
+            onSelectDate={(d) => onChange({ ...editor, dateIso: d ? d.toISOString() : null })}
+            textField={{
+              styles: {
+                fieldGroup: tfStyles.fieldGroup,
+                field: tfStyles.field,
+              },
+            }}
+          />
+        </Stack>
+      );
+    case 'choice': {
+      const raw = (meta.Choices ?? []).map((c) => ({ key: c, text: c }));
+      const opts: IDropdownOption[] = raw.length ? raw : [{ key: '', text: '—' }];
+      return (
+        <Dropdown
+          label={meta.Title}
+          options={opts}
+          selectedKey={editor.choiceKey ? editor.choiceKey : undefined}
+          onChange={(_, o) => onChange({ ...editor, choiceKey: o ? String(o.key) : '' })}
+          styles={ddStyles}
+        />
+      );
+    }
+    case 'multiline':
+      return (
+        <TextField
+          label={meta.Title}
+          multiline
+          autoAdjustHeight
+          resizable={false}
+          rows={4}
+          value={editor.text}
+          onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
+          styles={{
+            ...tfStyles,
+            fieldGroup: { ...tfStyles.fieldGroup, alignItems: 'stretch' },
+          }}
+        />
+      );
+    default:
+      return (
+        <TextField
+          label={meta.Title}
+          value={editor.text}
+          onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
+          styles={tfStyles}
+        />
+      );
+  }
 };
 
 export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
@@ -2034,37 +2215,93 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     fixosStepConfig === undefined || stepVisibleInFormMode(fixosStepConfig, formMode);
   const [stepIndex, setStepIndex] = useState(0);
   const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
-  const confirmRunResolveRef = useRef<((ok: boolean) => void) | null>(null);
+  type IConfirmRunResult = { proceed: boolean; valuesBaselinePatch?: Record<string, unknown> };
+  const confirmRunResolveRef = useRef<((r: IConfirmRunResult) => void) | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [confirmDialogView, setConfirmDialogView] = useState<{
     kind: TFormCustomButtonConfirmKind;
     message: string;
     title: string;
+    promptFieldInternalName?: string;
   } | null>(null);
+  const [confirmPromptEditor, setConfirmPromptEditor] = useState<IConfirmPromptEditorState | null>(null);
   const [runTimelineDialog, setRunTimelineDialog] = useState<IRunTimelineDialogState | null>(null);
 
-  const closeButtonConfirmDialog = useCallback((ok: boolean) => {
-    setConfirmDialogOpen(false);
-    setConfirmDialogView(null);
-    const r = confirmRunResolveRef.current;
-    confirmRunResolveRef.current = null;
-    r?.(ok);
-  }, []);
+  const closeButtonConfirmDialog = useCallback(
+    (ok: boolean) => {
+      const viewSnapshot = confirmDialogView;
+      const editorSnapshot = confirmPromptEditor;
+      setConfirmDialogOpen(false);
+      setConfirmDialogView(null);
+      setConfirmPromptEditor(null);
+      const r = confirmRunResolveRef.current;
+      confirmRunResolveRef.current = null;
+      if (!r) return;
+      if (!ok) {
+        r({ proceed: false });
+        return;
+      }
+      const name = viewSnapshot?.promptFieldInternalName;
+      if (name && editorSnapshot) {
+        const meta = metaByName.get(name);
+        if (meta && isConfirmPromptEligibleField(meta)) {
+          if (!confirmPromptEditorIsFilled(meta, editorSnapshot)) {
+            r({ proceed: false });
+            return;
+          }
+          const val = confirmPromptEditorToValue(meta, editorSnapshot);
+          r({ proceed: true, valuesBaselinePatch: { [name]: val } });
+          return;
+        }
+      }
+      r({ proceed: true });
+    },
+    [confirmDialogView, confirmPromptEditor, metaByName]
+  );
 
-  const confirmBeforeRunIfNeeded = useCallback((btn: IFormCustomButtonConfig): Promise<boolean> => {
-    const c = btn.confirmBeforeRun;
-    const msg = (c?.message ?? '').trim();
-    if (c?.enabled !== true || !msg) return Promise.resolve(true);
-    return new Promise((resolve) => {
-      confirmRunResolveRef.current = resolve;
-      setConfirmDialogView({
-        kind: c.kind ?? 'info',
-        message: msg,
-        title: (btn.label || btn.id).trim() || 'Confirmar',
+  const confirmPromptMetaForDialog = useMemo(() => {
+    const name = confirmDialogView?.promptFieldInternalName;
+    if (!name) return undefined;
+    const m = metaByName.get(name);
+    if (!m || !isConfirmPromptEligibleField(m)) return undefined;
+    return m;
+  }, [confirmDialogView?.promptFieldInternalName, metaByName]);
+
+  const confirmPrimaryDisabled =
+    !!(
+      confirmPromptMetaForDialog &&
+      confirmPromptEditor &&
+      !confirmPromptEditorIsFilled(confirmPromptMetaForDialog, confirmPromptEditor)
+    );
+
+  const confirmBeforeRunIfNeeded = useCallback(
+    (btn: IFormCustomButtonConfig): Promise<IConfirmRunResult> => {
+      const c = btn.confirmBeforeRun;
+      const msg = (c?.message ?? '').trim();
+      const promptField = (c?.promptFieldInternalName ?? '').trim();
+      if (c?.enabled !== true || (!msg && !promptField)) {
+        return Promise.resolve({ proceed: true });
+      }
+      const metaP = promptField ? metaByName.get(promptField) : undefined;
+      const promptOk = !!(promptField && metaP && isConfirmPromptEligibleField(metaP));
+      return new Promise((resolve) => {
+        confirmRunResolveRef.current = resolve;
+        setConfirmDialogView({
+          kind: c?.kind ?? 'info',
+          message: msg,
+          title: (btn.label || btn.id).trim() || 'Confirmar',
+          ...(promptOk && promptField ? { promptFieldInternalName: promptField } : {}),
+        });
+        if (promptOk && metaP) {
+          setConfirmPromptEditor(initConfirmPromptEditor(metaP, values[promptField]));
+        } else {
+          setConfirmPromptEditor(null);
+        }
+        setConfirmDialogOpen(true);
       });
-      setConfirmDialogOpen(true);
-    });
-  }, []);
+    },
+    [metaByName, values]
+  );
 
   const runFinishAfterSuccess = useCallback(
     async (
@@ -2141,10 +2378,20 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [linkedConfigsSorted, visibleStepsForUi, stepIndex]);
 
   const runCustomButton = async (btn: IFormCustomButtonConfig): Promise<void> => {
-    const proceed = await confirmBeforeRunIfNeeded(btn);
-    if (!proceed) return;
+    const cr = await confirmBeforeRunIfNeeded(btn);
+    if (!cr.proceed) return;
+    const baselinePatch = cr.valuesBaselinePatch;
+    const baseValues =
+      baselinePatch && Object.keys(baselinePatch).length > 0 ? { ...values, ...baselinePatch } : values;
+    if (baselinePatch && Object.keys(baselinePatch).length > 0) {
+      flushSync(() => {
+        setValues((prev) => ({ ...prev, ...baselinePatch }));
+      });
+    }
     const useRunTimeline =
-      btn.confirmBeforeRun?.enabled === true && (btn.confirmBeforeRun?.message ?? '').trim().length > 0;
+      btn.confirmBeforeRun?.enabled === true &&
+      ((btn.confirmBeforeRun?.message ?? '').trim().length > 0 ||
+        (btn.confirmBeforeRun?.promptFieldInternalName ?? '').trim().length > 0);
     const logWillRun = actionLogWillRunForTimeline(formManager.actionLog);
     const hasPendingAttachments =
       flatPendingFiles.length > 0 ||
@@ -2209,7 +2456,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
     const { mergedValues, mergedOverlay } = reduceCustomButtonActions(
       actions,
-      values,
+      baseValues,
       dynamicContext,
       buttonOverlay,
       attachmentFolderUrl
@@ -2621,7 +2868,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         return;
       }
       const skipNativeDeleteConfirm =
-        btn.confirmBeforeRun?.enabled === true && (btn.confirmBeforeRun?.message ?? '').trim().length > 0;
+        btn.confirmBeforeRun?.enabled === true &&
+        ((btn.confirmBeforeRun?.message ?? '').trim().length > 0 ||
+          (btn.confirmBeforeRun?.promptFieldInternalName ?? '').trim().length > 0);
       if (!skipNativeDeleteConfirm && !window.confirm('Eliminar este item permanentemente?')) return;
       if (useRunTimeline) {
         tl = createRunTimelineController(
@@ -3945,6 +4194,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       bySection.set(sid, arr);
     }
     const out: React.ReactNode[] = [];
+    const hideStepHeading = visibleStepsForUi != null && visibleStepsForUi.length === 1;
     for (let s = 0; s < formManager.sections.length; s++) {
       const sec = formManager.sections[s];
       if (sec.id === FORM_OCULTOS_STEP_ID || sec.id === FORM_FIXOS_STEP_ID) continue;
@@ -3953,7 +4203,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (!fields?.length) continue;
       out.push(
         <Stack key={sec.id} tokens={{ childrenGap: 12 }} styles={{ root: { marginBottom: 16 } }}>
-          <Text variant="large" styles={{ root: { fontWeight: 600 } }}>{sec.title}</Text>
+          {!hideStepHeading ? (
+            <Text variant="large" styles={{ root: { fontWeight: 600 } }}>
+              {sec.title}
+            </Text>
+          ) : null}
           {fields.map((fc) => renderFieldControl(fc))}
         </Stack>
       );
@@ -4228,28 +4482,168 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             type: DialogType.normal,
             title: confirmDialogView?.title ?? 'Confirmar',
             showCloseButton: false,
+            styles: {
+              title: {
+                fontSize: 22,
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.25,
+                paddingBottom: 4,
+              },
+              inner: {
+                paddingBottom: 0,
+              },
+              subText: { paddingBottom: 0 },
+            },
           }}
-          modalProps={{ isBlocking: true }}
+          modalProps={{
+            isBlocking: true,
+            styles: {
+              root: {
+                backgroundColor: 'rgba(32, 33, 36, 0.42)',
+                backdropFilter: 'blur(4px)',
+              },
+            },
+          }}
+          styles={{
+            root: { selectors: { '& .ms-Modal-scrollableContent': { overflow: 'hidden' } } },
+            main: {
+              maxWidth: 440,
+              borderRadius: 16,
+              overflow: 'hidden',
+              boxShadow: theme.effects.elevation64,
+              border: `1px solid ${theme.palette.neutralLight}`,
+            },
+          }}
         >
           {confirmDialogView ? (
             <>
-              <Stack horizontal tokens={{ childrenGap: 16 }} verticalAlign="start" styles={{ root: { marginBottom: 8 } }}>
-                <Icon
-                  iconName={confirmKindToIconSpec(confirmDialogView.kind).iconName}
+              <Stack styles={{ root: { marginTop: 8 } }} tokens={{ childrenGap: 0 }}>
+                <Stack
                   styles={{
                     root: {
-                      fontSize: 36,
-                      lineHeight: 1,
-                      color: confirmKindToIconSpec(confirmDialogView.kind).color,
-                      flexShrink: 0,
+                      ...(() => {
+                        const v = confirmKindToDialogVisuals(confirmDialogView.kind);
+                        return {
+                          padding: '18px 20px',
+                          borderRadius: 12,
+                          background: v.bandBg,
+                          border: `1px solid ${v.bandBorder}`,
+                          marginBottom: confirmPromptMetaForDialog && confirmPromptEditor ? 16 : 4,
+                        };
+                      })(),
                     },
                   }}
-                />
-                <Text styles={{ root: { whiteSpace: 'pre-wrap', flex: 1 } }}>{confirmDialogView.message}</Text>
+                  horizontal
+                  verticalAlign="center"
+                  tokens={{ childrenGap: 16 }}
+                  wrap
+                >
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 14,
+                      background: confirmKindToDialogVisuals(confirmDialogView.kind).iconTileBg,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon
+                      iconName={confirmKindToIconSpec(confirmDialogView.kind).iconName}
+                      styles={{
+                        root: {
+                          fontSize: 28,
+                          lineHeight: 1,
+                          color: confirmKindToIconSpec(confirmDialogView.kind).color,
+                        },
+                      }}
+                    />
+                  </div>
+                  {confirmDialogView.message.trim() ? (
+                    <Text
+                      variant="medium"
+                      styles={{
+                        root: {
+                          whiteSpace: 'pre-wrap',
+                          flex: 1,
+                          minWidth: 200,
+                          color: theme.palette.neutralPrimary,
+                          lineHeight: 1.55,
+                        },
+                      }}
+                    >
+                      {confirmDialogView.message}
+                    </Text>
+                  ) : !(confirmPromptMetaForDialog && confirmPromptEditor) ? (
+                    <Text
+                      variant="small"
+                      styles={{
+                        root: {
+                          flex: 1,
+                          color: theme.palette.neutralSecondary,
+                          fontStyle: 'italic',
+                        },
+                      }}
+                    >
+                      Confirme para continuar.
+                    </Text>
+                  ) : null}
+                </Stack>
+                {confirmPromptMetaForDialog && confirmPromptEditor ? (
+                  <>
+                    <Separator styles={{ root: { padding: '4px 0' } }} />
+                    <Stack
+                      tokens={{ childrenGap: 12 }}
+                      styles={{
+                        root: {
+                          padding: 18,
+                          borderRadius: 12,
+                          backgroundColor: theme.palette.neutralLighterAlt,
+                          border: `1px solid ${theme.palette.neutralLight}`,
+                          boxShadow: theme.effects.elevation4,
+                        },
+                      }}
+                    >
+                      <ConfirmPromptFieldEditor
+                        meta={confirmPromptMetaForDialog}
+                        editor={confirmPromptEditor}
+                        onChange={setConfirmPromptEditor}
+                      />
+                      {confirmPrimaryDisabled ? (
+                        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+                          <Icon
+                            iconName="InfoSolid"
+                            styles={{ root: { fontSize: 14, color: theme.palette.redDark } }}
+                          />
+                          <Text variant="small" styles={{ root: { color: theme.palette.redDark } }}>
+                            Preencha o campo acima para continuar.
+                          </Text>
+                        </Stack>
+                      ) : null}
+                    </Stack>
+                  </>
+                ) : null}
               </Stack>
-              <DialogFooter>
-                <PrimaryButton text="Confirmar" onClick={() => closeButtonConfirmDialog(true)} />
-                <DefaultButton text="Cancelar" onClick={() => closeButtonConfirmDialog(false)} />
+              <DialogFooter
+                styles={{
+                  actions: { marginTop: 20, paddingTop: 16, borderTop: `1px solid ${theme.palette.neutralLight}` },
+                }}
+              >
+                <DefaultButton
+                  text="Cancelar"
+                  onClick={() => closeButtonConfirmDialog(false)}
+                  styles={{ root: { borderRadius: 8, minWidth: 100 } }}
+                />
+                <PrimaryButton
+                  text="Confirmar"
+                  onClick={() => closeButtonConfirmDialog(true)}
+                  disabled={confirmPrimaryDisabled}
+                  styles={{ root: { borderRadius: 8, minWidth: 120 } }}
+                />
               </DialogFooter>
             </>
           ) : null}

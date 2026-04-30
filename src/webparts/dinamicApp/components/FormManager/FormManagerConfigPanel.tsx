@@ -77,6 +77,7 @@ import {
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { resolveFormCustomButtonPaletteSlot } from '../../core/formManager/formCustomButtonTheme';
+import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 import {
   attachmentFolderNodePathLabel,
@@ -110,6 +111,7 @@ import { FormManagerLinkedChildFormsTabContent } from './FormManagerLinkedChildF
 import { FormManagerPermissionBreakTabContent } from './FormManagerPermissionBreakTab';
 import { FormManagerChainedActionsBlock } from './FormManagerChainedActionsBlock';
 import { isFormAttachmentLibraryRuntime } from '../../core/formManager/formAttachmentLibrary';
+import { isConfirmPromptEligibleField } from '../../core/formManager/confirmPromptFieldHelpers';
 
 function attachmentLibraryFromPanelState(
   libraryTitle: string,
@@ -1035,6 +1037,14 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         .map((f) => ({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` })),
     [meta]
   );
+
+  const confirmModalPromptFieldOptions = useMemo((): IDropdownOption[] => {
+    const rows = meta.filter(isConfirmPromptEligibleField).map((m) => ({
+      key: m.InternalName,
+      text: `${m.Title} (${m.InternalName})`,
+    }));
+    return [{ key: '', text: '— Sem campo extra no modal —' }, ...rows];
+  }, [meta]);
 
   const attachmentFolderVisibilityEditor = useMemo((): IFolderVisibilityEditorProps => {
     return {
@@ -2996,6 +3006,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             enabled: true,
                             kind: btn.confirmBeforeRun?.kind ?? 'info',
                             message: btn.confirmBeforeRun?.message ?? '',
+                            ...(btn.confirmBeforeRun?.promptFieldInternalName
+                              ? {
+                                  promptFieldInternalName: btn.confirmBeforeRun.promptFieldInternalName,
+                                }
+                              : {}),
                           },
                         });
                       } else {
@@ -3022,6 +3037,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               enabled: true,
                               kind: String(o.key) as TFormCustomButtonConfirmKind,
                               message: btn.confirmBeforeRun?.message ?? '',
+                              ...(btn.confirmBeforeRun?.promptFieldInternalName
+                                ? {
+                                    promptFieldInternalName: btn.confirmBeforeRun.promptFieldInternalName,
+                                  }
+                                : {}),
                             },
                           });
                         }}
@@ -3037,10 +3057,32 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               enabled: true,
                               kind: btn.confirmBeforeRun?.kind ?? 'info',
                               message: v ?? '',
+                              ...(btn.confirmBeforeRun?.promptFieldInternalName
+                                ? {
+                                    promptFieldInternalName: btn.confirmBeforeRun.promptFieldInternalName,
+                                  }
+                                : {}),
                             },
                           })
                         }
-                        description="Obrigatório para o modal aparecer ao utilizar o botão. Se estiver vazio, o gestor não grava a confirmação."
+                        description="Obrigatório salvo se escolher abaixo um campo a preencher (nesse caso a mensagem pode ficar vazia). Com ambos vazios, a confirmação não é gravada."
+                      />
+                      <Dropdown
+                        label="Campo da lista principal a preencher no modal"
+                        options={confirmModalPromptFieldOptions}
+                        selectedKey={btn.confirmBeforeRun?.promptFieldInternalName ?? ''}
+                        onChange={(_, o) => {
+                          if (!o) return;
+                          const key = String(o.key);
+                          patchCustomButton(bi, {
+                            confirmBeforeRun: {
+                              enabled: true,
+                              kind: btn.confirmBeforeRun?.kind ?? 'info',
+                              message: btn.confirmBeforeRun?.message ?? '',
+                              ...(key ? { promptFieldInternalName: key } : {}),
+                            },
+                          });
+                        }}
                       />
                     </Stack>
                   )}
@@ -3426,7 +3468,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           lookupFieldsWebServerRelativeUrl={lw}
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
-            setFields((prev) => prev.map((f) => (f.internalName === fieldPanelName ? { ...f, ...nextFc } : f)));
+            setFields((prev) =>
+              prev.map((f) =>
+                f.internalName === fieldPanelName
+                  ? mergeFormFieldConfigFromRulesPanel(f, nextFc)
+                  : f
+              )
+            );
             setRules((r) =>
               mergeFieldRules(r, fieldPanelName, buildFieldUiRules(fieldPanelName, editor, nextFc))
             );

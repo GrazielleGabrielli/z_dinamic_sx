@@ -656,6 +656,8 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     const c = confirmRaw as Record<string, unknown>;
     const enabled = c.enabled === true;
     const msg = typeof c.message === 'string' ? c.message.trim() : '';
+    const promptRaw = typeof c.promptFieldInternalName === 'string' ? c.promptFieldInternalName.trim() : '';
+    const promptFieldInternalName = promptRaw || undefined;
     const kindRaw = c.kind;
     const kind: TFormCustomButtonConfirmKind =
       kindRaw === 'success' ||
@@ -665,8 +667,13 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
       kindRaw === 'info'
         ? (kindRaw as TFormCustomButtonConfirmKind)
         : 'info';
-    if (enabled && msg) {
-      confirmBeforeRun = { enabled: true, kind, message: msg };
+    if (enabled && (msg || promptFieldInternalName)) {
+      confirmBeforeRun = {
+        enabled: true,
+        kind,
+        message: msg,
+        ...(promptFieldInternalName ? { promptFieldInternalName } : {}),
+      };
     }
   }
   const finishRaw = b.finishAfterRun;

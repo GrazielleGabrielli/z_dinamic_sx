@@ -605,6 +605,11 @@ export interface IFormCustomButtonConfirmConfig {
   kind?: TFormCustomButtonConfirmKind;
   /** Texto do modal (obrigatório para o modal aparecer no runtime). */
   message?: string;
+  /**
+   * Campo da lista principal a preencher no modal antes de confirmar.
+   * Tipos suportados: texto, nota, número, moeda, sim/não, data, escolha, hiperligação.
+   */
+  promptFieldInternalName?: string;
 }
 
 /** Último efeito do botão após ações e o resto do fluxo (gravar, log, etc.), se não houve erro bloqueante. */

@@ -38,6 +38,7 @@ import { FormManagerFolderTreeEditor } from './FormManagerFolderTreeEditor';
 import { FormFieldRulesPanel } from './FormFieldRulesPanel';
 import { FormManagerLinkedChildConditionalRulesBlock } from './FormManagerLinkedChildConditionalRulesBlock';
 import { FormManagerLinkedChildPresentationPreview } from './FormManagerLinkedChildPresentationPreview';
+import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { buildFieldUiRules, mergeFieldRules } from '../../core/formManager/formManagerVisualModel';
 
 const MAX_LINKED = 10;
@@ -1158,7 +1159,9 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                   );
                   const has = c.fields.some((f) => f.internalName === name);
                   const fieldsNext = has
-                    ? c.fields.map((f) => (f.internalName === name ? { ...f, ...nextFc } : f))
+                    ? c.fields.map((f) =>
+                        f.internalName === name ? mergeFormFieldConfigFromRulesPanel(f, nextFc) : f
+                      )
                     : c.fields.concat([{ ...nextFc, internalName: name, sectionId: nextFc.sectionId ?? 'main' }]);
                   return { ...c, fields: fieldsNext, rules: rulesNext };
                 })
