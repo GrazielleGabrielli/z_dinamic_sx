@@ -627,6 +627,12 @@ export type TFormCustomButtonFinishAfterRun =
   | { kind: 'redirect'; redirectUrlTemplate: string }
   | { kind: 'clearForm' };
 
+/** Faixa vertical da barra de botões personalizados e histórico integrado. Omitido = inferior. */
+export type TFormCustomButtonsBarVertical = 'top' | 'bottom';
+
+/** Alinhamento horizontal dessa barra. Omitido = esquerda. */
+export type TFormCustomButtonsBarHorizontal = 'left' | 'right';
+
 /** Slots da paleta Fluent alinhados ao tema do site (SharePoint). `outline` = neutro (DefaultButton). */
 export type TFormCustomButtonPaletteSlot =
   | 'outline'
@@ -842,6 +848,10 @@ export interface IFormManagerConfig {
   dynamicHelp?: { field: string; when: TFormConditionNode; helpText: string }[];
   /** Botões com ações ao clicar (mostrar/ocultar campos, valores, juntar campos) */
   customButtons?: IFormCustomButtonConfig[];
+  /** Faixa vertical dos botões personalizados e do histórico integrado. Omitido = inferior. */
+  customButtonsBarVertical?: TFormCustomButtonsBarVertical;
+  /** Alinhamento horizontal dessa faixa. Omitido = esquerda. */
+  customButtonsBarHorizontal?: TFormCustomButtonsBarHorizontal;
   /** Lista e textos para registo de auditoria por botão. */
   actionLog?: IFormManagerActionLogConfig;
   /** Apresentação das etapas quando há mais de uma */

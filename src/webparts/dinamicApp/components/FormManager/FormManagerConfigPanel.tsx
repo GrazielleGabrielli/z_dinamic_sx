@@ -56,6 +56,8 @@ import type {
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
   TFormAttachmentStorageKind,
+  TFormCustomButtonsBarVertical,
+  TFormCustomButtonsBarHorizontal,
   IAttachmentLibraryFolderTreeNode,
   IFormManagerAttachmentLibraryConfig,
   IFormManagerPermissionBreakConfig,
@@ -666,7 +668,7 @@ function buildStepNavigationForSave(
  * | Estrutura | `steps`, `sections`, `fields`, `rules` (merge anexos), `stepNavigation` |
  * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
  * | Anexos | `attachmentStorageKind` (`itemAttachments` \| `documentLibrary`), `attachmentLibrary` |
- * | Botões | `customButtons` |
+ * | Botões | `customButtons`, `customButtonsBarVertical`, `customButtonsBarHorizontal` |
  * | Lista de logs | `actionLog` (lista, captação, textos por botão) |
  * | Listas vinculadas | `linkedChildForms` |
  * | Quebra de permissões | `permissionBreak` |
@@ -763,6 +765,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const isEstruturaOpen = (id: string): boolean => estruturaOpen[id] === true;
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
   const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
+  const [customButtonsBarVertical, setCustomButtonsBarVertical] = useState<TFormCustomButtonsBarVertical>(
+    () => value.customButtonsBarVertical ?? 'bottom'
+  );
+  const [customButtonsBarHorizontal, setCustomButtonsBarHorizontal] = useState<TFormCustomButtonsBarHorizontal>(
+    () => value.customButtonsBarHorizontal ?? 'left'
+  );
   const [attachMin, setAttachMin] = useState('');
   const [attachMax, setAttachMax] = useState('');
   const [attachMsg, setAttachMsg] = useState('');
@@ -917,6 +925,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setFieldPanelName(null);
     setStepSectionOpen({});
     setButtonSectionOpen({});
+    setCustomButtonsBarVertical(cfg.customButtonsBarVertical ?? 'bottom');
+    setCustomButtonsBarHorizontal(cfg.customButtonsBarHorizontal ?? 'left');
     setActionLogCaptureEnabled(cfg.actionLog?.captureEnabled === true);
     setActionLogListTitle(cfg.actionLog?.listTitle ?? '');
     setActionLogFieldInternalName(cfg.actionLog?.actionFieldInternalName ?? '');
@@ -1441,6 +1451,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             })),
           }
         : {}),
+      ...(customButtonsBarVertical === 'top' ? { customButtonsBarVertical: 'top' as const } : {}),
+      ...(customButtonsBarHorizontal === 'right' ? { customButtonsBarHorizontal: 'right' as const } : {}),
       stepLayout,
       ...(stepAccentPaletteSlot ? { stepAccentPaletteSlot } : {}),
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
@@ -1777,6 +1789,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             })),
           }
         : {}),
+      ...(customButtonsBarVertical === 'top' ? { customButtonsBarVertical: 'top' as const } : {}),
+      ...(customButtonsBarHorizontal === 'right' ? { customButtonsBarHorizontal: 'right' as const } : {}),
       stepLayout,
       ...(stepAccentPaletteSlot ? { stepAccentPaletteSlot } : {}),
       ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),
@@ -1856,6 +1870,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     historyButtonIcon,
     historyPanelSubtitle,
     historyGroupTitles,
+    customButtonsBarVertical,
+    customButtonsBarHorizontal,
   ]);
 
   const previewConfigJsonRef = useRef(previewConfigJson);
@@ -2696,6 +2712,51 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             )}
           </Stack>
         </PivotItem>
+        <PivotItem headerText="Regras dos campos">
+          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+         
+            {!fieldsListedForRulesTab.length ? (
+              <Text>Adicione campos ao formulário na aba Estrutura.</Text>
+            ) : (
+              <Stack tokens={{ childrenGap: 8 }}>
+                {fieldsListedForRulesTab.map((fc) => {
+                  const mm = meta.find((m) => m.InternalName === fc.internalName);
+                  const title = mm?.Title ?? fc.internalName;
+                  const typeAs = (mm?.TypeAsString ?? '').trim() || '—';
+                  return (
+                    <Stack
+                      key={fc.internalName}
+                      horizontal
+                      verticalAlign="center"
+                      tokens={{ childrenGap: 16 }}
+                      wrap
+                      styles={{
+                        root: {
+                          padding: '8px 10px',
+                          borderRadius: 4,
+                          border: '1px solid #edebe9',
+                          background: '#faf9f8',
+                        },
+                      }}
+                    >
+                      <Text styles={{ root: { fontWeight: 600, minWidth: 140, maxWidth: 220 } }}>{title}</Text>
+                      <Text
+                        variant="small"
+                        styles={{ root: { fontFamily: 'monospace', minWidth: 120, color: '#323130' } }}
+                      >
+                        {fc.internalName}
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c', minWidth: 96 } }}>
+                        {typeAs}
+                      </Text>
+                      <DefaultButton text="Regras" onClick={() => setFieldPanelName(fc.internalName)} />
+                    </Stack>
+                  );
+                })}
+              </Stack>
+            )}
+          </Stack>
+        </PivotItem>
         <PivotItem headerText="Componentes">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
             <FormManagerComponentsTabContent
@@ -2769,7 +2830,35 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         </PivotItem>
         <PivotItem headerText="Botões">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-         
+            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+              Onde mostrar a barra de botões
+            </Text>
+            <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 16 }}>
+              <Dropdown
+                label="Vertical"
+                options={[
+                  { key: 'bottom', text: 'Inferior' },
+                  { key: 'top', text: 'Superior' },
+                ]}
+                selectedKey={customButtonsBarVertical}
+                onChange={(_, o) => {
+                  if (!o) return;
+                  setCustomButtonsBarVertical(String(o.key) as TFormCustomButtonsBarVertical);
+                }}
+              />
+              <Dropdown
+                label="Horizontal"
+                options={[
+                  { key: 'left', text: 'Esquerda' },
+                  { key: 'right', text: 'Direita' },
+                ]}
+                selectedKey={customButtonsBarHorizontal}
+                onChange={(_, o) => {
+                  if (!o) return;
+                  setCustomButtonsBarHorizontal(String(o.key) as TFormCustomButtonsBarHorizontal);
+                }}
+              />
+            </Stack>
             <PrimaryButton text="Adicionar botão" onClick={addCustomButton} />
             {customButtons.map((btn, bi) => {
               const chk = checkboxesFromModes(btn.modes);
@@ -3454,51 +3543,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             siteGroupsErr={siteGroupsErr}
           />
         </PivotItem>
-        <PivotItem headerText="Regras dos campos">
-          <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-         
-            {!fieldsListedForRulesTab.length ? (
-              <Text>Adicione campos ao formulário na aba Estrutura.</Text>
-            ) : (
-              <Stack tokens={{ childrenGap: 8 }}>
-                {fieldsListedForRulesTab.map((fc) => {
-                  const mm = meta.find((m) => m.InternalName === fc.internalName);
-                  const title = mm?.Title ?? fc.internalName;
-                  const typeAs = (mm?.TypeAsString ?? '').trim() || '—';
-                  return (
-                    <Stack
-                      key={fc.internalName}
-                      horizontal
-                      verticalAlign="center"
-                      tokens={{ childrenGap: 16 }}
-                      wrap
-                      styles={{
-                        root: {
-                          padding: '8px 10px',
-                          borderRadius: 4,
-                          border: '1px solid #edebe9',
-                          background: '#faf9f8',
-                        },
-                      }}
-                    >
-                      <Text styles={{ root: { fontWeight: 600, minWidth: 140, maxWidth: 220 } }}>{title}</Text>
-                      <Text
-                        variant="small"
-                        styles={{ root: { fontFamily: 'monospace', minWidth: 120, color: '#323130' } }}
-                      >
-                        {fc.internalName}
-                      </Text>
-                      <Text variant="small" styles={{ root: { color: '#605e5c', minWidth: 96 } }}>
-                        {typeAs}
-                      </Text>
-                      <DefaultButton text="Regras" onClick={() => setFieldPanelName(fc.internalName)} />
-                    </Stack>
-                  );
-                })}
-              </Stack>
-            )}
-          </Stack>
-        </PivotItem>
+  
       </Pivot>
       {!!customs.length && (
         <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 16 } }}>

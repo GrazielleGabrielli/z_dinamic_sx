@@ -16,6 +16,8 @@ import type {
   TFormCustomButtonConfirmKind,
   TFormCustomButtonFinishAfterRun,
   TFormCustomButtonPaletteSlot,
+  TFormCustomButtonsBarVertical,
+  TFormCustomButtonsBarHorizontal,
   TFormButtonAction,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
@@ -1323,6 +1325,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof hlRaw === 'string' && HISTORY_LAYOUT_SET.has(hlRaw)
       ? (hlRaw as TFormHistoryLayoutKind)
       : undefined;
+  const cbvRaw = o.customButtonsBarVertical;
+  const customButtonsBarVertical: TFormCustomButtonsBarVertical | undefined =
+    cbvRaw === 'top' || cbvRaw === 'bottom' ? cbvRaw : undefined;
+  const cbhRaw = o.customButtonsBarHorizontal;
+  const customButtonsBarHorizontal: TFormCustomButtonsBarHorizontal | undefined =
+    cbhRaw === 'left' || cbhRaw === 'right' ? cbhRaw : undefined;
   const permissionBreak = sanitizePermissionBreak(o.permissionBreak);
   const customButtonsAdjusted: IFormCustomButtonConfig[] = [];
   for (let i = 0; i < customButtons.length; i++) {
@@ -1342,6 +1350,8 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     ...(managerColumnFields?.length ? { managerColumnFields } : {}),
     ...(dynamicHelp.length ? { dynamicHelp } : {}),
     ...(customButtonsAdjusted.length ? { customButtons: customButtonsAdjusted } : {}),
+    ...(customButtonsBarVertical === 'top' ? { customButtonsBarVertical: 'top' as const } : {}),
+    ...(customButtonsBarHorizontal === 'right' ? { customButtonsBarHorizontal: 'right' as const } : {}),
     ...(stepLayout ? { stepLayout } : {}),
     ...(stepAccentPaletteSlot ? { stepAccentPaletteSlot } : {}),
     ...(stepNavButtons && stepNavButtons !== 'fluent' ? { stepNavButtons } : {}),

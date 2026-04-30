@@ -1651,6 +1651,26 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     ]
   );
 
+  const visibleCustomButtons = useMemo(() => {
+    return (formManager.customButtons ?? [])
+      .filter((b) =>
+        formManager.historyEnabled === true ? (b.operation ?? 'legacy') !== 'history' : true
+      )
+      .filter((b) =>
+        shouldShowCustomButton(b, runtimeCtx(), {
+          allRequiredFilled,
+          historyEnabledInConfig: formManager.historyEnabled === true,
+          historyItemId: itemId,
+        })
+      );
+  }, [
+    formManager.customButtons,
+    formManager.historyEnabled,
+    runtimeCtx,
+    allRequiredFilled,
+    itemId,
+  ]);
+
   const clearRules = useMemo(
     () => formManager.rules.filter((r): r is Extract<TFormRule, { action: 'clearFields' }> => r.action === 'clearFields'),
     [formManager.rules]
@@ -4286,7 +4306,171 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'bottomFixed';
   });
 
+  function renderOneCustomButton(b: IFormCustomButtonConfig): React.ReactElement {
+    const slot = resolveFormCustomButtonPaletteSlot(b);
+    const common = {
+      text: b.label,
+      title: b.shortDescription || undefined,
+      onClick: () => void runCustomButton(b),
+      disabled: submitting,
+    };
+    if (slot === 'outline') {
+      return <DefaultButton key={b.id} {...common} />;
+    }
+    return <DefaultButton key={b.id} {...common} styles={getFilledPaletteButtonStyles(theme, slot)} />;
+  }
+
   const submitMsg = 'A gravar…';
+
+  const customButtonsBarVertical = formManager.customButtonsBarVertical ?? 'bottom';
+  const customButtonsBarHorizontal = formManager.customButtonsBarHorizontal ?? 'left';
+
+  function renderCustomButtonsToolbar(): React.ReactNode {
+    const showHistory =
+      formManager.historyEnabled === true &&
+      shouldShowBuiltinHistoryButton({
+        historyEnabledInConfig: true,
+        historyItemId: itemId,
+        historyGroupTitles: formManager.historyGroupTitles,
+        userGroupTitles,
+      });
+    if (!visibleCustomButtons.length && !showHistory) return null;
+    const hAlign = customButtonsBarHorizontal === 'left' ? 'start' : 'end';
+    return (
+      <Stack
+        horizontal
+        horizontalAlign={hAlign}
+        tokens={{ childrenGap: 8 }}
+        wrap
+        styles={{ root: { width: '100%' } }}
+      >
+        {visibleCustomButtons.map((b) => renderOneCustomButton(b))}
+        {showHistory &&
+          (() => {
+            const hk = formManager.historyButtonKind ?? 'text';
+            const hLabel = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
+            const hIcon = (formManager.historyButtonIcon ?? 'History').trim() || 'History';
+            const hSub = formManager.historyPanelSubtitle?.trim();
+            const onH = (): void => {
+              void runCustomButton(builtinHistoryButtonConfig);
+            };
+            if (hk === 'icon') {
+              return (
+                <IconButton
+                  key="__builtin_history"
+                  iconProps={{ iconName: hIcon }}
+                  title={hSub || hLabel}
+                  ariaLabel={hLabel}
+                  onClick={onH}
+                  disabled={submitting}
+                />
+              );
+            }
+            if (hk === 'iconAndText') {
+              return (
+                <DefaultButton
+                  key="__builtin_history"
+                  text={hLabel}
+                  iconProps={{ iconName: hIcon }}
+                  title={hSub}
+                  onClick={onH}
+                  disabled={submitting}
+                />
+              );
+            }
+            return (
+              <DefaultButton
+                key="__builtin_history"
+                text={hLabel}
+                title={hSub}
+                onClick={onH}
+                disabled={submitting}
+              />
+            );
+          })()}
+      </Stack>
+    );
+  }
+
+  const mainFormMiddle = (
+    <>
+      {visibleStepsForUi && visibleStepsForUi.length > 1 && (
+        <FormStepNavigation
+          steps={visibleStepsForUi}
+          activeIndex={stepIndex}
+          onStepSelect={(i) => tryGoToStep(i)}
+          layout={formManager.stepLayout ?? 'segmented'}
+          accentColor={stepAccentHex}
+        />
+      )}
+      {modalGroupIds.length > 0 && formMode !== 'view' && (
+        <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
+          {modalGroupIds.map((gid: string) => (
+            <DefaultButton key={gid} text={`Editar ${gid}`} onClick={() => setModalOpen(true)} />
+          ))}
+        </Stack>
+      )}
+      {renderFields('main')}
+      {linkedConfigsForCurrentMainStep.length > 0 && (
+        <LinkedChildFormsBlock
+          configs={linkedConfigsForCurrentMainStep}
+          parentItemId={itemId}
+          formMode={formMode}
+          rowsByConfigId={linkedRowsById}
+          onRowsChange={(configId, rows) =>
+            setLinkedRowsById((prev) => ({ ...prev, [configId]: rows }))
+          }
+          fieldMetaByConfigId={linkedMetaById}
+          loadingByConfigId={linkedLoadingById}
+          errorByConfigId={linkedLoadErrById}
+          userGroupTitles={userGroupTitles}
+          currentUserId={currentUserId}
+          authorId={authorId}
+          dynamicContext={dynamicContext}
+          rowErrorsByConfigId={linkedRowErrorsById}
+          formManager={formManager}
+          linkedPendingFilesByKey={linkedPendingByKey}
+          onLinkedPendingFilesChange={(key, files) =>
+            setLinkedPendingByKey((prev) => ({ ...prev, [key]: files }))
+          }
+          currentParentStepId={visibleStepsForUi?.[stepIndex]?.id ?? 'main'}
+          attachmentUploadLayout={formManager.attachmentUploadLayout}
+          attachmentFilePreview={attachmentPreviewKind}
+          attachmentAllowedExtensions={
+            attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
+          }
+          linkedServerAttachmentsByKey={linkedServerAttachmentsByKey}
+        />
+      )}
+      {visibleStepsForUi && visibleStepsForUi.length > 1 && (
+        <Stack
+          horizontal
+          verticalAlign="center"
+          tokens={{ childrenGap: 8 }}
+          styles={{ root: { width: '100%' } }}
+          wrap
+        >
+          <FormStepPrevNextNav
+            variant={formManager.stepNavButtons ?? 'fluent'}
+            stepIndex={stepIndex}
+            stepCount={visibleStepsForUi.length}
+            onPrev={() => tryGoToStep(stepIndex - 1)}
+            onNext={() => tryGoToStep(stepIndex + 1)}
+            disabled={submitting}
+            accentColor={stepAccentHex}
+          />
+        </Stack>
+      )}
+      {bottomChromeFields.length > 0 && (
+        <FormChromeZone
+          zone="bottom"
+          fields={bottomChromeFields}
+          renderField={(fc) => renderFieldControl(fc)}
+          layoutDeps={values}
+        />
+      )}
+    </>
+  );
 
   return (
     <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8 } }}>
@@ -4332,162 +4516,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             layoutDeps={values}
           />
         )}
-        {visibleStepsForUi && visibleStepsForUi.length > 1 && (
-          <FormStepNavigation
-            steps={visibleStepsForUi}
-            activeIndex={stepIndex}
-            onStepSelect={(i) => tryGoToStep(i)}
-            layout={formManager.stepLayout ?? 'segmented'}
-            accentColor={stepAccentHex}
-          />
-        )}
-        {modalGroupIds.length > 0 && formMode !== 'view' && (
-          <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-            {modalGroupIds.map((gid: string) => (
-              <DefaultButton key={gid} text={`Editar ${gid}`} onClick={() => setModalOpen(true)} />
-            ))}
-          </Stack>
-        )}
-        {renderFields('main')}
-        {linkedConfigsForCurrentMainStep.length > 0 && (
-          <LinkedChildFormsBlock
-            configs={linkedConfigsForCurrentMainStep}
-            parentItemId={itemId}
-            formMode={formMode}
-            rowsByConfigId={linkedRowsById}
-            onRowsChange={(configId, rows) =>
-              setLinkedRowsById((prev) => ({ ...prev, [configId]: rows }))
-            }
-            fieldMetaByConfigId={linkedMetaById}
-            loadingByConfigId={linkedLoadingById}
-            errorByConfigId={linkedLoadErrById}
-            userGroupTitles={userGroupTitles}
-            currentUserId={currentUserId}
-            authorId={authorId}
-            dynamicContext={dynamicContext}
-            rowErrorsByConfigId={linkedRowErrorsById}
-            formManager={formManager}
-            linkedPendingFilesByKey={linkedPendingByKey}
-            onLinkedPendingFilesChange={(key, files) =>
-              setLinkedPendingByKey((prev) => ({ ...prev, [key]: files }))
-            }
-            currentParentStepId={visibleStepsForUi?.[stepIndex]?.id ?? 'main'}
-            attachmentUploadLayout={formManager.attachmentUploadLayout}
-            attachmentFilePreview={attachmentPreviewKind}
-            attachmentAllowedExtensions={
-              attachmentAllowedExtensions.length > 0 ? attachmentAllowedExtensions : undefined
-            }
-            linkedServerAttachmentsByKey={linkedServerAttachmentsByKey}
-          />
-        )}
-        {visibleStepsForUi && visibleStepsForUi.length > 1 && (
-          <Stack
-            horizontal
-            verticalAlign="center"
-            tokens={{ childrenGap: 8 }}
-            styles={{ root: { width: '100%' } }}
-            wrap
-          >
-            <FormStepPrevNextNav
-              variant={formManager.stepNavButtons ?? 'fluent'}
-              stepIndex={stepIndex}
-              stepCount={visibleStepsForUi.length}
-              onPrev={() => tryGoToStep(stepIndex - 1)}
-              onNext={() => tryGoToStep(stepIndex + 1)}
-              disabled={submitting}
-              accentColor={stepAccentHex}
-            />
-          </Stack>
-        )}
-        {bottomChromeFields.length > 0 && (
-          <FormChromeZone
-            zone="bottom"
-            fields={bottomChromeFields}
-            renderField={(fc) => renderFieldControl(fc)}
-            layoutDeps={values}
-          />
-        )}
-        <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-          {(formManager.customButtons ?? [])
-            .filter((b) =>
-              formManager.historyEnabled === true ? (b.operation ?? 'legacy') !== 'history' : true
-            )
-            .filter((b) =>
-              shouldShowCustomButton(b, runtimeCtx(), {
-                allRequiredFilled: allRequiredFilled,
-                historyEnabledInConfig: formManager.historyEnabled === true,
-                historyItemId: itemId,
-              })
-            )
-            .map((b) => {
-              const slot = resolveFormCustomButtonPaletteSlot(b);
-              const common = {
-                text: b.label,
-                title: b.shortDescription || undefined,
-                onClick: () => void runCustomButton(b),
-                disabled: submitting,
-              };
-              if (slot === 'outline') {
-                return <DefaultButton key={b.id} {...common} />;
-              }
-              return (
-                <DefaultButton
-                  key={b.id}
-                  {...common}
-                  styles={getFilledPaletteButtonStyles(theme, slot)}
-                />
-              );
-            })}
-          {formManager.historyEnabled === true &&
-            shouldShowBuiltinHistoryButton({
-              historyEnabledInConfig: true,
-              historyItemId: itemId,
-              historyGroupTitles: formManager.historyGroupTitles,
-              userGroupTitles,
-            }) &&
-            (() => {
-              const hk = formManager.historyButtonKind ?? 'text';
-              const hLabel = (formManager.historyButtonLabel ?? 'Histórico').trim() || 'Histórico';
-              const hIcon = (formManager.historyButtonIcon ?? 'History').trim() || 'History';
-              const hSub = formManager.historyPanelSubtitle?.trim();
-              const onH = (): void => {
-                void runCustomButton(builtinHistoryButtonConfig);
-              };
-              if (hk === 'icon') {
-                return (
-                  <IconButton
-                    key="__builtin_history"
-                    iconProps={{ iconName: hIcon }}
-                    title={hSub || hLabel}
-                    ariaLabel={hLabel}
-                    onClick={onH}
-                    disabled={submitting}
-                  />
-                );
-              }
-              if (hk === 'iconAndText') {
-                return (
-                  <DefaultButton
-                    key="__builtin_history"
-                    text={hLabel}
-                    iconProps={{ iconName: hIcon }}
-                    title={hSub}
-                    onClick={onH}
-                    disabled={submitting}
-                  />
-                );
-              }
-              return (
-                <DefaultButton
-                  key="__builtin_history"
-                  text={hLabel}
-                  title={hSub}
-                  onClick={onH}
-                  disabled={submitting}
-                />
-              );
-            })()}
+        {customButtonsBarVertical === 'top' && renderCustomButtonsToolbar()}
+        <Stack tokens={{ childrenGap: 16 }} styles={{ root: { width: '100%' } }}>
+          {mainFormMiddle}
         </Stack>
+        {customButtonsBarVertical === 'bottom' && renderCustomButtonsToolbar()}
         {historyBtn &&
           itemId !== undefined &&
           itemId !== null &&

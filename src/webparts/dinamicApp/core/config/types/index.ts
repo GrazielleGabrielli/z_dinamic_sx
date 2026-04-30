@@ -574,6 +574,8 @@ export type {
   TFormHistoryButtonKind,
   TFormHistoryIntegratedClickBehavior,
   TFormCustomButtonPaletteSlot,
+  TFormCustomButtonsBarVertical,
+  TFormCustomButtonsBarHorizontal,
   TFormRootWidthMode,
   TFormRootHorizontalAlign,
   FORM_ATTACHMENTS_FIELD_INTERNAL,
