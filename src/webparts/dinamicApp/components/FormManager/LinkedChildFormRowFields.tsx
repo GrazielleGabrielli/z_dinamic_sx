@@ -42,6 +42,7 @@ import { multiSelectDropdownStyles, renderMultiSelectDropdownTitle } from './for
 import { ItemsService, UsersService, FieldsService } from '../../../../services';
 import { IMaskInput } from 'react-imask';
 import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
+import { parseUrlFieldValue } from '../../core/formManager/formUrlUtils';
 
 const REQ_EMPTY_BORDER = '#a4262c';
 
@@ -94,20 +95,6 @@ function userTitleFromValue(v: unknown): string {
     return String((v as Record<string, unknown>).Title ?? '');
   }
   return '';
-}
-
-function parseUrlFieldValue(v: unknown): { Url: string; Description: string } {
-  if (v === null || v === undefined) return { Url: '', Description: '' };
-  if (typeof v === 'object' && v !== null && 'Url' in v) {
-    const o = v as Record<string, unknown>;
-    return { Url: String(o.Url ?? ''), Description: String(o.Description ?? '') };
-  }
-  const s = String(v);
-  const comma = s.indexOf(',');
-  if (comma !== -1) {
-    return { Url: s.slice(0, comma).trim(), Description: s.slice(comma + 1).trim() };
-  }
-  return { Url: s, Description: '' };
 }
 
 function dropdownReqStyles(showReq: boolean | undefined) {

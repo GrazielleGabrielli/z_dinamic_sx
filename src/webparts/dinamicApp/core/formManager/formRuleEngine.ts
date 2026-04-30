@@ -24,6 +24,7 @@ import {
 import type { IFieldMetadata } from '../../../../services';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 import { applyFormFieldTextTransform } from './formTextValueTransform';
+import { ensureAbsoluteSharePointUrl } from './formUrlUtils';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -216,12 +217,18 @@ function readPathValue(root: unknown, path: string[]): unknown {
 
 function toScalarString(v: unknown): string {
   if (v === null || v === undefined) return '';
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') {
+    const s = v;
+    if (s.startsWith('/') && !s.startsWith('//')) return ensureAbsoluteSharePointUrl(s);
+    return s;
+  }
   if (typeof v === 'number') return isFinite(v) ? String(v) : '';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (Array.isArray(v)) return v.map((x) => toScalarString(x)).filter(Boolean).join('; ');
   if (typeof v === 'object') {
     const o = v as Record<string, unknown>;
+    const urlRaw = tryGetObjectProp(o, 'Url');
+    if (typeof urlRaw === 'string' && urlRaw.trim()) return ensureAbsoluteSharePointUrl(urlRaw);
     const title = tryGetObjectProp(o, 'Title');
     if (title !== undefined && title !== null) return String(title);
     const id = tryGetObjectProp(o, 'Id');
@@ -767,14 +774,39 @@ export function evaluateFormValueExpression(
     const ms = startOfDay(da).getTime() - startOfDay(db).getTime();
     return String(Math.round(ms / 86400000));
   });
+
+  const placeholderRe = /\{\{([^}]+)\}\}/g;
+  let ph: RegExpExecArray | null;
+  let anyPlaceholderNeedsText = false;
+  placeholderRe.lastIndex = 0;
+  while ((ph = placeholderRe.exec(withDays)) !== null) {
+    const key = String(ph[1]).trim();
+    if (key.indexOf('DAYS:') === 0) continue;
+    const n = resolvePlaceholderNumberFromValues(key, values);
+    if (typeof n === 'number' && isFinite(n)) continue;
+    if (resolvePlaceholderScalarFromValues(key, values) !== '') {
+      anyPlaceholderNeedsText = true;
+      break;
+    }
+  }
+
+  if (anyPlaceholderNeedsText) {
+    return withDays.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
+      const key = String(name).trim();
+      if (key.indexOf('DAYS:') === 0) return '';
+      return resolvePlaceholderScalarFromValues(key, values);
+    });
+  }
+
   const replaced = withDays.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
     const key = String(name).trim();
     if (key.indexOf('DAYS:') === 0) return '0';
     const n = resolvePlaceholderNumberFromValues(key, values);
     return typeof n === 'number' && isFinite(n) ? String(n) : '0';
   });
-  if (!/^[-+*/().0-9]+$/.test(replaced)) return undefined;
-  return evalArithmetic(replaced);
+  const compactExpr = replaced.replace(/\s+/g, '');
+  if (!/^[-+*/().0-9]+$/.test(compactExpr)) return undefined;
+  return evalArithmetic(compactExpr);
 }
 
 function validateDateRule(

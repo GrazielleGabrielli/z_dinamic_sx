@@ -95,6 +95,7 @@ import { FormAttachmentUploader } from './FormAttachmentUploader';
 import { AttachmentFileDetailModal } from './AttachmentFileDetailModal';
 import { runAsyncFormValidations } from '../../core/formManager/formAsyncValidation';
 import { interpolateFormButtonRedirectUrl } from '../../core/formManager/formButtonRedirectUrl';
+import { ensureAbsoluteSharePointUrl, parseUrlFieldValue } from '../../core/formManager/formUrlUtils';
 import {
   appendFormActionLogEntry,
   type IFormActionLogRuntimeContext,
@@ -338,12 +339,7 @@ function mapServerAttachments(rows: unknown[]): IServerAttachmentRow[] {
     const sr = r.ServerRelativeUrl ?? r.serverRelativeUrl;
     let fileUrl = '';
     if (typeof sr === 'string' && sr.trim()) {
-      const path = sr.trim();
-      fileUrl = /^https?:\/\//i.test(path)
-        ? path
-        : `${typeof window !== 'undefined' ? window.location.origin : ''}${
-            path.startsWith('/') ? '' : '/'
-          }${path}`;
+      fileUrl = ensureAbsoluteSharePointUrl(sr);
     }
     out.push({ fileName: fn.trim(), fileUrl });
   }
@@ -656,9 +652,7 @@ function createRunTimelineController(
       setState((prev) => (prev ? { ...prev, runningDetail: detail } : prev));
     },
     closeSuccess: () => {
-      window.setTimeout(() => {
-        setState(null);
-      }, 900);
+      setState(null);
     },
     closeError: () => {
       setState((prev) => (prev ? { ...prev, failed: true, runningDetail: undefined } : prev));
@@ -756,20 +750,6 @@ function userTitleFromValue(v: unknown): string {
     return String((v as Record<string, unknown>).Title ?? '');
   }
   return '';
-}
-
-function parseUrlFieldValue(v: unknown): { Url: string; Description: string } {
-  if (v === null || v === undefined) return { Url: '', Description: '' };
-  if (typeof v === 'object' && v !== null && 'Url' in v) {
-    const o = v as Record<string, unknown>;
-    return { Url: String(o.Url ?? ''), Description: String(o.Description ?? '') };
-  }
-  const s = String(v);
-  const comma = s.indexOf(',');
-  if (comma !== -1) {
-    return { Url: s.slice(0, comma).trim(), Description: s.slice(comma + 1).trim() };
-  }
-  return { Url: s, Description: '' };
 }
 
 function dropdownReqStyles(showReq: boolean | undefined) {
