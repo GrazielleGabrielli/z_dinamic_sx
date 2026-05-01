@@ -15,7 +15,7 @@ import {
 } from '../config/types/formManager';
 
 export function isSetComputedAllowedForMappedType(mt: FieldMappedType | 'unknown' | undefined): boolean {
-  return mt === 'text' || mt === 'multiline';
+  return mt === 'text' || mt === 'multiline' || mt === 'datetime';
 }
 
 export const CONDITION_OP_OPTIONS: { key: TFormConditionOp; text: string }[] = [
@@ -433,8 +433,16 @@ export function fieldRuleStateFromRules(
       if (r.patternMessage) st.validateValue.patternMessage = r.patternMessage;
     }
     if (r.action === 'validateDate' && r.field === internalName) {
-      if (r.minDaysFromToday !== undefined) st.validateDate.minDaysFromToday = String(r.minDaysFromToday);
-      if (r.maxDaysFromToday !== undefined) st.validateDate.maxDaysFromToday = String(r.maxDaysFromToday);
+      if (typeof r.minDaysFromTodayExpr === 'string' && r.minDaysFromTodayExpr.trim()) {
+        st.validateDate.minDaysFromToday = r.minDaysFromTodayExpr.trim();
+      } else if (r.minDaysFromToday !== undefined) {
+        st.validateDate.minDaysFromToday = String(r.minDaysFromToday);
+      }
+      if (typeof r.maxDaysFromTodayExpr === 'string' && r.maxDaysFromTodayExpr.trim()) {
+        st.validateDate.maxDaysFromToday = r.maxDaysFromTodayExpr.trim();
+      } else if (r.maxDaysFromToday !== undefined) {
+        st.validateDate.maxDaysFromToday = String(r.maxDaysFromToday);
+      }
       if (r.blockWeekends) st.validateDate.blockWeekends = true;
       if (r.blockedWeekdays?.length) {
         const set = new Set(st.validateDate.blockedWeekdays);
@@ -488,6 +496,18 @@ function numOrUndef(s: string): number | undefined {
   if (!t) return undefined;
   const n = Number(t);
   return isNaN(n) ? undefined : n;
+}
+
+export type TDaysOffsetEditorParse =
+  | { kind: 'empty' }
+  | { kind: 'literal'; n: number }
+  | { kind: 'expr'; expr: string };
+
+export function parseDaysOffsetEditorString(raw: string): TDaysOffsetEditorParse {
+  const t = raw.trim();
+  if (!t) return { kind: 'empty' };
+  if (/^-?\d+$/.test(t)) return { kind: 'literal', n: Number(t) };
+  return { kind: 'expr', expr: t };
 }
 
 function textConditionalConditionToWhenUi(c: ITextFieldConditionalCondition): IWhenUi {
@@ -612,12 +632,16 @@ export function buildFieldUiRules(
       vd.blockedWeekdays?.length && vd.blockedWeekdays.every((x) => x >= 0 && x <= 6)
         ? [...vd.blockedWeekdays].sort((a, b) => a - b)
         : [];
+    const minOff = parseDaysOffsetEditorString(vd.minDaysFromToday);
+    const maxOff = parseDaysOffsetEditorString(vd.maxDaysFromToday);
     out.push({
       id: id('date'),
       action: 'validateDate',
       field: internalName,
-      ...(numOrUndef(vd.minDaysFromToday) !== undefined ? { minDaysFromToday: numOrUndef(vd.minDaysFromToday) } : {}),
-      ...(numOrUndef(vd.maxDaysFromToday) !== undefined ? { maxDaysFromToday: numOrUndef(vd.maxDaysFromToday) } : {}),
+      ...(minOff.kind === 'literal' ? { minDaysFromToday: minOff.n } : {}),
+      ...(minOff.kind === 'expr' ? { minDaysFromTodayExpr: minOff.expr } : {}),
+      ...(maxOff.kind === 'literal' ? { maxDaysFromToday: maxOff.n } : {}),
+      ...(maxOff.kind === 'expr' ? { maxDaysFromTodayExpr: maxOff.expr } : {}),
       ...(vd.blockWeekends ? { blockWeekends: true } : {}),
       ...(bw.length ? { blockedWeekdays: bw } : {}),
       ...(vd.gteField.trim() ? { gteField: vd.gteField.trim() } : {}),

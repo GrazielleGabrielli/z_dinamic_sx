@@ -41,6 +41,7 @@ import type {
 } from '../../core/config/types/formManager';
 import { IMaskInput } from 'react-imask';
 import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
+import { FLUENT_DATE_PICKER_PT_BR } from '../../core/formManager/fluentDatePickerPtBr';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
   buildLookupDropdownSelectRaw,
@@ -85,6 +86,7 @@ import {
   formatValidationSummaryForForm,
   findEnabledSetComputedRule,
   resolveSetComputedDisplayValue,
+  buildPostCreateItemIdComputedPatch,
   type IFormAttachmentFolderUrlContext,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
@@ -968,6 +970,7 @@ function ConfirmPromptFieldEditor(props: {
         <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: modalSurface ? '100%' : undefined } }}>
           <Label styles={{ root: tfStyles.label.root }}>{meta.Title}</Label>
           <DatePicker
+            {...FLUENT_DATE_PICKER_PT_BR}
             value={editor.dateIso ? new Date(editor.dateIso) : undefined}
             onSelectDate={(d) => onChange({ ...editor, dateIso: d ? d.toISOString() : null })}
             textField={{
@@ -2657,6 +2660,44 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         );
         if (tl) tl.ok(ti);
         ti++;
+        const idComputedPatch = buildPostCreateItemIdComputedPatch({
+          cfg: formManager,
+          fieldConfigs,
+          values: mergedValues,
+          dynamicContext,
+          attachmentFolderUrl,
+          userGroupTitles,
+          submitKind: 'submit',
+          newItemId: newId,
+          fieldMetaByName: metaByName,
+        });
+        const idPatchFieldNames = Object.keys(idComputedPatch);
+        if (idPatchFieldNames.length > 0) {
+          if (tl) tl.enter(ti);
+          try {
+            const mergedPatchValues = { ...mergedValues, ...idComputedPatch };
+            const updatePayload = formValuesToSharePointPayload(fieldMetadata, mergedPatchValues, idPatchFieldNames, {
+              nullWhenEmptyFieldNames: ocultosNullFieldNames,
+            });
+            if (Object.keys(updatePayload).length > 0) {
+              await itemsService.updateItem(listTitle, newId, updatePayload, listWeb);
+            }
+          } catch (ue) {
+            setFormError(
+              `Item criado (ID ${newId}), mas a atualização dos campos calculados com ID falhou: ${
+                ue instanceof Error ? ue.message : String(ue)
+              }`
+            );
+            setSubmitUi(null);
+            if (tl) {
+              tl.err(ti);
+              tl.closeError();
+            }
+            return;
+          }
+          if (tl) tl.ok(ti);
+          ti++;
+        }
         if (hasPendingAttachments) {
           if (tl) tl.enter(ti);
           await uploadListItemAttachments(
@@ -3714,10 +3755,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const labelComp = fc.label ?? mComp?.Title ?? name;
       const helpComp = derived.dynamicHelpByField[name] ?? fc.helpText;
       const reqComp = derived.fieldRequired[name] === true || mComp?.Required === true;
+      const compShown =
+        mComp?.MappedType === 'datetime'
+          ? ((): string => {
+              const s = String(comp);
+              const ms = Date.parse(s);
+              return !isNaN(ms) ? new Date(ms).toLocaleDateString('pt-BR') : s;
+            })()
+          : String(comp);
       return (
         <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
           <Label required={reqComp}>{labelComp}</Label>
-          <Text styles={{ root: { color: '#323130' } }}>{String(comp)}</Text>
+          <Text styles={{ root: { color: '#323130' } }}>{compShown}</Text>
           {helpComp && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{helpComp}</Text>}
         </Stack>
       );
@@ -3817,6 +3866,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 8 } }}>
             <Label required={isRequired}>{label}</Label>
             <DatePicker
+              {...FLUENT_DATE_PICKER_PT_BR}
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}
               disabled={readOnly}

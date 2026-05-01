@@ -113,7 +113,7 @@ export function resolveDateFieldDefaultValue(
     const raw = values[name];
     if (raw === undefined || raw === null) return { kind: 'skip' };
     const baseStr = typeof raw === 'string' ? raw : String(raw);
-    const d = parseIsoDate(baseStr);
+    const d = parseFormCalendarDateString(baseStr) ?? parseIsoDate(baseStr);
     if (!d) return { kind: 'skip' };
     return { kind: 'resolved', value: toIsoDateString(startOfDay(d)) };
   }
@@ -139,7 +139,7 @@ export function resolveDateFieldDefaultValue(
   if (baseResolved === undefined || baseResolved === null) return { kind: 'skip' };
 
   const baseStr = typeof baseResolved === 'string' ? baseResolved : String(baseResolved);
-  const d = parseIsoDate(baseStr);
+  const d = parseFormCalendarDateString(baseStr) ?? parseIsoDate(baseStr);
   if (!d) return { kind: 'skip' };
 
   const s = startOfDay(d);
@@ -621,8 +621,83 @@ function parseIsoDate(s: string): Date | undefined {
   return isNaN(d.getTime()) ? undefined : d;
 }
 
+/** dd/mm/aaaa ou dd-mm-aaaa (formato do formulário); depois ISO / Date nativo. */
+function parseFormCalendarDateString(s: string): Date | undefined {
+  const t = String(s).trim();
+  if (!t) return undefined;
+  const br = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(t);
+  if (br) {
+    const day = parseInt(br[1], 10);
+    const month = parseInt(br[2], 10) - 1;
+    const year = parseInt(br[3], 10);
+    const dt = new Date(year, month, day);
+    if (dt.getFullYear() !== year || dt.getMonth() !== month || dt.getDate() !== day) return undefined;
+    return dt;
+  }
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function tryResolveEvaluatedDatePlusDaysString(s: string): string | undefined {
+  const t = s.trim();
+  const br = /^(\d{1,2}[-/]\d{1,2}[-/]\d{4})\s*([+-])\s*(\d+)$/.exec(t);
+  if (br) {
+    const base = parseFormCalendarDateString(br[1]);
+    if (!base) return undefined;
+    const sign = br[2] === '-' ? -1 : 1;
+    const days = parseInt(br[3], 10);
+    const out = startOfDay(base);
+    out.setDate(out.getDate() + sign * days);
+    return toIsoDateString(out);
+  }
+  const iso = /^(\d{4}-\d{2}-\d{2})\s*([+-])\s*(\d+)$/.exec(t);
+  if (iso) {
+    const base = parseIsoDate(iso[1]);
+    if (!base) return undefined;
+    const sign = iso[2] === '-' ? -1 : 1;
+    const days = parseInt(iso[3], 10);
+    const out = startOfDay(base);
+    out.setDate(out.getDate() + sign * days);
+    return toIsoDateString(out);
+  }
+  return undefined;
+}
+
+function resolveDatetimeComputedDisplayValue(
+  expression: string,
+  evaluated: unknown,
+  values: Record<string, unknown>,
+  dynamicContext: IDynamicContext
+): string | undefined {
+  const ex = expression.trim();
+  if (ex) {
+    const dr = resolveDateFieldDefaultValue(ex, dynamicContext, values);
+    if (dr.kind === 'resolved' && dr.value !== undefined) {
+      const raw = dr.value;
+      const s = typeof raw === 'string' ? raw : String(raw);
+      const d = parseFormCalendarDateString(s) ?? parseIsoDate(s);
+      if (d) return toIsoDateString(startOfDay(d));
+    }
+  }
+  if (typeof evaluated === 'number' && isFinite(evaluated)) {
+    const base = startOfDay(new Date());
+    base.setDate(base.getDate() + Math.trunc(evaluated));
+    return toIsoDateString(base);
+  }
+  if (typeof evaluated === 'string' && evaluated.trim()) {
+    const t = evaluated.trim();
+    const plusDays = tryResolveEvaluatedDatePlusDaysString(t);
+    if (plusDays) return plusDays;
+    const d0 = parseFormCalendarDateString(t) ?? parseIsoDate(t);
+    if (d0) return toIsoDateString(startOfDay(d0));
+    const ms = Date.parse(t);
+    if (!isNaN(ms)) return toIsoDateString(startOfDay(new Date(ms)));
+  }
+  return undefined;
 }
 
 function evalArithmetic(expr: string): number | undefined {
@@ -747,8 +822,10 @@ export function evaluateFormValueExpression(
   }
   if (dynamicContext && t.indexOf('[') !== -1) {
     const daysFirst = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
-      const da = parseIsoDate(String(values[String(a).trim()] ?? ''));
-      const db = parseIsoDate(String(values[String(b).trim()] ?? ''));
+      const sa = String(values[String(a).trim()] ?? '');
+      const sb = String(values[String(b).trim()] ?? '');
+      const da = parseFormCalendarDateString(sa) ?? parseIsoDate(sa);
+      const db = parseFormCalendarDateString(sb) ?? parseIsoDate(sb);
       if (!da || !db) return '0';
       const ms = startOfDay(da).getTime() - startOfDay(db).getTime();
       return String(Math.round(ms / 86400000));
@@ -768,8 +845,10 @@ export function evaluateFormValueExpression(
     return withTok;
   }
   const withDays = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
-    const da = parseIsoDate(String(values[String(a).trim()] ?? ''));
-    const db = parseIsoDate(String(values[String(b).trim()] ?? ''));
+    const sa = String(values[String(a).trim()] ?? '');
+    const sb = String(values[String(b).trim()] ?? '');
+    const da = parseFormCalendarDateString(sa) ?? parseIsoDate(sa);
+    const db = parseFormCalendarDateString(sb) ?? parseIsoDate(sb);
     if (!da || !db) return '0';
     const ms = startOfDay(da).getTime() - startOfDay(db).getTime();
     return String(Math.round(ms / 86400000));
@@ -809,16 +888,55 @@ export function evaluateFormValueExpression(
   return evalArithmetic(compactExpr);
 }
 
+function evaluateDaysOffsetExpr(
+  exprRaw: string | undefined,
+  values: Record<string, unknown>,
+  dynamicContext: IDynamicContext
+): number | undefined {
+  const t = typeof exprRaw === 'string' ? exprRaw.trim() : '';
+  if (!t) return undefined;
+  const ev = evaluateFormValueExpression(t, values, dynamicContext);
+  if (typeof ev === 'number' && isFinite(ev)) return Math.trunc(ev);
+  if (typeof ev === 'string') {
+    const n = Number(String(ev).trim());
+    if (!isNaN(n) && isFinite(n)) return Math.trunc(n);
+  }
+  return undefined;
+}
+
+function resolveValidateDateMinMaxDaysFromToday(
+  rule: import('../config/types/formManager').IFormRuleValidateDate,
+  values: Record<string, unknown>,
+  dynamicContext: IDynamicContext
+): { minDays?: number; maxDays?: number } {
+  let minDays: number | undefined;
+  let maxDays: number | undefined;
+  const exMin = rule.minDaysFromTodayExpr?.trim();
+  if (exMin) {
+    minDays = evaluateDaysOffsetExpr(exMin, values, dynamicContext);
+  } else if (rule.minDaysFromToday !== undefined && typeof rule.minDaysFromToday === 'number') {
+    minDays = Math.trunc(rule.minDaysFromToday);
+  }
+  const exMax = rule.maxDaysFromTodayExpr?.trim();
+  if (exMax) {
+    maxDays = evaluateDaysOffsetExpr(exMax, values, dynamicContext);
+  } else if (rule.maxDaysFromToday !== undefined && typeof rule.maxDaysFromToday === 'number') {
+    maxDays = Math.trunc(rule.maxDaysFromToday);
+  }
+  return { minDays, maxDays };
+}
+
 function validateDateRule(
   field: string,
   rule: import('../config/types/formManager').IFormRuleValidateDate,
   values: Record<string, unknown>,
-  now: Date
+  now: Date,
+  dynamicContext: IDynamicContext
 ): string | undefined {
   const raw = values[field];
   if (isEmptyish(raw)) return undefined;
   const iso = typeof raw === 'string' ? raw : (raw instanceof Date ? raw.toISOString() : String(raw));
-  const d = parseIsoDate(iso);
+  const d = parseFormCalendarDateString(iso) ?? parseIsoDate(iso);
   if (!d) return rule.message ?? 'Data inválida.';
   const day = startOfDay(d);
   if (rule.blockWeekends === true) {
@@ -839,14 +957,15 @@ function validateDateRule(
     }
   }
   const today = startOfDay(now);
-  if (rule.minDaysFromToday !== undefined) {
+  const { minDays, maxDays } = resolveValidateDateMinMaxDaysFromToday(rule, values, dynamicContext);
+  if (minDays !== undefined) {
     const minD = new Date(today.getTime());
-    minD.setDate(minD.getDate() + rule.minDaysFromToday);
+    minD.setDate(minD.getDate() + minDays);
     if (day < startOfDay(minD)) return rule.message ?? 'Data abaixo do permitido.';
   }
-  if (rule.maxDaysFromToday !== undefined) {
+  if (maxDays !== undefined) {
     const maxD = new Date(today.getTime());
-    maxD.setDate(maxD.getDate() + rule.maxDaysFromToday);
+    maxD.setDate(maxD.getDate() + maxDays);
     if (day > startOfDay(maxD)) return rule.message ?? 'Data acima do permitido.';
   }
   if (rule.minIso) {
@@ -859,22 +978,26 @@ function validateDateRule(
   }
   if (rule.gteField) {
     const o = values[rule.gteField];
-    const od = parseIsoDate(typeof o === 'string' ? o : String(o ?? ''));
+    const os = typeof o === 'string' ? o : String(o ?? '');
+    const od = parseFormCalendarDateString(os) ?? parseIsoDate(os);
     if (od && day < startOfDay(od)) return rule.message ?? 'Data anterior à data de referência.';
   }
   if (rule.lteField) {
     const o = values[rule.lteField];
-    const od = parseIsoDate(typeof o === 'string' ? o : String(o ?? ''));
+    const os = typeof o === 'string' ? o : String(o ?? '');
+    const od = parseFormCalendarDateString(os) ?? parseIsoDate(os);
     if (od && day > startOfDay(od)) return rule.message ?? 'Data posterior à data de referência.';
   }
   if (rule.gtField) {
     const o = values[rule.gtField];
-    const od = parseIsoDate(typeof o === 'string' ? o : String(o ?? ''));
+    const os = typeof o === 'string' ? o : String(o ?? '');
+    const od = parseFormCalendarDateString(os) ?? parseIsoDate(os);
     if (od && day <= startOfDay(od)) return rule.message ?? 'Data deve ser posterior à referência.';
   }
   if (rule.ltField) {
     const o = values[rule.ltField];
-    const od = parseIsoDate(typeof o === 'string' ? o : String(o ?? ''));
+    const os = typeof o === 'string' ? o : String(o ?? '');
+    const od = parseFormCalendarDateString(os) ?? parseIsoDate(os);
     if (od && day >= startOfDay(od)) return rule.message ?? 'Data deve ser anterior à referência.';
   }
   return undefined;
@@ -909,7 +1032,7 @@ export function evaluateValidateDateRulesForField(
     if (!whenOk) continue;
     if (!fieldVisible(field)) continue;
     if (isDraft) continue;
-    const msg = validateDateRule(field, rule, values, ts);
+    const msg = validateDateRule(field, rule, values, ts, dynamicContext);
     if (msg) return msg;
   }
   return undefined;
@@ -1050,9 +1173,20 @@ export function buildFormDerivedState(
       case 'setComputed': {
         if (fieldMetaByName) {
           const mtc = fieldMetaByName.get(rule.field)?.MappedType;
-          if (mtc !== 'text' && mtc !== 'multiline') break;
+          if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') break;
         }
+        const mtcField = fieldMetaByName?.get(rule.field)?.MappedType;
         let v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);
+        if (mtcField === 'datetime') {
+          const disp = resolveDatetimeComputedDisplayValue(
+            rule.expression ?? '',
+            v,
+            values,
+            dynamicContext
+          );
+          if (disp !== undefined) computedDisplay[rule.field] = disp;
+          break;
+        }
         if (v !== undefined) {
           const fc = fieldConfigs.find((f) => f.internalName === rule.field);
           const tft = fc?.textValueTransform;
@@ -1217,7 +1351,7 @@ export function collectFormValidationErrors(
         if (isDraft) break;
         if (!whenOk) break;
         if (!fieldVisible(rule.field)) break;
-        const msg = validateDateRule(rule.field, rule, values, ctx.dynamicContext.now ?? new Date());
+        const msg = validateDateRule(rule.field, rule, values, ctx.dynamicContext.now ?? new Date(), dynamicContext);
         if (msg) errors[rule.field] = msg;
         break;
       }
@@ -1579,7 +1713,26 @@ export function getDefaultValuesFromRules(
       const dr = resolveDateFieldDefaultValue(rule.value, dynamicContext, next);
       if (dr.kind === 'skip') continue;
       if (dr.kind === 'resolved') resolved = dr.value;
-      else resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+      else if (dr.kind === 'generic') {
+        const ev = evaluateFormValueExpression(rule.value, next, dynamicContext);
+        let iso: string | undefined;
+        if (typeof ev === 'string') {
+          const tt = ev.trim();
+          iso =
+            tryResolveEvaluatedDatePlusDaysString(tt) ??
+            ((): string | undefined => {
+              const d = parseFormCalendarDateString(tt) ?? parseIsoDate(tt);
+              return d ? toIsoDateString(startOfDay(d)) : undefined;
+            })();
+        } else if (typeof ev === 'number' && isFinite(ev)) {
+          const base = startOfDay(new Date());
+          base.setDate(base.getDate() + Math.trunc(ev));
+          iso = toIsoDateString(base);
+        }
+        resolved = iso !== undefined ? iso : tokenResolver.resolveValue(rule.value, dynamicContext);
+      } else {
+        resolved = tokenResolver.resolveValue(rule.value, dynamicContext);
+      }
     } else {
       if (typeof rule.value === 'string') {
         const templateResolved = resolveDefaultTemplateValue(rule.value, next, dynamicContext);
@@ -1594,4 +1747,84 @@ export function getDefaultValuesFromRules(
     if (resolved !== undefined && isEmptyish(next[rule.field])) next[rule.field] = resolved;
   }
   return next;
+}
+
+export function expressionReferencesSharePointItemId(expression: string): boolean {
+  const re = /\{\{([^}]+)\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(expression)) !== null) {
+    const base = String(m[1] ?? '')
+      .trim()
+      .split('/')[0]
+      ?.trim();
+    if (base && base.toLowerCase() === 'id') return true;
+  }
+  return false;
+}
+
+export function buildPostCreateItemIdComputedPatch(params: {
+  cfg: IFormManagerConfig;
+  fieldConfigs: IFormFieldConfig[];
+  values: Record<string, unknown>;
+  dynamicContext: IDynamicContext;
+  attachmentFolderUrl?: IFormAttachmentFolderUrlContext;
+  userGroupTitles: string[];
+  submitKind: TFormSubmitKind | undefined;
+  newItemId: number;
+  fieldMetaByName: ReadonlyMap<string, IFieldMetadata>;
+}): Record<string, unknown> {
+  const {
+    cfg,
+    fieldConfigs,
+    values,
+    dynamicContext,
+    attachmentFolderUrl,
+    userGroupTitles,
+    submitKind,
+    newItemId,
+    fieldMetaByName,
+  } = params;
+
+  const valuesWithId: Record<string, unknown> = {
+    ...values,
+    Id: newItemId,
+    ID: newItemId,
+  };
+
+  const out: Record<string, unknown> = {};
+  const rules = cfg.rules ?? [];
+
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    if (rule.action !== 'setComputed') continue;
+    if (rule.enabled === false) continue;
+    if (!ruleAppliesMode(rule, 'create')) continue;
+    if (!ruleAppliesSubmit(rule, submitKind)) continue;
+    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (rule.when && !evaluateCondition(rule.when, valuesWithId, dynamicContext)) continue;
+
+    const expr = rule.expression ?? '';
+    if (!expressionReferencesSharePointItemId(expr)) continue;
+
+    const mtc = fieldMetaByName.get(rule.field)?.MappedType;
+    if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') continue;
+
+    let v = evaluateFormValueExpression(expr, valuesWithId, dynamicContext, attachmentFolderUrl);
+
+    if (mtc === 'datetime') {
+      const disp = resolveDatetimeComputedDisplayValue(expr, v, valuesWithId, dynamicContext);
+      if (disp !== undefined) out[rule.field] = disp;
+      continue;
+    }
+
+    if (v === undefined) continue;
+
+    const fc = fieldConfigs.find((f) => f.internalName === rule.field);
+    const tft = fc?.textValueTransform;
+    if (tft && typeof v === 'string') v = applyFormFieldTextTransform(v, tft);
+
+    out[rule.field] = v;
+  }
+
+  return out;
 }

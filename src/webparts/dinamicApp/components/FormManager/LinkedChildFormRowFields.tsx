@@ -28,6 +28,7 @@ import {
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
 import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinkedChildSync';
+import { FLUENT_DATE_PICKER_PT_BR } from '../../core/formManager/fluentDatePickerPtBr';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
   buildLookupDropdownSelectRaw,
@@ -476,11 +477,19 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       const isRequired = derived.fieldRequired[name] === true || mComp?.Required === true;
       const mb = mode === 'compact' ? 4 : 8;
       const cell = mode === 'cell';
+      const compShown =
+        mComp?.MappedType === 'datetime'
+          ? ((): string => {
+              const s = String(comp);
+              const ms = Date.parse(s);
+              return !isNaN(ms) ? new Date(ms).toLocaleDateString('pt-BR') : s;
+            })()
+          : String(comp);
       return (
         <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
           {!cell && <Label required={isRequired}>{label}</Label>}
           <Text styles={{ root: { color: '#323130' } }} title={cell ? label : undefined}>
-            {String(comp)}
+            {compShown}
           </Text>
           {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
         </Stack>
@@ -573,6 +582,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
             {!cell && <Label required={isRequired}>{label}</Label>}
             <DatePicker
+              {...FLUENT_DATE_PICKER_PT_BR}
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => applyLinkedDateSelect(name, d ?? null)}
               disabled={readOnly}

@@ -293,6 +293,12 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
         ...(typeof r.maxIso === 'string' ? { maxIso: r.maxIso } : {}),
         ...(typeof r.minDaysFromToday === 'number' ? { minDaysFromToday: r.minDaysFromToday } : {}),
         ...(typeof r.maxDaysFromToday === 'number' ? { maxDaysFromToday: r.maxDaysFromToday } : {}),
+        ...(typeof r.minDaysFromTodayExpr === 'string' && r.minDaysFromTodayExpr.trim()
+          ? { minDaysFromTodayExpr: r.minDaysFromTodayExpr.trim() }
+          : {}),
+        ...(typeof r.maxDaysFromTodayExpr === 'string' && r.maxDaysFromTodayExpr.trim()
+          ? { maxDaysFromTodayExpr: r.maxDaysFromTodayExpr.trim() }
+          : {}),
         ...(r.blockWeekends === true ? { blockWeekends: true } : {}),
         ...(Array.isArray(r.blockedWeekdays) && (r.blockedWeekdays as unknown[]).length
           ? {

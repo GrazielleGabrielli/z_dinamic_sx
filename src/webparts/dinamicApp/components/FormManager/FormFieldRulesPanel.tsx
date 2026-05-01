@@ -256,7 +256,8 @@ function buildMentionItems(
   filter: string,
   fieldOptions: IDropdownOption[],
   attachmentLibraryFolderOptions: IDropdownOption[],
-  lookupPathOptions?: IDropdownOption[]
+  lookupPathOptions?: IDropdownOption[],
+  numericFields?: IDropdownOption[]
 ): TMentionItem[] {
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
@@ -316,6 +317,22 @@ function buildMentionItems(
       }
     }
   }
+  if (numericFields !== undefined) {
+    for (let i = 0; i < numericFields.length; i++) {
+      const opt = numericFields[i];
+      const k = String(opt.key);
+      const ins = `{{${k}}}`;
+      const lab = String(opt.text ?? k);
+      if (match(k) || match(lab) || match(ins)) {
+        out.push({
+          key: `nm-${k}-${i}`,
+          insert: ins,
+          primary: lab,
+          secondary: `Campo numérico · ${ins}`,
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -340,7 +357,8 @@ const DATE_DEFAULT_MENTION_SUFFIX_PRESETS: { insert: string; primary: string; se
 function buildDefaultValueMentionItems(
   filter: string,
   dateFields?: IDropdownOption[],
-  lookupFields?: IDropdownOption[]
+  lookupFields?: IDropdownOption[],
+  numericFields?: IDropdownOption[]
 ): TMentionItem[] {
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
@@ -400,6 +418,22 @@ function buildDefaultValueMentionItems(
       }
     }
   }
+  if (numericFields !== undefined) {
+    for (let i = 0; i < numericFields.length; i++) {
+      const opt = numericFields[i];
+      const k = String(opt.key);
+      const ins = `{{${k}}}`;
+      const lab = String(opt.text ?? k);
+      if (match(k) || match(lab) || match(ins)) {
+        out.push({
+          key: `dv-num-${k}-${i}`,
+          insert: ins,
+          primary: lab,
+          secondary: `Campo numérico · ${ins}`,
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -435,6 +469,8 @@ type TFieldRulesDefaultValueTextFieldProps = {
   dateFieldMentionOptions?: IDropdownOption[];
   /** Quando definido, inclui referências {{Lookup/Campo}} no @. */
   lookupFieldMentionOptions?: IDropdownOption[];
+  /** Campos número/moeda para expressões `{{Campo}}+N`. */
+  numericFieldMentionOptions?: IDropdownOption[];
 };
 
 function FieldRulesDefaultValueTextField({
@@ -444,6 +480,7 @@ function FieldRulesDefaultValueTextField({
   onChange,
   dateFieldMentionOptions,
   lookupFieldMentionOptions,
+  numericFieldMentionOptions,
 }: TFieldRulesDefaultValueTextFieldProps): JSX.Element {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionRange, setMentionRange] = useState<{ from: number; to: number; filter: string } | null>(null);
@@ -477,9 +514,16 @@ function FieldRulesDefaultValueTextField({
     return buildDefaultValueMentionItems(
       mentionRange.filter,
       dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
-      lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined
+      lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined,
+      numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined
     );
-  }, [mentionOpen, mentionRange, dateFieldMentionOptions, lookupFieldMentionOptions]);
+  }, [
+    mentionOpen,
+    mentionRange,
+    dateFieldMentionOptions,
+    lookupFieldMentionOptions,
+    numericFieldMentionOptions,
+  ]);
 
   useLayoutEffect(() => {
     const p = pendingCaretRef.current;
@@ -564,7 +608,8 @@ function FieldRulesDefaultValueTextField({
         const items = buildDefaultValueMentionItems(
           range.filter,
           dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
-          lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined
+          lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined,
+          numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined
         );
         if (items.length > 0) {
           setMentionRange(range);
@@ -580,7 +625,7 @@ function FieldRulesDefaultValueTextField({
       }
       onChange(raw);
     },
-    [onChange, dateFieldMentionOptions, lookupFieldMentionOptions]
+    [onChange, dateFieldMentionOptions, lookupFieldMentionOptions, numericFieldMentionOptions]
   );
 
   const handleKeyDown = useCallback(
@@ -685,7 +730,9 @@ type TSetComputedRulesBlockProps = {
   fieldOptions: IDropdownOption[];
   attachmentLibraryFolderOptions: IDropdownOption[];
   lookupPathMentionOptions?: IDropdownOption[];
+  numericFieldMentionOptions?: IDropdownOption[];
   bordered?: boolean;
+  sectionHeading?: string;
 };
 
 function SetComputedRulesBlock({
@@ -694,7 +741,9 @@ function SetComputedRulesBlock({
   fieldOptions,
   attachmentLibraryFolderOptions,
   lookupPathMentionOptions,
+  numericFieldMentionOptions,
   bordered,
+  sectionHeading,
 }: TSetComputedRulesBlockProps): JSX.Element {
   const [formsExprOpen, setFormsExprOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -730,9 +779,17 @@ function SetComputedRulesBlock({
       mentionRange.filter,
       fieldOptions,
       attachmentLibraryFolderOptions,
-      lookupPathMentionOptions
+      lookupPathMentionOptions,
+      numericFieldMentionOptions
     );
-  }, [mentionOpen, mentionRange, fieldOptions, attachmentLibraryFolderOptions, lookupPathMentionOptions]);
+  }, [
+    mentionOpen,
+    mentionRange,
+    fieldOptions,
+    attachmentLibraryFolderOptions,
+    lookupPathMentionOptions,
+    numericFieldMentionOptions,
+  ]);
 
   useLayoutEffect(() => {
     const p = pendingCaretRef.current;
@@ -836,7 +893,8 @@ function SetComputedRulesBlock({
           range.filter,
           fieldOptions,
           attachmentLibraryFolderOptions,
-          lookupPathMentionOptions
+          lookupPathMentionOptions,
+          numericFieldMentionOptions
         );
         if (items.length > 0) {
           setMentionRange(range);
@@ -856,7 +914,7 @@ function SetComputedRulesBlock({
         computedAttachmentFolderNodeId: '',
       }));
     },
-    [fieldOptions, attachmentLibraryFolderOptions, lookupPathMentionOptions, setEd]
+    [fieldOptions, attachmentLibraryFolderOptions, lookupPathMentionOptions, numericFieldMentionOptions, setEd]
   );
 
   const handleExprKeyDown = useCallback(
@@ -889,7 +947,7 @@ function SetComputedRulesBlock({
   return (
     <Stack tokens={{ childrenGap: 10 }} styles={rootStyles}>
       <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-        Valor calculado (setComputed)
+        {sectionHeading ?? 'Valor calculado (setComputed)'}
       </Text>
       <Stack
         tokens={{ childrenGap: 10 }}
@@ -1338,6 +1396,18 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
       .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
   }, [mt, listFieldMetadata, internalName]);
 
+  const defaultValueNumericFieldMentions = useMemo((): IDropdownOption[] | undefined => {
+    const list = listFieldMetadata ?? [];
+    const opts = list
+      .filter(
+        (m) =>
+          (m.MappedType === 'number' || m.MappedType === 'currency') &&
+          m.InternalName !== internalName
+      )
+      .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
+    return opts.length ? opts : undefined;
+  }, [listFieldMetadata, internalName]);
+
   const defaultValueLookupFieldMentions = useMemo((): IDropdownOption[] | undefined => {
     const all = listFieldMetadata ?? [];
     if (!all.length) return undefined;
@@ -1566,18 +1636,35 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
             />
             {(mt !== 'lookup' && mt !== 'lookupmulti') ? (
-              <FieldRulesDefaultValueTextField
-                label="Valor padrão (token ou texto; aplica se vazio)"
-                description={
-                  mt === 'datetime'
-                    ? 'Ex.: {{OutraData}} + 7, [today] + 14. @ lista tokens, outros campos data e sufixos +N dias.'
-                    : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
-                }
-                value={ed.defaultValue}
-                onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
-                dateFieldMentionOptions={defaultValueDateFieldMentions}
-                lookupFieldMentionOptions={defaultValueLookupFieldMentions}
-              />
+              <>
+                <FieldRulesDefaultValueTextField
+                  label="Valor padrão (token ou texto; aplica se vazio)"
+                  description={
+                    mt === 'datetime'
+                      ? 'Ex.: {{OutraData}} + 7, [today] + 14, {{CampoNum}}+14. @ lista tokens, campos data/número e sufixos.'
+                      : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
+                  }
+                  value={ed.defaultValue}
+                  onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
+                  dateFieldMentionOptions={defaultValueDateFieldMentions}
+                  lookupFieldMentionOptions={defaultValueLookupFieldMentions}
+                  numericFieldMentionOptions={defaultValueNumericFieldMentions}
+                />
+                {mt === 'datetime' &&
+                  internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
+                  !isFormBannerFieldConfig(fieldConfig) && (
+                    <SetComputedRulesBlock
+                      ed={ed}
+                      setEd={setEd}
+                      fieldOptions={fieldOptions}
+                      attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                      lookupPathMentionOptions={defaultValueLookupFieldMentions}
+                      numericFieldMentionOptions={defaultValueNumericFieldMentions}
+                      bordered={false}
+                      sectionHeading="Expressão"
+                    />
+                  )}
+              </>
             ) : null}
             <FormManagerCollapseSection
               title="Desativar / ativar o campo"
@@ -1660,6 +1747,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   fieldOptions={fieldOptions}
                   attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
                   lookupPathMentionOptions={defaultValueLookupFieldMentions}
+                  numericFieldMentionOptions={defaultValueNumericFieldMentions}
                   bordered={false}
                 />
               )}
@@ -2296,22 +2384,27 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               onToggle={() => toggleTextRulesSection(DATE_RULES_COLLAPSE_IDS.relativeToToday)}
             >
               <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
-                Intervalo permitido contado em dias a partir da data de hoje (vazio = sem limite nesse sentido).
+                Dias inteiros a partir de hoje: número fixo (ex. 7) ou expressão como no valor padrão numérico —
+                ex. {'{{Prazo}}'}, {'{{Dias}}+5'}, (vazio = sem limite).
               </Text>
-              <Stack horizontal tokens={{ childrenGap: 8 }} wrap>
-                <TextField
+              <Stack tokens={{ childrenGap: 10 }} styles={{ root: { maxWidth: '100%' } }}>
+                <FieldRulesDefaultValueTextField
                   label="Mín. dias a partir de hoje"
+                  description="Digite @ para inserir campos número/moeda ou montar fórmulas com + − * / ( )."
                   value={ed.validateDate.minDaysFromToday}
-                  onChange={(_, v) =>
-                    setEd((p) => ({ ...p, validateDate: { ...p.validateDate, minDaysFromToday: v ?? '' } }))
+                  onChange={(next) =>
+                    setEd((p) => ({ ...p, validateDate: { ...p.validateDate, minDaysFromToday: next } }))
                   }
+                  numericFieldMentionOptions={defaultValueNumericFieldMentions}
                 />
-                <TextField
+                <FieldRulesDefaultValueTextField
                   label="Máx. dias a partir de hoje"
+                  description="Mesma sintaxe que o mínimo (expressão ou inteiro)."
                   value={ed.validateDate.maxDaysFromToday}
-                  onChange={(_, v) =>
-                    setEd((p) => ({ ...p, validateDate: { ...p.validateDate, maxDaysFromToday: v ?? '' } }))
+                  onChange={(next) =>
+                    setEd((p) => ({ ...p, validateDate: { ...p.validateDate, maxDaysFromToday: next } }))
                   }
+                  numericFieldMentionOptions={defaultValueNumericFieldMentions}
                 />
               </Stack>
               <Checkbox

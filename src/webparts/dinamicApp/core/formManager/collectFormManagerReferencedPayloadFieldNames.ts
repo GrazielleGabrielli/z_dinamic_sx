@@ -106,6 +106,8 @@ function collectFromRules(rules: TFormRule[] | undefined, out: Set<string>): voi
         addFieldName(out, r.lteField);
         addFieldName(out, r.gtField);
         addFieldName(out, r.ltField);
+        collectFromValueTemplate(r.minDaysFromTodayExpr, out);
+        collectFromValueTemplate(r.maxDaysFromTodayExpr, out);
         break;
       case 'atLeastOne':
         for (let j = 0; j < (r.fields ?? []).length; j++) {

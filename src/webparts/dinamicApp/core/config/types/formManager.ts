@@ -107,6 +107,9 @@ export interface IFormRuleValidateDate extends IFormRuleBase {
   maxIso?: string;
   minDaysFromToday?: number;
   maxDaysFromToday?: number;
+  /** Dias inteiros; mesma sintaxe que valor padrão numérico (`{{Campo}}+10`). Se definido, prevalece sobre minDaysFromToday. */
+  minDaysFromTodayExpr?: string;
+  maxDaysFromTodayExpr?: string;
   blockWeekends?: boolean;
   /** 0=domingo … 6=sábado (Date.getDay). Datas nesse dia são inválidas. */
   blockedWeekdays?: number[];
