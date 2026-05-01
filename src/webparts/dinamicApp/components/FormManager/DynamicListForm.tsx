@@ -76,6 +76,7 @@ import {
   evaluateFormValueExpression,
   getDefaultValuesFromRules,
   getMergedValidateValueLengthBounds,
+  getMergedValidateValueNumberBounds,
   shouldShowCustomButton,
   shouldShowBuiltinHistoryButton,
   areAllRequiredFieldsFilled,
@@ -1590,6 +1591,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const b = getMergedValidateValueLengthBounds(rules, n, ctxSlice, vis);
       if (b && (b.minLength !== undefined || b.maxLength !== undefined)) {
         out[n] = { minLength: b.minLength, maxLength: b.maxLength };
+      }
+    }
+    return out;
+  }, [formManager.rules, fieldConfigs, formMode, values, userGroupTitles, dynamicContext, derived.fieldVisible]);
+
+  const validateValueNumberMergedByField = useMemo(() => {
+    const rules = formManager.rules ?? [];
+    const vis = derived.fieldVisible;
+    const out: Record<string, { minNumber?: number; maxNumber?: number }> = {};
+    const ctxSlice = {
+      formMode,
+      values,
+      userGroupTitles,
+      dynamicContext,
+    };
+    for (let i = 0; i < fieldConfigs.length; i++) {
+      const n = fieldConfigs[i].internalName;
+      if (vis[n] === false) continue;
+      const b = getMergedValidateValueNumberBounds(rules, n, ctxSlice, vis);
+      if (b && (b.minNumber !== undefined || b.maxNumber !== undefined)) {
+        out[n] = { minNumber: b.minNumber, maxNumber: b.maxNumber };
       }
     }
     return out;
@@ -3846,7 +3868,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           </Stack>
         );
       case 'number':
-      case 'currency':
+      case 'currency': {
+        const numBounds = validateValueNumberMergedByField[name];
         return (
           <TextField
             key={name}
@@ -3859,8 +3882,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             {...common}
             description={help}
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            min={numBounds?.minNumber}
+            max={numBounds?.maxNumber}
           />
         );
+      }
       case 'datetime':
         return (
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 8 } }}>

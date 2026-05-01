@@ -491,6 +491,40 @@ export function getMergedValidateValueLengthBounds(
   return { minLength: minL, maxLength: maxL };
 }
 
+/**
+ * Junta min/max numéricos de regras validateValue ativas para o campo (mesmo critério que em submissão).
+ * Vários mínimos → maior; vários máximos → menor.
+ */
+export function getMergedValidateValueNumberBounds(
+  rules: TFormRule[] | undefined,
+  fieldName: string,
+  ctx: Pick<IFormRuleRuntimeContext, 'formMode' | 'values' | 'userGroupTitles' | 'dynamicContext'>,
+  fieldVisibleMap: Record<string, boolean> | undefined
+): { minNumber?: number; maxNumber?: number } | undefined {
+  if (!rules?.length) return undefined;
+  const { formMode, values, userGroupTitles, dynamicContext } = ctx;
+  let minN: number | undefined;
+  let maxN: number | undefined;
+  for (let r = 0; r < rules.length; r++) {
+    const rule = rules[r];
+    if (rule.action !== 'validateValue') continue;
+    if (rule.field !== fieldName) continue;
+    if (rule.enabled === false) continue;
+    if (!ruleAppliesMode(rule, formMode)) continue;
+    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (!evaluateCondition(rule.when, values, dynamicContext)) continue;
+    if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
+    if (rule.minNumber !== undefined) {
+      minN = minN === undefined ? rule.minNumber : Math.max(minN, rule.minNumber);
+    }
+    if (rule.maxNumber !== undefined) {
+      maxN = maxN === undefined ? rule.maxNumber : Math.min(maxN, rule.maxNumber);
+    }
+  }
+  if (minN === undefined && maxN === undefined) return undefined;
+  return { minNumber: minN, maxNumber: maxN };
+}
+
 function isValueEmptyForRequiredField(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;

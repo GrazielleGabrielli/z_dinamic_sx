@@ -24,6 +24,7 @@ import {
   buildFormDerivedState,
   evaluateValidateDateRulesForField,
   findEnabledSetComputedRule,
+  getMergedValidateValueNumberBounds,
   withRuleRuntimeDynamicContext,
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
@@ -229,6 +230,36 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     () => buildFormDerivedState(shell, fieldConfigs, runtimeCtx, undefined, metaByName),
     [shell, fieldConfigs, runtimeCtx, metaByName]
   );
+
+  const validateValueNumberMergedByField = useMemo(() => {
+    const rules = shell.rules ?? [];
+    const vis = derived.fieldVisible;
+    const out: Record<string, { minNumber?: number; maxNumber?: number }> = {};
+    const ctxSlice = {
+      formMode,
+      values,
+      userGroupTitles,
+      dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
+    };
+    for (let i = 0; i < orderedFieldConfigs.length; i++) {
+      const n = orderedFieldConfigs[i].internalName;
+      if (vis[n] === false) continue;
+      const b = getMergedValidateValueNumberBounds(rules, n, ctxSlice, vis);
+      if (b && (b.minNumber !== undefined || b.maxNumber !== undefined)) {
+        out[n] = { minNumber: b.minNumber, maxNumber: b.maxNumber };
+      }
+    }
+    return out;
+  }, [
+    shell.rules,
+    orderedFieldConfigs,
+    formMode,
+    values,
+    userGroupTitles,
+    dynamicContext,
+    currentUserId,
+    derived.fieldVisible,
+  ]);
 
   const fieldConfigByInternalName = useMemo(
     () => new Map(fieldConfigs.map((fc) => [fc.internalName, fc])),
@@ -562,7 +593,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           </Stack>
         );
       case 'number':
-      case 'currency':
+      case 'currency': {
+        const numBounds = validateValueNumberMergedByField[name];
         return (
           <TextField
             key={name}
@@ -575,8 +607,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             {...common}
             description={cell ? undefined : help}
             styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            min={numBounds?.minNumber}
+            max={numBounds?.maxNumber}
           />
         );
+      }
       case 'datetime':
         return (
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
