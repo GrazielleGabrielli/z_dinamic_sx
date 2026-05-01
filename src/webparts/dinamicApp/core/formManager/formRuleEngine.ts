@@ -1277,6 +1277,23 @@ export function buildFormDerivedState(
   }
 
   const rules = cfg.rules ?? [];
+  /** Campos com pelo menos uma regra `setVisibility` show + preferHide (modo/submissão/grupo aplicáveis). */
+  const preferHideShowRuleTargets: Record<string, boolean> = {};
+  for (let r = 0; r < rules.length; r++) {
+    const scanRule = rules[r];
+    if (scanRule.enabled === false) continue;
+    if (!ruleAppliesMode(scanRule, formMode)) continue;
+    if (!ruleAppliesSubmit(scanRule, ctx.submitKind)) continue;
+    if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, scanRule)) continue;
+    if (scanRule.action !== 'setVisibility') continue;
+    if (scanRule.targetKind !== 'field') continue;
+    const scanTags = scanRule.tags;
+    const scanPreferHide =
+      Array.isArray(scanTags) && scanTags.indexOf(FORM_VISIBILITY_PREFER_HIDE_TAG) !== -1;
+    if (!scanPreferHide || scanRule.visibility !== 'show') continue;
+    preferHideShowRuleTargets[scanRule.targetId] = true;
+  }
+
   const visibilityPreferHide: Record<string, { anyHide: boolean; anyShow: boolean }> = {};
   for (let r = 0; r < rules.length; r++) {
     const rule = rules[r];
@@ -1388,10 +1405,14 @@ export function buildFormDerivedState(
     }
   }
 
-  for (const vid of Object.keys(visibilityPreferHide)) {
-    const m = visibilityPreferHide[vid];
+  const preferHideMergedIds: Record<string, boolean> = {};
+  for (const k of Object.keys(visibilityPreferHide)) preferHideMergedIds[k] = true;
+  for (const k of Object.keys(preferHideShowRuleTargets)) preferHideMergedIds[k] = true;
+  for (const vid of Object.keys(preferHideMergedIds)) {
+    const m = visibilityPreferHide[vid] ?? { anyHide: false, anyShow: false };
     if (m.anyHide) fieldVisible[vid] = false;
     else if (m.anyShow) fieldVisible[vid] = true;
+    else if (preferHideShowRuleTargets[vid]) fieldVisible[vid] = false;
   }
 
   const dh = cfg.dynamicHelp ?? [];

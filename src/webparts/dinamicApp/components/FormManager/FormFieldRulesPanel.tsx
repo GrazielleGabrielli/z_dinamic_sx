@@ -1541,6 +1541,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const [ed, setEd] = useState<IFieldRuleEditorState>(() => emptyFieldRuleEditorState());
   const [textRulesOpen, setTextRulesOpen] = useState<Record<string, boolean>>({});
   const [lookupRulesOpen, setLookupRulesOpen] = useState<Record<string, boolean>>({});
+  const [conditionalGroupOpen, setConditionalGroupOpen] = useState<Record<string, boolean>>({});
   const groupsService = useMemo(() => new GroupsService(), []);
   const [siteGroups, setSiteGroups] = useState<IGroupDetails[]>([]);
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
@@ -1793,6 +1794,17 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   }, []);
   const isLookupRulesOpen = useCallback((id: string): boolean => lookupRulesOpen[id] === true, [lookupRulesOpen]);
 
+  const isConditionalGroupOpen = useCallback(
+    (id: string): boolean => conditionalGroupOpen[id] === true,
+    [conditionalGroupOpen]
+  );
+  const toggleConditionalGroup = useCallback((id: string): void => {
+    setConditionalGroupOpen((prev) => {
+      const cur = prev[id] === true;
+      return { ...prev, [id]: !cur };
+    });
+  }, []);
+
   const handleApply = (): void => {
     onApply(fc, ed);
     onDismiss();
@@ -1813,79 +1825,107 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
       <Stack tokens={{ childrenGap: 12 }}>
         {!isTextRulesLikeText && (
           <>
-            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-              {internalName} · {mt}
-              {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
-            </Text>
-            <Text variant="small">Aplicar regras geradas apenas nos modos:</Text>
-            <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-              {MODE_OPTS.map((m) => (
-                <Checkbox
-                  key={m.key}
-                  label={m.label}
-                  checked={modeRowChecked(m.key)}
-                  onChange={(_, c) => toggleModeRow(m.key, !!c)}
-                />
-              ))}
-            </Stack>
-        
-            {mt !== 'lookup' && mt !== 'lookupmulti' && mt !== 'datetime' ? (
-              <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
-                <DefaultButton
-                  text="Modelo: data não no passado"
-                  onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesDateNotPast()))}
-                />
-                <DefaultButton
-                  text="Modelo: validar e-mail"
-                  onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesEmail()))}
-                />
+            <FormManagerCollapseSection
+              title="Exibição"
+              isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.display)}
+              onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.display)}
+            >
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                {internalName} · {mt}
+                {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
+              </Text>
+              <Text variant="small">Aplicar regras geradas apenas nos modos:</Text>
+              <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                {MODE_OPTS.map((m) => (
+                  <Checkbox
+                    key={m.key}
+                    label={m.label}
+                    checked={modeRowChecked(m.key)}
+                    onChange={(_, c) => toggleModeRow(m.key, !!c)}
+                  />
+                ))}
               </Stack>
-            ) : null}
-            {mt === 'url' && (
-              <TextField
-                label="Placeholder"
-                value={fc.placeholder ?? ''}
-                onChange={(_, v) => setFc((p) => ({ ...p, placeholder: v || undefined }))}
-              />
-            )}
-            <TextField
-              label="Texto de ajuda (campo)"
-              multiline
-              rows={2}
-              value={fc.helpText ?? ''}
-              onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
-            />
-            {(mt !== 'lookup' && mt !== 'lookupmulti') ? (
-              <>
-                <FieldRulesDefaultValueTextField
-                  label="Valor padrão (token ou texto; aplica se vazio)"
-                  description={
-                    mt === 'datetime'
-                      ? 'Ex.: {{OutraData}} + 7, [today] + 14, {{CampoNum}}+14. @ lista tokens, campos data/número e sufixos.'
-                      : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
-                  }
-                  value={ed.defaultValue}
-                  onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
-                  dateFieldMentionOptions={defaultValueDateFieldMentions}
-                  lookupFieldMentionOptions={defaultValueLookupFieldMentions}
-                  numericFieldMentionOptions={defaultValueNumericFieldMentions}
+
+              {mt !== 'lookup' && mt !== 'lookupmulti' && mt !== 'datetime' ? (
+                <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
+                  <DefaultButton
+                    text="Modelo: data não no passado"
+                    onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesDateNotPast()))}
+                  />
+                  <DefaultButton
+                    text="Modelo: validar e-mail"
+                    onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesEmail()))}
+                  />
+                </Stack>
+              ) : null}
+              {mt === 'url' && (
+                <TextField
+                  label="Placeholder"
+                  value={fc.placeholder ?? ''}
+                  onChange={(_, v) => setFc((p) => ({ ...p, placeholder: v || undefined }))}
                 />
-                {mt === 'datetime' &&
-                  internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
-                  !isFormBannerFieldConfig(fieldConfig) && (
-                    <SetComputedRulesBlock
-                      ed={ed}
-                      setEd={setEd}
-                      fieldOptions={fieldOptions}
-                      attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
-                      lookupPathMentionOptions={defaultValueLookupFieldMentions}
-                      numericFieldMentionOptions={defaultValueNumericFieldMentions}
-                      bordered={false}
-                      sectionHeading="Expressão"
-                    />
-                  )}
-              </>
-            ) : null}
+              )}
+              <TextField
+                label="Texto de ajuda (campo)"
+                multiline
+                rows={2}
+                value={fc.helpText ?? ''}
+                onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
+              />
+              {(mt !== 'lookup' && mt !== 'lookupmulti') ? (
+                <>
+                  <FieldRulesDefaultValueTextField
+                    label="Valor padrão (token ou texto; aplica se vazio)"
+                    description={
+                      mt === 'datetime'
+                        ? 'Ex.: {{OutraData}} + 7, [today] + 14, {{CampoNum}}+14. @ lista tokens, campos data/número e sufixos.'
+                        : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
+                    }
+                    value={ed.defaultValue}
+                    onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
+                    dateFieldMentionOptions={defaultValueDateFieldMentions}
+                    lookupFieldMentionOptions={defaultValueLookupFieldMentions}
+                    numericFieldMentionOptions={defaultValueNumericFieldMentions}
+                  />
+                  {mt === 'datetime' &&
+                    internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
+                    !isFormBannerFieldConfig(fieldConfig) && (
+                      <SetComputedRulesBlock
+                        ed={ed}
+                        setEd={setEd}
+                        fieldOptions={fieldOptions}
+                        attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                        lookupPathMentionOptions={defaultValueLookupFieldMentions}
+                        numericFieldMentionOptions={defaultValueNumericFieldMentions}
+                        bordered={false}
+                        sectionHeading="Expressão"
+                      />
+                    )}
+                </>
+              ) : null}
+              <Checkbox
+                label="Somente leitura"
+                checked={fc.readOnly === true}
+                onChange={(_, c) =>
+                  setFc((p) => ({
+                    ...p,
+                    ...(c ? { readOnly: true } : { readOnly: undefined }),
+                  }))
+                }
+              />
+              <Checkbox
+                label="Ocultar no formulário"
+                checked={fc.visible === false}
+                onChange={(_, c) =>
+                  setFc((p) => {
+                    const next: IFormFieldConfig = { ...p };
+                    if (c) next.visible = false;
+                    else delete next.visible;
+                    return next;
+                  })
+                }
+              />
+            </FormManagerCollapseSection>
             <FormManagerCollapseSection
               title="Desativar / ativar o campo"
               isOpen={isTextRulesOpen(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
@@ -2198,24 +2238,14 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   Não há outros campos no formulário para referenciar nas condições.
                 </Text>
               ) : null}
+              <Stack tokens={{ childrenGap: 10 }}>
               {(fc.textConditionalVisibility?.groups ?? []).map((g, gi) => (
-                <Stack
+                <FormManagerCollapseSection
                   key={g.id}
-                  tokens={{ childrenGap: 10 }}
-                  styles={{
-                    root: {
-                      border: '1px solid #edebe9',
-                      borderRadius: 4,
-                      padding: 12,
-                      marginTop: 10,
-                      background: '#faf9f8',
-                    },
-                  }}
-                >
-                  <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
-                    <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                      Grupo {gi + 1}
-                    </Text>
+                  title={`Grupo ${gi + 1}`}
+                  isOpen={isConditionalGroupOpen(g.id)}
+                  onToggle={() => toggleConditionalGroup(g.id)}
+                  trailing={
                     <DefaultButton
                       text="Remover grupo"
                       onClick={() =>
@@ -2228,7 +2258,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                         })
                       }
                     />
-                  </Stack>
+                  }
+                >
                   <Text variant="small">Aplicar esta regra apenas nos modos:</Text>
                   <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
                     {MODE_OPTS.map((m) => (
@@ -2661,8 +2692,9 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                     }
                     styles={{ dropdown: { maxWidth: 280 } }}
                   />
-                </Stack>
+                </FormManagerCollapseSection>
               ))}
+              </Stack>
             </FormManagerCollapseSection>
           </Stack>
         )}
