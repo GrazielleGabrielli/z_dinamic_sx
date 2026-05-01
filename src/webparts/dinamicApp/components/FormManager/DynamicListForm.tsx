@@ -3562,6 +3562,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   );
 
   const [modalOpen, setModalOpen] = useState(false);
+  const modalAutoOpenedEditKeyRef = useRef<string | null>(null);
   const [attachmentDetailRow, setAttachmentDetailRow] = useState<IServerAttachmentRow | null>(null);
   const modalGroupIds = useMemo(() => {
     const seen: Record<string, boolean> = {};
@@ -3575,6 +3576,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
     return ids;
   }, [fieldConfigs]);
+
+  useEffect(() => {
+    if (formMode !== 'edit' || modalGroupIds.length === 0) return;
+    const key = `${String(itemId ?? '')}|${modalGroupIds.join('|')}`;
+    if (modalAutoOpenedEditKeyRef.current === key) return;
+    modalAutoOpenedEditKeyRef.current = key;
+    setModalOpen(true);
+  }, [formMode, modalGroupIds, itemId]);
 
   const renderServerAttachmentList = (rows: IServerAttachmentRow[]): React.ReactNode => {
     if (rows.length === 0) return null;
@@ -3996,6 +4005,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <Label required={isRequired}>{label}</Label>
             <DatePicker
               {...FLUENT_DATE_PICKER_PT_BR}
+              minDate={validateDateCalendarPropsByField[name]?.minDate}
+              maxDate={validateDateCalendarPropsByField[name]?.maxDate}
               calendarProps={validateDateCalendarPropsByField[name]}
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}

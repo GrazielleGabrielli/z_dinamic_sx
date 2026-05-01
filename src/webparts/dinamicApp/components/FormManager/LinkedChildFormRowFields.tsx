@@ -721,6 +721,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             {!cell && <Label required={isRequired}>{label}</Label>}
             <DatePicker
               {...FLUENT_DATE_PICKER_PT_BR}
+              minDate={validateDateCalendarPropsByField[name]?.minDate}
+              maxDate={validateDateCalendarPropsByField[name]?.maxDate}
               calendarProps={validateDateCalendarPropsByField[name]}
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => applyLinkedDateSelect(name, d ?? null)}
