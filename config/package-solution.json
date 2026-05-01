@@ -30,7 +30,13 @@
         "title": "dinamic-app Feature",
         "description": "The feature that activates elements of the dinamic-app solution.",
         "id": "b73da155-2500-4fdd-8b0a-92c81205d7cc",
-        "version": "2.0.0.0"
+        "version": "2.0.0.0",
+        "assets": {
+          "elementManifests": [
+            "elements.xml",
+            "ClientSideInstance.xml"
+          ]
+        }
       }
     ]
   },

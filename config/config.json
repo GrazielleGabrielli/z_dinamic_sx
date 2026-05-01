@@ -25,10 +25,19 @@
           "manifest": "./src/webparts/pbiTextoConsulta/PbiTextoConsultaWebPart.manifest.json"
         }
       ]
+    },
+    "saveappdinamic-application-customizer": {
+      "components": [
+        {
+          "entrypoint": "./lib/extensions/saveappdinamic/SaveappdinamicApplicationCustomizer.js",
+          "manifest": "./src/extensions/saveappdinamic/SaveappdinamicApplicationCustomizer.manifest.json"
+        }
+      ]
     }
   },
   "externals": {},
   "localizedResources": {
-    "DinamicAppWebPartStrings": "lib/webparts/dinamicApp/loc/{locale}.js"
+    "DinamicAppWebPartStrings": "lib/webparts/dinamicApp/loc/{locale}.js",
+    "SaveappdinamicApplicationCustomizerStrings": "lib/extensions/saveappdinamic/loc/{locale}.js"
   }
 }

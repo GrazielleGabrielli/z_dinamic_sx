@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Elements xmlns="http://schemas.microsoft.com/sharepoint/">
+    <ClientSideComponentInstance
+        Title="Saveappdinamic"
+        Location="ClientSideExtension.ApplicationCustomizer"
+        ComponentId="8a02d119-08a1-46ca-88c6-17c5db27d0ca"
+        Properties="{&quot;testMessage&quot;:&quot;Test message&quot;}">
+    </ClientSideComponentInstance>
+</Elements>
