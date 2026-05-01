@@ -14,6 +14,53 @@ export interface IValidateDateCalendarProps {
 }
 
 const CALENDAR_RESTRICTED_SCAN_CAP = 800;
+const OUTSIDE_BOUNDS_RESTRICT_DAYS = 500;
+
+function addDaysLocal(base: Date, deltaDays: number): Date {
+  const x = startOfDay(base);
+  x.setDate(x.getDate() + deltaDays);
+  return x;
+}
+
+function dateKeyLocal(d: Date): string {
+  const s = startOfDay(d);
+  return `${s.getFullYear()}-${s.getMonth()}-${s.getDate()}`;
+}
+
+function mergeUniqueRestrictedDates(a: readonly Date[], b: readonly Date[]): Date[] {
+  const seen = new Set<string>();
+  const out: Date[] = [];
+  const push = (d: Date): void => {
+    const sd = startOfDay(d);
+    const k = dateKeyLocal(sd);
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(sd);
+  };
+  for (let i = 0; i < a.length; i++) push(a[i]);
+  for (let i = 0; i < b.length; i++) push(b[i]);
+  return out;
+}
+
+function restrictedDatesBeforeMin(minDate: Date, count: number): Date[] {
+  const out: Date[] = [];
+  let d = addDaysLocal(minDate, -1);
+  for (let i = 0; i < count; i++) {
+    out.push(d);
+    d = addDaysLocal(d, -1);
+  }
+  return out;
+}
+
+function restrictedDatesAfterMax(maxDate: Date, count: number): Date[] {
+  const out: Date[] = [];
+  let d = addDaysLocal(maxDate, 1);
+  for (let i = 0; i < count; i++) {
+    out.push(d);
+    d = addDaysLocal(d, 1);
+  }
+  return out;
+}
 
 function enumerateDaysCapped(start: Date, end: Date, maxDays: number): Date[] {
   const out: Date[] = [];
@@ -84,9 +131,21 @@ export function buildValidateDateCalendarProps(
     if (msg) restrictedDates.push(startOfDay(day));
   }
 
+  const outsideRange: Date[] = [];
+  if (bounds.minDate) {
+    outsideRange.push(...restrictedDatesBeforeMin(bounds.minDate, OUTSIDE_BOUNDS_RESTRICT_DAYS));
+  }
+  if (bounds.maxDate) {
+    outsideRange.push(...restrictedDatesAfterMax(bounds.maxDate, OUTSIDE_BOUNDS_RESTRICT_DAYS));
+  }
+
   const out: IValidateDateCalendarProps = {};
   if (bounds.minDate) out.minDate = bounds.minDate;
   if (bounds.maxDate) out.maxDate = bounds.maxDate;
-  if (restrictedDates.length > 0) out.restrictedDates = restrictedDates;
+  const mergedRestricted =
+    restrictedDates.length > 0 || outsideRange.length > 0
+      ? mergeUniqueRestrictedDates(restrictedDates, outsideRange)
+      : [];
+  if (mergedRestricted.length > 0) out.restrictedDates = mergedRestricted;
   return out;
 }
