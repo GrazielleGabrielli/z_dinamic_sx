@@ -346,6 +346,7 @@ export interface IFieldRuleEditorState {
     minDaysFromToday: string;
     maxDaysFromToday: string;
     blockWeekends: boolean;
+    blockedWeekdays: number[];
     gteField: string;
     lteField: string;
     message: string;
@@ -397,6 +398,7 @@ export function emptyFieldRuleEditorState(): IFieldRuleEditorState {
       minDaysFromToday: '',
       maxDaysFromToday: '',
       blockWeekends: false,
+      blockedWeekdays: [],
       gteField: '',
       lteField: '',
       message: '',
@@ -434,6 +436,14 @@ export function fieldRuleStateFromRules(
       if (r.minDaysFromToday !== undefined) st.validateDate.minDaysFromToday = String(r.minDaysFromToday);
       if (r.maxDaysFromToday !== undefined) st.validateDate.maxDaysFromToday = String(r.maxDaysFromToday);
       if (r.blockWeekends) st.validateDate.blockWeekends = true;
+      if (r.blockedWeekdays?.length) {
+        const set = new Set(st.validateDate.blockedWeekdays);
+        for (let bi = 0; bi < r.blockedWeekdays.length; bi++) {
+          const x = r.blockedWeekdays[bi];
+          if (typeof x === 'number' && x >= 0 && x <= 6 && x === Math.floor(x)) set.add(x);
+        }
+        st.validateDate.blockedWeekdays = Array.from(set).sort((a, b) => a - b);
+      }
       if (r.gteField) st.validateDate.gteField = r.gteField;
       if (r.lteField) st.validateDate.lteField = r.lteField;
       if (r.message) st.validateDate.message = r.message;
@@ -594,9 +604,14 @@ export function buildFieldUiRules(
     vd.minDaysFromToday ||
     vd.maxDaysFromToday ||
     vd.blockWeekends ||
+    (vd.blockedWeekdays?.length ?? 0) > 0 ||
     vd.gteField.trim() ||
     vd.lteField.trim();
   if (hasDate) {
+    const bw =
+      vd.blockedWeekdays?.length && vd.blockedWeekdays.every((x) => x >= 0 && x <= 6)
+        ? [...vd.blockedWeekdays].sort((a, b) => a - b)
+        : [];
     out.push({
       id: id('date'),
       action: 'validateDate',
@@ -604,6 +619,7 @@ export function buildFieldUiRules(
       ...(numOrUndef(vd.minDaysFromToday) !== undefined ? { minDaysFromToday: numOrUndef(vd.minDaysFromToday) } : {}),
       ...(numOrUndef(vd.maxDaysFromToday) !== undefined ? { maxDaysFromToday: numOrUndef(vd.maxDaysFromToday) } : {}),
       ...(vd.blockWeekends ? { blockWeekends: true } : {}),
+      ...(bw.length ? { blockedWeekdays: bw } : {}),
       ...(vd.gteField.trim() ? { gteField: vd.gteField.trim() } : {}),
       ...(vd.lteField.trim() ? { lteField: vd.lteField.trim() } : {}),
       ...(vd.message.trim() ? { message: vd.message.trim() } : {}),
@@ -758,6 +774,7 @@ export function templateFieldRulesDateNotPast(): Partial<IFieldRuleEditorState> 
       minDaysFromToday: '0',
       maxDaysFromToday: '',
       blockWeekends: false,
+      blockedWeekdays: [],
       gteField: '',
       lteField: '',
       message: 'Não é permitida data no passado.',

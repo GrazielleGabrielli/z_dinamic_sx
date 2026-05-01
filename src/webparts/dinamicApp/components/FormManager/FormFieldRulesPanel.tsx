@@ -77,6 +77,16 @@ const DATE_RULES_COLLAPSE_IDS = {
   errorMessage: 'dateRulesErrorMessage',
 } as const;
 
+const DATE_BLOCKED_WEEKDAY_OPTS: { wd: number; label: string }[] = [
+  { wd: 1, label: 'Segunda-feira' },
+  { wd: 2, label: 'Terça-feira' },
+  { wd: 3, label: 'Quarta-feira' },
+  { wd: 4, label: 'Quinta-feira' },
+  { wd: 5, label: 'Sexta-feira' },
+  { wd: 6, label: 'Sábado' },
+  { wd: 0, label: 'Domingo' },
+];
+
 const TEXT_MASK_CHOICE_OPTIONS: IChoiceGroupOption[] = [
   { key: 'none', text: 'Nenhuma' },
   { key: 'cpf', text: 'CPF' },
@@ -2311,6 +2321,27 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   setEd((p) => ({ ...p, validateDate: { ...p.validateDate, blockWeekends: !!c } }))
                 }
               />
+              <Text variant="small" styles={{ root: { color: '#605e5c', marginTop: 4 } }}>
+                Marque os dias em que a data não pode cair (a mensagem abaixo é exibida e o valor é limpo).
+              </Text>
+              <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
+                {DATE_BLOCKED_WEEKDAY_OPTS.map(({ wd, label }) => (
+                  <Checkbox
+                    key={wd}
+                    label={label}
+                    checked={(ed.validateDate.blockedWeekdays ?? []).indexOf(wd) !== -1}
+                    onChange={(_, c) =>
+                      setEd((p) => {
+                        const cur = p.validateDate.blockedWeekdays ?? [];
+                        const next = c
+                          ? [...cur, wd].filter((x, i, a) => a.indexOf(x) === i).sort((a, b) => a - b)
+                          : cur.filter((x) => x !== wd);
+                        return { ...p, validateDate: { ...p.validateDate, blockedWeekdays: next } };
+                      })
+                    }
+                  />
+                ))}
+              </Stack>
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
               title="Comparação com outros campos"

@@ -68,6 +68,7 @@ import { isDynamicToken } from '../../core/dynamicTokens';
 import {
   buildFormDerivedState,
   collectFormValidationErrors,
+  evaluateValidateDateRulesForField,
   filterValidationErrorsToStepFields,
   pickRequiredStyleStepErrors,
   evaluateCondition,
@@ -1867,6 +1868,42 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const updateField = (name: string, v: unknown): void => {
     setValues((prev) => ({ ...prev, [name]: v }));
   };
+
+  const applyDateFieldSelect = useCallback(
+    (name: string, d: Date | null | undefined) => {
+      if (d === null || d === undefined) {
+        updateField(name, null);
+        setLocalErrors((prev) => {
+          if (!prev[name]) return prev;
+          const { [name]: _, ...rest } = prev;
+          return rest;
+        });
+        return;
+      }
+      const iso = d.toISOString();
+      const nextValues = { ...values, [name]: iso };
+      const msg = evaluateValidateDateRulesForField(formManager.rules ?? [], name, nextValues, {
+        formMode,
+        submitKind: undefined,
+        userGroupTitles,
+        dynamicContext,
+        fieldVisible: (fn) => derived.fieldVisible[fn] !== false,
+        now: new Date(),
+      });
+      if (msg) {
+        updateField(name, null);
+        setLocalErrors((prev) => ({ ...prev, [name]: msg }));
+        return;
+      }
+      updateField(name, iso);
+      setLocalErrors((prev) => {
+        if (!prev[name]) return prev;
+        const { [name]: _, ...rest } = prev;
+        return rest;
+      });
+    },
+    [values, formManager.rules, formMode, userGroupTitles, dynamicContext, derived]
+  );
 
   const reloadLinkedRowsForParent = useCallback(
     async (parentId: number): Promise<Record<string, ILinkedChildRowState[]>> => {
@@ -3781,7 +3818,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <Label required={isRequired}>{label}</Label>
             <DatePicker
               value={values[name] ? new Date(String(values[name])) : undefined}
-              onSelectDate={(d) => updateField(name, d ? d.toISOString() : null)}
+              onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{
                 errorMessage: err,

@@ -108,6 +108,8 @@ export interface IFormRuleValidateDate extends IFormRuleBase {
   minDaysFromToday?: number;
   maxDaysFromToday?: number;
   blockWeekends?: boolean;
+  /** 0=domingo … 6=sábado (Date.getDay). Datas nesse dia são inválidas. */
+  blockedWeekdays?: number[];
   blockedIsoDates?: string[];
   gteField?: string;
   lteField?: string;

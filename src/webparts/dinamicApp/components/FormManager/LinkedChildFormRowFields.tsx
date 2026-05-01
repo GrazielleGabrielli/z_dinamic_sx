@@ -22,6 +22,7 @@ import {
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
+  evaluateValidateDateRulesForField,
   findEnabledSetComputedRule,
   withRuleRuntimeDynamicContext,
   type IFormRuleRuntimeContext,
@@ -183,6 +184,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
   const usersService = useMemo(() => new UsersService(), []);
   const [lookupOptions, setLookupOptions] = useState<Record<string, IDropdownOption[]>>({});
   const [siteUserOptions, setSiteUserOptions] = useState<IDropdownOption[]>([{ key: '', text: '—' }]);
+  const [datePickBlockErr, setDatePickBlockErr] = useState<Record<string, string>>({});
 
   const shell = useMemo(() => linkedChildFormAsManagerConfig(childForm), [childForm]);
   const fieldConfigs = childForm.fields;
@@ -242,6 +244,42 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       onChange({ ...values, [name]: v });
     },
     [onChange, values]
+  );
+
+  const applyLinkedDateSelect = useCallback(
+    (name: string, d: Date | null | undefined) => {
+      if (d === null || d === undefined) {
+        updateField(name, null);
+        setDatePickBlockErr((prev) => {
+          if (!prev[name]) return prev;
+          const { [name]: _, ...rest } = prev;
+          return rest;
+        });
+        return;
+      }
+      const iso = d.toISOString();
+      const nextValues = { ...values, [name]: iso };
+      const msg = evaluateValidateDateRulesForField(shell.rules ?? [], name, nextValues, {
+        formMode,
+        submitKind: 'submit',
+        userGroupTitles,
+        dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
+        fieldVisible: (fn) => derived.fieldVisible[fn] !== false,
+        now: new Date(),
+      });
+      if (msg) {
+        updateField(name, null);
+        setDatePickBlockErr((prev) => ({ ...prev, [name]: msg }));
+        return;
+      }
+      updateField(name, iso);
+      setDatePickBlockErr((prev) => {
+        if (!prev[name]) return prev;
+        const { [name]: _, ...rest } = prev;
+        return rest;
+      });
+    },
+    [updateField, values, shell.rules, formMode, userGroupTitles, dynamicContext, currentUserId, derived]
   );
 
   useEffect(() => {
@@ -455,7 +493,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const cell = mode === 'cell';
     const disabled = formMode === 'view' || derived.fieldDisabled[name] === true;
     const readOnly = derived.fieldReadOnly[name] === true || disabled;
-    const err = localErrors[name];
+    const err = localErrors[name] || datePickBlockErr[name];
     const label = fc.label ?? m.Title;
     const help = derived.dynamicHelpByField[name] ?? fc.helpText;
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
@@ -536,7 +574,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             {!cell && <Label required={isRequired}>{label}</Label>}
             <DatePicker
               value={values[name] ? new Date(String(values[name])) : undefined}
-              onSelectDate={(d) => updateField(name, d ? d.toISOString() : null)}
+              onSelectDate={(d) => applyLinkedDateSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{
                 ...(cell ? { ariaLabel: label } : {}),

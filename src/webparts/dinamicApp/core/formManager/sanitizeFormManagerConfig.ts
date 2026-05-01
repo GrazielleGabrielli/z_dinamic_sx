@@ -294,6 +294,24 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
         ...(typeof r.minDaysFromToday === 'number' ? { minDaysFromToday: r.minDaysFromToday } : {}),
         ...(typeof r.maxDaysFromToday === 'number' ? { maxDaysFromToday: r.maxDaysFromToday } : {}),
         ...(r.blockWeekends === true ? { blockWeekends: true } : {}),
+        ...(Array.isArray(r.blockedWeekdays) && (r.blockedWeekdays as unknown[]).length
+          ? {
+              blockedWeekdays: ((): number[] => {
+                const raw = (r.blockedWeekdays as unknown[])
+                  .map((x) => (typeof x === 'number' ? x : Number(x)))
+                  .filter((n) => typeof n === 'number' && !isNaN(n) && n >= 0 && n <= 6 && n === Math.floor(n));
+                const seen: boolean[] = [];
+                const uniq: number[] = [];
+                for (let wi = 0; wi < raw.length; wi++) {
+                  const n = raw[wi];
+                  if (seen[n]) continue;
+                  seen[n] = true;
+                  uniq.push(n);
+                }
+                return uniq.sort((a, b) => a - b);
+              })(),
+            }
+          : {}),
         ...(Array.isArray(r.blockedIsoDates) ? { blockedIsoDates: (r.blockedIsoDates as unknown[]).map((x) => String(x)) } : {}),
         ...(typeof r.gteField === 'string' ? { gteField: r.gteField.trim() } : {}),
         ...(typeof r.lteField === 'string' ? { lteField: r.lteField.trim() } : {}),

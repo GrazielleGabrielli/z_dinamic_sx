@@ -825,6 +825,12 @@ function validateDateRule(
     const wd = day.getDay();
     if (wd === 0 || wd === 6) return rule.message ?? 'Fim de semana não permitido.';
   }
+  if (rule.blockedWeekdays?.length) {
+    const wd = day.getDay();
+    if (rule.blockedWeekdays.indexOf(wd) !== -1) {
+      return rule.message ?? 'Este dia da semana não é permitido.';
+    }
+  }
   if (rule.blockedIsoDates?.length) {
     const key = day.toISOString().slice(0, 10);
     for (let i = 0; i < rule.blockedIsoDates.length; i++) {
@@ -870,6 +876,41 @@ function validateDateRule(
     const o = values[rule.ltField];
     const od = parseIsoDate(typeof o === 'string' ? o : String(o ?? ''));
     if (od && day >= startOfDay(od)) return rule.message ?? 'Data deve ser anterior à referência.';
+  }
+  return undefined;
+}
+
+export function evaluateValidateDateRulesForField(
+  rules: readonly TFormRule[],
+  field: string,
+  values: Record<string, unknown>,
+  params: {
+    formMode: TFormManagerFormMode;
+    submitKind: TFormSubmitKind | undefined;
+    userGroupTitles: string[];
+    dynamicContext: IDynamicContext;
+    fieldVisible: (name: string) => boolean;
+    now?: Date;
+  }
+): string | undefined {
+  const { formMode, submitKind, userGroupTitles, dynamicContext, fieldVisible, now } = params;
+  if (formMode === 'view') return undefined;
+  const isDraft = submitKind === 'draft';
+  const ts = now ?? new Date();
+  for (let r = 0; r < rules.length; r++) {
+    const rule = rules[r];
+    if (rule.action !== 'validateDate') continue;
+    if (rule.field !== field) continue;
+    if (rule.enabled === false) continue;
+    if (!ruleAppliesMode(rule, formMode)) continue;
+    if (!ruleAppliesSubmit(rule, submitKind)) continue;
+    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext);
+    if (!whenOk) continue;
+    if (!fieldVisible(field)) continue;
+    if (isDraft) continue;
+    const msg = validateDateRule(field, rule, values, ts);
+    if (msg) return msg;
   }
   return undefined;
 }
