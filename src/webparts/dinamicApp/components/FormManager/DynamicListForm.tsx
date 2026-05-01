@@ -881,8 +881,11 @@ function ConfirmPromptFieldEditor(props: {
   onChange: (next: IConfirmPromptEditorState) => void;
   /** Campos alinhados ao modal centrado (largura total, entre texto e botões). */
   modalSurface?: boolean;
+  /** Alinhado a regras do formulário (setDisabled / readOnly): não editar no modal. */
+  disabled?: boolean;
 }): React.ReactElement {
-  const { meta, editor, onChange, modalSurface } = props;
+  const { meta, editor, onChange, modalSurface, disabled } = props;
+  const dis = disabled === true;
   const theme = useTheme();
   const tfStyles = {
     root: {
@@ -953,6 +956,7 @@ function ConfirmPromptFieldEditor(props: {
             checked={editor.bool}
             onText="Sim"
             offText="Não"
+            disabled={dis}
             onChange={(_, c) => onChange({ ...editor, bool: !!c })}
           />
         </Stack>
@@ -964,6 +968,7 @@ function ConfirmPromptFieldEditor(props: {
           label={meta.Title}
           type="number"
           value={editor.text}
+          disabled={dis}
           onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
           styles={tfStyles}
         />
@@ -974,9 +979,11 @@ function ConfirmPromptFieldEditor(props: {
           <Label styles={{ root: tfStyles.label.root }}>{meta.Title}</Label>
           <DatePicker
             {...FLUENT_DATE_PICKER_PT_BR}
+            disabled={dis}
             value={editor.dateIso ? new Date(editor.dateIso) : undefined}
             onSelectDate={(d) => onChange({ ...editor, dateIso: d ? d.toISOString() : null })}
             textField={{
+              disabled: dis,
               styles: {
                 fieldGroup: tfStyles.fieldGroup,
                 field: tfStyles.field,
@@ -994,6 +1001,7 @@ function ConfirmPromptFieldEditor(props: {
           label={meta.Title}
           options={opts}
           selectedKey={editor.choiceKey ? editor.choiceKey : undefined}
+          disabled={dis}
           onChange={(_, o) => onChange({ ...editor, choiceKey: o ? String(o.key) : '' })}
           styles={{
             ...ddStyles,
@@ -1011,6 +1019,7 @@ function ConfirmPromptFieldEditor(props: {
           resizable={false}
           rows={4}
           value={editor.text}
+          disabled={dis}
           onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
           styles={{
             ...tfStyles,
@@ -1023,6 +1032,7 @@ function ConfirmPromptFieldEditor(props: {
         <TextField
           label={meta.Title}
           value={editor.text}
+          disabled={dis}
           onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
           styles={tfStyles}
         />
@@ -2416,6 +2426,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     message: string;
     title: string;
     promptFieldInternalName?: string;
+    /** Campo do prompt só leitura no modal (regras setDisabled / readOnly no formulário). */
+    promptFieldLocked?: boolean;
   } | null>(null);
   const [confirmPromptEditor, setConfirmPromptEditor] = useState<IConfirmPromptEditorState | null>(null);
   const [runTimelineDialog, setRunTimelineDialog] = useState<IRunTimelineDialogState | null>(null);
@@ -2438,6 +2450,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (name && editorSnapshot) {
         const meta = metaByName.get(name);
         if (meta && isConfirmPromptEligibleField(meta)) {
+          if (viewSnapshot.promptFieldLocked === true) {
+            r({ proceed: true });
+            return;
+          }
           if (!confirmPromptEditorIsFilled(meta, editorSnapshot)) {
             r({ proceed: false });
             return;
@@ -2464,6 +2480,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     !!(
       confirmPromptMetaForDialog &&
       confirmPromptEditor &&
+      confirmDialogView?.promptFieldLocked !== true &&
       !confirmPromptEditorIsFilled(confirmPromptMetaForDialog, confirmPromptEditor)
     );
 
@@ -2477,6 +2494,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
       const metaP = promptField ? metaByName.get(promptField) : undefined;
       const promptOk = !!(promptField && metaP && isConfirmPromptEligibleField(metaP));
+      const promptLocked =
+        formMode !== 'view' &&
+        !!promptField &&
+        (derived.fieldDisabled[promptField] === true || derived.fieldReadOnly[promptField] === true);
       return new Promise((resolve) => {
         confirmRunResolveRef.current = resolve;
         setConfirmDialogView({
@@ -2484,6 +2505,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           message: msg,
           title: (btn.label || btn.id).trim() || 'Confirmar',
           ...(promptOk && promptField ? { promptFieldInternalName: promptField } : {}),
+          ...(promptOk && promptField && promptLocked ? { promptFieldLocked: true } : {}),
         });
         if (promptOk && metaP) {
           setConfirmPromptEditor(initConfirmPromptEditor(metaP, values[promptField]));
@@ -2493,7 +2515,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setConfirmDialogOpen(true);
       });
     },
-    [metaByName, values]
+    [metaByName, values, derived, formMode]
   );
 
   const runFinishAfterSuccess = useCallback(
@@ -4942,6 +4964,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                         meta={confirmPromptMetaForDialog}
                         editor={confirmPromptEditor}
                         onChange={setConfirmPromptEditor}
+                        disabled={confirmDialogView.promptFieldLocked === true}
                       />
                       {confirmPrimaryDisabled ? (
                         <Text
