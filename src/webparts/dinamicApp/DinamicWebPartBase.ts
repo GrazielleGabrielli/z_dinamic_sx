@@ -15,6 +15,7 @@ import { getSP, getGraph } from './pnpConfig';
 import {
   registerNativeEditSaveToolbarBridge,
   runNativePagePersistAfterPropertyWrite,
+  tryClickSharePointPageSaveOrPublishButton,
 } from './core/sharePoint/sharePointPageToolbarDom';
 import { TPersistStatus } from './core/persist/types';
 
@@ -62,6 +63,9 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
       instanceScopeId: this.instanceId,
       onSaveConfig: (config: IDynamicViewConfig) => this.saveConfig(config),
       persistStatus: this._persistStatus,
+      onRequestNativePageSave: () => {
+        tryClickSharePointPageSaveOrPublishButton(this.domElement);
+      },
       ...(forcedMode !== undefined ? { forcedMode } : {}),
     });
 

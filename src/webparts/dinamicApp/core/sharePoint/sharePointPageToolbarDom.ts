@@ -163,8 +163,8 @@ export function runNativePagePersistAfterPropertyWrite(
   }
 }
 
-const OPEN_SLIDER_EVENT = 'dinamic-sx-open-slider';
-const CLOSE_SLIDER_EVENT = 'dinamic-sx-close-slider';
+export const DINAMIC_SX_OPEN_SLIDER_EVENT = 'dinamic-sx-open-slider';
+export const DINAMIC_SX_CLOSE_SLIDER_EVENT = 'dinamic-sx-close-slider';
 
 const SWITCH_INPUT_CLICK_DELAY_MS = 1500;
 
@@ -172,6 +172,8 @@ function scheduleClickSwitchInputsByIdPrefix(): void {
   window.setTimeout(() => {
     document.querySelectorAll('input[id^="switch-"]').forEach((input) => {
       if (input instanceof HTMLElement) {
+        const id = input.id || '(sem id)';
+        console.log('[DinamicSX] click switch:', id);
         input.click();
       }
     });
@@ -197,11 +199,11 @@ function onNativeToolbarBridgeClick(event: MouseEvent): void {
   const text = clickable.textContent?.trim();
   if (text === 'Editar') {
     console.log('Botão nativo Editar clicado');
-    window.dispatchEvent(new CustomEvent(OPEN_SLIDER_EVENT));
+    window.dispatchEvent(new CustomEvent(DINAMIC_SX_OPEN_SLIDER_EVENT));
     scheduleClickSwitchInputsByIdPrefix();
   } else if (text === 'Salvar') {
     console.log('Botão nativo Salvar clicado');
-    window.dispatchEvent(new CustomEvent(CLOSE_SLIDER_EVENT));
+    window.dispatchEvent(new CustomEvent(DINAMIC_SX_CLOSE_SLIDER_EVENT));
   }
 }
 

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Text, Stack, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { coerceDashboardShape, parseConfig } from '../core/config/validators';
@@ -48,6 +48,10 @@ import { FormManagerView } from './FormManager/FormManagerView';
 import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
 import { PersistStatusBar } from './PersistStatusBar';
 import { UsersService } from '../../../services/users/UsersService';
+import {
+  DINAMIC_SX_CLOSE_SLIDER_EVENT,
+  DINAMIC_SX_OPEN_SLIDER_EVENT,
+} from '../core/sharePoint/sharePointPageToolbarDom';
 
 function normalizeGroupTitle(v: string): string {
   return v.trim().toLowerCase();
@@ -60,6 +64,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   onSaveConfig,
   persistStatus,
   forcedMode,
+  onRequestNativePageSave,
 }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
@@ -67,6 +72,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
   const [isEditingPageLayout, setIsEditingPageLayout] = useState(false);
   const [isEditingFormManager, setIsEditingFormManager] = useState(false);
+  const [formManagerPanelMountKey, setFormManagerPanelMountKey] = useState(0);
   const [listPageContentBlockId, setListPageContentBlockId] = useState<string | null>(null);
   const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
   const [editingTableBlockId, setEditingTableBlockId] = useState<string | null>(null);
@@ -84,6 +90,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     if (rawConfig === undefined) return undefined;
     return { ...rawConfig, mode: forcedMode };
   }, [rawConfig, forcedMode]);
+
+  const configModeRef = useRef(config?.mode);
+  useEffect(() => {
+    configModeRef.current = config?.mode;
+  }, [config?.mode]);
 
   const effectiveListPageSections = useMemo(
     () => (config ? getEffectiveListPageSections(config) : []),
@@ -197,6 +208,26 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       });
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onNativeOpenSlider = (): void => {
+      if (configModeRef.current !== 'formManager') return;
+      setIsEditMode(true);
+      setFormManagerPanelMountKey((k) => k + 1);
+      setIsEditingFormManager(true);
+    };
+    const onNativeCloseSlider = (): void => {
+      if (configModeRef.current !== 'formManager') return;
+      setIsEditingFormManager(false);
+      setIsEditMode(false);
+    };
+    window.addEventListener(DINAMIC_SX_OPEN_SLIDER_EVENT, onNativeOpenSlider);
+    window.addEventListener(DINAMIC_SX_CLOSE_SLIDER_EVENT, onNativeCloseSlider);
+    return (): void => {
+      window.removeEventListener(DINAMIC_SX_OPEN_SLIDER_EVENT, onNativeOpenSlider);
+      window.removeEventListener(DINAMIC_SX_CLOSE_SLIDER_EVENT, onNativeCloseSlider);
     };
   }, []);
 
@@ -376,6 +407,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     if (!config) return;
     saveConfig({ ...config, formManager });
     setIsEditingFormManager(false);
+    window.setTimeout(() => {
+      onRequestNativePageSave?.();
+    }, 0);
   };
 
   const handleApplyListContentBlock = (next: IListPageBlock): void => {
@@ -439,19 +473,21 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
               Editar configuração
             </ActionButton>
           )}
-          <ActionButton
-            iconProps={{ iconName: isEditMode ? 'EditSolidMirrored12' : 'Edit' }}
-            onClick={() => setIsEditMode((prev) => !prev)}
-            styles={{
-              root: {
-                color: isEditMode ? '#0078d4' : '#605e5c',
-                fontWeight: isEditMode ? 600 : 400,
-                fontSize: 12,
-              },
-            }}
-          >
-            {isEditMode ? 'Sair de Edição' : 'Editar'}
-          </ActionButton>
+          {config.mode !== 'formManager' && (
+            <ActionButton
+              iconProps={{ iconName: isEditMode ? 'EditSolidMirrored12' : 'Edit' }}
+              onClick={() => setIsEditMode((prev) => !prev)}
+              styles={{
+                root: {
+                  color: isEditMode ? '#0078d4' : '#605e5c',
+                  fontWeight: isEditMode ? 600 : 400,
+                  fontSize: 12,
+                },
+              }}
+            >
+              {isEditMode ? 'Sair de Edição' : 'Editar'}
+            </ActionButton>
+          )}
         </div>
       )}
 
@@ -476,15 +512,6 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
                 styles={{ root: { height: 28, color: '#0078d4' } }}
               >
                 Layout da página
-              </ActionButton>
-            )}
-            {config.mode === 'formManager' && canShowListConfigButtons && (
-              <ActionButton
-                iconProps={{ iconName: 'FormLibrary' }}
-                onClick={() => setIsEditingFormManager(true)}
-                styles={{ root: { height: 28, color: '#0078d4' } }}
-              >
-                Configurar formulário
               </ActionButton>
             )}
           </Stack>
@@ -623,6 +650,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
       {config.mode === 'formManager' && (
         <FormManagerConfigPanel
+          key={formManagerPanelMountKey}
           isOpen={isEditingFormManager}
           listTitle={config.dataSource.title}
           listWebServerRelativeUrl={config.dataSource.webServerRelativeUrl?.trim() || undefined}

@@ -8,4 +8,5 @@ export interface IDinamicAppProps {
   onSaveConfig: (config: IDynamicViewConfig) => void;
   persistStatus: TPersistStatus;
   forcedMode?: TViewMode;
+  onRequestNativePageSave?: () => void;
 }
