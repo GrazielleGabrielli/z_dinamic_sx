@@ -162,3 +162,60 @@ export function runNativePagePersistAfterPropertyWrite(
     tryClickSharePointPageSaveOrPublishButton(excludeInside);
   }
 }
+
+const OPEN_SLIDER_EVENT = 'dinamic-sx-open-slider';
+const CLOSE_SLIDER_EVENT = 'dinamic-sx-close-slider';
+
+const SWITCH_INPUT_CLICK_DELAY_MS = 1500;
+
+function scheduleClickSwitchInputsByIdPrefix(): void {
+  window.setTimeout(() => {
+    document.querySelectorAll('input[id^="switch-"]').forEach((input) => {
+      if (input instanceof HTMLElement) {
+        input.click();
+      }
+    });
+  }, SWITCH_INPUT_CLICK_DELAY_MS);
+}
+
+const nativeEditSaveBridgeHosts = new Set<HTMLElement>();
+let nativeEditSaveBridgeHandler: ((event: MouseEvent) => void) | undefined;
+
+function onNativeToolbarBridgeClick(event: MouseEvent): void {
+  const raw = event.target;
+  const el = raw instanceof Element ? raw : raw instanceof Node ? raw.parentElement : null;
+  if (!el) return;
+  let insideHost = false;
+  nativeEditSaveBridgeHosts.forEach((host) => {
+    if (host.contains(el)) insideHost = true;
+  });
+  if (insideHost) return;
+
+  const clickable = el.closest('button, a, span, div');
+  if (!clickable) return;
+
+  const text = clickable.textContent?.trim();
+  if (text === 'Editar') {
+    console.log('Botão nativo Editar clicado');
+    window.dispatchEvent(new CustomEvent(OPEN_SLIDER_EVENT));
+    scheduleClickSwitchInputsByIdPrefix();
+  } else if (text === 'Salvar') {
+    console.log('Botão nativo Salvar clicado');
+    window.dispatchEvent(new CustomEvent(CLOSE_SLIDER_EVENT));
+  }
+}
+
+export function registerNativeEditSaveToolbarBridge(hostElement: HTMLElement): () => void {
+  nativeEditSaveBridgeHosts.add(hostElement);
+  if (nativeEditSaveBridgeHosts.size === 1) {
+    nativeEditSaveBridgeHandler = onNativeToolbarBridgeClick;
+    document.addEventListener('click', nativeEditSaveBridgeHandler, true);
+  }
+  return (): void => {
+    nativeEditSaveBridgeHosts.delete(hostElement);
+    if (nativeEditSaveBridgeHosts.size === 0 && nativeEditSaveBridgeHandler !== undefined) {
+      document.removeEventListener('click', nativeEditSaveBridgeHandler, true);
+      nativeEditSaveBridgeHandler = undefined;
+    }
+  };
+}

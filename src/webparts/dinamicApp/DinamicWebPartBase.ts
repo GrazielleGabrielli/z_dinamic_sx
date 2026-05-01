@@ -12,7 +12,10 @@ import { IDynamicViewConfig, IDynamicViewWebPartProps, TViewMode } from './core/
 import { parseConfig } from './core/config/validators';
 import { getDefaultConfig } from './core/config/utils';
 import { getSP, getGraph } from './pnpConfig';
-import { runNativePagePersistAfterPropertyWrite } from './core/sharePoint/sharePointPageToolbarDom';
+import {
+  registerNativeEditSaveToolbarBridge,
+  runNativePagePersistAfterPropertyWrite,
+} from './core/sharePoint/sharePointPageToolbarDom';
 import { TPersistStatus } from './core/persist/types';
 
 const LOG = '[DinamicSX Persist]';
@@ -29,12 +32,15 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   private _savedTimer: number | undefined;
   private _idleTimer: number | undefined;
   private _beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | undefined;
+  private _nativeEditSaveBridgeTeardown: (() => void) | undefined;
 
   protected abstract getForcedMode(): TViewMode | undefined;
 
   protected onInit(): Promise<void> {
     getSP(this.context);
     getGraph(this.context);
+
+    this._nativeEditSaveBridgeTeardown = registerNativeEditSaveToolbarBridge(this.domElement);
 
     this._beforeUnloadHandler = (e: BeforeUnloadEvent): void => {
       if (this._persistStatus === 'saving' || this._persistStatus === 'persisting') {
@@ -165,6 +171,10 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
 
   protected onDispose(): void {
     this.clearAllPersistTimers();
+    if (this._nativeEditSaveBridgeTeardown !== undefined) {
+      this._nativeEditSaveBridgeTeardown();
+      this._nativeEditSaveBridgeTeardown = undefined;
+    }
     if (this._beforeUnloadHandler !== undefined) {
       window.removeEventListener('beforeunload', this._beforeUnloadHandler);
       this._beforeUnloadHandler = undefined;
