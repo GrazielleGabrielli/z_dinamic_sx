@@ -672,7 +672,7 @@ function parseFormCalendarDateString(s: string): Date | undefined {
   return isNaN(d.getTime()) ? undefined : d;
 }
 
-function startOfDay(d: Date): Date {
+export function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
@@ -1037,6 +1037,121 @@ function validateDateRule(
   return undefined;
 }
 
+function parseValuesDateFieldForValidateDateBounds(raw: unknown): Date | undefined {
+  if (isEmptyish(raw)) return undefined;
+  const os = typeof raw === 'string' ? raw : String(raw ?? '');
+  const d = parseFormCalendarDateString(os) ?? parseIsoDate(os);
+  return d ? startOfDay(d) : undefined;
+}
+
+export function mergeValidateDateCalendarBounds(
+  applicable: ReadonlyArray<import('../config/types/formManager').IFormRuleValidateDate>,
+  values: Record<string, unknown>,
+  dynamicContext: IDynamicContext,
+  now: Date
+): { minDate?: Date; maxDate?: Date } {
+  const today = startOfDay(now);
+  const minList: Date[] = [];
+  const maxList: Date[] = [];
+  for (let i = 0; i < applicable.length; i++) {
+    const rule = applicable[i];
+    const { minDays, maxDays } = resolveValidateDateMinMaxDaysFromToday(rule, values, dynamicContext);
+    if (minDays !== undefined) {
+      const d = new Date(today.getTime());
+      d.setDate(d.getDate() + minDays);
+      minList.push(startOfDay(d));
+    }
+    if (maxDays !== undefined) {
+      const d = new Date(today.getTime());
+      d.setDate(d.getDate() + maxDays);
+      maxList.push(startOfDay(d));
+    }
+    if (rule.minIso) {
+      const d = parseIsoDate(rule.minIso);
+      if (d) minList.push(startOfDay(d));
+    }
+    if (rule.maxIso) {
+      const d = parseIsoDate(rule.maxIso);
+      if (d) maxList.push(startOfDay(d));
+    }
+    if (rule.gteField) {
+      const od = parseValuesDateFieldForValidateDateBounds(values[rule.gteField]);
+      if (od) minList.push(od);
+    }
+    if (rule.lteField) {
+      const od = parseValuesDateFieldForValidateDateBounds(values[rule.lteField]);
+      if (od) maxList.push(od);
+    }
+    if (rule.gtField) {
+      const od = parseValuesDateFieldForValidateDateBounds(values[rule.gtField]);
+      if (od) {
+        const x = new Date(od.getTime());
+        x.setDate(x.getDate() + 1);
+        minList.push(startOfDay(x));
+      }
+    }
+    if (rule.ltField) {
+      const od = parseValuesDateFieldForValidateDateBounds(values[rule.ltField]);
+      if (od) {
+        const x = new Date(od.getTime());
+        x.setDate(x.getDate() - 1);
+        maxList.push(startOfDay(x));
+      }
+    }
+  }
+  let minDate: Date | undefined;
+  let maxDate: Date | undefined;
+  if (minList.length) {
+    let m = minList[0];
+    for (let i = 1; i < minList.length; i++) {
+      if (minList[i] > m) m = minList[i];
+    }
+    minDate = m;
+  }
+  if (maxList.length) {
+    let m = maxList[0];
+    for (let i = 1; i < maxList.length; i++) {
+      if (maxList[i] < m) m = maxList[i];
+    }
+    maxDate = m;
+  }
+  return { minDate, maxDate };
+}
+
+export function collectApplicableValidateDateRules(
+  rules: readonly TFormRule[],
+  field: string,
+  values: Record<string, unknown>,
+  params: {
+    formMode: TFormManagerFormMode;
+    submitKind: TFormSubmitKind | undefined;
+    userGroupTitles: string[];
+    dynamicContext: IDynamicContext;
+    fieldVisible: (name: string) => boolean;
+    now?: Date;
+  }
+): import('../config/types/formManager').IFormRuleValidateDate[] {
+  const { formMode, submitKind, userGroupTitles, dynamicContext, fieldVisible } = params;
+  if (formMode === 'view') return [];
+  const isDraft = submitKind === 'draft';
+  const out: import('../config/types/formManager').IFormRuleValidateDate[] = [];
+  for (let r = 0; r < rules.length; r++) {
+    const rule = rules[r];
+    if (rule.action !== 'validateDate') continue;
+    if (rule.field !== field) continue;
+    if (rule.enabled === false) continue;
+    if (!ruleAppliesMode(rule, formMode)) continue;
+    if (!ruleAppliesSubmit(rule, submitKind)) continue;
+    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext);
+    if (!whenOk) continue;
+    if (!fieldVisible(field)) continue;
+    if (isDraft) continue;
+    out.push(rule);
+  }
+  return out;
+}
+
 export function evaluateValidateDateRulesForField(
   rules: readonly TFormRule[],
   field: string,
@@ -1050,23 +1165,11 @@ export function evaluateValidateDateRulesForField(
     now?: Date;
   }
 ): string | undefined {
-  const { formMode, submitKind, userGroupTitles, dynamicContext, fieldVisible, now } = params;
-  if (formMode === 'view') return undefined;
-  const isDraft = submitKind === 'draft';
-  const ts = now ?? new Date();
-  for (let r = 0; r < rules.length; r++) {
-    const rule = rules[r];
-    if (rule.action !== 'validateDate') continue;
-    if (rule.field !== field) continue;
-    if (rule.enabled === false) continue;
-    if (!ruleAppliesMode(rule, formMode)) continue;
-    if (!ruleAppliesSubmit(rule, submitKind)) continue;
-    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext);
-    if (!whenOk) continue;
-    if (!fieldVisible(field)) continue;
-    if (isDraft) continue;
-    const msg = validateDateRule(field, rule, values, ts, dynamicContext);
+  const applicable = collectApplicableValidateDateRules(rules, field, values, params);
+  const ts = params.now ?? new Date();
+  const { dynamicContext } = params;
+  for (let i = 0; i < applicable.length; i++) {
+    const msg = validateDateRule(field, applicable[i], values, ts, dynamicContext);
     if (msg) return msg;
   }
   return undefined;

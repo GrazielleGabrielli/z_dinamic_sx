@@ -92,6 +92,7 @@ import {
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
 } from '../../core/formManager/formRuleEngine';
+import { buildValidateDateCalendarProps } from '../../core/formManager/validateDateCalendarProps';
 import { collectFormManagerReferencedPayloadFieldNames } from '../../core/formManager/collectFormManagerReferencedPayloadFieldNames';
 import { formValuesToSharePointPayload } from '../../core/formManager/formSharePointValues';
 import { FormStepNavigation, FormStepPrevNextNav } from './FormStepLayoutUi';
@@ -1082,6 +1083,13 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     [fieldConfigs]
   );
   const metaByName = useMemo(() => new Map(fieldMetadata.map((f) => [f.InternalName, f])), [fieldMetadata]);
+  const datetimeFieldInternalNames = useMemo(
+    () =>
+      fieldConfigs
+        .map((fc) => fc.internalName)
+        .filter((n) => metaByName.get(n)?.MappedType === 'datetime'),
+    [fieldConfigs, metaByName]
+  );
   const isDateTimeFieldFromMeta = useCallback(
     (internalName: string): boolean => metaByName.get(internalName)?.MappedType === 'datetime',
     [metaByName]
@@ -1575,6 +1583,39 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     ]
   );
 
+  const validateDateCalendarPropsByField = useMemo(() => {
+    const rules = formManager.rules ?? [];
+    const vis = derived.fieldVisible;
+    const out: Record<string, ReturnType<typeof buildValidateDateCalendarProps>> = {};
+    const dyn = withRuleRuntimeDynamicContext(dynamicContext, currentUserId);
+    const paramsBase = {
+      formMode,
+      submitKind: undefined as TFormSubmitKind | undefined,
+      userGroupTitles,
+      dynamicContext: dyn,
+      fieldVisible: (fn: string) => vis[fn] !== false,
+      now: new Date(),
+    };
+    for (let i = 0; i < datetimeFieldInternalNames.length; i++) {
+      const n = datetimeFieldInternalNames[i];
+      if (vis[n] === false) continue;
+      const p = buildValidateDateCalendarProps(rules, n, values, paramsBase);
+      if (p.minDate || p.maxDate || (p.restrictedDates && p.restrictedDates.length > 0)) {
+        out[n] = p;
+      }
+    }
+    return out;
+  }, [
+    formManager.rules,
+    datetimeFieldInternalNames,
+    values,
+    formMode,
+    userGroupTitles,
+    dynamicContext,
+    currentUserId,
+    derived.fieldVisible,
+  ]);
+
   const validateValueLengthMergedByField = useMemo(() => {
     const rules = formManager.rules ?? [];
     const vis = derived.fieldVisible;
@@ -1929,6 +1970,68 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     },
     [values, formManager.rules, formMode, userGroupTitles, dynamicContext, derived]
   );
+
+  useEffect(() => {
+    if (formMode === 'view') return;
+    const patches: Record<string, null> = {};
+    const errPatches: Record<string, string> = {};
+    const dyn = withRuleRuntimeDynamicContext(dynamicContext, currentUserId);
+    const fv = (fn: string): boolean => derived.fieldVisible[fn] !== false;
+    for (let i = 0; i < datetimeFieldInternalNames.length; i++) {
+      const name = datetimeFieldInternalNames[i];
+      if (!fv(name)) continue;
+      const raw = values[name];
+      if (raw === null || raw === undefined || raw === '') continue;
+      const msg = evaluateValidateDateRulesForField(formManager.rules ?? [], name, values, {
+        formMode,
+        submitKind: undefined,
+        userGroupTitles,
+        dynamicContext: dyn,
+        fieldVisible: fv,
+        now: new Date(),
+      });
+      if (msg) {
+        patches[name] = null;
+        errPatches[name] = msg;
+      }
+    }
+    const pk = Object.keys(patches);
+    if (pk.length === 0) return;
+    setValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (let j = 0; j < pk.length; j++) {
+        const k = pk[j];
+        if (next[k] !== null && next[k] !== undefined) {
+          next[k] = null;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setLocalErrors((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (let j = 0; j < pk.length; j++) {
+        const k = pk[j];
+        const e = errPatches[k];
+        if (e !== undefined && next[k] !== e) {
+          next[k] = e;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [
+    formMode,
+    datetimeFieldInternalNames,
+    values,
+    derived.fieldVisible,
+    formManager.rules,
+    userGroupTitles,
+    dynamicContext,
+    currentUserId,
+  ]);
 
   const reloadLinkedRowsForParent = useCallback(
     async (parentId: number): Promise<Record<string, ILinkedChildRowState[]>> => {
@@ -3893,6 +3996,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             <Label required={isRequired}>{label}</Label>
             <DatePicker
               {...FLUENT_DATE_PICKER_PT_BR}
+              calendarProps={validateDateCalendarPropsByField[name]}
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}
               disabled={readOnly}

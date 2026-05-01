@@ -28,6 +28,7 @@ import {
   withRuleRuntimeDynamicContext,
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
+import { buildValidateDateCalendarProps } from '../../core/formManager/validateDateCalendarProps';
 import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinkedChildSync';
 import { FLUENT_DATE_PICKER_PT_BR } from '../../core/formManager/fluentDatePickerPtBr';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
@@ -213,6 +214,14 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     return out;
   }, [mainNames, fieldConfigs, childForm.parentLookupFieldInternalName]);
 
+  const datetimeFieldInternalNames = useMemo(
+    () =>
+      orderedFieldConfigs
+        .map((fc) => fc.internalName)
+        .filter((n) => metaByName.get(n)?.MappedType === 'datetime'),
+    [orderedFieldConfigs, metaByName]
+  );
+
   const runtimeCtx: IFormRuleRuntimeContext = useMemo(
     () => ({
       formMode,
@@ -255,6 +264,39 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     orderedFieldConfigs,
     formMode,
     values,
+    userGroupTitles,
+    dynamicContext,
+    currentUserId,
+    derived.fieldVisible,
+  ]);
+
+  const validateDateCalendarPropsByField = useMemo(() => {
+    const rules = shell.rules ?? [];
+    const vis = derived.fieldVisible;
+    const out: Record<string, ReturnType<typeof buildValidateDateCalendarProps>> = {};
+    const dyn = withRuleRuntimeDynamicContext(dynamicContext, currentUserId);
+    const paramsBase = {
+      formMode,
+      submitKind: 'submit' as const,
+      userGroupTitles,
+      dynamicContext: dyn,
+      fieldVisible: (fn: string) => vis[fn] !== false,
+      now: new Date(),
+    };
+    for (let i = 0; i < datetimeFieldInternalNames.length; i++) {
+      const n = datetimeFieldInternalNames[i];
+      if (vis[n] === false) continue;
+      const p = buildValidateDateCalendarProps(rules, n, values, paramsBase);
+      if (p.minDate || p.maxDate || (p.restrictedDates && p.restrictedDates.length > 0)) {
+        out[n] = p;
+      }
+    }
+    return out;
+  }, [
+    shell.rules,
+    datetimeFieldInternalNames,
+    values,
+    formMode,
     userGroupTitles,
     dynamicContext,
     currentUserId,
@@ -313,6 +355,67 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     },
     [updateField, values, shell.rules, formMode, userGroupTitles, dynamicContext, currentUserId, derived]
   );
+
+  useEffect(() => {
+    if (formMode === 'view') return;
+    const patches: Record<string, null> = {};
+    const errPatches: Record<string, string> = {};
+    const dyn = withRuleRuntimeDynamicContext(dynamicContext, currentUserId);
+    const fv = (fn: string): boolean => derived.fieldVisible[fn] !== false;
+    for (let i = 0; i < datetimeFieldInternalNames.length; i++) {
+      const name = datetimeFieldInternalNames[i];
+      if (!fv(name)) continue;
+      const raw = values[name];
+      if (raw === null || raw === undefined || raw === '') continue;
+      const msg = evaluateValidateDateRulesForField(shell.rules ?? [], name, values, {
+        formMode,
+        submitKind: 'submit',
+        userGroupTitles,
+        dynamicContext: dyn,
+        fieldVisible: fv,
+        now: new Date(),
+      });
+      if (msg) {
+        patches[name] = null;
+        errPatches[name] = msg;
+      }
+    }
+    const pk = Object.keys(patches);
+    if (pk.length === 0) return;
+    const nextVals = { ...values };
+    let vChanged = false;
+    for (let j = 0; j < pk.length; j++) {
+      const k = pk[j];
+      if (nextVals[k] !== null && nextVals[k] !== undefined) {
+        nextVals[k] = null;
+        vChanged = true;
+      }
+    }
+    if (vChanged) onChange(nextVals);
+    setDatePickBlockErr((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (let j = 0; j < pk.length; j++) {
+        const k = pk[j];
+        const e = errPatches[k];
+        if (e !== undefined && next[k] !== e) {
+          next[k] = e;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [
+    formMode,
+    datetimeFieldInternalNames,
+    values,
+    derived.fieldVisible,
+    shell.rules,
+    userGroupTitles,
+    dynamicContext,
+    currentUserId,
+    onChange,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -618,6 +721,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             {!cell && <Label required={isRequired}>{label}</Label>}
             <DatePicker
               {...FLUENT_DATE_PICKER_PT_BR}
+              calendarProps={validateDateCalendarPropsByField[name]}
               value={values[name] ? new Date(String(values[name])) : undefined}
               onSelectDate={(d) => applyLinkedDateSelect(name, d ?? null)}
               disabled={readOnly}
