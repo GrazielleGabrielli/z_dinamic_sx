@@ -29,6 +29,7 @@ import {
   parseFormItemIdFromQuery,
   resolveFormModeFromQuery,
 } from '../../core/formManager/formQueryParams';
+import { collectFormManagerReferencedPayloadFieldNames } from '../../core/formManager/collectFormManagerReferencedPayloadFieldNames';
 
 export interface IFormManagerViewProps {
   config: IDynamicViewConfig;
@@ -88,15 +89,26 @@ async function uploadAttachments(
 }
 
 function formFieldInternalNames(fm: IFormManagerConfig, fieldMeta: IFieldMetadata[]): string[] {
-  if (fm.fields.length > 0) {
-    return fm.fields
-      .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
-      .map((f) => f.internalName);
+  const base: string[] =
+    fm.fields.length > 0
+      ? fm.fields
+          .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
+          .map((f) => f.internalName)
+      : fieldMeta
+          .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
+          .map((f) => f.InternalName)
+          .filter((n) => n !== FORM_ATTACHMENTS_FIELD_INTERNAL);
+  const extra = collectFormManagerReferencedPayloadFieldNames(fm);
+  const seen = new Set(base);
+  const out = base.slice();
+  for (let i = 0; i < extra.length; i++) {
+    const n = extra[i];
+    if (!seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
   }
-  return fieldMeta
-    .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')
-    .map((f) => f.InternalName)
-    .filter((n) => n !== FORM_ATTACHMENTS_FIELD_INTERNAL);
+  return out;
 }
 
 function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetadata[]): { select: string[]; expand: string[] } {

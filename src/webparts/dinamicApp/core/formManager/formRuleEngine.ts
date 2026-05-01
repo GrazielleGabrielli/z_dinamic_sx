@@ -336,9 +336,23 @@ function coerceNumber(v: unknown): number {
 }
 
 function normalizeForEqNe(v: unknown): unknown {
-  if (v !== null && typeof v === 'object' && 'Id' in (v as object)) {
-    const id = (v as Record<string, unknown>).Id;
-    if (typeof id === 'number' && isFinite(id)) return id;
+  if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    if ('Id' in o) {
+      const id = o.Id;
+      if (typeof id === 'number' && isFinite(id)) return id;
+    }
+    const strPick =
+      typeof o.Value === 'string'
+        ? o.Value
+        : typeof o.LookupValue === 'string'
+          ? o.LookupValue
+          : typeof o.Label === 'string'
+            ? o.Label
+            : typeof o.Title === 'string'
+              ? o.Title
+              : undefined;
+    if (strPick !== undefined) return strPick.trim();
   }
   if (typeof v === 'string') return v.trim();
   return v;

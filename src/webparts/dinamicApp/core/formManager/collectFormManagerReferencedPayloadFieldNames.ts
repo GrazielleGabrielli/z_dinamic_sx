@@ -1,4 +1,9 @@
-import type { IFormManagerConfig, TFormButtonAction, TFormRule } from '../config/types/formManager';
+import type {
+  IFormManagerConfig,
+  TFormButtonAction,
+  TFormConditionNode,
+  TFormRule,
+} from '../config/types/formManager';
 import { FORM_ATTACHMENTS_FIELD_INTERNAL, FORM_BANNER_INTERNAL_PREFIX } from '../config/types/formManager';
 
 const JOIN_PH_RE = /\{\{([^}]+)\}\}/g;
@@ -68,11 +73,27 @@ function collectFromButtonActions(actions: TFormButtonAction[] | undefined, out:
   }
 }
 
+function collectFromConditionNode(node: TFormConditionNode | undefined, out: Set<string>): void {
+  if (!node) return;
+  if (node.kind === 'all' || node.kind === 'any') {
+    const ch = node.children;
+    for (let i = 0; i < ch.length; i++) collectFromConditionNode(ch[i], out);
+    return;
+  }
+  if (node.kind === 'userGroup') return;
+  if (node.kind === 'leaf') {
+    addFieldName(out, node.field);
+    const c = node.compare;
+    if (c?.kind === 'field') addFieldName(out, c.value);
+  }
+}
+
 function collectFromRules(rules: TFormRule[] | undefined, out: Set<string>): void {
   if (!rules?.length) return;
   for (let i = 0; i < rules.length; i++) {
     const r = rules[i];
     if (r.enabled === false) continue;
+    collectFromConditionNode(r.when, out);
     switch (r.action) {
       case 'setVisibility':
         if (r.targetKind === 'field') addFieldName(out, r.targetId);
@@ -146,6 +167,7 @@ export function collectFormManagerReferencedPayloadFieldNames(cfg: IFormManagerC
   const dh = cfg.dynamicHelp ?? [];
   for (let i = 0; i < dh.length; i++) {
     addFieldName(out, dh[i].field);
+    collectFromConditionNode(dh[i].when, out);
   }
   const pb = cfg.permissionBreak?.assignments ?? [];
   for (let i = 0; i < pb.length; i++) {
