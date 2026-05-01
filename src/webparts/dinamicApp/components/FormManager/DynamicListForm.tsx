@@ -383,7 +383,8 @@ function reduceCustomButtonActions(
   startValues: Record<string, unknown>,
   dynamicContext: IDynamicContext,
   baseOverlay: IFormButtonFieldOverlay,
-  attachmentFolderUrl?: IFormAttachmentFolderUrlContext
+  attachmentFolderUrl: IFormAttachmentFolderUrlContext | undefined,
+  userGroupTitles: string[]
 ): { mergedValues: Record<string, unknown>; mergedOverlay: IFormButtonFieldOverlay } {
   let next = { ...startValues };
   const mergedOverlay: IFormButtonFieldOverlay = {
@@ -395,7 +396,7 @@ function reduceCustomButtonActions(
   };
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
-    if (a.when && !evaluateCondition(a.when, next, dynamicContext)) {
+    if (a.when && !evaluateCondition(a.when, next, dynamicContext, userGroupTitles)) {
       continue;
     }
     if (a.kind === 'setFieldValue') {
@@ -1490,10 +1491,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     setValues((prev) => {
       const merged = getDefaultValuesFromRules(formManager, prev, dynamicContext, {
         isDateTimeField: isDateTimeFieldFromMeta,
+        userGroupTitles,
       });
       return merged;
     });
-  }, [formManager, formMode, dynamicContext, isDateTimeFieldFromMeta]);
+  }, [formManager, formMode, dynamicContext, isDateTimeFieldFromMeta, userGroupTitles]);
 
   useEffect(() => {
     setValues((prev) => applyTextTransformsToRecordValues(prev, fieldConfigs, metaByName));
@@ -2524,6 +2526,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           setValues(
             getDefaultValuesFromRules(formManager, empty, dynamicContext, {
               isDateTimeField: isDateTimeFieldFromMeta,
+              userGroupTitles,
             })
           );
           setButtonOverlay({ show: new Set<string>(), hide: new Set<string>() });
@@ -2658,7 +2661,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       baseValues,
       dynamicContext,
       buttonOverlay,
-      attachmentFolderUrl
+      attachmentFolderUrl,
+      userGroupTitles
     );
     if (actions.length > 0 && tl) {
       tl.ok(ti);

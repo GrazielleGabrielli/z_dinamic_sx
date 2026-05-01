@@ -71,6 +71,18 @@ const TEXT_RULES_COLLAPSE_IDS = {
 
 const FIELD_RULES_DISABLE_ENABLE_SECTION_ID = 'fieldRulesDisableEnable';
 
+const DISABLE_ENABLE_COMPARE_CHOICE_OPTS: IChoiceGroupOption[] = [
+  { key: 'literal', text: 'Texto fixo' },
+  { key: 'field', text: 'Campo (referência)' },
+  { key: 'token', text: 'Token' },
+  { key: 'spGroupMember', text: 'Utilizador pertence ao grupo (SharePoint)' },
+  { key: 'spGroupNotMember', text: 'Utilizador não pertence ao grupo (SharePoint)' },
+];
+
+function isDisableEnableGroupCompareKind(k: IWhenUi['compareKind']): boolean {
+  return k === 'spGroupMember' || k === 'spGroupNotMember';
+}
+
 const DATE_RULES_COLLAPSE_IDS = {
   relativeToToday: 'dateRulesRelativeToToday',
   compareFields: 'dateRulesCompareFields',
@@ -1154,157 +1166,359 @@ function SetComputedRulesBlock({
   );
 }
 
+function DisableEnableGroupPicker(props: {
+  disabled: boolean;
+  compareValue: string;
+  onPickTitle: (title: string) => void;
+  siteGroupsSorted: IGroupDetails[];
+  siteGroupsLoading: boolean;
+  siteGroupsErr?: string;
+  onRetryLoadSiteGroups: () => void;
+}): JSX.Element {
+  const {
+    disabled,
+    compareValue,
+    onPickTitle,
+    siteGroupsSorted,
+    siteGroupsLoading,
+    siteGroupsErr,
+    onRetryLoadSiteGroups,
+  } = props;
+  const [flt, setFlt] = useState('');
+  const filtered = useMemo(
+    () => filterSiteGroupsByNameQuery(siteGroupsSorted, flt),
+    [siteGroupsSorted, flt]
+  );
+  return (
+    <Stack tokens={{ childrenGap: 6 }}>
+      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+        Grupos do SharePoint
+      </Text>
+      <TextField
+        placeholder="Filtrar grupos por nome"
+        value={flt}
+        disabled={disabled}
+        onChange={(_: unknown, v?: string) => setFlt(v ?? '')}
+        styles={{ root: { maxWidth: 420 } }}
+      />
+      {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
+      {siteGroupsErr ? (
+        <>
+          <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
+          <DefaultButton text="Tentar carregar grupos novamente" onClick={onRetryLoadSiteGroups} />
+        </>
+      ) : null}
+      {!siteGroupsLoading ? (
+        <Stack
+          tokens={{ childrenGap: 6 }}
+          styles={{
+            root: {
+              maxHeight: 200,
+              overflowY: 'auto',
+              border: '1px solid #edebe9',
+              borderRadius: 4,
+              padding: 8,
+            },
+          }}
+        >
+          {filtered.map((sg) => {
+            const checked = normSpGroupTitle(compareValue) === normSpGroupTitle(sg.Title);
+            return (
+              <Checkbox
+                key={sg.Id}
+                disabled={disabled}
+                label={sg.Title}
+                checked={checked}
+                onChange={(_, c) => {
+                  if (c) onPickTitle(sg.Title);
+                  else if (checked) onPickTitle('');
+                }}
+              />
+            );
+          })}
+        </Stack>
+      ) : null}
+    </Stack>
+  );
+}
+
 function FieldRulesDisableEnableCollapseContent(props: {
   ed: IFieldRuleEditorState;
   setEd: React.Dispatch<React.SetStateAction<IFieldRuleEditorState>>;
   fieldOptions: IDropdownOption[];
+  siteGroupsSorted: IGroupDetails[];
+  siteGroupsLoading: boolean;
+  siteGroupsErr?: string;
+  onRetryLoadSiteGroups: () => void;
 }): JSX.Element {
-  const { ed, setEd, fieldOptions } = props;
+  const { ed, setEd, fieldOptions, siteGroupsSorted, siteGroupsLoading, siteGroupsErr, onRetryLoadSiteGroups } =
+    props;
+  const disGrp = isDisableEnableGroupCompareKind(ed.disableWhenUi.compareKind);
+  const enGrp = isDisableEnableGroupCompareKind(ed.enableWhenUi.compareKind);
   return (
     <Stack tokens={{ childrenGap: 8 }}>
-
       <Checkbox
         label="Desativar este campo quando a condição for verdadeira"
         checked={ed.disableWhenActive}
         onChange={(_, c) => setEd((p) => ({ ...p, disableWhenActive: !!c }))}
       />
-      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-        <Dropdown
-          label="Campo"
-          options={fieldOptions}
-          selectedKey={ed.disableWhenUi.field}
+      {!disGrp ? (
+        <Stack tokens={{ childrenGap: 10 }}>
+          <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+            <Dropdown
+              label="Campo"
+              options={fieldOptions}
+              selectedKey={ed.disableWhenUi.field}
+              disabled={!ed.disableWhenActive}
+              onChange={(_, o) =>
+                o &&
+                setEd((p) => ({
+                  ...p,
+                  disableWhenUi: { ...p.disableWhenUi, field: String(o.key) },
+                }))
+              }
+              styles={{ dropdown: { width: 160 } }}
+            />
+            <Dropdown
+              label="Operador"
+              options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+              selectedKey={ed.disableWhenUi.op}
+              disabled={!ed.disableWhenActive}
+              onChange={(_, o) =>
+                o &&
+                setEd((p) => ({
+                  ...p,
+                  disableWhenUi: { ...p.disableWhenUi, op: o.key as TFormConditionOp },
+                }))
+              }
+              styles={{ dropdown: { width: 150 } }}
+            />
+          </Stack>
+          <ChoiceGroup
+            label="Comparar"
+            selectedKey={ed.disableWhenUi.compareKind}
+            disabled={!ed.disableWhenActive}
+            options={DISABLE_ENABLE_COMPARE_CHOICE_OPTS}
+            onChange={(_, o) =>
+              o &&
+              setEd((p) => ({
+                ...p,
+                disableWhenUi: {
+                  ...p.disableWhenUi,
+                  compareKind: String(o.key) as IWhenUi['compareKind'],
+                },
+              }))
+            }
+            styles={{
+              flexContainer: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              },
+            }}
+          />
+          <TextField
+            label="Valor"
+            value={ed.disableWhenUi.compareValue}
+            disabled={
+              !ed.disableWhenActive ||
+              ed.disableWhenUi.op === 'isEmpty' ||
+              ed.disableWhenUi.op === 'isFilled' ||
+              ed.disableWhenUi.op === 'isTrue' ||
+              ed.disableWhenUi.op === 'isFalse'
+            }
+            onChange={(_, v) =>
+              setEd((p) => ({
+                ...p,
+                disableWhenUi: { ...p.disableWhenUi, compareValue: v ?? '' },
+              }))
+            }
+            styles={{ fieldGroup: { minWidth: 200, maxWidth: 480 } }}
+          />
+        </Stack>
+      ) : (
+        <Stack tokens={{ childrenGap: 10 }}>
+          <ChoiceGroup
+            label="Comparar"
+            selectedKey={ed.disableWhenUi.compareKind}
+            disabled={!ed.disableWhenActive}
+            options={DISABLE_ENABLE_COMPARE_CHOICE_OPTS}
+            onChange={(_, o) =>
+              o &&
+              setEd((p) => ({
+                ...p,
+                disableWhenUi: {
+                  ...p.disableWhenUi,
+                  compareKind: String(o.key) as IWhenUi['compareKind'],
+                },
+              }))
+            }
+            styles={{
+              flexContainer: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              },
+            }}
+          />
+          <TextField
+            label="Título do grupo"
+            value={ed.disableWhenUi.compareValue}
+            disabled={!ed.disableWhenActive}
+            onChange={(_, v) =>
+              setEd((p) => ({
+                ...p,
+                disableWhenUi: { ...p.disableWhenUi, compareValue: v ?? '' },
+              }))
+            }
+            styles={{ fieldGroup: { minWidth: 200, maxWidth: 420 } }}
+          />
+        </Stack>
+      )}
+      {disGrp && ed.disableWhenActive ? (
+        <DisableEnableGroupPicker
           disabled={!ed.disableWhenActive}
-          onChange={(_, o) =>
-            o &&
-            setEd((p) => ({
-              ...p,
-              disableWhenUi: { ...p.disableWhenUi, field: String(o.key) },
-            }))
+          compareValue={ed.disableWhenUi.compareValue}
+          onPickTitle={(title) =>
+            setEd((p) => ({ ...p, disableWhenUi: { ...p.disableWhenUi, compareValue: title } }))
           }
-          styles={{ dropdown: { width: 160 } }}
+          siteGroupsSorted={siteGroupsSorted}
+          siteGroupsLoading={siteGroupsLoading}
+          siteGroupsErr={siteGroupsErr}
+          onRetryLoadSiteGroups={onRetryLoadSiteGroups}
         />
-        <Dropdown
-          label="Operador"
-          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-          selectedKey={ed.disableWhenUi.op}
-          disabled={!ed.disableWhenActive}
-          onChange={(_, o) =>
-            o &&
-            setEd((p) => ({
-              ...p,
-              disableWhenUi: { ...p.disableWhenUi, op: o.key as TFormConditionOp },
-            }))
-          }
-          styles={{ dropdown: { width: 150 } }}
-        />
-        <Dropdown
-          label="Comparar"
-          options={[
-            { key: 'literal', text: 'Texto fixo' },
-            { key: 'field', text: 'Campo' },
-            { key: 'token', text: 'Token' },
-          ]}
-          selectedKey={ed.disableWhenUi.compareKind}
-          disabled={!ed.disableWhenActive}
-          onChange={(_, o) =>
-            o &&
-            setEd((p) => ({
-              ...p,
-              disableWhenUi: { ...p.disableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
-            }))
-          }
-          styles={{ dropdown: { width: 112 } }}
-        />
-        <TextField
-          label="Valor"
-          value={ed.disableWhenUi.compareValue}
-          disabled={
-            !ed.disableWhenActive ||
-            ed.disableWhenUi.op === 'isEmpty' ||
-            ed.disableWhenUi.op === 'isFilled' ||
-            ed.disableWhenUi.op === 'isTrue' ||
-            ed.disableWhenUi.op === 'isFalse'
-          }
-          onChange={(_, v) =>
-            setEd((p) => ({
-              ...p,
-              disableWhenUi: { ...p.disableWhenUi, compareValue: v ?? '' },
-            }))
-          }
-          styles={{ fieldGroup: { minWidth: 120 } }}
-        />
-      </Stack>
+      ) : null}
       <Checkbox
         label="Tornar editável quando a condição for verdadeira (sobrepor desativação acima)"
         checked={ed.enableWhenActive}
         onChange={(_, c) => setEd((p) => ({ ...p, enableWhenActive: !!c }))}
       />
-      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
-        <Dropdown
-          label="Campo"
-          options={fieldOptions}
-          selectedKey={ed.enableWhenUi.field}
+      {!enGrp ? (
+        <Stack tokens={{ childrenGap: 10 }}>
+          <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+            <Dropdown
+              label="Campo"
+              options={fieldOptions}
+              selectedKey={ed.enableWhenUi.field}
+              disabled={!ed.enableWhenActive}
+              onChange={(_, o) =>
+                o &&
+                setEd((p) => ({
+                  ...p,
+                  enableWhenUi: { ...p.enableWhenUi, field: String(o.key) },
+                }))
+              }
+              styles={{ dropdown: { width: 160 } }}
+            />
+            <Dropdown
+              label="Operador"
+              options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+              selectedKey={ed.enableWhenUi.op}
+              disabled={!ed.enableWhenActive}
+              onChange={(_, o) =>
+                o &&
+                setEd((p) => ({
+                  ...p,
+                  enableWhenUi: { ...p.enableWhenUi, op: o.key as TFormConditionOp },
+                }))
+              }
+              styles={{ dropdown: { width: 150 } }}
+            />
+          </Stack>
+          <ChoiceGroup
+            label="Comparar"
+            selectedKey={ed.enableWhenUi.compareKind}
+            disabled={!ed.enableWhenActive}
+            options={DISABLE_ENABLE_COMPARE_CHOICE_OPTS}
+            onChange={(_, o) =>
+              o &&
+              setEd((p) => ({
+                ...p,
+                enableWhenUi: {
+                  ...p.enableWhenUi,
+                  compareKind: String(o.key) as IWhenUi['compareKind'],
+                },
+              }))
+            }
+            styles={{
+              flexContainer: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              },
+            }}
+          />
+          <TextField
+            label="Valor"
+            value={ed.enableWhenUi.compareValue}
+            disabled={
+              !ed.enableWhenActive ||
+              ed.enableWhenUi.op === 'isEmpty' ||
+              ed.enableWhenUi.op === 'isFilled' ||
+              ed.enableWhenUi.op === 'isTrue' ||
+              ed.enableWhenUi.op === 'isFalse'
+            }
+            onChange={(_, v) =>
+              setEd((p) => ({
+                ...p,
+                enableWhenUi: { ...p.enableWhenUi, compareValue: v ?? '' },
+              }))
+            }
+            styles={{ fieldGroup: { minWidth: 200, maxWidth: 480 } }}
+          />
+        </Stack>
+      ) : (
+        <Stack tokens={{ childrenGap: 10 }}>
+          <ChoiceGroup
+            label="Comparar"
+            selectedKey={ed.enableWhenUi.compareKind}
+            disabled={!ed.enableWhenActive}
+            options={DISABLE_ENABLE_COMPARE_CHOICE_OPTS}
+            onChange={(_, o) =>
+              o &&
+              setEd((p) => ({
+                ...p,
+                enableWhenUi: {
+                  ...p.enableWhenUi,
+                  compareKind: String(o.key) as IWhenUi['compareKind'],
+                },
+              }))
+            }
+            styles={{
+              flexContainer: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              },
+            }}
+          />
+          <TextField
+            label="Título do grupo"
+            value={ed.enableWhenUi.compareValue}
+            disabled={!ed.enableWhenActive}
+            onChange={(_, v) =>
+              setEd((p) => ({
+                ...p,
+                enableWhenUi: { ...p.enableWhenUi, compareValue: v ?? '' },
+              }))
+            }
+            styles={{ fieldGroup: { minWidth: 200, maxWidth: 420 } }}
+          />
+        </Stack>
+      )}
+      {enGrp && ed.enableWhenActive ? (
+        <DisableEnableGroupPicker
           disabled={!ed.enableWhenActive}
-          onChange={(_, o) =>
-            o &&
-            setEd((p) => ({
-              ...p,
-              enableWhenUi: { ...p.enableWhenUi, field: String(o.key) },
-            }))
+          compareValue={ed.enableWhenUi.compareValue}
+          onPickTitle={(title) =>
+            setEd((p) => ({ ...p, enableWhenUi: { ...p.enableWhenUi, compareValue: title } }))
           }
-          styles={{ dropdown: { width: 160 } }}
+          siteGroupsSorted={siteGroupsSorted}
+          siteGroupsLoading={siteGroupsLoading}
+          siteGroupsErr={siteGroupsErr}
+          onRetryLoadSiteGroups={onRetryLoadSiteGroups}
         />
-        <Dropdown
-          label="Operador"
-          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-          selectedKey={ed.enableWhenUi.op}
-          disabled={!ed.enableWhenActive}
-          onChange={(_, o) =>
-            o &&
-            setEd((p) => ({
-              ...p,
-              enableWhenUi: { ...p.enableWhenUi, op: o.key as TFormConditionOp },
-            }))
-          }
-          styles={{ dropdown: { width: 150 } }}
-        />
-        <Dropdown
-          label="Comparar"
-          options={[
-            { key: 'literal', text: 'Texto fixo' },
-            { key: 'field', text: 'Campo' },
-            { key: 'token', text: 'Token' },
-          ]}
-          selectedKey={ed.enableWhenUi.compareKind}
-          disabled={!ed.enableWhenActive}
-          onChange={(_, o) =>
-            o &&
-            setEd((p) => ({
-              ...p,
-              enableWhenUi: { ...p.enableWhenUi, compareKind: o.key as IWhenUi['compareKind'] },
-            }))
-          }
-          styles={{ dropdown: { width: 112 } }}
-        />
-        <TextField
-          label="Valor"
-          value={ed.enableWhenUi.compareValue}
-          disabled={
-            !ed.enableWhenActive ||
-            ed.enableWhenUi.op === 'isEmpty' ||
-            ed.enableWhenUi.op === 'isFilled' ||
-            ed.enableWhenUi.op === 'isTrue' ||
-            ed.enableWhenUi.op === 'isFalse'
-          }
-          onChange={(_, v) =>
-            setEd((p) => ({
-              ...p,
-              enableWhenUi: { ...p.enableWhenUi, compareValue: v ?? '' },
-            }))
-          }
-          styles={{ fieldGroup: { minWidth: 120 } }}
-        />
-      </Stack>
+      ) : null}
     </Stack>
   );
 }
@@ -1609,7 +1823,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               ))}
             </Stack>
         
-            {mt !== 'lookup' && mt !== 'lookupmulti' ? (
+            {mt !== 'lookup' && mt !== 'lookupmulti' && mt !== 'datetime' ? (
               <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
                 <DefaultButton
                   text="Modelo: data não no passado"
@@ -1671,7 +1885,15 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               isOpen={isTextRulesOpen(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
               onToggle={() => toggleTextRulesSection(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
             >
-              <FieldRulesDisableEnableCollapseContent ed={ed} setEd={setEd} fieldOptions={fieldOptions} />
+              <FieldRulesDisableEnableCollapseContent
+                ed={ed}
+                setEd={setEd}
+                fieldOptions={fieldOptions}
+                siteGroupsSorted={siteGroupsSorted}
+                siteGroupsLoading={siteGroupsLoading}
+                siteGroupsErr={siteGroupsErr}
+                onRetryLoadSiteGroups={loadSiteGroups}
+              />
             </FormManagerCollapseSection>
           </>
         )}
@@ -1930,7 +2152,15 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               isOpen={isTextRulesOpen(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
               onToggle={() => toggleTextRulesSection(FIELD_RULES_DISABLE_ENABLE_SECTION_ID)}
             >
-              <FieldRulesDisableEnableCollapseContent ed={ed} setEd={setEd} fieldOptions={fieldOptions} />
+              <FieldRulesDisableEnableCollapseContent
+                ed={ed}
+                setEd={setEd}
+                fieldOptions={fieldOptions}
+                siteGroupsSorted={siteGroupsSorted}
+                siteGroupsLoading={siteGroupsLoading}
+                siteGroupsErr={siteGroupsErr}
+                onRetryLoadSiteGroups={loadSiteGroups}
+              />
             </FormManagerCollapseSection>
             <FormManagerCollapseSection
               title="Condicionais"

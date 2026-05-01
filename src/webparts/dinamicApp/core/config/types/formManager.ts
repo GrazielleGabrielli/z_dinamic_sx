@@ -29,7 +29,8 @@ export interface IFormCompareRef {
 export type TFormConditionNode =
   | { kind: 'all'; children: TFormConditionNode[] }
   | { kind: 'any'; children: TFormConditionNode[] }
-  | { kind: 'leaf'; field: string; op: TFormConditionOp; compare?: IFormCompareRef };
+  | { kind: 'leaf'; field: string; op: TFormConditionOp; compare?: IFormCompareRef }
+  | { kind: 'userGroup'; invert: boolean; groupTitle: string };
 
 export type TFormRuleTargetKind = 'field' | 'section';
 

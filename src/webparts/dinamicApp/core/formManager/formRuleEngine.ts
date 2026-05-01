@@ -149,6 +149,7 @@ export function resolveDateFieldDefaultValue(
 
 export interface IGetDefaultValuesFromRulesOptions {
   isDateTimeField?: (internalName: string) => boolean;
+  userGroupTitles?: string[];
 }
 
 function normGroupTitle(s: string): string {
@@ -173,7 +174,7 @@ export function isAttachmentFolderUploaderVisible(
     if (!modes.length || modes.indexOf(ctx.formMode) === -1) return false;
   }
   if (!userInAnyGroup(ctx.userGroupTitles, node.showUploaderGroupTitles)) return false;
-  return evaluateCondition(node.showUploaderWhen, ctx.values, ctx.dynamicContext);
+  return evaluateCondition(node.showUploaderWhen, ctx.values, ctx.dynamicContext, ctx.userGroupTitles);
 }
 
 function isEmptyish(v: unknown): boolean {
@@ -393,20 +394,27 @@ function resolveCompare(
 export function evaluateCondition(
   node: TFormConditionNode | undefined,
   values: Record<string, unknown>,
-  dynamicContext: IDynamicContext
+  dynamicContext: IDynamicContext,
+  userGroupTitles: string[] = []
 ): boolean {
   if (!node) return true;
   if (node.kind === 'all') {
     for (let i = 0; i < node.children.length; i++) {
-      if (!evaluateCondition(node.children[i], values, dynamicContext)) return false;
+      if (!evaluateCondition(node.children[i], values, dynamicContext, userGroupTitles)) return false;
     }
     return true;
   }
   if (node.kind === 'any') {
     for (let i = 0; i < node.children.length; i++) {
-      if (evaluateCondition(node.children[i], values, dynamicContext)) return true;
+      if (evaluateCondition(node.children[i], values, dynamicContext, userGroupTitles)) return true;
     }
     return false;
+  }
+  if (node.kind === 'userGroup') {
+    const gt = String(node.groupTitle ?? '').trim();
+    if (!gt) return false;
+    const inG = userInAnyGroup(userGroupTitles, [gt]);
+    return node.invert ? !inG : inG;
   }
   if (node.kind === 'leaf') {
     const left = values[node.field];
@@ -478,7 +486,7 @@ export function getMergedValidateValueLengthBounds(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
-    if (!evaluateCondition(rule.when, values, dynamicContext)) continue;
+    if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
     if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
     if (rule.minLength !== undefined) {
       minL = minL === undefined ? rule.minLength : Math.max(minL, rule.minLength);
@@ -512,7 +520,7 @@ export function getMergedValidateValueNumberBounds(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
-    if (!evaluateCondition(rule.when, values, dynamicContext)) continue;
+    if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
     if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
     if (rule.minNumber !== undefined) {
       minN = minN === undefined ? rule.minNumber : Math.max(minN, rule.minNumber);
@@ -634,7 +642,8 @@ export function shouldShowCustomButton(
   }
   if (op === 'update' && ctx.formMode === 'create') return false;
   if (!userInAnyGroup(ctx.userGroupTitles, b.groupTitles)) return false;
-  if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext)) return false;
+  if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext, ctx.userGroupTitles))
+    return false;
   if (b.showOnlyWhenAllRequiredFilled === true && visibilityOpts?.allRequiredFilled !== true) return false;
   return true;
 }
@@ -1143,7 +1152,7 @@ export function collectApplicableValidateDateRules(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext);
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
     if (!whenOk) continue;
     if (!fieldVisible(field)) continue;
     if (isDraft) continue;
@@ -1225,7 +1234,7 @@ export function buildFormDerivedState(
   buttonOverlay?: IFormButtonVisibilityOverlay,
   fieldMetaByName?: ReadonlyMap<string, IFieldMetadata>
 ): IFormDerivedUiState {
-  const { values, formMode, dynamicContext, attachmentFolderUrl } = ctx;
+  const { values, formMode, dynamicContext, attachmentFolderUrl, userGroupTitles } = ctx;
   const fieldVisible: Record<string, boolean> = {};
   const sectionVisible: Record<string, boolean> = {};
   const fieldRequired: Record<string, boolean> = {};
@@ -1264,7 +1273,7 @@ export function buildFormDerivedState(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, ctx.submitKind)) continue;
     if (!userInAnyGroup(ctx.userGroupTitles, rule.groupTitles)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext);
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
     if (!whenOk) continue;
 
     switch (rule.action) {
@@ -1377,7 +1386,8 @@ export function buildFormDerivedState(
   const dh = cfg.dynamicHelp ?? [];
   for (let i = 0; i < dh.length; i++) {
     const h = dh[i];
-    if (evaluateCondition(h.when, values, dynamicContext)) dynamicHelpByField[h.field] = h.helpText;
+    if (evaluateCondition(h.when, values, dynamicContext, userGroupTitles))
+      dynamicHelpByField[h.field] = h.helpText;
   }
 
   if (buttonOverlay?.show) {
@@ -1419,7 +1429,7 @@ export function collectFormValidationErrors(
   metaByName?: ReadonlyMap<string, IFieldMetadata>
 ): Record<string, string> {
   const errors: Record<string, string> = {};
-  const { values, formMode, submitKind, dynamicContext } = ctx;
+  const { values, formMode, submitKind, dynamicContext, userGroupTitles } = ctx;
   if (formMode === 'view') return errors;
 
   const derived = buildFormDerivedState(cfg, fieldConfigs, ctx, buttonOverlay, metaByName);
@@ -1473,7 +1483,7 @@ export function collectFormValidationErrors(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!userInAnyGroup(ctx.userGroupTitles, rule.groupTitles)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext);
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
 
     switch (rule.action) {
       case 'validateValue': {
@@ -1527,7 +1537,9 @@ export function collectFormValidationErrors(
       }
       case 'attachmentRules': {
         if (isDraft) break;
-        const attWhen = rule.requiredWhen ? evaluateCondition(rule.requiredWhen, values, dynamicContext) : true;
+        const attWhen = rule.requiredWhen
+          ? evaluateCondition(rule.requiredWhen, values, dynamicContext, userGroupTitles)
+          : true;
         const count =
           (attachmentCtx?.attachmentCount ?? 0) +
           (attachmentCtx?.pendingFiles?.length ?? 0);
@@ -1840,10 +1852,11 @@ export function getDefaultValuesFromRules(
   const next = { ...values };
   const rules = cfg.rules ?? [];
   const isDt = opts?.isDateTimeField;
+  const ug = opts?.userGroupTitles ?? [];
   for (let i = 0; i < rules.length; i++) {
     const rule = rules[i];
     if (rule.action !== 'setDefault' || rule.enabled === false) continue;
-    if (!evaluateCondition(rule.when, next, dynamicContext)) continue;
+    if (!evaluateCondition(rule.when, next, dynamicContext, ug)) continue;
 
     let resolved: unknown;
     if (isDt?.(rule.field) === true && typeof rule.value === 'string') {
@@ -1938,7 +1951,8 @@ export function buildPostCreateItemIdComputedPatch(params: {
     if (!ruleAppliesMode(rule, 'create')) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
-    if (rule.when && !evaluateCondition(rule.when, valuesWithId, dynamicContext)) continue;
+    if (rule.when && !evaluateCondition(rule.when, valuesWithId, dynamicContext, userGroupTitles))
+      continue;
 
     const expr = rule.expression ?? '';
     if (!expressionReferencesSharePointItemId(expr)) continue;

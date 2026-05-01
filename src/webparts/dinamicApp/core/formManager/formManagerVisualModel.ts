@@ -93,7 +93,12 @@ function leafWhen(
   return compare ? { kind: 'leaf', field, op, compare } : { kind: 'leaf', field, op };
 }
 
-export type TCompareUiKind = 'literal' | 'field' | 'token';
+export type TCompareUiKind =
+  | 'literal'
+  | 'field'
+  | 'token'
+  | 'spGroupMember'
+  | 'spGroupNotMember';
 
 export interface IWhenUi {
   field: string;
@@ -102,7 +107,22 @@ export interface IWhenUi {
   compareValue: string;
 }
 
+function whenUiCompleteForSetDisabledWhen(ui: IWhenUi): boolean {
+  if (ui.compareKind === 'spGroupMember' || ui.compareKind === 'spGroupNotMember') {
+    return ui.compareValue.trim().length > 0;
+  }
+  return ui.field.trim().length > 0;
+}
+
 export function whenUiToNode(w: IWhenUi): TFormConditionNode {
+  if (w.compareKind === 'spGroupMember' || w.compareKind === 'spGroupNotMember') {
+    const t = w.compareValue.trim().slice(0, 256);
+    return {
+      kind: 'userGroup',
+      invert: w.compareKind === 'spGroupNotMember',
+      groupTitle: t,
+    };
+  }
   const needsCompare =
     w.op !== 'isEmpty' &&
     w.op !== 'isFilled' &&
@@ -117,7 +137,16 @@ export function whenUiToNode(w: IWhenUi): TFormConditionNode {
 }
 
 export function whenNodeToUi(node: TFormConditionNode | undefined): IWhenUi | undefined {
-  if (!node || node.kind !== 'leaf') return undefined;
+  if (!node) return undefined;
+  if (node.kind === 'userGroup') {
+    return {
+      field: '',
+      op: 'eq',
+      compareKind: node.invert ? 'spGroupNotMember' : 'spGroupMember',
+      compareValue: node.groupTitle,
+    };
+  }
+  if (node.kind !== 'leaf') return undefined;
   const c = node.compare;
   return {
     field: node.field,
@@ -676,7 +705,7 @@ export function buildFieldUiRules(
     });
   }
 
-  if (st.disableWhenActive && st.disableWhenUi.field.trim()) {
+  if (st.disableWhenActive && whenUiCompleteForSetDisabledWhen(st.disableWhenUi)) {
     out.push({
       id: id('discond'),
       action: 'setDisabled',
@@ -686,7 +715,7 @@ export function buildFieldUiRules(
       ...baseModes,
     });
   }
-  if (st.enableWhenActive && st.enableWhenUi.field.trim()) {
+  if (st.enableWhenActive && whenUiCompleteForSetDisabledWhen(st.enableWhenUi)) {
     out.push({
       id: id('enacond'),
       action: 'setDisabled',
@@ -904,6 +933,12 @@ export function describeRuleShort(rule: TFormRule): string {
 function describeWhenPt(when: TFormConditionNode | undefined): string {
   const leaf = whenNodeToUi(when);
   if (!leaf) return 'sempre';
+  if (leaf.compareKind === 'spGroupMember') {
+    return `utilizador no grupo "${leaf.compareValue}"`;
+  }
+  if (leaf.compareKind === 'spGroupNotMember') {
+    return `utilizador fora do grupo "${leaf.compareValue}"`;
+  }
   const op = conditionOpLabel(leaf.op);
   const needsVal =
     leaf.op !== 'isEmpty' &&

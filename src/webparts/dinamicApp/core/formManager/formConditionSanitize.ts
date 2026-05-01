@@ -21,6 +21,13 @@ export function sanitizeConditionNode(raw: unknown): TFormConditionNode | undefi
     if (children.length === 0) return undefined;
     return { kind: n.kind, children };
   }
+  if (n.kind === 'userGroup') {
+    const invert = n.invert === true;
+    const groupTitle =
+      typeof n.groupTitle === 'string' ? n.groupTitle.trim().slice(0, 256) : '';
+    if (!groupTitle) return undefined;
+    return { kind: 'userGroup', invert, groupTitle };
+  }
   const leafLike =
     n.kind === 'leaf' ||
     (typeof n.field === 'string' &&
