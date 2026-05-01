@@ -183,6 +183,97 @@ function scheduleClickSwitchInputsByIdPrefix(): void {
 const nativeEditSaveBridgeHosts = new Set<HTMLElement>();
 let nativeEditSaveBridgeHandler: ((event: MouseEvent) => void) | undefined;
 
+function hasAncestorAutomationId(el: Element, ids: readonly string[]): boolean {
+  let n: Element | null = el;
+  for (let i = 0; i < 16 && n; i++) {
+    const aid = n.getAttribute('data-automation-id');
+    if (aid && ids.includes(aid)) return true;
+    n = n.parentElement;
+  }
+  return false;
+}
+
+function isUnderSharePointPageChrome(el: Element): boolean {
+  return (
+    el.closest(
+      '[data-automation-id="SiteHeader"], [data-automation-id="SuiteNavWrapper"], #SuiteNavPlaceholder, [data-automation-id="CommandBar"], .ms-CommandBar-primaryCommand'
+    ) !== null
+  );
+}
+
+function matchesNativeEditPageControl(ctrl: HTMLElement): boolean {
+  const aid = ctrl.getAttribute('data-automation-id');
+  if (aid && EDIT_AUTOMATION_IDS.includes(aid)) return true;
+  const aria = (ctrl.getAttribute('aria-label') || '').toLowerCase();
+  const title = (ctrl.getAttribute('title') || '').toLowerCase();
+  const name = (ctrl.getAttribute('name') || '').toLowerCase();
+  const combinedMeta = `${aria} ${title} ${name}`;
+  if (
+    combinedMeta.includes('editar página') ||
+    combinedMeta.includes('editar pagina') ||
+    combinedMeta.includes('edit page') ||
+    combinedMeta.includes('modifier la page')
+  ) {
+    return true;
+  }
+  const tl = (ctrl.textContent || '').trim().toLowerCase();
+  if (tl === 'editar' || tl === 'edit') {
+    return isUnderSharePointPageChrome(ctrl);
+  }
+  return false;
+}
+
+function isNativeEditPageToolbarClick(target: Element): boolean {
+  if (hasAncestorAutomationId(target, EDIT_AUTOMATION_IDS)) return true;
+  const ctrl = target.closest('button, [role="button"], a');
+  if (ctrl instanceof HTMLElement) return matchesNativeEditPageControl(ctrl);
+  return false;
+}
+
+function matchesNativeSavePublishControl(ctrl: HTMLElement): boolean {
+  const aid = ctrl.getAttribute('data-automation-id');
+  if (aid && SAVE_AUTOMATION_IDS.includes(aid)) return true;
+  const aria = (ctrl.getAttribute('aria-label') || '').toLowerCase();
+  const title = (ctrl.getAttribute('title') || '').toLowerCase();
+  const text = (ctrl.textContent || '').trim().toLowerCase();
+  const name = (ctrl.getAttribute('name') || '').toLowerCase();
+  const combined = `${aria} ${title} ${name} ${text}`;
+  if (
+    combined.includes('republish') ||
+    combined.includes('republicar') ||
+    combined.includes('publish') ||
+    combined.includes('publicar') ||
+    combined.includes('save and') ||
+    combined.includes('salvar e')
+  ) {
+    return true;
+  }
+  if (
+    combined.includes('salvar') &&
+    (combined.includes('fechar') ||
+      combined.includes('rascunho') ||
+      combined.includes('alterações') ||
+      combined.includes('changes') ||
+      combined.includes('página') ||
+      combined.includes('pagina') ||
+      combined.includes('page'))
+  ) {
+    return true;
+  }
+  const rawTrim = (ctrl.textContent || '').trim();
+  if (rawTrim === 'Salvar' || rawTrim === 'Save') {
+    return isUnderSharePointPageChrome(ctrl);
+  }
+  return false;
+}
+
+function isNativeSavePublishToolbarClick(target: Element): boolean {
+  if (hasAncestorAutomationId(target, SAVE_AUTOMATION_IDS)) return true;
+  const ctrl = target.closest('button, [role="button"], a');
+  if (ctrl instanceof HTMLElement) return matchesNativeSavePublishControl(ctrl);
+  return false;
+}
+
 function onNativeToolbarBridgeClick(event: MouseEvent): void {
   const raw = event.target;
   const el = raw instanceof Element ? raw : raw instanceof Node ? raw.parentElement : null;
@@ -193,16 +284,12 @@ function onNativeToolbarBridgeClick(event: MouseEvent): void {
   });
   if (insideHost) return;
 
-  const clickable = el.closest('button, a, span, div');
-  if (!clickable) return;
-
-  const text = clickable.textContent?.trim();
-  if (text === 'Editar') {
+  if (isNativeEditPageToolbarClick(el)) {
     console.log('Botão nativo Editar clicado');
     window.dispatchEvent(new CustomEvent(DINAMIC_SX_OPEN_SLIDER_EVENT));
     scheduleClickSwitchInputsByIdPrefix();
-  } else if (text === 'Salvar') {
-    console.log('Botão nativo Salvar clicado');
+  } else if (isNativeSavePublishToolbarClick(el)) {
+    console.log('Botão nativo Salvar/Publicar clicado');
     window.dispatchEvent(new CustomEvent(DINAMIC_SX_CLOSE_SLIDER_EVENT));
   }
 }
