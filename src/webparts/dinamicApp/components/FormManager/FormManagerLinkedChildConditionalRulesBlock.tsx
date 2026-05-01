@@ -262,12 +262,21 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
             />
           </Stack>
           <TextField
-            label="Grupos do SharePoint (títulos, vírgula)"
-            description="Vazio = qualquer utilizador."
+            label="Incluir: grupos SharePoint (títulos, vírgula)"
+            description="Vazio = qualquer utilizador. Com valores, só aplica se o utilizador pertencer a pelo menos um grupo."
             value={fieldNamesToCsv(card.groupTitles ?? [])}
             onChange={(_, v) => {
               const parsed = parseCsvFieldNames(v ?? '');
               patchCard(ci, { groupTitles: parsed.length ? parsed : undefined });
+            }}
+          />
+          <TextField
+            label="Excluir: grupos SharePoint (títulos, vírgula)"
+            description="Vazio = não excluir. Com valores, a regra não aplica a quem pertencer a algum destes grupos."
+            value={fieldNamesToCsv(card.excludeGroupTitles ?? [])}
+            onChange={(_, v) => {
+              const parsed = parseCsvFieldNames(v ?? '');
+              patchCard(ci, { excludeGroupTitles: parsed.length ? parsed : undefined });
             }}
           />
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>

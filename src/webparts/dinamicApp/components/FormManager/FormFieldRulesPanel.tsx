@@ -1546,6 +1546,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
   const [siteGroupsErr, setSiteGroupsErr] = useState<string>();
   const [spGroupRuleNameFilter, setSpGroupRuleNameFilter] = useState('');
+  const [spExcludeGroupRuleNameFilter, setSpExcludeGroupRuleNameFilter] = useState('');
 
   const loadSiteGroups = useCallback((): void => {
     setSiteGroupsErr(undefined);
@@ -1577,6 +1578,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const siteGroupsSortedForRules = useMemo(
     () => filterSiteGroupsByNameQuery(siteGroupsSorted, spGroupRuleNameFilter),
     [siteGroupsSorted, spGroupRuleNameFilter]
+  );
+
+  const siteGroupsSortedForExcludeRules = useMemo(
+    () => filterSiteGroupsByNameQuery(siteGroupsSorted, spExcludeGroupRuleNameFilter),
+    [siteGroupsSorted, spExcludeGroupRuleNameFilter]
   );
 
   useEffect(() => {
@@ -2236,10 +2242,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   </Stack>
                 
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                    Grupos do SharePoint
+                    Incluir: grupos SharePoint
                   </Text>
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Vazio = a regra aplica-se a todos.
+                    Opcional. Vazio = todos. Com grupos marcados, a regra só aplica a quem pertencer a pelo menos um
+                    deles.
                   </Text>
                   <TextField
                     placeholder="Filtrar grupos por nome"
@@ -2345,6 +2352,117 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                         </Text>
                       ) : null}
                       {!siteGroupsSorted.length && !(g.groupTitles ?? []).length ? (
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          Nenhum grupo no site.
+                        </Text>
+                      ) : null}
+                    </Stack>
+                  ) : null}
+                  <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 10 } }}>
+                    Excluir: grupos SharePoint
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Opcional. Vazio = não excluir ninguém por grupo. Com grupos marcados, a regra não aplica a quem
+                    pertencer a algum deles.
+                  </Text>
+                  <TextField
+                    placeholder="Filtrar grupos a excluir"
+                    value={spExcludeGroupRuleNameFilter}
+                    onChange={(_: unknown, v?: string) => setSpExcludeGroupRuleNameFilter(v ?? '')}
+                    styles={{ root: { maxWidth: 420 } }}
+                  />
+                  {!siteGroupsLoading ? (
+                    <Stack
+                      tokens={{ childrenGap: 6 }}
+                      styles={{
+                        root: {
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                          border: '1px solid #edebe9',
+                          borderRadius: 4,
+                          padding: 8,
+                          marginTop: 4,
+                        },
+                      }}
+                    >
+                      {(g.excludeGroupTitles ?? [])
+                        .filter(
+                          (t) =>
+                            !siteGroups.some(
+                              (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
+                            )
+                        )
+                        .filter((t) => {
+                          const q = spExcludeGroupRuleNameFilter.trim().toLowerCase();
+                          return !q || t.toLowerCase().includes(q);
+                        })
+                        .map((t, oi) => (
+                          <Checkbox
+                            key={`tx-ex-orphan-${g.id}-${oi}-${t}`}
+                            label={`${t} (guardado; não na lista do site)`}
+                            checked
+                            onChange={(_, c) => {
+                              if (c) return;
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                    if (gr.id !== g.id) return gr;
+                                    const cur = gr.excludeGroupTitles ?? [];
+                                    const n = normSpGroupTitle(t);
+                                    const next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                                    const out: ITextFieldConditionalGroup = { ...gr };
+                                    if (next.length) out.excludeGroupTitles = next;
+                                    else delete out.excludeGroupTitles;
+                                    return out;
+                                  }),
+                                },
+                              }));
+                            }}
+                          />
+                        ))}
+                      {siteGroupsSortedForExcludeRules.map((sg) => {
+                        const cur = g.excludeGroupTitles ?? [];
+                        const n = normSpGroupTitle(sg.Title);
+                        const checked = cur.some((x) => normSpGroupTitle(x) === n);
+                        return (
+                          <Checkbox
+                            key={`tx-ex-sg-${g.id}-${sg.Id}`}
+                            label={sg.Title}
+                            title={sg.Description || undefined}
+                            checked={checked}
+                            onChange={(_, c) => {
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                    if (gr.id !== g.id) return gr;
+                                    const prevTitles = gr.excludeGroupTitles ?? [];
+                                    let next: string[];
+                                    if (c) {
+                                      next = checked ? prevTitles : prevTitles.concat([sg.Title]);
+                                    } else {
+                                      next = prevTitles.filter((x) => normSpGroupTitle(x) !== n);
+                                    }
+                                    const out: ITextFieldConditionalGroup = { ...gr };
+                                    if (next.length) out.excludeGroupTitles = next;
+                                    else delete out.excludeGroupTitles;
+                                    return out;
+                                  }),
+                                },
+                              }));
+                            }}
+                          />
+                        );
+                      })}
+                      {siteGroupsSorted.length > 0 &&
+                      !siteGroupsSortedForExcludeRules.length &&
+                      spExcludeGroupRuleNameFilter.trim() ? (
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          Nenhum grupo corresponde ao filtro.
+                        </Text>
+                      ) : null}
+                      {!siteGroupsSorted.length && !(g.excludeGroupTitles ?? []).length ? (
                         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                           Nenhum grupo no site.
                         </Text>

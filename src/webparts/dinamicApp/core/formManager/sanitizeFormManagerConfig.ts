@@ -87,6 +87,14 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       if (!t) continue;
       groupTitles.push(t.slice(0, 256));
     }
+    const excludeGroupTitlesRaw = Array.isArray(gr.excludeGroupTitles) ? gr.excludeGroupTitles : [];
+    const excludeGroupTitles: string[] = [];
+    for (let ei = 0; ei < excludeGroupTitlesRaw.length; ei++) {
+      const t =
+        typeof excludeGroupTitlesRaw[ei] === 'string' ? (excludeGroupTitlesRaw[ei] as string).trim() : '';
+      if (!t) continue;
+      excludeGroupTitles.push(t.slice(0, 256));
+    }
     const condRaw = Array.isArray(gr.conditions) ? gr.conditions : [];
     const conditions: ITextFieldConditionalCondition[] = [];
     for (let k = 0; k < condRaw.length; k++) {
@@ -107,6 +115,7 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       id,
       modes,
       ...(groupTitles.length ? { groupTitles } : {}),
+      ...(excludeGroupTitles.length ? { excludeGroupTitles } : {}),
       groupOp,
       conditions,
       action,
@@ -225,10 +234,21 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
   const groupTitles = Array.isArray(r.groupTitles)
     ? (r.groupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const excludeGroupTitles = Array.isArray(r.excludeGroupTitles)
+    ? (r.excludeGroupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+    : undefined;
   const tags = Array.isArray(r.tags)
     ? (r.tags as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
-  const base = { id, enabled, ...(when ? { when } : {}), ...(modes?.length ? { modes } : {}), ...(groupTitles?.length ? { groupTitles } : {}), ...(tags?.length ? { tags } : {}) };
+  const base = {
+    id,
+    enabled,
+    ...(when ? { when } : {}),
+    ...(modes?.length ? { modes } : {}),
+    ...(groupTitles?.length ? { groupTitles } : {}),
+    ...(excludeGroupTitles?.length ? { excludeGroupTitles } : {}),
+    ...(tags?.length ? { tags } : {}),
+  };
 
   switch (action) {
     case 'setVisibility': {
@@ -381,6 +401,7 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
         enabled,
         ...(when ? { when } : {}),
         ...(groupTitles?.length ? { groupTitles } : {}),
+        ...(excludeGroupTitles?.length ? { excludeGroupTitles } : {}),
         ...(tags?.length ? { tags } : {}),
         action: 'setComputed',
         field,
@@ -394,7 +415,13 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
       const field = typeof r.field === 'string' ? r.field.trim() : '';
       const gt = Array.isArray(r.groupTitles) ? (r.groupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean) : [];
       if (!field || !gt.length) return undefined;
-      return { ...base, action, field, groupTitles: gt, allow: r.allow === true };
+      return {
+        ...base,
+        action,
+        field,
+        groupTitles: gt,
+        allow: r.allow === true,
+      };
     }
     case 'authorFieldAccess': {
       const field = typeof r.field === 'string' ? r.field.trim() : '';
@@ -668,6 +695,9 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   const groupTitles = Array.isArray(b.groupTitles)
     ? (b.groupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const excludeGroupTitlesBtn = Array.isArray(b.excludeGroupTitles)
+    ? (b.excludeGroupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+    : undefined;
   const showOnlyWhenAllRequiredFilled = b.showOnlyWhenAllRequiredFilled === true ? true : undefined;
   const shortDescriptionRaw = typeof b.shortDescription === 'string' ? b.shortDescription.trim() : '';
   const shortDescription = shortDescriptionRaw ? shortDescriptionRaw : undefined;
@@ -739,6 +769,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(enabled === false ? { enabled: false } : {}),
     ...(when ? { when } : {}),
     ...(groupTitles?.length ? { groupTitles } : {}),
+    ...(excludeGroupTitlesBtn?.length ? { excludeGroupTitles: excludeGroupTitlesBtn } : {}),
     ...(showOnlyWhenAllRequiredFilled ? { showOnlyWhenAllRequiredFilled: true } : {}),
     ...(submitLoadingKind ? { submitLoadingKind } : {}),
     ...(confirmBeforeRun ? { confirmBeforeRun } : {}),

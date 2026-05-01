@@ -45,6 +45,8 @@ export interface IFormRuleBase {
   modes?: TFormManagerFormMode[];
   /** Só aplica se o usuário estiver em algum destes grupos (título). Vazio = todos. */
   groupTitles?: string[];
+  /** Se preenchido, a regra **não** aplica a utilizadores que pertençam a algum destes grupos. */
+  excludeGroupTitles?: string[];
   /** Regras com `fullSubmitOnly` não rodam em rascunho. */
   tags?: string[];
 }
@@ -299,6 +301,8 @@ export interface ITextFieldConditionalGroup {
   modes: TFormManagerFormMode[];
   /** Omitido ou vazio = todos os utilizadores; caso contrário, pelo menos um grupo. */
   groupTitles?: string[];
+  /** Utilizadores nestes grupos não entram nesta regra (opcional). */
+  excludeGroupTitles?: string[];
   groupOp: TTextFieldConditionalGroupOp;
   conditions: ITextFieldConditionalCondition[];
   action: TTextFieldConditionalAction;
@@ -678,6 +682,8 @@ export interface IFormCustomButtonConfig {
   when?: TFormConditionNode;
   /** Títulos de grupos SharePoint; vazio/omitido = qualquer usuário. */
   groupTitles?: string[];
+  /** Botão oculto para utilizadores nestes grupos (opcional). */
+  excludeGroupTitles?: string[];
   /**
    * Se true, o botão só aparece quando todos os campos obrigatórios visíveis estão preenchidos
    * (regras + obrigatório na lista; anexos se obrigatórios). Cumulativo com grupos e condição «when».

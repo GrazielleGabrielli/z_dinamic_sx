@@ -193,6 +193,7 @@ export interface IConditionalRuleCard {
   modes?: TFormManagerFormMode[];
   /** Títulos de grupos SharePoint; vazio = todos os utilizadores. */
   groupTitles?: string[];
+  excludeGroupTitles?: string[];
   effects: IConditionalEffectUi[];
 }
 
@@ -211,6 +212,7 @@ export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] 
       when,
       ...(card.modes?.length ? { modes: card.modes } : {}),
       ...(card.groupTitles?.length ? { groupTitles: card.groupTitles } : {}),
+      ...(card.excludeGroupTitles?.length ? { excludeGroupTitles: card.excludeGroupTitles } : {}),
     };
     const id = (suffix: string): string => `ui_card_${card.id}_${idx++}_${suffix}`;
     const tf = (e.targetField ?? '').trim();
@@ -332,6 +334,7 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
     if (!w) return;
     const modes = first.modes;
     const groupTitles = first.groupTitles;
+    const excludeGroupTitles = first.excludeGroupTitles;
     const effects: IConditionalEffectUi[] = [];
     for (let j = 0; j < list.length; j++) {
       const eff = effectFromRule(list[j]);
@@ -342,6 +345,7 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
       when: w,
       ...(modes?.length ? { modes } : {}),
       ...(groupTitles?.length ? { groupTitles } : {}),
+      ...(excludeGroupTitles?.length ? { excludeGroupTitles } : {}),
       effects,
     });
   });
@@ -574,10 +578,12 @@ export function compileTextFieldConditionalVisibilityRules(
     const gid = safeIdSegment(g.id || `g${i}`);
     const modePayload = g.modes?.length ? { modes: g.modes } : {};
     const groupPayload = g.groupTitles?.length ? { groupTitles: g.groupTitles } : {};
+    const excludePayload = g.excludeGroupTitles?.length ? { excludeGroupTitles: g.excludeGroupTitles } : {};
     if (g.action === 'disable') {
       out.push({
         ...modePayload,
         ...groupPayload,
+        ...excludePayload,
         id: `ui_f_${seg}_txdis_${gid}`,
         action: 'setDisabled',
         field: internalName,
@@ -588,6 +594,7 @@ export function compileTextFieldConditionalVisibilityRules(
       out.push({
         ...modePayload,
         ...groupPayload,
+        ...excludePayload,
         id: `ui_f_${seg}_txvis_${gid}`,
         action: 'setVisibility',
         targetKind: 'field',
@@ -992,5 +999,9 @@ export function describeConditionalCardPT(card: IConditionalRuleCard): string {
     card.groupTitles && card.groupTitles.length
       ? ` · grupos: ${card.groupTitles.join(', ')}`
       : '';
-  return `Quando ${w.field} ${op}${val} → ${card.effects.length} efeito(s)${g}`;
+  const gx =
+    card.excludeGroupTitles && card.excludeGroupTitles.length
+      ? ` · excluir: ${card.excludeGroupTitles.join(', ')}`
+      : '';
+  return `Quando ${w.field} ${op}${val} → ${card.effects.length} efeito(s)${g}${gx}`;
 }

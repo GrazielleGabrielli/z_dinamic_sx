@@ -165,6 +165,17 @@ export function userInAnyGroup(userTitles: string[], ruleGroups: string[] | unde
   return false;
 }
 
+/** Inclui `groupTitles` (vazio = todos) e exclui se o utilizador estiver em `excludeGroupTitles`. */
+export function ruleAppliesUserGroupFilters(
+  userTitles: string[],
+  rule: { groupTitles?: string[]; excludeGroupTitles?: string[] }
+): boolean {
+  if (!userInAnyGroup(userTitles, rule.groupTitles)) return false;
+  const ex = rule.excludeGroupTitles;
+  if (ex && ex.length && userInAnyGroup(userTitles, ex)) return false;
+  return true;
+}
+
 export function isAttachmentFolderUploaderVisible(
   node: IAttachmentLibraryFolderTreeNode,
   ctx: IFormRuleRuntimeContext
@@ -485,7 +496,7 @@ export function getMergedValidateValueLengthBounds(
     if (rule.field !== fieldName) continue;
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
-    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
     if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
     if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
     if (rule.minLength !== undefined) {
@@ -519,7 +530,7 @@ export function getMergedValidateValueNumberBounds(
     if (rule.field !== fieldName) continue;
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
-    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
     if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
     if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
     if (rule.minNumber !== undefined) {
@@ -641,7 +652,7 @@ export function shouldShowCustomButton(
     if (ctx.formMode === 'edit' && !se) return false;
   }
   if (op === 'update' && ctx.formMode === 'create') return false;
-  if (!userInAnyGroup(ctx.userGroupTitles, b.groupTitles)) return false;
+  if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, b)) return false;
   if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext, ctx.userGroupTitles))
     return false;
   if (b.showOnlyWhenAllRequiredFilled === true && visibilityOpts?.allRequiredFilled !== true) return false;
@@ -1151,7 +1162,7 @@ export function collectApplicableValidateDateRules(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
-    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
     const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
     if (!whenOk) continue;
     if (!fieldVisible(field)) continue;
@@ -1272,7 +1283,7 @@ export function buildFormDerivedState(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, ctx.submitKind)) continue;
-    if (!userInAnyGroup(ctx.userGroupTitles, rule.groupTitles)) continue;
+    if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, rule)) continue;
     const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
     if (!whenOk) continue;
 
@@ -1482,7 +1493,7 @@ export function collectFormValidationErrors(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
-    if (!userInAnyGroup(ctx.userGroupTitles, rule.groupTitles)) continue;
+    if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, rule)) continue;
     const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
 
     switch (rule.action) {
@@ -1950,7 +1961,7 @@ export function buildPostCreateItemIdComputedPatch(params: {
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, 'create')) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
-    if (!userInAnyGroup(userGroupTitles, rule.groupTitles)) continue;
+    if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
     if (rule.when && !evaluateCondition(rule.when, valuesWithId, dynamicContext, userGroupTitles))
       continue;
 
