@@ -54,6 +54,8 @@ export interface IFormManagerActionLogTabProps {
   primaryListTitle: string;
   sourceListLookupFieldInternalName: string;
   onSourceListLookupFieldInternalNameChange: (internalName: string) => void;
+  automaticChangesOnUpdate: boolean;
+  onAutomaticChangesOnUpdateChange: (enabled: boolean) => void;
 }
 
 export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabProps): JSX.Element {
@@ -73,6 +75,8 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
     primaryListTitle,
     sourceListLookupFieldInternalName,
     onSourceListLookupFieldInternalNameChange,
+    automaticChangesOnUpdate,
+    onAutomaticChangesOnUpdateChange,
   } = props;
   const [lists, setLists] = useState<IListSummary[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
@@ -305,6 +309,18 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
             Defina a lista, o campo multilinhas e o lookup de vínculo à lista principal para desbloquear a captação.
           </Text>
         )}
+        <Toggle
+          label="Alterações automáticas (botões Atualizar)"
+          checked={automaticChangesOnUpdate}
+          onChange={(_, c) => onAutomaticChangesOnUpdateChange(!!c)}
+          onText="Ativas"
+          offText="Inativas"
+        />
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          Quando ativo, cada gravação com um botão «Atualizar» acrescenta ao texto do log as alterações efetivas dos
+          campos (valor ao abrir o item → valor gravado). Se o utilizador alterar e repor o mesmo valor, não surge
+          diferença.
+        </Text>
       </FormManagerCollapseSection>
 
       <FormManagerCollapseSection

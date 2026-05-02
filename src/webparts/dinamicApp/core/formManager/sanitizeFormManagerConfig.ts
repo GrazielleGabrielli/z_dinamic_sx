@@ -1130,13 +1130,15 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
       if (slotStr !== 'themePrimary') descriptionPaletteSlotByButtonId[bid] = slotStr;
     }
   }
+  const automaticChangesOnUpdate = o.automaticChangesOnUpdate === true;
   if (
     !captureEnabled &&
     !listTitle &&
     !actionFieldInternalName &&
     !sourceListLookupFieldInternalName &&
     Object.keys(descriptionsHtmlByButtonId).length === 0 &&
-    Object.keys(descriptionPaletteSlotByButtonId).length === 0
+    Object.keys(descriptionPaletteSlotByButtonId).length === 0 &&
+    !automaticChangesOnUpdate
   ) {
     return undefined;
   }
@@ -1147,6 +1149,7 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
     ...(sourceListLookupFieldInternalName ? { sourceListLookupFieldInternalName } : {}),
     ...(Object.keys(descriptionsHtmlByButtonId).length ? { descriptionsHtmlByButtonId } : {}),
     ...(Object.keys(descriptionPaletteSlotByButtonId).length ? { descriptionPaletteSlotByButtonId } : {}),
+    ...(automaticChangesOnUpdate ? { automaticChangesOnUpdate: true } : {}),
   };
 }
 

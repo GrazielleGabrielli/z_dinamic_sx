@@ -761,6 +761,11 @@ export interface IFormManagerActionLogConfig {
    * Omitido por botão → `themePrimary`.
    */
   descriptionPaletteSlotByButtonId?: Record<string, TFormCustomButtonPaletteSlot>;
+  /**
+   * Se true, nos botões personalizados «Atualizar», acrescenta ao HTML do log as alterações efetivas
+   * dos campos (valor inicial ao abrir o item → valor gravado), omitindo quando não há diferença líquida.
+   */
+  automaticChangesOnUpdate?: boolean;
 }
 
 /** Corpo de formulário reutilizável (lista principal ou lista filha vinculada). */

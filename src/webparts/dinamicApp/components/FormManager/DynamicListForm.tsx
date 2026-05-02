@@ -1219,6 +1219,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [serverAttachments, setServerAttachments] = useState<IServerAttachmentRow[]>([]);
   const prevByTriggerRef = useRef<Record<string, unknown>>({});
   const prevLinkedParentItemIdRef = useRef<number | undefined>(undefined);
+  const auditActionLogBaselineRef = useRef<Record<string, unknown>>({});
+  const auditActionLogBaselineOpenKeyRef = useRef<string>('');
+  const auditActionLogBaselineHydratedRef = useRef(false);
   const [buttonOverlay, setButtonOverlay] = useState<IFormButtonFieldOverlay>(() => ({
     show: new Set<string>(),
     hide: new Set<string>(),
@@ -1301,6 +1304,35 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     setValues(itemToFormValues(initialItem ?? undefined, names));
     setButtonOverlay({ show: new Set<string>(), hide: new Set<string>() });
   }, [initialItem, names]);
+
+  useEffect(() => {
+    if (!setComputedItemOpenKey || formMode === 'create') {
+      auditActionLogBaselineOpenKeyRef.current = '';
+      auditActionLogBaselineHydratedRef.current = false;
+      auditActionLogBaselineRef.current = {};
+      return;
+    }
+    if (auditActionLogBaselineOpenKeyRef.current !== setComputedItemOpenKey) {
+      auditActionLogBaselineOpenKeyRef.current = setComputedItemOpenKey;
+      auditActionLogBaselineHydratedRef.current = false;
+      auditActionLogBaselineRef.current = {};
+    }
+    if (auditActionLogBaselineHydratedRef.current) return;
+    if (!initialItem || typeof initialItem !== 'object') return;
+    const ii = initialItem as Record<string, unknown>;
+    let hasSeed = ii.Id != null || ii.id != null;
+    if (!hasSeed) {
+      for (let i = 0; i < names.length; i++) {
+        if (ii[names[i]] !== undefined) {
+          hasSeed = true;
+          break;
+        }
+      }
+    }
+    if (!hasSeed) return;
+    auditActionLogBaselineRef.current = itemToFormValues(initialItem, names);
+    auditActionLogBaselineHydratedRef.current = true;
+  }, [setComputedItemOpenKey, initialItem, names, formMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3221,7 +3253,17 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               itemsService,
               formManager.actionLog,
               btn,
-              buildActionLogRuntimeCtx(btn, itemId)
+              buildActionLogRuntimeCtx(btn, itemId),
+              formManager.actionLog?.automaticChangesOnUpdate === true && btn.operation === 'update'
+                ? {
+                    automaticChanges: {
+                      baseline: auditActionLogBaselineRef.current,
+                      final: mergedForUpdate,
+                      payloadFieldInternalNames: Object.keys(payload),
+                      metaByName,
+                    },
+                  }
+                : undefined
             );
           } catch (le) {
             setFormError(

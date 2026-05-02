@@ -2203,7 +2203,6 @@ export function buildPostCreateItemIdComputedPatch(params: {
     const rule = rules[i];
     if (rule.action !== 'setComputed') continue;
     if (rule.enabled === false) continue;
-    if (!ruleAppliesMode(rule, 'create')) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
     if (rule.when && !evaluateCondition(rule.when, valuesWithId, dynamicContext, userGroupTitles))
