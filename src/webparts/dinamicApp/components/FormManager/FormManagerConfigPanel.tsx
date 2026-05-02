@@ -22,7 +22,7 @@ import {
   Toggle,
 } from '@fluentui/react';
 import { FieldsService, GroupsService, filterSiteGroupsByNameQuery, mergeSystemMetadataFields } from '../../../../services';
-import type { IFieldMetadata, IGroupDetails } from '../../../../services';
+import type { FieldMappedType, IFieldMetadata, IGroupDetails } from '../../../../services';
 import type {
   IFormManagerConfig,
   IFormManagerActionLogConfig,
@@ -112,6 +112,32 @@ import { FormManagerPermissionBreakTabContent } from './FormManagerPermissionBre
 import { FormManagerChainedActionsBlock } from './FormManagerChainedActionsBlock';
 import { isFormAttachmentLibraryRuntime } from '../../core/formManager/formAttachmentLibrary';
 import { isConfirmPromptEligibleField } from '../../core/formManager/confirmPromptFieldHelpers';
+
+const FIELD_RULES_TAB_SORT_TYPE_ORDER: readonly FieldMappedType[] = [
+  'text',
+  'multiline',
+  'choice',
+  'multichoice',
+  'number',
+  'currency',
+  'boolean',
+  'datetime',
+  'url',
+  'lookup',
+  'lookupmulti',
+  'user',
+  'usermulti',
+  'calculated',
+  'taxonomy',
+  'taxonomymulti',
+  'unknown',
+];
+
+function fieldRulesTabMappedTypeOrderIndex(t: FieldMappedType | undefined): number {
+  if (t === undefined) return 1000;
+  const i = FIELD_RULES_TAB_SORT_TYPE_ORDER.indexOf(t);
+  return i === -1 ? 999 : i;
+}
 
 function attachmentLibraryFromPanelState(
   libraryTitle: string,
@@ -782,6 +808,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [jsonPanelText, setJsonPanelText] = useState('');
   const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
+  const [fieldRulesTabSort, setFieldRulesTabSort] = useState<'asc' | 'desc' | 'type'>('asc');
   const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
   const [redirectInsertNonceByBtn, setRedirectInsertNonceByBtn] = useState<Record<string, number>>({});
   const [redirectReplaceNonceByBtn, setRedirectReplaceNonceByBtn] = useState<Record<string, number>>({});
@@ -1100,27 +1127,43 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const customs = useMemo(() => customRulesOnly(rules), [rules]);
 
   const fieldsListedForRulesTab = useMemo(() => {
-    const byName = new Map(meta.map((x) => [x.InternalName, x]));
     const inSomeStep = (internalName: string): boolean => {
       for (let si = 0; si < steps.length; si++) {
         if (steps[si].fieldNames.indexOf(internalName) !== -1) return true;
       }
       return false;
     };
-    return fields
-      .filter((fc) => {
-        if (fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return false;
-        if (FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fc.internalName) && !inSomeStep(fc.internalName))
-          return false;
-        return true;
-      })
-      .slice()
-      .sort((a, b) => {
-        const ta = byName.get(a.internalName)?.Title ?? a.internalName;
-        const tb = byName.get(b.internalName)?.Title ?? b.internalName;
-        return ta.localeCompare(tb, 'pt');
-      });
+    return fields.filter((fc) => {
+      if (fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return false;
+      if (FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fc.internalName) && !inSomeStep(fc.internalName))
+        return false;
+      return true;
+    });
   }, [fields, meta, steps]);
+
+  const fieldsForRulesTabDisplay = useMemo(() => {
+    const byName = new Map(meta.map((x) => [x.InternalName, x]));
+    const list = fieldsListedForRulesTab.slice();
+    const titleOf = (fc: IFormFieldConfig): string =>
+      (byName.get(fc.internalName)?.Title ?? fc.internalName).trim();
+    if (fieldRulesTabSort === 'asc') {
+      list.sort((a, b) => titleOf(a).localeCompare(titleOf(b), 'pt'));
+      return list;
+    }
+    if (fieldRulesTabSort === 'desc') {
+      list.sort((a, b) => titleOf(b).localeCompare(titleOf(a), 'pt'));
+      return list;
+    }
+    list.sort((a, b) => {
+      const ma = byName.get(a.internalName)?.MappedType;
+      const mb = byName.get(b.internalName)?.MappedType;
+      const ia = fieldRulesTabMappedTypeOrderIndex(ma);
+      const ib = fieldRulesTabMappedTypeOrderIndex(mb);
+      if (ia !== ib) return ia - ib;
+      return titleOf(a).localeCompare(titleOf(b), 'pt');
+    });
+    return list;
+  }, [fieldsListedForRulesTab, meta, fieldRulesTabSort]);
 
   const requiredFieldsMissingFromSteps = useMemo(
     () => requiredListFieldsMissingFromSteps(meta, steps),
@@ -2714,12 +2757,34 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         </PivotItem>
         <PivotItem headerText="Regras dos campos">
           <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
-         
             {!fieldsListedForRulesTab.length ? (
               <Text>Adicione campos ao formulário na aba Estrutura.</Text>
             ) : (
               <Stack tokens={{ childrenGap: 8 }}>
-                {fieldsListedForRulesTab.map((fc) => {
+                <Stack horizontal wrap verticalAlign="center" tokens={{ childrenGap: 8 }}>
+                  {fieldRulesTabSort === 'asc' ? (
+                    <PrimaryButton text="Crescente (A–Z)" onClick={() => setFieldRulesTabSort('asc')} />
+                  ) : (
+                    <DefaultButton text="Crescente (A–Z)" onClick={() => setFieldRulesTabSort('asc')} />
+                  )}
+                  {fieldRulesTabSort === 'desc' ? (
+                    <PrimaryButton text="Decrescente (Z–A)" onClick={() => setFieldRulesTabSort('desc')} />
+                  ) : (
+                    <DefaultButton text="Decrescente (Z–A)" onClick={() => setFieldRulesTabSort('desc')} />
+                  )}
+                  {fieldRulesTabSort === 'type' ? (
+                    <PrimaryButton
+                      text="Tipo de dado (agrupa por tipo)"
+                      onClick={() => setFieldRulesTabSort('type')}
+                    />
+                  ) : (
+                    <DefaultButton
+                      text="Tipo de dado (agrupa por tipo)"
+                      onClick={() => setFieldRulesTabSort('type')}
+                    />
+                  )}
+                </Stack>
+                {fieldsForRulesTabDisplay.map((fc) => {
                   const mm = meta.find((m) => m.InternalName === fc.internalName);
                   const title = mm?.Title ?? fc.internalName;
                   const typeAs = (mm?.TypeAsString ?? '').trim() || '—';
