@@ -604,7 +604,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const compRaw = derived.computedDisplay[name];
     const comp =
       setComputedRule?.alwaysLiveComputed === true || !rowPersisted ? compRaw : undefined;
-    if (comp !== undefined) {
+    if (comp !== undefined && (formMode === 'view' || fc.readOnly === true)) {
       const mComp = metaByName.get(name);
       const label = fc.label ?? mComp?.Title ?? name;
       const help = derived.dynamicHelpByField[name] ?? fc.helpText;
@@ -641,7 +641,14 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const help = derived.dynamicHelpByField[name] ?? fc.helpText;
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
-    const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(values[name], m.MappedType);
+    const mergedFieldValue = ((): unknown => {
+      if (comp === undefined) return values[name];
+      const v = values[name];
+      if (v === undefined || v === null) return comp;
+      if (typeof v === 'string' && v.trim() === '') return comp;
+      return v;
+    })();
+    const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(mergedFieldValue, m.MappedType);
 
     const common = { disabled: readOnly, errorMessage: err };
 
@@ -689,7 +696,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               ariaLabel={label}
               onText="Sim"
               offText="Não"
-              checked={values[name] === true || values[name] === 1}
+              checked={mergedFieldValue === true || mergedFieldValue === 1}
               onChange={(_, c) => updateField(name, !!c)}
               disabled={readOnly}
             />
@@ -704,7 +711,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             {...(cell ? { ariaLabel: label } : { label })}
             type="number"
             placeholder={fc.placeholder}
-            value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
+            value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
             onChange={(_, v) => updateField(name, v === '' ? null : Number(v))}
             required={isRequired}
             {...common}
@@ -724,7 +731,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               minDate={validateDateCalendarPropsByField[name]?.minDate}
               maxDate={validateDateCalendarPropsByField[name]?.maxDate}
               calendarProps={validateDateCalendarPropsByField[name]}
-              value={values[name] ? new Date(String(values[name])) : undefined}
+              value={mergedFieldValue ? new Date(String(mergedFieldValue)) : undefined}
               onSelectDate={(d) => applyLinkedDateSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{
@@ -746,8 +753,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             placeholder={fc.placeholder}
             options={opts}
             selectedKey={
-              values[name] !== undefined && values[name] !== null && String(values[name]) !== ''
-                ? String(values[name])
+              mergedFieldValue !== undefined && mergedFieldValue !== null && String(mergedFieldValue) !== ''
+                ? String(mergedFieldValue)
                 : ''
             }
             onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
@@ -759,10 +766,10 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         );
       }
       case 'multichoice': {
-        const selected: string[] = Array.isArray(values[name])
-          ? (values[name] as string[])
-          : typeof values[name] === 'string'
-            ? String(values[name]).split(';').map((s) => s.trim()).filter(Boolean)
+        const selected: string[] = Array.isArray(mergedFieldValue)
+          ? (mergedFieldValue as string[])
+          : typeof mergedFieldValue === 'string'
+            ? String(mergedFieldValue).split(';').map((s) => s.trim()).filter(Boolean)
             : [];
         const opts: IDropdownOption[] = (m.Choices ?? []).map((c) => ({
           key: c,
@@ -802,11 +809,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             parentMetaDrop
           );
         const lookupBlockedByParent = filterActive && !parentReady;
-        const id = lookupIdFromValue(values[name]);
+        const id = lookupIdFromValue(mergedFieldValue);
         const baseOpts = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const opts =
           id !== undefined && id > 0
-            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
+            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(mergedFieldValue) }])
             : baseOpts;
         return (
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
@@ -852,7 +859,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             parentMetaMulti
           );
         const lookupBlockedByParentMulti = filterActiveMulti && !parentReadyMulti;
-        const selected = normalizeIdTitleArray(values[name]);
+        const selected = normalizeIdTitleArray(mergedFieldValue);
         const baseRaw = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const baseOpts = baseRaw.filter((o) => o.key !== '');
         const extra = selected.map((x) => ({ id: x.Id, label: x.Title }));
@@ -898,11 +905,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         );
       }
       case 'user': {
-        const id = lookupIdFromValue(values[name]);
+        const id = lookupIdFromValue(mergedFieldValue);
         const baseOpts = !isRequired ? siteUserOptions : siteUserOptions.filter((o) => o.key !== '');
         const opts =
           id !== undefined && id > 0
-            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
+            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(mergedFieldValue) }])
             : baseOpts;
         return (
           <Dropdown
@@ -923,7 +930,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         );
       }
       case 'usermulti': {
-        const selected = normalizeIdTitleArray(values[name]);
+        const selected = normalizeIdTitleArray(mergedFieldValue);
         const baseOpts = siteUserOptions.filter((o) => o.key !== '');
         const extra = selected.map((x) => ({ id: x.Id, label: x.Title }));
         const opts = mergeOptionsForIds(baseOpts, extra);
@@ -955,7 +962,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         );
       }
       case 'url': {
-        const uv = parseUrlFieldValue(values[name]);
+        const uv = parseUrlFieldValue(mergedFieldValue);
         return (
           <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: mb } }}>
             {!cell && <Label required={isRequired}>{label}</Label>}
@@ -982,7 +989,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       }
       case 'text': {
         const rawSingle =
-          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+          mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : '';
         const maskOpts = resolveTextInputMaskOptions(fc.textInputMaskKind, fc.textInputMaskCustomPattern);
         const inputBorder = err ? theme.semanticColors.errorText : theme.semanticColors.inputBorder;
         const maskInputStyle: React.CSSProperties = {
@@ -1053,7 +1060,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       }
       case 'multiline': {
         const raw =
-          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+          mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : '';
         if (readOnly && shouldRenderMultilineNoteAsHtml(m, raw)) {
           return (
             <MultilineReadonlyHtml
@@ -1089,7 +1096,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             key={name}
             {...(cell ? { ariaLabel: label } : { label })}
             placeholder={fc.placeholder}
-            value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
+            value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
             onChange={(_, v) => updateField(name, v ?? '')}
             required={isRequired}
             {...common}

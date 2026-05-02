@@ -27,6 +27,7 @@ import {
   type IFieldMetadata,
   type IGroupDetails,
 } from '../../../../services';
+import type { FieldMappedType } from '../../../../services/shared/types';
 import type {
   IFormFieldConfig,
   TFormFieldTextInputMaskKind,
@@ -57,6 +58,20 @@ import {
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from '../../core/formManager/formTextInputMasks';
 import { isNoteFieldMeta } from '../../core/listView';
+import {
+  DATE_DEFAULT_MENTION_SUFFIX_PRESETS,
+  DEFAULT_VALUE_LITERAL_TOKENS,
+  DEFAULT_VALUE_MENTION_DATE_TOKENS,
+  DEFAULT_VALUE_QUERY_TOKENS,
+  DEFAULT_VALUE_USER_CONTEXT_TOKENS,
+  filterFieldOptionsByMappedTypes,
+  mergeSetComputedContextTokens,
+  defaultValueMentionParts,
+  defaultValueMentionPartsNumericOnly,
+  setComputedMentionParts,
+  type TDefaultValueMentionParts,
+  type TSetComputedMentionParts,
+} from './fieldRulesMentionProfiles';
 
 /** Portal de sugestões @ (fora do painel no DOM); ignorar em `Panel.onOuterClick`. */
 export const FORM_FIELD_RULES_MENTION_PORTAL_ATTR = 'data-dinamic-rules-mention';
@@ -200,32 +215,6 @@ const MODE_OPTS: { key: TFormManagerFormMode; label: string }[] = [
 
 const ALL_MODES: TFormManagerFormMode[] = ['create', 'edit', 'view'];
 
-const SET_COMPUTED_CONTEXT_TOKENS: { literal: string; hint: string }[] = [
-  { literal: '[me]', hint: 'Id numérico do utilizador atual' },
-  { literal: '[myId]', hint: 'Igual a [me]' },
-  { literal: '[myName]', hint: 'Nome do utilizador' },
-  { literal: '[myEmail]', hint: 'E-mail do utilizador' },
-  { literal: '[myLogin]', hint: 'Nome de início de sessão' },
-  { literal: '[myDepartment]', hint: 'Departamento (se disponível)' },
-  { literal: '[myJobTitle]', hint: 'Cargo (se disponível)' },
-  { literal: '[siteTitle]', hint: 'Título do site' },
-  { literal: '[siteUrl]', hint: 'URL do site' },
-  { literal: '[listTitle]', hint: 'Título da lista' },
-  { literal: '[today]', hint: 'Data de hoje (ISO)' },
-  { literal: '[now]', hint: 'Data e hora atuais (ISO)' },
-  { literal: '[tomorrow]', hint: 'Dia seguinte (ISO)' },
-  { literal: '[yesterday]', hint: 'Dia anterior (ISO)' },
-  { literal: '[startOfMonth]', hint: 'Primeiro dia do mês corrente' },
-  { literal: '[endOfMonth]', hint: 'Último dia do mês corrente' },
-  { literal: '[startOfYear]', hint: 'Primeiro dia do ano corrente' },
-  { literal: '[endOfYear]', hint: 'Último dia do ano corrente' },
-  { literal: '[empty]', hint: 'Texto vazio' },
-  { literal: '[null]', hint: 'Valor nulo' },
-  { literal: '[true]', hint: 'Booleano verdadeiro' },
-  { literal: '[false]', hint: 'Booleano falso' },
-  { literal: '[query:nome]', hint: 'Valor do parâmetro ?nome= na URL da página' },
-];
-
 type TMentionItem = {
   key: string;
   insert: string;
@@ -264,8 +253,28 @@ function getActiveMentionRange(
   return { from: at, to: caret, filter: segment };
 }
 
+function pushDefaultValueTokenRows(
+  out: TMentionItem[],
+  rows: readonly { literal: string; hint: string }[],
+  keyPrefix: string,
+  match: (s: string) => boolean
+): void {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (match(row.literal) || match(row.hint)) {
+      out.push({
+        key: `${keyPrefix}-${row.literal}-${i}`,
+        insert: row.literal,
+        primary: row.literal,
+        secondary: row.hint,
+      });
+    }
+  }
+}
+
 function buildMentionItems(
   filter: string,
+  scParts: TSetComputedMentionParts,
   fieldOptions: IDropdownOption[],
   attachmentLibraryFolderOptions: IDropdownOption[],
   lookupPathOptions?: IDropdownOption[],
@@ -274,8 +283,9 @@ function buildMentionItems(
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
   const out: TMentionItem[] = [];
-  for (let i = 0; i < SET_COMPUTED_CONTEXT_TOKENS.length; i++) {
-    const row = SET_COMPUTED_CONTEXT_TOKENS[i];
+  const contextTokens = mergeSetComputedContextTokens(scParts.tokens);
+  for (let i = 0; i < contextTokens.length; i++) {
+    const row = contextTokens[i];
     if (match(row.literal) || match(row.hint)) {
       out.push({
         key: `t-${row.literal}-${i}`,
@@ -299,8 +309,9 @@ function buildMentionItems(
       });
     }
   }
-  for (let i = 0; i < attachmentLibraryFolderOptions.length; i++) {
-    const opt = attachmentLibraryFolderOptions[i];
+  const folders = scParts.includeAttfolders ? attachmentLibraryFolderOptions : [];
+  for (let i = 0; i < folders.length; i++) {
+    const opt = folders[i];
     const k = String(opt.key);
     const ins = `attfolder:${k}`;
     const lab = String(opt.text ?? k);
@@ -313,7 +324,7 @@ function buildMentionItems(
       });
     }
   }
-  if (lookupPathOptions !== undefined) {
+  if (scParts.includeLookupPaths && lookupPathOptions !== undefined) {
     for (let i = 0; i < lookupPathOptions.length; i++) {
       const opt = lookupPathOptions[i];
       const k = String(opt.key);
@@ -329,7 +340,7 @@ function buildMentionItems(
       }
     }
   }
-  if (numericFields !== undefined) {
+  if (scParts.includeNumericAux && numericFields !== undefined) {
     for (let i = 0; i < numericFields.length; i++) {
       const opt = numericFields[i];
       const k = String(opt.key);
@@ -348,26 +359,9 @@ function buildMentionItems(
   return out;
 }
 
-const DEFAULT_VALUE_MENTION_DATE_TOKENS: { literal: string; hint: string }[] = [
-  { literal: '[today]', hint: 'Data de hoje (ISO)' },
-  { literal: '[now]', hint: 'Data e hora atuais (ISO)' },
-  { literal: '[tomorrow]', hint: 'Dia seguinte (ISO)' },
-  { literal: '[yesterday]', hint: 'Dia anterior (ISO)' },
-  { literal: '[startOfMonth]', hint: 'Primeiro dia do mês corrente' },
-  { literal: '[endOfMonth]', hint: 'Último dia do mês corrente' },
-  { literal: '[startOfYear]', hint: 'Primeiro dia do ano corrente' },
-  { literal: '[endOfYear]', hint: 'Último dia do ano corrente' },
-];
-
-const DATE_DEFAULT_MENTION_SUFFIX_PRESETS: { insert: string; primary: string; secondary: string }[] = [
-  { insert: ' + 1', primary: '+ 1 dia', secondary: 'Após token ou {{campo}} de data' },
-  { insert: ' + 7', primary: '+ 7 dias', secondary: '' },
-  { insert: ' + 14', primary: '+ 14 dias', secondary: '' },
-  { insert: ' + 30', primary: '+ 30 dias', secondary: '' },
-];
-
 function buildDefaultValueMentionItems(
   filter: string,
+  parts: TDefaultValueMentionParts,
   dateFields?: IDropdownOption[],
   lookupFields?: IDropdownOption[],
   numericFields?: IDropdownOption[]
@@ -375,18 +369,19 @@ function buildDefaultValueMentionItems(
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
   const out: TMentionItem[] = [];
-  for (let i = 0; i < DEFAULT_VALUE_MENTION_DATE_TOKENS.length; i++) {
-    const row = DEFAULT_VALUE_MENTION_DATE_TOKENS[i];
-    if (match(row.literal) || match(row.hint)) {
-      out.push({
-        key: `dv-${row.literal}-${i}`,
-        insert: row.literal,
-        primary: row.literal,
-        secondary: row.hint,
-      });
-    }
+  if (parts.dateTokens) {
+    pushDefaultValueTokenRows(out, DEFAULT_VALUE_MENTION_DATE_TOKENS, 'dv-dt', match);
   }
-  if (dateFields !== undefined) {
+  if (parts.userContextTokens) {
+    pushDefaultValueTokenRows(out, DEFAULT_VALUE_USER_CONTEXT_TOKENS, 'dv-usr', match);
+  }
+  if (parts.literalTokens) {
+    pushDefaultValueTokenRows(out, DEFAULT_VALUE_LITERAL_TOKENS, 'dv-lit', match);
+  }
+  if (parts.queryTemplate) {
+    pushDefaultValueTokenRows(out, DEFAULT_VALUE_QUERY_TOKENS, 'dv-q', match);
+  }
+  if (parts.dateSuffixesAndDateRefs && dateFields !== undefined) {
     for (let i = 0; i < DATE_DEFAULT_MENTION_SUFFIX_PRESETS.length; i++) {
       const p = DATE_DEFAULT_MENTION_SUFFIX_PRESETS[i];
       const sec = p.secondary || 'Sufixo para somar dias';
@@ -414,7 +409,7 @@ function buildDefaultValueMentionItems(
       }
     }
   }
-  if (lookupFields !== undefined) {
+  if (parts.lookupPaths && lookupFields !== undefined) {
     for (let i = 0; i < lookupFields.length; i++) {
       const opt = lookupFields[i];
       const k = String(opt.key);
@@ -430,7 +425,7 @@ function buildDefaultValueMentionItems(
       }
     }
   }
-  if (numericFields !== undefined) {
+  if (parts.numericRefs && numericFields !== undefined) {
     for (let i = 0; i < numericFields.length; i++) {
       const opt = numericFields[i];
       const k = String(opt.key);
@@ -477,6 +472,7 @@ type TFieldRulesDefaultValueTextFieldProps = {
   description?: string;
   value: string;
   onChange: (next: string) => void;
+  defaultParts: TDefaultValueMentionParts;
   /** Quando definido (ex.: campo data), inclui outros campos data e sufixos +N no @. */
   dateFieldMentionOptions?: IDropdownOption[];
   /** Quando definido, inclui referências {{Lookup/Campo}} no @. */
@@ -490,6 +486,7 @@ function FieldRulesDefaultValueTextField({
   description,
   value,
   onChange,
+  defaultParts,
   dateFieldMentionOptions,
   lookupFieldMentionOptions,
   numericFieldMentionOptions,
@@ -525,6 +522,7 @@ function FieldRulesDefaultValueTextField({
     if (!mentionOpen || !mentionRange) return [];
     return buildDefaultValueMentionItems(
       mentionRange.filter,
+      defaultParts,
       dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
       lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined,
       numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined
@@ -532,6 +530,7 @@ function FieldRulesDefaultValueTextField({
   }, [
     mentionOpen,
     mentionRange,
+    defaultParts,
     dateFieldMentionOptions,
     lookupFieldMentionOptions,
     numericFieldMentionOptions,
@@ -619,6 +618,7 @@ function FieldRulesDefaultValueTextField({
       if (range) {
         const items = buildDefaultValueMentionItems(
           range.filter,
+          defaultParts,
           dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
           lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined,
           numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined
@@ -637,7 +637,7 @@ function FieldRulesDefaultValueTextField({
       }
       onChange(raw);
     },
-    [onChange, dateFieldMentionOptions, lookupFieldMentionOptions, numericFieldMentionOptions]
+    [onChange, defaultParts, dateFieldMentionOptions, lookupFieldMentionOptions, numericFieldMentionOptions]
   );
 
   const handleKeyDown = useCallback(
@@ -739,6 +739,9 @@ function FieldRulesDefaultValueTextField({
 type TSetComputedRulesBlockProps = {
   ed: IFieldRuleEditorState;
   setEd: React.Dispatch<React.SetStateAction<IFieldRuleEditorState>>;
+  mappedType: FieldMappedType;
+  internalName: string;
+  listFieldMetadata?: IFieldMetadata[];
   fieldOptions: IDropdownOption[];
   attachmentLibraryFolderOptions: IDropdownOption[];
   lookupPathMentionOptions?: IDropdownOption[];
@@ -750,6 +753,9 @@ type TSetComputedRulesBlockProps = {
 function SetComputedRulesBlock({
   ed,
   setEd,
+  mappedType,
+  internalName,
+  listFieldMetadata,
   fieldOptions,
   attachmentLibraryFolderOptions,
   lookupPathMentionOptions,
@@ -757,6 +763,25 @@ function SetComputedRulesBlock({
   bordered,
   sectionHeading,
 }: TSetComputedRulesBlockProps): JSX.Element {
+  const scParts = useMemo(() => setComputedMentionParts(mappedType), [mappedType]);
+  const filteredExprFieldOptions = useMemo(
+    () =>
+      filterFieldOptionsByMappedTypes(
+        fieldOptions,
+        listFieldMetadata,
+        scParts.allowedRefMappedTypes,
+        internalName
+      ),
+    [fieldOptions, listFieldMetadata, scParts.allowedRefMappedTypes, internalName]
+  );
+  const attachmentOpts = scParts.includeAttfolders ? attachmentLibraryFolderOptions : [];
+  const lookupOpts = scParts.includeLookupPaths ? lookupPathMentionOptions : undefined;
+  const numericOpts = scParts.includeNumericAux ? numericFieldMentionOptions : undefined;
+  const contextTokensForHelp = useMemo(
+    () => mergeSetComputedContextTokens(scParts.tokens),
+    [scParts.tokens]
+  );
+  const helpVariant = scParts.expressionHelpVariant;
   const [formsExprOpen, setFormsExprOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionRange, setMentionRange] = useState<{ from: number; to: number; filter: string } | null>(null);
@@ -789,18 +814,20 @@ function SetComputedRulesBlock({
     if (!mentionOpen || !mentionRange) return [];
     return buildMentionItems(
       mentionRange.filter,
-      fieldOptions,
-      attachmentLibraryFolderOptions,
-      lookupPathMentionOptions,
-      numericFieldMentionOptions
+      scParts,
+      filteredExprFieldOptions,
+      attachmentOpts,
+      lookupOpts,
+      numericOpts
     );
   }, [
     mentionOpen,
     mentionRange,
-    fieldOptions,
-    attachmentLibraryFolderOptions,
-    lookupPathMentionOptions,
-    numericFieldMentionOptions,
+    scParts,
+    filteredExprFieldOptions,
+    attachmentOpts,
+    lookupOpts,
+    numericOpts,
   ]);
 
   useLayoutEffect(() => {
@@ -903,10 +930,11 @@ function SetComputedRulesBlock({
       if (range) {
         const items = buildMentionItems(
           range.filter,
-          fieldOptions,
-          attachmentLibraryFolderOptions,
-          lookupPathMentionOptions,
-          numericFieldMentionOptions
+          scParts,
+          filteredExprFieldOptions,
+          attachmentOpts,
+          lookupOpts,
+          numericOpts
         );
         if (items.length > 0) {
           setMentionRange(range);
@@ -926,7 +954,14 @@ function SetComputedRulesBlock({
         computedAttachmentFolderNodeId: '',
       }));
     },
-    [fieldOptions, attachmentLibraryFolderOptions, lookupPathMentionOptions, numericFieldMentionOptions, setEd]
+    [
+      scParts,
+      filteredExprFieldOptions,
+      attachmentOpts,
+      lookupOpts,
+      numericOpts,
+      setEd,
+    ]
   );
 
   const handleExprKeyDown = useCallback(
@@ -977,28 +1012,64 @@ function SetComputedRulesBlock({
           isOpen={formsExprOpen}
           onToggle={() => setFormsExprOpen((v) => !v)}
         >
-          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            <strong>Número:</strong> só operadores <code style={{ fontSize: 12 }}>+ − * / ( )</code> e referências{' '}
-            <code style={{ fontSize: 12 }}>{'{{NomeInternoDoCampo}}'}</code> (substituídas por valores numéricos dos
-            campos).
-          </Text>
-          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            <strong>Texto:</strong> prefixo <code style={{ fontSize: 12 }}>str:</code>, depois texto com{' '}
-            <code style={{ fontSize: 12 }}>{'{{campo}}'}</code> e tokens entre parêntesis retos abaixo.
-          </Text>
-          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            <strong>Diferença em dias entre duas datas:</strong>{' '}
-            <code style={{ fontSize: 12 }}>{'{{DAYS:CampoDataA:CampoDataB}}'}</code> dentro da parte numérica.
-          </Text>
-          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            <strong>Só um token:</strong> pode usar apenas <code style={{ fontSize: 12 }}>[myEmail]</code> (sem{' '}
-            <code style={{ fontSize: 12 }}>str:</code>) se a expressão for só o token.
-          </Text>
+          {helpVariant === 'full' && (
+            <>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                <strong>Número:</strong> só operadores <code style={{ fontSize: 12 }}>+ − * / ( )</code> e referências{' '}
+                <code style={{ fontSize: 12 }}>{'{{NomeInternoDoCampo}}'}</code> (substituídas por valores numéricos dos
+                campos).
+              </Text>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                <strong>Texto:</strong> prefixo <code style={{ fontSize: 12 }}>str:</code>, depois texto com{' '}
+                <code style={{ fontSize: 12 }}>{'{{campo}}'}</code> e tokens entre parêntesis retos abaixo.
+              </Text>
+            </>
+          )}
+          {helpVariant === 'lookup' && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Sugestões <code style={{ fontSize: 12 }}>@</code>: tokens <code style={{ fontSize: 12 }}>[me]</code> /{' '}
+              <code style={{ fontSize: 12 }}>[myId]</code>, referências numéricas (campos número ou moeda), caminhos{' '}
+              <code style={{ fontSize: 12 }}>{'{{Lookup/Campo}}'}</code> e referências simples a outros campos lookup ou
+              pessoa na lista.
+            </Text>
+          )}
+          {(helpVariant === 'full' ||
+            helpVariant === 'datetime' ||
+            helpVariant === 'numeric') && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              <strong>Diferença em dias entre duas datas:</strong>{' '}
+              <code style={{ fontSize: 12 }}>{'{{DAYS:CampoDataA:CampoDataB}}'}</code>{' '}
+              {helpVariant === 'numeric' ? '(só se usar campos de data dentro da expressão numérica).' : 'dentro da parte numérica.'}
+            </Text>
+          )}
+          {(helpVariant === 'full' || helpVariant === 'boolean') && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              <strong>Só um token:</strong> pode usar apenas um token <code style={{ fontSize: 12 }}>[myEmail]</code>{' '}
+              (sem <code style={{ fontSize: 12 }}>str:</code>) se a expressão for só o token.
+            </Text>
+          )}
+          {helpVariant === 'datetime' && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Use tokens de data e referências <code style={{ fontSize: 12 }}>{'{{CampoData}}'}</code> com sufixos{' '}
+              <code style={{ fontSize: 12 }}>+ N</code> dias; inclua campos numéricos para deslocamentos dinâmicos.
+            </Text>
+          )}
+          {helpVariant === 'numeric' && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              <strong>Número:</strong> operadores <code style={{ fontSize: 12 }}>+ − * / ( )</code> e referências a
+              campos número ou moeda.
+            </Text>
+          )}
+          {helpVariant === 'boolean' && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Compare valores com literais ou referências compatíveis; use os tokens listados abaixo quando aplicável.
+            </Text>
+          )}
           <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130', marginTop: 4 } }}>
             Tokens de contexto (copiar como está; maiúsculas/minúsculas aceites onde aplicável)
           </Text>
           <Stack tokens={{ childrenGap: 6 }}>
-            {SET_COMPUTED_CONTEXT_TOKENS.map((row) => (
+            {contextTokensForHelp.map((row) => (
               <Stack key={row.literal} horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
                 <code style={{ fontSize: 12, flexShrink: 0 }}>{row.literal}</code>
                 <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -1008,7 +1079,7 @@ function SetComputedRulesBlock({
             ))}
           </Stack>
         </FormManagerCollapseSection>
-        {attachmentLibraryFolderOptions.length > 0 ? (
+        {attachmentOpts.length > 0 ? (
           <>
             <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130', marginTop: 8 } }}>
               Pastas na biblioteca de anexos
@@ -1018,7 +1089,7 @@ function SetComputedRulesBlock({
               <code style={{ fontSize: 12 }}>attfolder:idDoNó</code>.
             </Text>
             <Stack tokens={{ childrenGap: 8 }}>
-              {attachmentLibraryFolderOptions.map((opt) => {
+              {attachmentOpts.map((opt) => {
                 const key = String(opt.key);
                 const formula = `attfolder:${key}`;
                 const active = ed.computedAttachmentFolderNodeId === key;
@@ -1084,7 +1155,9 @@ function SetComputedRulesBlock({
           description={
             ed.computedAttachmentFolderNodeId
               ? undefined
-              : 'Digite @ para sugestões (tokens, campos, lookup {{Campo/Sub}}, pastas de anexos).'
+              : helpVariant === 'lookup'
+                ? 'Digite @ para [me], [myId], campos numéricos e caminhos {{Lookup/Campo}}.'
+                : 'Digite @ para sugestões (tokens, campos, lookup {{Campo/Sub}}, pastas de anexos).'
           }
           multiline
           rows={3}
@@ -1609,13 +1682,22 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   }, [isOpen, internalName, fieldConfig, rules, fieldOptions, meta?.MappedType]);
 
   const mt = meta?.MappedType ?? 'unknown';
+  const defaultValuePartsForField = useMemo(
+    () => defaultValueMentionParts((meta?.MappedType ?? 'unknown') as FieldMappedType),
+    [meta?.MappedType]
+  );
+  const defaultValuePartsNumericOnly = useMemo(() => defaultValueMentionPartsNumericOnly(), []);
+  const setComputedPartsForField = useMemo(
+    () => setComputedMentionParts((meta?.MappedType ?? 'unknown') as FieldMappedType),
+    [meta?.MappedType]
+  );
   const defaultValueDateFieldMentions = useMemo((): IDropdownOption[] | undefined => {
-    if (mt !== 'datetime') return undefined;
+    if (!defaultValuePartsForField.dateSuffixesAndDateRefs) return undefined;
     const list = listFieldMetadata ?? [];
     return list
       .filter((m) => m.MappedType === 'datetime' && m.InternalName !== internalName)
       .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }));
-  }, [mt, listFieldMetadata, internalName]);
+  }, [defaultValuePartsForField.dateSuffixesAndDateRefs, listFieldMetadata, internalName]);
 
   const defaultValueNumericFieldMentions = useMemo((): IDropdownOption[] | undefined => {
     const list = listFieldMetadata ?? [];
@@ -1739,23 +1821,6 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
     return head.concat(list.map((f) => ({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` })));
   }, [lookupRulesEligibleFlat]);
 
-  const toggleModeRow = useCallback((m: TFormManagerFormMode, checked: boolean) => {
-    setEd((prev) => {
-      let next = prev.modes.length === 0 ? ALL_MODES.slice() : prev.modes.slice();
-      if (checked) {
-        if (next.indexOf(m) === -1) next.push(m);
-      } else {
-        next = next.filter((x) => x !== m);
-      }
-      if (next.length === ALL_MODES.length) return { ...prev, modes: [] };
-      return { ...prev, modes: next };
-    });
-  }, []);
-
-  const modeRowChecked = useCallback((m: TFormManagerFormMode): boolean => {
-    return ed.modes.length === 0 || ed.modes.indexOf(m) !== -1;
-  }, [ed.modes]);
-
   const refFieldOptions = useMemo(
     () => fieldOptions.filter((o) => String(o.key) !== internalName),
     [fieldOptions, internalName]
@@ -1834,37 +1899,11 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
-              <Text variant="small">Aplicar regras geradas apenas nos modos:</Text>
-              <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-                {MODE_OPTS.map((m) => (
-                  <Checkbox
-                    key={m.key}
-                    label={m.label}
-                    checked={modeRowChecked(m.key)}
-                    onChange={(_, c) => toggleModeRow(m.key, !!c)}
-                  />
-                ))}
-              </Stack>
-
-              {mt !== 'lookup' && mt !== 'lookupmulti' && mt !== 'datetime' ? (
-                <Stack horizontal wrap tokens={{ childrenGap: 8 }}>
-                  <DefaultButton
-                    text="Modelo: data não no passado"
-                    onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesDateNotPast()))}
-                  />
-                  <DefaultButton
-                    text="Modelo: validar e-mail"
-                    onClick={() => setEd((prev) => mergeFieldRuleEditorState(prev, templateFieldRulesEmail()))}
-                  />
-                </Stack>
-              ) : null}
-              {mt === 'url' && (
-                <TextField
-                  label="Placeholder"
-                  value={fc.placeholder ?? ''}
-                  onChange={(_, v) => setFc((p) => ({ ...p, placeholder: v || undefined }))}
-                />
-              )}
+              <TextField
+                label="Placeholder"
+                value={fc.placeholder ?? ''}
+                onChange={(_, v) => setFc((p) => ({ ...p, placeholder: v || undefined }))}
+              />
               <TextField
                 label="Texto de ajuda (campo)"
                 multiline
@@ -1872,37 +1911,43 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 value={fc.helpText ?? ''}
                 onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
               />
-              {(mt !== 'lookup' && mt !== 'lookupmulti') ? (
-                <>
-                  <FieldRulesDefaultValueTextField
-                    label="Valor padrão (token ou texto; aplica se vazio)"
-                    description={
-                      mt === 'datetime'
-                        ? 'Ex.: {{OutraData}} + 7, [today] + 14, {{CampoNum}}+14. @ lista tokens, campos data/número e sufixos.'
-                        : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
+              <FieldRulesDefaultValueTextField
+                label="Valor padrão (token ou texto; aplica se vazio)"
+                description={
+                  mt === 'datetime'
+                    ? 'Ex.: {{OutraData}} + 7, [today] + 14, {{CampoNum}}+14. @ lista tokens, campos data/número e sufixos.'
+                    : 'Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}}).'
+                }
+                value={ed.defaultValue}
+                onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
+                defaultParts={defaultValuePartsForField}
+                dateFieldMentionOptions={defaultValueDateFieldMentions}
+                lookupFieldMentionOptions={
+                  defaultValuePartsForField.lookupPaths ? defaultValueLookupFieldMentions : undefined
+                }
+                numericFieldMentionOptions={defaultValueNumericFieldMentions}
+              />
+              {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
+                !isFormBannerFieldConfig(fieldConfig) &&
+                isSetComputedAllowedForMappedType(mt) && (
+                  <SetComputedRulesBlock
+                    ed={ed}
+                    setEd={setEd}
+                    mappedType={(meta?.MappedType ?? 'unknown') as FieldMappedType}
+                    internalName={internalName}
+                    listFieldMetadata={listFieldMetadata}
+                    fieldOptions={fieldOptions}
+                    attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                    lookupPathMentionOptions={
+                      setComputedPartsForField.includeLookupPaths ? defaultValueLookupFieldMentions : undefined
                     }
-                    value={ed.defaultValue}
-                    onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
-                    dateFieldMentionOptions={defaultValueDateFieldMentions}
-                    lookupFieldMentionOptions={defaultValueLookupFieldMentions}
-                    numericFieldMentionOptions={defaultValueNumericFieldMentions}
+                    numericFieldMentionOptions={
+                      setComputedPartsForField.includeNumericAux ? defaultValueNumericFieldMentions : undefined
+                    }
+                    bordered={false}
+                    sectionHeading="Expressão"
                   />
-                  {mt === 'datetime' &&
-                    internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
-                    !isFormBannerFieldConfig(fieldConfig) && (
-                      <SetComputedRulesBlock
-                        ed={ed}
-                        setEd={setEd}
-                        fieldOptions={fieldOptions}
-                        attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
-                        lookupPathMentionOptions={defaultValueLookupFieldMentions}
-                        numericFieldMentionOptions={defaultValueNumericFieldMentions}
-                        bordered={false}
-                        sectionHeading="Expressão"
-                      />
-                    )}
-                </>
-              ) : null}
+                )}
               <Checkbox
                 label="Somente leitura"
                 checked={fc.readOnly === true}
@@ -1954,18 +1999,6 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
-              <Text variant="small">Aplicar regras geradas apenas nos modos:</Text>
-              <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-                {MODE_OPTS.map((m) => (
-                  <Checkbox
-                    key={m.key}
-                    label={m.label}
-                    checked={modeRowChecked(m.key)}
-                    onChange={(_, c) => toggleModeRow(m.key, !!c)}
-                  />
-                ))}
-              </Stack>
-         
               <TextField
                 label="Placeholder"
                 value={fc.placeholder ?? ''}
@@ -2006,19 +2039,34 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 description="Digite @ para tokens e referências de campo (ex.: {{MeuLookup/Title}})."
                 value={ed.defaultValue}
                 onChange={(next) => setEd((p) => ({ ...p, defaultValue: next }))}
-                lookupFieldMentionOptions={defaultValueLookupFieldMentions}
+                defaultParts={defaultValuePartsForField}
+                dateFieldMentionOptions={defaultValueDateFieldMentions}
+                lookupFieldMentionOptions={
+                  defaultValuePartsForField.lookupPaths ? defaultValueLookupFieldMentions : undefined
+                }
+                numericFieldMentionOptions={defaultValueNumericFieldMentions}
               />
-              {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fieldConfig) && (
-                <SetComputedRulesBlock
-                  ed={ed}
-                  setEd={setEd}
-                  fieldOptions={fieldOptions}
-                  attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
-                  lookupPathMentionOptions={defaultValueLookupFieldMentions}
-                  numericFieldMentionOptions={defaultValueNumericFieldMentions}
-                  bordered={false}
-                />
-              )}
+              {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
+                !isFormBannerFieldConfig(fieldConfig) &&
+                isSetComputedAllowedForMappedType(mt) && (
+                  <SetComputedRulesBlock
+                    ed={ed}
+                    setEd={setEd}
+                    mappedType={(meta?.MappedType ?? 'unknown') as FieldMappedType}
+                    internalName={internalName}
+                    listFieldMetadata={listFieldMetadata}
+                    fieldOptions={fieldOptions}
+                    attachmentLibraryFolderOptions={attachmentLibraryFolderOptions}
+                    lookupPathMentionOptions={
+                      setComputedPartsForField.includeLookupPaths ? defaultValueLookupFieldMentions : undefined
+                    }
+                    numericFieldMentionOptions={
+                      setComputedPartsForField.includeNumericAux ? defaultValueNumericFieldMentions : undefined
+                    }
+                    bordered={false}
+                    sectionHeading="Expressão"
+                  />
+                )}
               <Checkbox
                 label="Somente leitura"
                 checked={fc.readOnly === true}
@@ -2775,6 +2823,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   onChange={(next) =>
                     setEd((p) => ({ ...p, validateDate: { ...p.validateDate, minDaysFromToday: next } }))
                   }
+                  defaultParts={defaultValuePartsNumericOnly}
                   numericFieldMentionOptions={defaultValueNumericFieldMentions}
                 />
                 <FieldRulesDefaultValueTextField
@@ -2784,6 +2833,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                   onChange={(next) =>
                     setEd((p) => ({ ...p, validateDate: { ...p.validateDate, maxDaysFromToday: next } }))
                   }
+                  defaultParts={defaultValuePartsNumericOnly}
                   numericFieldMentionOptions={defaultValueNumericFieldMentions}
                 />
               </Stack>

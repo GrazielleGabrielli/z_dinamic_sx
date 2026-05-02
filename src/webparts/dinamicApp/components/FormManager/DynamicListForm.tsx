@@ -88,9 +88,11 @@ import {
   findEnabledSetComputedRule,
   resolveSetComputedDisplayValue,
   buildPostCreateItemIdComputedPatch,
+  buildSetComputedPrimarySavePatch,
   type IFormAttachmentFolderUrlContext,
   type IFormRuleRuntimeContext,
   type IFormValidationAttachmentContext,
+  type ISetComputedRequiredValidationOpts,
 } from '../../core/formManager/formRuleEngine';
 import { buildValidateDateCalendarProps } from '../../core/formManager/validateDateCalendarProps';
 import { collectFormManagerReferencedPayloadFieldNames } from '../../core/formManager/collectFormManagerReferencedPayloadFieldNames';
@@ -1146,6 +1148,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     setComputedExprSnapRef.current = { openKey: setComputedItemOpenKey, snap };
   }
 
+  const setComputedValidationOpts = useMemo(
+    (): ISetComputedRequiredValidationOpts => ({
+      itemId,
+      expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
+    }),
+    [itemId, setComputedItemOpenKey, formManager.rules]
+  );
+
   const attachmentAllowedExtensions = useMemo(
     () => parseAttachmentUiRule(formManager.rules ?? []).allowedFileExtensions ?? [],
     [formManager.rules]
@@ -1690,7 +1700,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             type: f.type || 'application/octet-stream',
             name: f.name,
           })),
-        }
+        },
+        setComputedValidationOpts
       ),
     [
       formManager,
@@ -1707,6 +1718,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       attachmentCount,
       flatPendingFiles,
       metaByName,
+      setComputedValidationOpts,
     ]
   );
 
@@ -2195,7 +2207,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         show: ov.show,
         hide: ov.hide,
       },
-      metaByName
+      metaByName,
+      setComputedValidationOpts
     );
     let mergedErr = { ...sync };
     if (submitKind !== 'draft' && multiFolderAttachmentMode && isFormAttachmentLibraryRuntime(formManager)) {
@@ -2351,7 +2364,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
     setSubmitUi(resolveSubmitLoadingKind(formManager, opts?.submitLoadingFromButton));
     try {
-      const payload = formValuesToSharePointPayload(fieldMetadata, vals, names, {
+      const computedPrimary = buildSetComputedPrimarySavePatch({
+        cfg: formManager,
+        fieldConfigs,
+        values: vals,
+        dynamicContext,
+        attachmentFolderUrl,
+        userGroupTitles,
+        submitKind,
+        formMode,
+        fieldMetaByName: metaByName,
+      });
+      const valsForSave = { ...vals, ...computedPrimary };
+      const payload = formValuesToSharePointPayload(fieldMetadata, valsForSave, names, {
         nullWhenEmptyFieldNames: ocultosNullFieldNames,
       });
       const savedId = await onSubmit(
@@ -2360,6 +2385,44 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         flatPendingFiles,
         multiFolderAttachmentMode ? pendingFilesByFolder : undefined
       );
+      if (
+        formMode === 'create' &&
+        savedId !== undefined &&
+        savedId !== null &&
+        typeof savedId === 'number' &&
+        isFinite(savedId)
+      ) {
+        const idComputedPatch = buildPostCreateItemIdComputedPatch({
+          cfg: formManager,
+          fieldConfigs,
+          values: valsForSave,
+          dynamicContext,
+          attachmentFolderUrl,
+          userGroupTitles,
+          submitKind,
+          newItemId: savedId,
+          fieldMetaByName: metaByName,
+        });
+        const idPatchFieldNames = Object.keys(idComputedPatch);
+        if (idPatchFieldNames.length > 0) {
+          try {
+            const mergedPatchValues = { ...valsForSave, ...idComputedPatch };
+            const updatePayload = formValuesToSharePointPayload(fieldMetadata, mergedPatchValues, idPatchFieldNames, {
+              nullWhenEmptyFieldNames: ocultosNullFieldNames,
+            });
+            if (Object.keys(updatePayload).length > 0) {
+              await itemsService.updateItem(listTitle, savedId, updatePayload, listWeb);
+            }
+          } catch (ue) {
+            setFormError(
+              `Item criado (ID ${savedId}), mas a atualização dos campos calculados com ID falhou: ${
+                ue instanceof Error ? ue.message : String(ue)
+              }`
+            );
+            return false;
+          }
+        }
+      }
       let linkedSnap = linkedRowsById;
       if (submitKind === 'submit' && linkedConfigsSorted.length > 0) {
         const parentId = savedId ?? itemId;
@@ -2386,7 +2449,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           isFinite(parentIdPb)
         ) {
           try {
-            await runPermissionBreakAfterSubmit(parentIdPb, vals, linkedSnap);
+            await runPermissionBreakAfterSubmit(parentIdPb, valsForSave, linkedSnap);
           } catch (pe) {
             setFormError(
               `Gravado, mas a quebra de permissões falhou: ${pe instanceof Error ? pe.message : String(pe)}`
@@ -2800,7 +2863,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
         if (tl) tl.enter(ti);
-        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
+        const computedPrimaryAdd = buildSetComputedPrimarySavePatch({
+          cfg: formManager,
+          fieldConfigs,
+          values: mergedValues,
+          dynamicContext,
+          attachmentFolderUrl,
+          userGroupTitles,
+          submitKind: 'submit',
+          formMode: 'create',
+          fieldMetaByName: metaByName,
+        });
+        const mergedForCreate = { ...mergedValues, ...computedPrimaryAdd };
+        const payload = formValuesToSharePointPayload(fieldMetadata, mergedForCreate, names, {
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
         const { id: newId, filesForAttachments } = await itemsService.addItem(
@@ -2814,7 +2889,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const idComputedPatch = buildPostCreateItemIdComputedPatch({
           cfg: formManager,
           fieldConfigs,
-          values: mergedValues,
+          values: mergedForCreate,
           dynamicContext,
           attachmentFolderUrl,
           userGroupTitles,
@@ -2826,7 +2901,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         if (idPatchFieldNames.length > 0) {
           if (tl) tl.enter(ti);
           try {
-            const mergedPatchValues = { ...mergedValues, ...idComputedPatch };
+            const mergedPatchValues = { ...mergedForCreate, ...idComputedPatch };
             const updatePayload = formValuesToSharePointPayload(fieldMetadata, mergedPatchValues, idPatchFieldNames, {
               nullWhenEmptyFieldNames: ocultosNullFieldNames,
             });
@@ -2857,7 +2932,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             multiFolderAttachmentMode ? [] : filesForAttachments,
             formManager,
             {
-              ...mergedValues,
+              ...mergedForCreate,
               Id: newId,
             },
             multiFolderAttachmentMode ? pendingFilesByFolder : undefined,
@@ -2896,7 +2971,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           try {
             await runPermissionBreakAfterSubmit(
               newId,
-              mergedValues,
+              { ...mergedForCreate, ...idComputedPatch },
               linkedSnapAdd,
               tl ? (d) => tl!.setRunningDetail(d) : undefined
             );
@@ -3012,7 +3087,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       let updateBusinessOk = false;
       try {
         if (tl) tl.enter(ti);
-        const payload = formValuesToSharePointPayload(fieldMetadata, mergedValues, names, {
+        const computedPrimaryUp = buildSetComputedPrimarySavePatch({
+          cfg: formManager,
+          fieldConfigs,
+          values: mergedValues,
+          dynamicContext,
+          attachmentFolderUrl,
+          userGroupTitles,
+          submitKind: 'submit',
+          formMode,
+          fieldMetaByName: metaByName,
+        });
+        const mergedForUpdate = { ...mergedValues, ...computedPrimaryUp };
+        const payload = formValuesToSharePointPayload(fieldMetadata, mergedForUpdate, names, {
           nullWhenEmptyFieldNames: ocultosNullFieldNames,
         });
         await itemsService.updateItem(listTitle, itemId, payload, listWeb);
@@ -3026,7 +3113,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             multiFolderAttachmentMode ? [] : pendingFiles,
             formManager,
             {
-              ...mergedValues,
+              ...mergedForUpdate,
               Id: itemId,
             },
             multiFolderAttachmentMode ? pendingFilesByFolder : undefined,
@@ -3065,7 +3152,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           try {
             await runPermissionBreakAfterSubmit(
               itemId,
-              mergedValues,
+              mergedForUpdate,
               linkedSnapUp,
               tl ? (d) => tl!.setRunningDetail(d) : undefined
             );
@@ -3484,7 +3571,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       };
       const overlay = { show: buttonOverlay.show, hide: buttonOverlay.hide };
       const syncErrorsForStep = (stepFieldList: Set<string>, stepIdx: number): Record<string, string> | null => {
-        const sync = collectFormValidationErrors(formManager, fieldConfigs, ctx, attCtx, overlay, metaByName);
+        const sync = collectFormValidationErrors(
+          formManager,
+          fieldConfigs,
+          ctx,
+          attCtx,
+          overlay,
+          metaByName,
+          setComputedValidationOpts
+        );
         let rel = filterValidationErrorsToStepFields(sync, stepFieldList);
         if (!fullVal) rel = pickRequiredStyleStepErrors(rel);
         let merged: Record<string, string> = { ...rel };
@@ -3910,7 +4005,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
       setComputedRule,
     });
-    if (comp !== undefined) {
+    if (comp !== undefined && (formMode === 'view' || fc.readOnly === true)) {
       const mComp = metaByName.get(name);
       const labelComp = fc.label ?? mComp?.Title ?? name;
       const helpComp = derived.dynamicHelpByField[name] ?? fc.helpText;
@@ -3941,7 +4036,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const help = derived.dynamicHelpByField[name] ?? fc.helpText;
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
-    const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(values[name], m.MappedType);
+    const mergedFieldValue = ((): unknown => {
+      if (comp === undefined) return values[name];
+      const v = values[name];
+      if (v === undefined || v === null) return comp;
+      if (typeof v === 'string' && v.trim() === '') return comp;
+      return v;
+    })();
+    const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(mergedFieldValue, m.MappedType);
 
     const common = { disabled: readOnly, errorMessage: err };
 
@@ -3999,7 +4101,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               ariaLabel={label}
               onText="Sim"
               offText="Não"
-              checked={values[name] === true || values[name] === 1}
+              checked={mergedFieldValue === true || mergedFieldValue === 1}
               onChange={(_, c) => updateField(name, !!c)}
               disabled={readOnly}
             />
@@ -4014,7 +4116,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             label={label}
             type="number"
             placeholder={fc.placeholder}
-            value={values[name] !== null && values[name] !== undefined ? String(values[name]) : ''}
+            value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
             onChange={(_, v) => updateField(name, v === '' ? null : Number(v))}
             required={isRequired}
             {...common}
@@ -4034,7 +4136,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               minDate={validateDateCalendarPropsByField[name]?.minDate}
               maxDate={validateDateCalendarPropsByField[name]?.maxDate}
               calendarProps={validateDateCalendarPropsByField[name]}
-              value={values[name] ? new Date(String(values[name])) : undefined}
+              value={mergedFieldValue ? new Date(String(mergedFieldValue)) : undefined}
               onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{
@@ -4055,8 +4157,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             placeholder={fc.placeholder}
             options={opts}
             selectedKey={
-              values[name] !== undefined && values[name] !== null && String(values[name]) !== ''
-                ? String(values[name])
+              mergedFieldValue !== undefined && mergedFieldValue !== null && String(mergedFieldValue) !== ''
+                ? String(mergedFieldValue)
                 : ''
             }
             onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
@@ -4068,10 +4170,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         );
       }
       case 'multichoice': {
-        const selected: string[] = Array.isArray(values[name])
-          ? (values[name] as string[])
-          : typeof values[name] === 'string'
-            ? String(values[name]).split(';').map((s) => s.trim()).filter(Boolean)
+        const selected: string[] = Array.isArray(mergedFieldValue)
+          ? (mergedFieldValue as string[])
+          : typeof mergedFieldValue === 'string'
+            ? String(mergedFieldValue).split(';').map((s) => s.trim()).filter(Boolean)
             : [];
         const opts: IDropdownOption[] = (m.Choices ?? []).map((c) => ({
           key: c,
@@ -4111,11 +4213,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             parentMetaDrop
           );
         const lookupBlockedByParent = filterActive && !parentReady;
-        const id = lookupIdFromValue(values[name]);
+        const id = lookupIdFromValue(mergedFieldValue);
         const baseOpts = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const opts =
           id !== undefined && id > 0
-            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
+            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(mergedFieldValue) }])
             : baseOpts;
         return (
           <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
@@ -4161,7 +4263,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             parentMetaMulti
           );
         const lookupBlockedByParentMulti = filterActiveMulti && !parentReadyMulti;
-        const selected = normalizeIdTitleArray(values[name]);
+        const selected = normalizeIdTitleArray(mergedFieldValue);
         const baseRaw = lookupOptions[name] ?? [{ key: '', text: '—' }];
         const baseOpts = baseRaw.filter((o) => o.key !== '');
         const extra = selected.map((x) => ({ id: x.Id, label: x.Title }));
@@ -4207,11 +4309,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         );
       }
       case 'user': {
-        const id = lookupIdFromValue(values[name]);
+        const id = lookupIdFromValue(mergedFieldValue);
         const baseOpts = !isRequired ? siteUserOptions : siteUserOptions.filter((o) => o.key !== '');
         const opts =
           id !== undefined && id > 0
-            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(values[name]) }])
+            ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(mergedFieldValue) }])
             : baseOpts;
         return (
           <Dropdown
@@ -4232,7 +4334,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         );
       }
       case 'usermulti': {
-        const selected = normalizeIdTitleArray(values[name]);
+        const selected = normalizeIdTitleArray(mergedFieldValue);
         const baseOpts = siteUserOptions.filter((o) => o.key !== '');
         const extra = selected.map((x) => ({ id: x.Id, label: x.Title }));
         const opts = mergeOptionsForIds(baseOpts, extra);
@@ -4264,7 +4366,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         );
       }
       case 'url': {
-        const uv = parseUrlFieldValue(values[name]);
+        const uv = parseUrlFieldValue(mergedFieldValue);
         return (
           <Stack key={name} tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
             <Label required={isRequired}>{label}</Label>
@@ -4293,7 +4395,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
       case 'multiline': {
         const raw =
-          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+          mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : '';
         if (readOnly && shouldRenderMultilineNoteAsHtml(m, raw)) {
           return (
             <MultilineReadonlyHtml
@@ -4346,7 +4448,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
       default: {
         const rawSingle =
-          values[name] !== null && values[name] !== undefined ? String(values[name]) : '';
+          mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : '';
         const mergedTx = validateValueLengthMergedByField[name];
         const maxCapTx = mergedTx?.maxLength;
         const charBoundsTx =

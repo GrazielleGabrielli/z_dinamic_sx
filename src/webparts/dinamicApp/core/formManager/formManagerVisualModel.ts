@@ -15,7 +15,8 @@ import {
 } from '../config/types/formManager';
 
 export function isSetComputedAllowedForMappedType(mt: FieldMappedType | 'unknown' | undefined): boolean {
-  return mt === 'text' || mt === 'multiline' || mt === 'datetime';
+  if (!mt || mt === 'unknown' || mt === 'calculated') return false;
+  return true;
 }
 
 export const CONDITION_OP_OPTIONS: { key: TFormConditionOp; text: string }[] = [

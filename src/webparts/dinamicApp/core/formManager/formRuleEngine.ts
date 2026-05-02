@@ -586,7 +586,8 @@ export function areAllRequiredFieldsFilled(
   ctx: IFormRuleRuntimeContext,
   metaByName: Map<string, IFieldMetadata>,
   buttonOverlay?: IFormButtonVisibilityOverlay,
-  attachmentCtx?: IFormValidationAttachmentContext
+  attachmentCtx?: IFormValidationAttachmentContext,
+  setComputedReqOpts?: ISetComputedRequiredValidationOpts
 ): boolean {
   const ctxSubmit: IFormRuleRuntimeContext = { ...ctx, submitKind: 'submit' };
   const derived = buildFormDerivedState(cfg, fieldConfigs, ctxSubmit, buttonOverlay, metaByName);
@@ -619,7 +620,15 @@ export function areAllRequiredFieldsFilled(
     const readOnly =
       formMode === 'view' || derived.fieldReadOnly[name] === true || derived.fieldDisabled[name] === true;
     if (readOnly) continue;
-    if (isValueEmptyForRequiredField(values[name], mappedType)) return false;
+    const eff = effectiveValueForRequiredValidation(
+      name,
+      values,
+      derived,
+      cfg.rules,
+      formMode,
+      setComputedReqOpts
+    );
+    if (isValueEmptyForRequiredField(eff, mappedType)) return false;
   }
   return true;
 }
@@ -1466,13 +1475,55 @@ export interface IFormValidationAttachmentContext {
   pendingFiles?: { size: number; type: string; name: string }[];
 }
 
+export interface ISetComputedRequiredValidationOpts {
+  itemId?: number;
+  expressionSnapAtItemOpenByField?: Readonly<Record<string, string>>;
+}
+
+function pickFormItemIdForSetComputed(values: Record<string, unknown>, itemIdProp?: number): number | undefined {
+  if (itemIdProp !== undefined && itemIdProp !== null && typeof itemIdProp === 'number' && isFinite(itemIdProp)) {
+    return itemIdProp;
+  }
+  const raw = values.Id ?? values.ID;
+  if (raw === null || raw === undefined) return undefined;
+  const n = Number(raw);
+  return isFinite(n) ? n : undefined;
+}
+
+/** Valor efetivo para obrigatoriedade quando o campo está em modo calculado (setComputed). */
+export function effectiveValueForRequiredValidation(
+  fieldName: string,
+  values: Record<string, unknown>,
+  derived: IFormDerivedUiState,
+  rules: TFormRule[] | undefined,
+  formMode: TFormManagerFormMode,
+  opts?: ISetComputedRequiredValidationOpts
+): unknown {
+  const base = values[fieldName];
+  const setRule = findEnabledSetComputedRule(rules, fieldName);
+  const dc = derived.computedDisplay[fieldName];
+  if (!setRule || dc === undefined) return base;
+  const itemId = pickFormItemIdForSetComputed(values, opts?.itemId);
+  const displayed = resolveSetComputedDisplayValue({
+    derivedComputed: dc,
+    formMode,
+    itemId,
+    fieldName,
+    expressionSnapAtItemOpenByField: opts?.expressionSnapAtItemOpenByField ?? {},
+    setComputedRule: setRule,
+  });
+  if (displayed !== undefined) return displayed;
+  return base;
+}
+
 export function collectFormValidationErrors(
   cfg: IFormManagerConfig,
   fieldConfigs: IFormFieldConfig[],
   ctx: IFormRuleRuntimeContext,
   attachmentCtx?: IFormValidationAttachmentContext,
   buttonOverlay?: IFormButtonVisibilityOverlay,
-  metaByName?: ReadonlyMap<string, IFieldMetadata>
+  metaByName?: ReadonlyMap<string, IFieldMetadata>,
+  setComputedReqOpts?: ISetComputedRequiredValidationOpts
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const { values, formMode, submitKind, dynamicContext, userGroupTitles } = ctx;
@@ -1508,7 +1559,15 @@ export function collectFormValidationErrors(
         if (!isRequired) continue;
         const readOnly = derived.fieldReadOnly[name] === true || derived.fieldDisabled[name] === true;
         if (readOnly) continue;
-        if (isValueEmptyForRequiredField(values[name], mappedType)) errors[name] = 'Obrigatório.';
+        const eff = effectiveValueForRequiredValidation(
+          name,
+          values,
+          derived,
+          rules,
+          formMode,
+          setComputedReqOpts
+        );
+        if (isValueEmptyForRequiredField(eff, mappedType)) errors[name] = 'Obrigatório.';
       }
     } else {
       for (let i = 0; i < fieldConfigs.length; i++) {
@@ -1578,7 +1637,17 @@ export function collectFormValidationErrors(
         if (rule.field === FORM_ATTACHMENTS_FIELD_INTERNAL) break;
         if (rule.field.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0) break;
         if (!fieldVisible(rule.field)) break;
-        if (rule.required && isEmptyish(values[rule.field])) errors[rule.field] = 'Obrigatório.';
+        if (rule.required) {
+          const eff = effectiveValueForRequiredValidation(
+            rule.field,
+            values,
+            derived,
+            rules,
+            formMode,
+            setComputedReqOpts
+          );
+          if (isEmptyish(eff)) errors[rule.field] = 'Obrigatório.';
+        }
         break;
       }
       case 'attachmentRules': {
@@ -1956,6 +2025,68 @@ export function expressionReferencesSharePointItemId(expression: string): boolea
     if (base && base.toLowerCase() === 'id') return true;
   }
   return false;
+}
+
+/** Valores calculados para gravar no primeiro POST (create/edit); em create omite expressões que referenciam {{ID}}. */
+export function buildSetComputedPrimarySavePatch(params: {
+  cfg: IFormManagerConfig;
+  fieldConfigs: IFormFieldConfig[];
+  values: Record<string, unknown>;
+  dynamicContext: IDynamicContext;
+  attachmentFolderUrl?: IFormAttachmentFolderUrlContext;
+  userGroupTitles: string[];
+  submitKind: TFormSubmitKind | undefined;
+  formMode: TFormManagerFormMode;
+  fieldMetaByName: ReadonlyMap<string, IFieldMetadata>;
+}): Record<string, unknown> {
+  const {
+    cfg,
+    fieldConfigs,
+    values,
+    dynamicContext,
+    attachmentFolderUrl,
+    userGroupTitles,
+    submitKind,
+    formMode,
+    fieldMetaByName,
+  } = params;
+
+  const out: Record<string, unknown> = {};
+  const rules = cfg.rules ?? [];
+
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    if (rule.action !== 'setComputed') continue;
+    if (rule.enabled === false) continue;
+    if (!ruleAppliesMode(rule, formMode)) continue;
+    if (!ruleAppliesSubmit(rule, submitKind)) continue;
+    if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
+    if (rule.when && !evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
+
+    const expr = rule.expression ?? '';
+    if (formMode === 'create' && expressionReferencesSharePointItemId(expr)) continue;
+
+    const mtc = fieldMetaByName.get(rule.field)?.MappedType;
+    if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') continue;
+
+    let v = evaluateFormValueExpression(expr, values, dynamicContext, attachmentFolderUrl);
+
+    if (mtc === 'datetime') {
+      const disp = resolveDatetimeComputedDisplayValue(expr, v, values, dynamicContext);
+      if (disp !== undefined) out[rule.field] = disp;
+      continue;
+    }
+
+    if (v === undefined) continue;
+
+    const fc = fieldConfigs.find((f) => f.internalName === rule.field);
+    const tft = fc?.textValueTransform;
+    if (tft && typeof v === 'string') v = applyFormFieldTextTransform(v, tft);
+
+    out[rule.field] = v;
+  }
+
+  return out;
 }
 
 export function buildPostCreateItemIdComputedPatch(params: {
