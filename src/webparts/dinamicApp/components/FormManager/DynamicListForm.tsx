@@ -4005,7 +4005,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
       setComputedRule,
     });
-    if (comp !== undefined && (formMode === 'view' || fc.readOnly === true)) {
+    if (comp !== undefined && formMode !== 'view' && fc.readOnly === true) {
       const mComp = metaByName.get(name);
       const labelComp = fc.label ?? mComp?.Title ?? name;
       const helpComp = derived.dynamicHelpByField[name] ?? fc.helpText;
@@ -4037,6 +4037,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
     const mergedFieldValue = ((): unknown => {
+      if (formMode === 'view') return values[name];
       if (comp === undefined) return values[name];
       const v = values[name];
       if (v === undefined || v === null) return comp;
