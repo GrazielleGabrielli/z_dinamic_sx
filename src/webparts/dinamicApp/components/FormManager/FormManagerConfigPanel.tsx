@@ -7,6 +7,7 @@ import {
   Text,
   PrimaryButton,
   DefaultButton,
+  Modal,
   TextField,
   Dropdown,
   IDropdownOption,
@@ -91,6 +92,8 @@ import {
   buildFieldUiRules,
   customRulesOnly,
   describeRule,
+  fieldRuleStateFromRules,
+  isSetComputedAllowedForMappedType,
   mergeAttachmentUiRule,
   mergeFieldRules,
   parseAttachmentUiRule,
@@ -157,6 +160,29 @@ function structureStepMenuLabel(step: IFormStepConfig, stepIdx: number): string 
   if (step.id === FORM_FIXOS_STEP_ID) return 'Fixos';
   const t = step.title?.trim();
   return t || `Etapa ${stepIdx + 1}`;
+}
+
+function buildRulesCloneFieldPatch(src: IFormFieldConfig): Partial<IFormFieldConfig> {
+  const patch: Partial<IFormFieldConfig> = {};
+  const keys: (keyof IFormFieldConfig)[] = [
+    'textConditionalVisibility',
+    'textInputMaskKind',
+    'textInputMaskCustomPattern',
+    'textValueTransform',
+    'visible',
+  ];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    const v = src[k];
+    if (v !== undefined) {
+      (patch as Record<string, unknown>)[k as string] =
+        v !== null && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : v;
+    }
+  }
+  if ('readOnly' in src) {
+    patch.readOnly = src.readOnly;
+  }
+  return patch;
 }
 
 function attachmentLibraryFromPanelState(
@@ -829,6 +855,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
   const [fieldRulesTabSort, setFieldRulesTabSort] = useState<'asc' | 'desc' | 'type'>('asc');
+  const [cloneRulesModalTarget, setCloneRulesModalTarget] = useState<string | null>(null);
+  const [cloneRulesSourceKey, setCloneRulesSourceKey] = useState<string | undefined>(undefined);
   const [structurePoolSelected, setStructurePoolSelected] = useState<string[]>([]);
   const structurePoolSelectedRef = useRef<string[]>([]);
   structurePoolSelectedRef.current = structurePoolSelected;
@@ -1187,6 +1215,63 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     });
     return list;
   }, [fieldsListedForRulesTab, meta, fieldRulesTabSort]);
+
+  const cloneRulesSourceOptions = useMemo((): IDropdownOption[] => {
+    if (!cloneRulesModalTarget) return [];
+    return fieldsListedForRulesTab
+      .filter((fc) => fc.internalName !== cloneRulesModalTarget)
+      .map((fc) => {
+        const mm = meta.find((m) => m.InternalName === fc.internalName);
+        return {
+          key: fc.internalName,
+          text: `${mm?.Title ?? fc.internalName} (${fc.internalName})`,
+        };
+      });
+  }, [cloneRulesModalTarget, fieldsListedForRulesTab, meta]);
+
+  const applyCloneFieldRules = useCallback((): void => {
+    const targetName = cloneRulesModalTarget;
+    const sourceName = cloneRulesSourceKey;
+    if (!targetName || !sourceName || sourceName === targetName) return;
+    const srcFc = fields.find((f) => f.internalName === sourceName);
+    const tgtFc = fields.find((f) => f.internalName === targetName);
+    if (!srcFc || !tgtFc) return;
+    const tgtMeta = meta.find((m) => m.InternalName === targetName);
+    const mtp = tgtMeta?.MappedType ?? 'unknown';
+    let st = fieldRuleStateFromRules(sourceName, rules);
+    if (!isSetComputedAllowedForMappedType(mtp)) {
+      st = {
+        ...st,
+        computedExpression: '',
+        computedAttachmentFolderNodeId: '',
+        computedLiveInEditView: false,
+      };
+    }
+    const textVis = srcFc.textConditionalVisibility
+      ? JSON.parse(JSON.stringify(srcFc.textConditionalVisibility))
+      : undefined;
+    const newRules = buildFieldUiRules(
+      targetName,
+      st,
+      { textConditionalVisibility: textVis },
+      { mappedType: mtp }
+    );
+    setRules((r) => mergeFieldRules(r, targetName, newRules));
+    setFields((prev) =>
+      prev.map((f) =>
+        f.internalName === targetName
+          ? mergeFormFieldConfigFromRulesPanel(f, buildRulesCloneFieldPatch(srcFc) as IFormFieldConfig)
+          : f
+      )
+    );
+    setCloneRulesModalTarget(null);
+    setCloneRulesSourceKey(undefined);
+  }, [cloneRulesModalTarget, cloneRulesSourceKey, fields, meta, rules]);
+
+  const dismissCloneRulesModal = useCallback((): void => {
+    setCloneRulesModalTarget(null);
+    setCloneRulesSourceKey(undefined);
+  }, []);
 
   const requiredFieldsMissingFromSteps = useMemo(
     () => requiredListFieldsMissingFromSteps(meta, steps),
@@ -2881,6 +2966,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         {typeAs}
                       </Text>
                       <DefaultButton text="Regras" onClick={() => setFieldPanelName(fc.internalName)} />
+                      <DefaultButton
+                        text="Clonar regras"
+                        onClick={() => {
+                          setCloneRulesModalTarget(fc.internalName);
+                          setCloneRulesSourceKey(undefined);
+                        }}
+                      />
                     </Stack>
                   );
                 })}
@@ -3691,6 +3783,48 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           ))}
         </Stack>
       )}
+      <Modal isOpen={cloneRulesModalTarget !== null} onDismiss={dismissCloneRulesModal} isBlocking>
+        <Stack
+          tokens={{ childrenGap: 16 }}
+          styles={{
+            root: {
+              background: '#ffffff',
+              padding: 24,
+              maxWidth: 440,
+              margin: '48px auto',
+              borderRadius: 4,
+              boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
+            },
+          }}
+        >
+          <Text variant="large">Clonar regras</Text>
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            Campo de destino:{' '}
+            <strong>
+              {cloneRulesModalTarget
+                ? meta.find((m) => m.InternalName === cloneRulesModalTarget)?.Title ?? cloneRulesModalTarget
+                : '—'}
+            </strong>{' '}
+            <span style={{ fontFamily: 'monospace' }}>({cloneRulesModalTarget})</span>
+          </Text>
+          <Dropdown
+            label="Copiar regras do campo"
+            options={cloneRulesSourceOptions}
+            selectedKey={cloneRulesSourceKey}
+            onChange={(_, o) => setCloneRulesSourceKey(o ? String(o.key) : undefined)}
+            disabled={cloneRulesSourceOptions.length === 0}
+            placeholder={cloneRulesSourceOptions.length ? 'Selecione o campo' : 'Não há outro campo disponível'}
+          />
+          <Stack horizontal tokens={{ childrenGap: 8 }}>
+            <PrimaryButton
+              text="Confirmar"
+              onClick={applyCloneFieldRules}
+              disabled={!cloneRulesSourceKey || cloneRulesSourceOptions.length === 0}
+            />
+            <DefaultButton text="Cancelar" onClick={dismissCloneRulesModal} />
+          </Stack>
+        </Stack>
+      </Modal>
       <Panel
         isOpen={jsonOpen}
         type={PanelType.medium}
