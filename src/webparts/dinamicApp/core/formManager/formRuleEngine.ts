@@ -18,6 +18,7 @@ import type {
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_BANNER_INTERNAL_PREFIX,
+  FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES,
   FORM_VISIBILITY_PREFER_HIDE_TAG,
   isFormBannerFieldConfig,
 } from '../config/types/formManager';
@@ -1454,6 +1455,15 @@ export function buildFormDerivedState(
     buttonOverlay.hide.forEach((k) => {
       if (k) fieldVisible[k] = false;
     });
+  }
+
+  for (let i = 0; i < fieldConfigs.length; i++) {
+    const fn = fieldConfigs[i].internalName;
+    if (FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fn)) {
+      fieldReadOnly[fn] = true;
+      fieldDisabled[fn] = true;
+      fieldRequired[fn] = false;
+    }
   }
 
   return {

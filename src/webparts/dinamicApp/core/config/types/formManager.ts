@@ -1,5 +1,13 @@
 export type TFormManagerFormMode = 'create' | 'edit' | 'view';
 
+/** Nomes internos de autoria e datas de sistema; só exibição e bloqueados no formulário. */
+export const FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES = new Set<string>([
+  'Author',
+  'Editor',
+  'Created',
+  'Modified',
+]);
+
 /** Tag em `TFormRule.tags`: visibilidade com mesclagem «ocultar prevalece» entre regras marcadas. */
 export const FORM_VISIBILITY_PREFER_HIDE_TAG = 'fmVisPreferHide';
 

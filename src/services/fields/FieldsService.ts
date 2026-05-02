@@ -83,6 +83,12 @@ const listRef = (sp: SPFI, titleOrId: string) => {
     : sp.web.lists.getByTitle(titleOrId);
 };
 
+export function mergeSystemMetadataFields(meta: IFieldMetadata[]): IFieldMetadata[] {
+  const seen = new Set(meta.map((m) => m.InternalName));
+  const extra = SYSTEM_METADATA_FIELDS.filter((s) => !seen.has(s.InternalName));
+  return meta.concat(extra);
+}
+
 export class FieldsService {
   private spFor(webServerRelativeUrl?: string): SPFI {
     return getSPForWeb(webServerRelativeUrl);

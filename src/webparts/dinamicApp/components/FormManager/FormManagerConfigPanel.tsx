@@ -21,7 +21,7 @@ import {
   IconButton,
   Toggle,
 } from '@fluentui/react';
-import { FieldsService, GroupsService, filterSiteGroupsByNameQuery } from '../../../../services';
+import { FieldsService, GroupsService, filterSiteGroupsByNameQuery, mergeSystemMetadataFields } from '../../../../services';
 import type { IFieldMetadata, IGroupDetails } from '../../../../services';
 import type {
   IFormManagerConfig,
@@ -66,6 +66,7 @@ import {
   FORM_OCULTOS_STEP_ID,
   FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
+  FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES,
   isFormBannerFieldConfig,
   resolveBannerPlacement,
   resolveBannerWidthPercent,
@@ -1022,7 +1023,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     fieldsService
       .getVisibleFields(listTitle.trim(), lw)
       .then((f) => {
-        setMeta(f);
+        setMeta(mergeSystemMetadataFields(f));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -1103,7 +1104,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     return fields
       .filter(
         (fc) =>
-          fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(fc)
+          fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
+          !isFormBannerFieldConfig(fc) &&
+          !FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fc.internalName)
       )
       .slice()
       .sort((a, b) => {
@@ -2376,6 +2379,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               ? mm.MappedType
                               : '—'}
                           {mm?.Required ? ' · obrigatório na lista' : ''}
+                          {FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fname)
+                            ? ' · sistema: só leitura no formulário (aba Regras não aplica)'
+                            : ''}
                         </Text>
                         {st.id === FORM_FIXOS_STEP_ID && fcRow && (
                           <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>

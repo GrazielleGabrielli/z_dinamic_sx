@@ -5,7 +5,7 @@ import type { IDynamicViewConfig } from '../../core/config/types';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
-import { FieldsService, ItemsService, UsersService } from '../../../../services';
+import { FieldsService, ItemsService, UsersService, mergeSystemMetadataFields } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
 import { getSPForWeb } from '../../../../services/core/sp';
 import { DynamicListForm } from './DynamicListForm';
@@ -208,7 +208,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
     fieldsService
       .getVisibleFields(listTitle.trim(), listWeb)
       .then((f) => {
-        setFieldMeta(f);
+        setFieldMeta(mergeSystemMetadataFields(f));
         setMetaLoading(false);
       })
       .catch(() => {
