@@ -43,6 +43,7 @@ import type {
   IFormPermissionBreakAssignment,
   IFormManagerPermissionBreakTargets,
   TLookupFilterOperator,
+  TFormFieldColumnSpan,
 } from '../config/types/formManager';
 import {
   FORM_BANNER_INTERNAL_PREFIX,
@@ -528,6 +529,11 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(f.disabled === true ? { disabled: true } : {}),
     ...(f.readOnly === true ? { readOnly: true } : {}),
     ...(f.width === 'half' ? { width: 'half' } : {}),
+    ...((): { columnSpan?: TFormFieldColumnSpan } => {
+      const cs = (f as { columnSpan?: unknown }).columnSpan;
+      if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) return { columnSpan: cs };
+      return {};
+    })(),
     ...(typeof f.modalGroupId === 'string' ? { modalGroupId: f.modalGroupId.trim() } : {}),
     ...(typeof f.effectiveSectionId === 'string' ? { effectiveSectionId: f.effectiveSectionId.trim() } : {}),
     ...(textValueTransform ? { textValueTransform } : {}),

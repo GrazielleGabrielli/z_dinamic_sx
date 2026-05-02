@@ -75,8 +75,10 @@ import {
   resolveBannerWidthPercent,
   resolveFixedPlacement,
   resolveChromePositionMode,
+  resolveFieldColumnSpan,
   type TFixedChromePlacement,
   type TChromePositionMode,
+  type TFormFieldColumnSpan,
 } from '../../core/config/types/formManager';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { resolveFormCustomButtonPaletteSlot } from '../../core/formManager/formCustomButtonTheme';
@@ -540,6 +542,14 @@ const FORM_ROOT_ALIGN_OPTIONS: IDropdownOption[] = [
   { key: 'start', text: 'Início (esquerda)' },
   { key: 'center', text: 'Centro' },
   { key: 'end', text: 'Fim (direita)' },
+];
+
+const FIELD_COLUMN_SPAN_OPTIONS: IDropdownOption[] = [
+  { key: '12', text: '12 — linha inteira' },
+  { key: '8', text: '8 — ex.: 8+4' },
+  { key: '6', text: '6 — ex.: 6+6' },
+  { key: '4', text: '4 — ex.: 4+4+4' },
+  { key: '3', text: '3 — ex.: 3+3+3+3' },
 ];
 
 function clampFormRootPercentInput(s: string): number {
@@ -2582,6 +2592,35 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             ? ' · sistema: só leitura no formulário (aba Regras não aplica)'
                             : ''}
                         </Text>
+                        <Dropdown
+                          label="Colunas"
+                          options={FIELD_COLUMN_SPAN_OPTIONS}
+                          selectedKey={String(
+                            resolveFieldColumnSpan(fcRow ?? { internalName: fname })
+                          )}
+                          onChange={(_, o) => {
+                            if (!o) return;
+                            const span = Number(o.key);
+                            if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
+                            setFields((prev) => {
+                              const ix = prev.findIndex((f) => f.internalName === fname);
+                              const apply = (base: IFormFieldConfig): IFormFieldConfig => {
+                                const next: IFormFieldConfig = { ...base };
+                                if (span === 12) {
+                                  delete next.columnSpan;
+                                  if (next.width === 'half') delete next.width;
+                                } else {
+                                  next.columnSpan = span as TFormFieldColumnSpan;
+                                  if (next.width === 'half') delete next.width;
+                                }
+                                return next;
+                              };
+                              if (ix >= 0) return prev.map((f, j) => (j === ix ? apply(f) : f));
+                              return [...prev, apply({ internalName: fname })];
+                            });
+                          }}
+                          styles={{ root: { maxWidth: 220 } }}
+                        />
                         {st.id === FORM_FIXOS_STEP_ID && fcRow && (
                           <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
                             <Dropdown

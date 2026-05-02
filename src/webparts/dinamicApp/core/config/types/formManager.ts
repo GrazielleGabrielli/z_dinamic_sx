@@ -320,6 +320,9 @@ export interface ITextFieldConditionalVisibility {
   groups: ITextFieldConditionalGroup[];
 }
 
+/** Colunas ocupadas numa grelha de 12 (estilo Bootstrap). */
+export type TFormFieldColumnSpan = 3 | 4 | 6 | 8 | 12;
+
 /** Transformação de valor de texto (maiúsculas / minúsculas / capitalizar por palavra). */
 export type TFormFieldTextValueTransform = 'uppercase' | 'lowercase' | 'capitalize';
 
@@ -353,6 +356,8 @@ export interface IFormFieldConfig {
   disabled?: boolean;
   readOnly?: boolean;
   width?: 'full' | 'half';
+  /** Largura na grelha 12; legado: `width: half` → 6. */
+  columnSpan?: TFormFieldColumnSpan;
   /** Campos neste grupo abrem em painel/modal */
   modalGroupId?: string;
   /** Seção efetiva quando condição (avaliada no motor com prefixo de regra dedicada) */
@@ -389,6 +394,15 @@ export interface IFormFieldConfig {
 
 export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName' | 'fieldKind'>): boolean {
   return fc.fieldKind === 'banner' || fc.internalName.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0;
+}
+
+export function resolveFieldColumnSpan(
+  fc: Pick<IFormFieldConfig, 'columnSpan' | 'width'>
+): TFormFieldColumnSpan {
+  const c = fc.columnSpan;
+  if (c === 3 || c === 4 || c === 6 || c === 8 || c === 12) return c;
+  if (fc.width === 'half') return 6;
+  return 12;
 }
 
 export function resolveBannerPlacement(fc: IFormFieldConfig): TFormBannerPlacement {

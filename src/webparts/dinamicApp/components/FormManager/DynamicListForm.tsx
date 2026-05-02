@@ -63,6 +63,7 @@ import {
   resolveFixedPlacement,
   resolveChromePositionMode,
   resolveTextareaRows,
+  resolveFieldColumnSpan,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { isDynamicToken } from '../../core/dynamicTokens';
@@ -4619,7 +4620,26 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               {sec.title}
             </Text>
           ) : null}
-          {fields.map((fc) => renderFieldControl(fc))}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
+              gap: 12,
+              width: '100%',
+            }}
+          >
+            {fields.map((fc) => (
+              <div
+                key={fc.internalName}
+                style={{
+                  gridColumn: `span ${resolveFieldColumnSpan(fc)}`,
+                  minWidth: 0,
+                }}
+              >
+                {renderFieldControl(fc)}
+              </div>
+            ))}
+          </div>
         </Stack>
       );
     }
