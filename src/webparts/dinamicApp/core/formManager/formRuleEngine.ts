@@ -47,6 +47,10 @@ export interface IFormRuleRuntimeContext {
   dynamicContext: IDynamicContext;
   /** Resolução de expressões `attfolder:id` (pasta da árvore em Anexos → biblioteca). */
   attachmentFolderUrl?: IFormAttachmentFolderUrlContext;
+  /** Linha OData do item selecionado por campo lookup (para `{{Lookup/Campo}}` além de Id/Title). */
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >;
 }
 
 export function withRuleRuntimeDynamicContext(ctx: IDynamicContext, currentUserId: number): IDynamicContext {
@@ -859,13 +863,45 @@ function resolvePlaceholderNumberFromValues(innerRaw: string, values: Record<str
   return typeof n === 'number' && isFinite(n) ? n : undefined;
 }
 
+export function mergeLookupSnapshotsIntoValues(
+  values: Record<string, unknown>,
+  snapshots: Readonly<Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>>
+): Record<string, unknown> {
+  if (!snapshots || Object.keys(snapshots).length === 0) return values;
+  const out: Record<string, unknown> = { ...values };
+  const keys = Object.keys(snapshots);
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    const snap = snapshots[k];
+    if (snap === undefined || snap === null) continue;
+    if (Array.isArray(snap)) {
+      if (!snap.length) continue;
+      const base = typeof out[k] === 'object' && out[k] !== null ? (out[k] as Record<string, unknown>) : {};
+      out[k] = { ...base, ...snap[0] };
+      continue;
+    }
+    if (typeof snap === 'object') {
+      const base = typeof out[k] === 'object' && out[k] !== null ? (out[k] as Record<string, unknown>) : {};
+      out[k] = { ...base, ...snap };
+    }
+  }
+  return out;
+}
+
 export function evaluateFormValueExpression(
   expr: string,
   values: Record<string, unknown>,
   dynamicContext?: IDynamicContext,
-  attachmentFolderUrl?: IFormAttachmentFolderUrlContext
+  attachmentFolderUrl?: IFormAttachmentFolderUrlContext,
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >
 ): unknown {
   const t = expr.trim();
+  const valsPh =
+    lookupOptionSnapshots && Object.keys(lookupOptionSnapshots).length > 0
+      ? mergeLookupSnapshotsIntoValues(values, lookupOptionSnapshots)
+      : values;
   if (dynamicContext && isDynamicToken(t)) {
     const v = resolveStringToken(t, dynamicContext);
     return v !== undefined ? v : '';
@@ -886,7 +922,7 @@ export function evaluateFormValueExpression(
     let s = t.slice(4).replace(/\{\{([^}]+)\}\}/g, (_, name) => {
       const key = String(name).trim();
       if (key.indexOf('DAYS:') === 0) return '';
-      return resolvePlaceholderScalarFromValues(key, values);
+      return resolvePlaceholderScalarFromValues(key, valsPh);
     });
     if (dynamicContext) {
       s = s.replace(/\[(.+?)\]/g, (full, inner: string) => {
@@ -897,6 +933,13 @@ export function evaluateFormValueExpression(
       });
     }
     return s;
+  }
+  const singlePh = /^\s*\{\{([^}]+)\}\}\s*$/.exec(t);
+  if (singlePh) {
+    const inner = String(singlePh[1]).trim();
+    if (inner.indexOf('DAYS:') !== 0) {
+      return resolvePlaceholderScalarFromValues(inner, valsPh);
+    }
   }
   if (dynamicContext && t.indexOf('[') !== -1) {
     const daysFirst = t.replace(/\{\{DAYS:([^:}]+):([^}]+)\}\}/g, (_, a, b) => {
@@ -911,7 +954,7 @@ export function evaluateFormValueExpression(
     const withFields = daysFirst.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
       const key = String(name).trim();
       if (key.indexOf('DAYS:') === 0) return '';
-      return resolvePlaceholderScalarFromValues(key, values);
+      return resolvePlaceholderScalarFromValues(key, valsPh);
     });
     const withTok = withFields.replace(/\[(.+?)\]/g, (full, inner: string) => {
       const tok = `[${String(inner).trim()}]`;
@@ -939,9 +982,9 @@ export function evaluateFormValueExpression(
   while ((ph = placeholderRe.exec(withDays)) !== null) {
     const key = String(ph[1]).trim();
     if (key.indexOf('DAYS:') === 0) continue;
-    const n = resolvePlaceholderNumberFromValues(key, values);
+    const n = resolvePlaceholderNumberFromValues(key, valsPh);
     if (typeof n === 'number' && isFinite(n)) continue;
-    if (resolvePlaceholderScalarFromValues(key, values) !== '') {
+    if (resolvePlaceholderScalarFromValues(key, valsPh) !== '') {
       anyPlaceholderNeedsText = true;
       break;
     }
@@ -951,14 +994,14 @@ export function evaluateFormValueExpression(
     return withDays.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
       const key = String(name).trim();
       if (key.indexOf('DAYS:') === 0) return '';
-      return resolvePlaceholderScalarFromValues(key, values);
+      return resolvePlaceholderScalarFromValues(key, valsPh);
     });
   }
 
   const replaced = withDays.replace(/\{\{([^}]+)\}\}/g, (_, name) => {
     const key = String(name).trim();
     if (key.indexOf('DAYS:') === 0) return '0';
-    const n = resolvePlaceholderNumberFromValues(key, values);
+    const n = resolvePlaceholderNumberFromValues(key, valsPh);
     return typeof n === 'number' && isFinite(n) ? String(n) : '0';
   });
   const compactExpr = replaced.replace(/\s+/g, '');
@@ -1374,7 +1417,13 @@ export function buildFormDerivedState(
           if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') break;
         }
         const mtcField = fieldMetaByName?.get(rule.field)?.MappedType;
-        let v = evaluateFormValueExpression(rule.expression, values, dynamicContext, attachmentFolderUrl);
+        let v = evaluateFormValueExpression(
+          rule.expression,
+          values,
+          dynamicContext,
+          attachmentFolderUrl,
+          ctx.lookupOptionSnapshots
+        );
         if (mtcField === 'datetime') {
           const disp = resolveDatetimeComputedDisplayValue(
             rule.expression ?? '',
@@ -2048,6 +2097,9 @@ export function buildSetComputedPrimarySavePatch(params: {
   submitKind: TFormSubmitKind | undefined;
   formMode: TFormManagerFormMode;
   fieldMetaByName: ReadonlyMap<string, IFieldMetadata>;
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >;
 }): Record<string, unknown> {
   const {
     cfg,
@@ -2059,6 +2111,7 @@ export function buildSetComputedPrimarySavePatch(params: {
     submitKind,
     formMode,
     fieldMetaByName,
+    lookupOptionSnapshots,
   } = params;
 
   const out: Record<string, unknown> = {};
@@ -2079,7 +2132,7 @@ export function buildSetComputedPrimarySavePatch(params: {
     const mtc = fieldMetaByName.get(rule.field)?.MappedType;
     if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') continue;
 
-    let v = evaluateFormValueExpression(expr, values, dynamicContext, attachmentFolderUrl);
+    let v = evaluateFormValueExpression(expr, values, dynamicContext, attachmentFolderUrl, lookupOptionSnapshots);
 
     if (mtc === 'datetime') {
       const disp = resolveDatetimeComputedDisplayValue(expr, v, values, dynamicContext);
@@ -2109,6 +2162,9 @@ export function buildPostCreateItemIdComputedPatch(params: {
   submitKind: TFormSubmitKind | undefined;
   newItemId: number;
   fieldMetaByName: ReadonlyMap<string, IFieldMetadata>;
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >;
 }): Record<string, unknown> {
   const {
     cfg,
@@ -2120,6 +2176,7 @@ export function buildPostCreateItemIdComputedPatch(params: {
     submitKind,
     newItemId,
     fieldMetaByName,
+    lookupOptionSnapshots,
   } = params;
 
   const valuesWithId: Record<string, unknown> = {
@@ -2147,7 +2204,13 @@ export function buildPostCreateItemIdComputedPatch(params: {
     const mtc = fieldMetaByName.get(rule.field)?.MappedType;
     if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') continue;
 
-    let v = evaluateFormValueExpression(expr, valuesWithId, dynamicContext, attachmentFolderUrl);
+    let v = evaluateFormValueExpression(
+      expr,
+      valuesWithId,
+      dynamicContext,
+      attachmentFolderUrl,
+      lookupOptionSnapshots
+    );
 
     if (mtc === 'datetime') {
       const disp = resolveDatetimeComputedDisplayValue(expr, v, valuesWithId, dynamicContext);

@@ -1556,6 +1556,38 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     [attachmentLibRootServerRelative, itemId, formManager.attachmentLibrary?.folderTree]
   );
 
+  const lookupDetailSnapshot = useMemo(() => {
+    const out: Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined> = {};
+    for (let i = 0; i < fieldConfigs.length; i++) {
+      const fc = fieldConfigs[i];
+      const m = metaByName.get(fc.internalName);
+      if (!m || (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti')) continue;
+      const opts = lookupOptions[fc.internalName] ?? [];
+      if (m.MappedType === 'lookup') {
+        const id = lookupIdFromValue(values[fc.internalName]);
+        if (!id) {
+          out[fc.internalName] = undefined;
+          continue;
+        }
+        const opt = opts.find((o) => String(o.key) === String(id));
+        const data =
+          opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
+        out[fc.internalName] = data;
+      } else {
+        const sel = normalizeIdTitleArray(values[fc.internalName]);
+        const many: Record<string, unknown>[] = [];
+        for (let s = 0; s < sel.length; s++) {
+          const opt = opts.find((o) => String(o.key) === String(sel[s].Id));
+          const data =
+            opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
+          if (data) many.push(data);
+        }
+        out[fc.internalName] = many.length ? many : undefined;
+      }
+    }
+    return out;
+  }, [fieldConfigs, metaByName, lookupOptions, values]);
+
   const runtimeCtx = useCallback(
     (submitKind?: TFormSubmitKind): IFormRuleRuntimeContext => ({
       formMode,
@@ -1566,6 +1598,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       authorId,
       dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
       attachmentFolderUrl,
+      lookupOptionSnapshots: lookupDetailSnapshot,
     }),
     [
       formMode,
@@ -1575,6 +1608,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       authorId,
       dynamicContext,
       attachmentFolderUrl,
+      lookupDetailSnapshot,
     ]
   );
 
@@ -1603,6 +1637,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       attachmentFolderUrl,
       buttonOverlay,
       metaByName,
+      lookupDetailSnapshot,
     ]
   );
 
@@ -1857,39 +1892,6 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     parts.sort();
     return parts.join('\n');
   }, [fieldConfigs, metaByName, derived.lookupFilters, values]);
-
-  const lookupDetailSnapshot = useMemo(() => {
-    const out: Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined> = {};
-    for (let i = 0; i < fieldConfigs.length; i++) {
-      const fc = fieldConfigs[i];
-      const detailFns = fc.lookupOptionDetailBelowFields ?? [];
-      if (!detailFns.length) continue;
-      const m = metaByName.get(fc.internalName);
-      if (!m || (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti')) continue;
-      const opts = lookupOptions[fc.internalName] ?? [];
-      if (m.MappedType === 'lookup') {
-        const id = lookupIdFromValue(values[fc.internalName]);
-        if (!id) {
-          out[fc.internalName] = undefined;
-          continue;
-        }
-        const opt = opts.find((o) => String(o.key) === String(id));
-        const data = opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
-        out[fc.internalName] = data;
-      } else {
-        const sel = normalizeIdTitleArray(values[fc.internalName]);
-        const many: Record<string, unknown>[] = [];
-        for (let s = 0; s < sel.length; s++) {
-          const opt = opts.find((o) => String(o.key) === String(sel[s].Id));
-          const data =
-            opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
-          if (data) many.push(data);
-        }
-        out[fc.internalName] = many.length ? many : undefined;
-      }
-    }
-    return out;
-  }, [fieldConfigs, metaByName, lookupOptions, values]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2375,6 +2377,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         submitKind,
         formMode,
         fieldMetaByName: metaByName,
+        lookupOptionSnapshots: lookupDetailSnapshot,
       });
       const valsForSave = { ...vals, ...computedPrimary };
       const payload = formValuesToSharePointPayload(fieldMetadata, valsForSave, names, {
@@ -2403,6 +2406,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           submitKind,
           newItemId: savedId,
           fieldMetaByName: metaByName,
+          lookupOptionSnapshots: lookupDetailSnapshot,
         });
         const idPatchFieldNames = Object.keys(idComputedPatch);
         if (idPatchFieldNames.length > 0) {
@@ -2874,6 +2878,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           submitKind: 'submit',
           formMode: 'create',
           fieldMetaByName: metaByName,
+          lookupOptionSnapshots: lookupDetailSnapshot,
         });
         const mergedForCreate = { ...mergedValues, ...computedPrimaryAdd };
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedForCreate, names, {
@@ -2897,6 +2902,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           submitKind: 'submit',
           newItemId: newId,
           fieldMetaByName: metaByName,
+          lookupOptionSnapshots: lookupDetailSnapshot,
         });
         const idPatchFieldNames = Object.keys(idComputedPatch);
         if (idPatchFieldNames.length > 0) {
@@ -3098,6 +3104,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           submitKind: 'submit',
           formMode,
           fieldMetaByName: metaByName,
+          lookupOptionSnapshots: lookupDetailSnapshot,
         });
         const mergedForUpdate = { ...mergedValues, ...computedPrimaryUp };
         const payload = formValuesToSharePointPayload(fieldMetadata, mergedForUpdate, names, {
