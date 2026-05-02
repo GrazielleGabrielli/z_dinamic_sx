@@ -41,7 +41,11 @@ import type {
   TTextFieldConditionalAction,
   TFormCompareKind,
 } from '../../core/config/types/formManager';
-import { FORM_ATTACHMENTS_FIELD_INTERNAL, isFormBannerFieldConfig } from '../../core/config/types/formManager';
+import {
+  FORM_ATTACHMENTS_FIELD_INTERNAL,
+  FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES,
+  isFormBannerFieldConfig,
+} from '../../core/config/types/formManager';
 import {
   buildFieldUiRules,
   CONDITION_OP_OPTIONS,
@@ -1768,6 +1772,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
     return out.length ? out : undefined;
   }, [listFieldMetadata, internalName, allFieldConfigs]);
   const isTextRulesLikeText = mt === 'text' || mt === 'multiline';
+  const isSystemListMetadataField = FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(internalName);
   const fieldsServiceLookup = useMemo(() => new FieldsService(), []);
   const [lookupDestFields, setLookupDestFields] = useState<IFieldMetadata[]>([]);
   const [lookupDestErr, setLookupDestErr] = useState<string>();
@@ -1871,9 +1876,505 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   }, []);
 
   const handleApply = (): void => {
+    if (isSystemListMetadataField) {
+      onApply({ ...fc, readOnly: true }, emptyFieldRuleEditorState());
+      onDismiss();
+      return;
+    }
     onApply(fc, ed);
     onDismiss();
   };
+
+  const renderCondicionaisSection = (): React.ReactElement => (
+                <FormManagerCollapseSection
+                  title="Condicionais"
+                  isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.conditionals)}
+                  onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.conditionals)}
+                >
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    {internalName} · {mt}
+                    {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
+                  </Text>
+          
+                  <PrimaryButton
+                    text="Adicionar grupo de regra"
+                    disabled={!refFieldOptions.length}
+                    onClick={() =>
+                      setFc((p) => ({
+                        ...p,
+                        textConditionalVisibility: {
+                          groups: [
+                            ...(p.textConditionalVisibility?.groups ?? []),
+                            newTextConditionalGroup(defaultRefField),
+                          ],
+                        },
+                      }))
+                    }
+                  />
+                  {!refFieldOptions.length ? (
+                    <Text variant="small" styles={{ root: { color: '#a4262c' } }}>
+                      Não há outros campos no formulário para referenciar nas condições.
+                    </Text>
+                  ) : null}
+                  <Stack tokens={{ childrenGap: 10 }}>
+                  {(fc.textConditionalVisibility?.groups ?? []).map((g, gi) => (
+                    <FormManagerCollapseSection
+                      key={g.id}
+                      title={`Grupo ${gi + 1}`}
+                      isOpen={isConditionalGroupOpen(g.id)}
+                      onToggle={() => toggleConditionalGroup(g.id)}
+                      trailing={
+                        <DefaultButton
+                          text="Remover grupo"
+                          onClick={() =>
+                            setFc((p) => {
+                              const nextList = (p.textConditionalVisibility?.groups ?? []).filter((x) => x.id !== g.id);
+                              const next: IFormFieldConfig = { ...p };
+                              if (!nextList.length) delete next.textConditionalVisibility;
+                              else next.textConditionalVisibility = { groups: nextList };
+                              return next;
+                            })
+                          }
+                        />
+                      }
+                    >
+                      <Text variant="small">Aplicar esta regra apenas nos modos:</Text>
+                      <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+                        {MODE_OPTS.map((m) => (
+                          <Checkbox
+                            key={`${g.id}-${m.key}`}
+                            label={m.label}
+                            checked={groupModeChecked(g.modes, m.key)}
+                            onChange={(_, c) => patchGroupModes(g.id, m.key, !!c)}
+                          />
+                        ))}
+                      </Stack>
+                
+                      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                        Incluir: grupos SharePoint
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Opcional. Vazio = todos. Com grupos marcados, a regra só aplica a quem pertencer a pelo menos um
+                        deles.
+                      </Text>
+                      <TextField
+                        placeholder="Filtrar grupos por nome"
+                        value={spGroupRuleNameFilter}
+                        onChange={(_: unknown, v?: string) => setSpGroupRuleNameFilter(v ?? '')}
+                        styles={{ root: { maxWidth: 420 } }}
+                      />
+                      {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
+                      {siteGroupsErr ? (
+                        <>
+                          <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
+                          <DefaultButton text="Tentar carregar grupos novamente" onClick={() => loadSiteGroups()} />
+                        </>
+                      ) : null}
+                      {!siteGroupsLoading ? (
+                        <Stack
+                          tokens={{ childrenGap: 6 }}
+                          styles={{
+                            root: {
+                              maxHeight: 240,
+                              overflowY: 'auto',
+                              border: '1px solid #edebe9',
+                              borderRadius: 4,
+                              padding: 8,
+                            },
+                          }}
+                        >
+                          {(g.groupTitles ?? [])
+                            .filter(
+                              (t) =>
+                                !siteGroups.some(
+                                  (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
+                                )
+                            )
+                            .filter((t) => {
+                              const q = spGroupRuleNameFilter.trim().toLowerCase();
+                              return !q || t.toLowerCase().includes(q);
+                            })
+                            .map((t, oi) => (
+                              <Checkbox
+                                key={`tx-orphan-${g.id}-${oi}-${t}`}
+                                label={`${t} (guardado; não na lista do site)`}
+                                checked
+                                onChange={(_, c) => {
+                                  if (c) return;
+                                  setFc((p) => ({
+                                    ...p,
+                                    textConditionalVisibility: {
+                                      groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                        if (gr.id !== g.id) return gr;
+                                        const cur = gr.groupTitles ?? [];
+                                        const n = normSpGroupTitle(t);
+                                        const next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                                        const out: ITextFieldConditionalGroup = { ...gr };
+                                        if (next.length) out.groupTitles = next;
+                                        else delete out.groupTitles;
+                                        return out;
+                                      }),
+                                    },
+                                  }));
+                                }}
+                              />
+                            ))}
+                          {siteGroupsSortedForRules.map((sg) => {
+                            const cur = g.groupTitles ?? [];
+                            const n = normSpGroupTitle(sg.Title);
+                            const checked = cur.some((x) => normSpGroupTitle(x) === n);
+                            return (
+                              <Checkbox
+                                key={`tx-sg-${g.id}-${sg.Id}`}
+                                label={sg.Title}
+                                title={sg.Description || undefined}
+                                checked={checked}
+                                onChange={(_, c) => {
+                                  setFc((p) => ({
+                                    ...p,
+                                    textConditionalVisibility: {
+                                      groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                        if (gr.id !== g.id) return gr;
+                                        const prevTitles = gr.groupTitles ?? [];
+                                        let next: string[];
+                                        if (c) {
+                                          next = checked ? prevTitles : prevTitles.concat([sg.Title]);
+                                        } else {
+                                          next = prevTitles.filter((x) => normSpGroupTitle(x) !== n);
+                                        }
+                                        const out: ITextFieldConditionalGroup = { ...gr };
+                                        if (next.length) out.groupTitles = next;
+                                        else delete out.groupTitles;
+                                        return out;
+                                      }),
+                                    },
+                                  }));
+                                }}
+                              />
+                            );
+                          })}
+                          {siteGroupsSorted.length > 0 &&
+                          !siteGroupsSortedForRules.length &&
+                          spGroupRuleNameFilter.trim() ? (
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              Nenhum grupo corresponde ao filtro.
+                            </Text>
+                          ) : null}
+                          {!siteGroupsSorted.length && !(g.groupTitles ?? []).length ? (
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              Nenhum grupo no site.
+                            </Text>
+                          ) : null}
+                        </Stack>
+                      ) : null}
+                      <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 10 } }}>
+                        Excluir: grupos SharePoint
+                      </Text>
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Opcional. Vazio = não excluir ninguém por grupo. Com grupos marcados, a regra não aplica a quem
+                        pertencer a algum deles.
+                      </Text>
+                      <TextField
+                        placeholder="Filtrar grupos a excluir"
+                        value={spExcludeGroupRuleNameFilter}
+                        onChange={(_: unknown, v?: string) => setSpExcludeGroupRuleNameFilter(v ?? '')}
+                        styles={{ root: { maxWidth: 420 } }}
+                      />
+                      {!siteGroupsLoading ? (
+                        <Stack
+                          tokens={{ childrenGap: 6 }}
+                          styles={{
+                            root: {
+                              maxHeight: 240,
+                              overflowY: 'auto',
+                              border: '1px solid #edebe9',
+                              borderRadius: 4,
+                              padding: 8,
+                              marginTop: 4,
+                            },
+                          }}
+                        >
+                          {(g.excludeGroupTitles ?? [])
+                            .filter(
+                              (t) =>
+                                !siteGroups.some(
+                                  (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
+                                )
+                            )
+                            .filter((t) => {
+                              const q = spExcludeGroupRuleNameFilter.trim().toLowerCase();
+                              return !q || t.toLowerCase().includes(q);
+                            })
+                            .map((t, oi) => (
+                              <Checkbox
+                                key={`tx-ex-orphan-${g.id}-${oi}-${t}`}
+                                label={`${t} (guardado; não na lista do site)`}
+                                checked
+                                onChange={(_, c) => {
+                                  if (c) return;
+                                  setFc((p) => ({
+                                    ...p,
+                                    textConditionalVisibility: {
+                                      groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                        if (gr.id !== g.id) return gr;
+                                        const cur = gr.excludeGroupTitles ?? [];
+                                        const n = normSpGroupTitle(t);
+                                        const next = cur.filter((x) => normSpGroupTitle(x) !== n);
+                                        const out: ITextFieldConditionalGroup = { ...gr };
+                                        if (next.length) out.excludeGroupTitles = next;
+                                        else delete out.excludeGroupTitles;
+                                        return out;
+                                      }),
+                                    },
+                                  }));
+                                }}
+                              />
+                            ))}
+                          {siteGroupsSortedForExcludeRules.map((sg) => {
+                            const cur = g.excludeGroupTitles ?? [];
+                            const n = normSpGroupTitle(sg.Title);
+                            const checked = cur.some((x) => normSpGroupTitle(x) === n);
+                            return (
+                              <Checkbox
+                                key={`tx-ex-sg-${g.id}-${sg.Id}`}
+                                label={sg.Title}
+                                title={sg.Description || undefined}
+                                checked={checked}
+                                onChange={(_, c) => {
+                                  setFc((p) => ({
+                                    ...p,
+                                    textConditionalVisibility: {
+                                      groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                        if (gr.id !== g.id) return gr;
+                                        const prevTitles = gr.excludeGroupTitles ?? [];
+                                        let next: string[];
+                                        if (c) {
+                                          next = checked ? prevTitles : prevTitles.concat([sg.Title]);
+                                        } else {
+                                          next = prevTitles.filter((x) => normSpGroupTitle(x) !== n);
+                                        }
+                                        const out: ITextFieldConditionalGroup = { ...gr };
+                                        if (next.length) out.excludeGroupTitles = next;
+                                        else delete out.excludeGroupTitles;
+                                        return out;
+                                      }),
+                                    },
+                                  }));
+                                }}
+                              />
+                            );
+                          })}
+                          {siteGroupsSorted.length > 0 &&
+                          !siteGroupsSortedForExcludeRules.length &&
+                          spExcludeGroupRuleNameFilter.trim() ? (
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              Nenhum grupo corresponde ao filtro.
+                            </Text>
+                          ) : null}
+                          {!siteGroupsSorted.length && !(g.excludeGroupTitles ?? []).length ? (
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              Nenhum grupo no site.
+                            </Text>
+                          ) : null}
+                        </Stack>
+                      ) : null}
+                      <ChoiceGroup
+                        label="Operador lógico entre condições"
+                        selectedKey={g.groupOp}
+                        options={TEXT_COND_GROUP_OP_OPTS}
+                        onChange={(_, opt) =>
+                          opt &&
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id === g.id ? { ...gr, groupOp: opt.key as TTextFieldConditionalGroupOp } : gr
+                              ),
+                            },
+                          }))
+                        }
+                      />
+                      <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
+                        Condições
+                      </Text>
+                      {g.conditions.map((c) => (
+                        <Stack
+                          key={c.id}
+                          horizontal
+                          wrap
+                          tokens={{ childrenGap: 8 }}
+                          verticalAlign="end"
+                          styles={{ root: { alignItems: 'flex-end' } }}
+                        >
+                          <Dropdown
+                            label="Campo"
+                            options={refFieldOptions}
+                            selectedKey={c.refField || undefined}
+                            onChange={(_, o) =>
+                              o &&
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                    gr.id !== g.id
+                                      ? gr
+                                      : {
+                                          ...gr,
+                                          conditions: gr.conditions.map((row) =>
+                                            row.id === c.id ? { ...row, refField: String(o.key) } : row
+                                          ),
+                                        }
+                                  ),
+                                },
+                              }))
+                            }
+                            styles={{ dropdown: { width: 180 } }}
+                          />
+                          <Dropdown
+                            label="Operador"
+                            options={TEXT_DISPLAY_OP_OPTS.map((x) => ({ key: x.key, text: x.text }))}
+                            selectedKey={c.op}
+                            onChange={(_, o) =>
+                              o &&
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                    gr.id !== g.id
+                                      ? gr
+                                      : {
+                                          ...gr,
+                                          conditions: gr.conditions.map((row) =>
+                                            row.id === c.id
+                                              ? { ...row, op: o.key as TTextFieldConditionalDisplayOp }
+                                              : row
+                                          ),
+                                        }
+                                  ),
+                                },
+                              }))
+                            }
+                            styles={{ dropdown: { width: 160 } }}
+                          />
+                          <Dropdown
+                            label="Comparar"
+                            options={[
+                              { key: 'literal', text: 'Texto fixo' },
+                              { key: 'field', text: 'Campo' },
+                              { key: 'token', text: 'Token' },
+                            ]}
+                            selectedKey={c.compareKind}
+                            disabled={c.op === 'isEmpty' || c.op === 'isFilled'}
+                            onChange={(_, o) =>
+                              o &&
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                    gr.id !== g.id
+                                      ? gr
+                                      : {
+                                          ...gr,
+                                          conditions: gr.conditions.map((row) =>
+                                            row.id === c.id ? { ...row, compareKind: o.key as TFormCompareKind } : row
+                                          ),
+                                        }
+                                  ),
+                                },
+                              }))
+                            }
+                            styles={{ dropdown: { width: 112 } }}
+                          />
+                          <TextField
+                            label="Valor"
+                            value={c.compareValue}
+                            disabled={c.op === 'isEmpty' || c.op === 'isFilled'}
+                            onChange={(_, v) =>
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                    gr.id !== g.id
+                                      ? gr
+                                      : {
+                                          ...gr,
+                                          conditions: gr.conditions.map((row) =>
+                                            row.id === c.id ? { ...row, compareValue: v ?? '' } : row
+                                          ),
+                                        }
+                                  ),
+                                },
+                              }))
+                            }
+                            styles={{ fieldGroup: { minWidth: 140 } }}
+                          />
+                          <DefaultButton
+                            text="Remover"
+                            disabled={g.conditions.length < 2}
+                            onClick={() =>
+                              setFc((p) => ({
+                                ...p,
+                                textConditionalVisibility: {
+                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                    if (gr.id !== g.id) return gr;
+                                    const filt = gr.conditions.filter((row) => row.id !== c.id);
+                                    return {
+                                      ...gr,
+                                      conditions: filt.length
+                                        ? filt
+                                        : [newTextConditionalCondition(defaultRefField)],
+                                    };
+                                  }),
+                                },
+                              }))
+                            }
+                          />
+                        </Stack>
+                      ))}
+                      <DefaultButton
+                        text="Adicionar condição"
+                        onClick={() =>
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id === g.id
+                                  ? {
+                                      ...gr,
+                                      conditions: [...gr.conditions, newTextConditionalCondition(defaultRefField)],
+                                    }
+                                  : gr
+                              ),
+                            },
+                          }))
+                        }
+                      />
+                      <Dropdown
+                        label="Ação deste grupo"
+                        options={[
+                          { key: 'show', text: 'Mostrar' },
+                          { key: 'hide', text: 'Ocultar' },
+                          { key: 'disable', text: 'Desabilitar' },
+                        ]}
+                        selectedKey={g.action}
+                        onChange={(_, o) =>
+                          o &&
+                          setFc((p) => ({
+                            ...p,
+                            textConditionalVisibility: {
+                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
+                                gr.id === g.id ? { ...gr, action: o.key as TTextFieldConditionalAction } : gr
+                              ),
+                            },
+                          }))
+                        }
+                        styles={{ dropdown: { maxWidth: 280 } }}
+                      />
+                    </FormManagerCollapseSection>
+                  ))}
+                  </Stack>
+                </FormManagerCollapseSection>
+  );
 
   return (
     <Panel
@@ -1888,6 +2389,39 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
       }}
     >
       <Stack tokens={{ childrenGap: 12 }}>
+        {isSystemListMetadataField && (
+          <>
+            <FormManagerCollapseSection
+              title="Exibição"
+              isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.display)}
+              onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.display)}
+            >
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                {internalName} · {mt}
+                {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
+              </Text>
+              <TextField
+                label="Texto de ajuda (campo)"
+                multiline
+                rows={2}
+                value={fc.helpText ?? ''}
+                onChange={(_, v) => setFc((p) => ({ ...p, helpText: v || undefined }))}
+              />
+              <Checkbox label="Somente leitura" checked={true} disabled={true} />
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Campo de sistema: permanece só leitura no formulário.
+              </Text>
+            </FormManagerCollapseSection>
+            {renderCondicionaisSection()}
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Pré-visualização:{' '}
+              {buildFieldUiRules(internalName, emptyFieldRuleEditorState(), fc, { mappedType: mt }).length} regra(s)
+              gerada(s) para este campo.
+            </Text>
+          </>
+        )}
+        {!isSystemListMetadataField && (
+          <>
         {!isTextRulesLikeText && (
           <>
             <FormManagerCollapseSection
@@ -2256,494 +2790,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 onRetryLoadSiteGroups={loadSiteGroups}
               />
             </FormManagerCollapseSection>
-            <FormManagerCollapseSection
-              title="Condicionais"
-              isOpen={isTextRulesOpen(TEXT_RULES_COLLAPSE_IDS.conditionals)}
-              onToggle={() => toggleTextRulesSection(TEXT_RULES_COLLAPSE_IDS.conditionals)}
-            >
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {internalName} · {mt}
-                {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
-              </Text>
-          
-              <PrimaryButton
-                text="Adicionar grupo de regra"
-                disabled={!refFieldOptions.length}
-                onClick={() =>
-                  setFc((p) => ({
-                    ...p,
-                    textConditionalVisibility: {
-                      groups: [
-                        ...(p.textConditionalVisibility?.groups ?? []),
-                        newTextConditionalGroup(defaultRefField),
-                      ],
-                    },
-                  }))
-                }
-              />
-              {!refFieldOptions.length ? (
-                <Text variant="small" styles={{ root: { color: '#a4262c' } }}>
-                  Não há outros campos no formulário para referenciar nas condições.
-                </Text>
-              ) : null}
-              <Stack tokens={{ childrenGap: 10 }}>
-              {(fc.textConditionalVisibility?.groups ?? []).map((g, gi) => (
-                <FormManagerCollapseSection
-                  key={g.id}
-                  title={`Grupo ${gi + 1}`}
-                  isOpen={isConditionalGroupOpen(g.id)}
-                  onToggle={() => toggleConditionalGroup(g.id)}
-                  trailing={
-                    <DefaultButton
-                      text="Remover grupo"
-                      onClick={() =>
-                        setFc((p) => {
-                          const nextList = (p.textConditionalVisibility?.groups ?? []).filter((x) => x.id !== g.id);
-                          const next: IFormFieldConfig = { ...p };
-                          if (!nextList.length) delete next.textConditionalVisibility;
-                          else next.textConditionalVisibility = { groups: nextList };
-                          return next;
-                        })
-                      }
-                    />
-                  }
-                >
-                  <Text variant="small">Aplicar esta regra apenas nos modos:</Text>
-                  <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-                    {MODE_OPTS.map((m) => (
-                      <Checkbox
-                        key={`${g.id}-${m.key}`}
-                        label={m.label}
-                        checked={groupModeChecked(g.modes, m.key)}
-                        onChange={(_, c) => patchGroupModes(g.id, m.key, !!c)}
-                      />
-                    ))}
-                  </Stack>
-                
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                    Incluir: grupos SharePoint
-                  </Text>
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Opcional. Vazio = todos. Com grupos marcados, a regra só aplica a quem pertencer a pelo menos um
-                    deles.
-                  </Text>
-                  <TextField
-                    placeholder="Filtrar grupos por nome"
-                    value={spGroupRuleNameFilter}
-                    onChange={(_: unknown, v?: string) => setSpGroupRuleNameFilter(v ?? '')}
-                    styles={{ root: { maxWidth: 420 } }}
-                  />
-                  {siteGroupsLoading && <Spinner label="A carregar grupos do site…" />}
-                  {siteGroupsErr ? (
-                    <>
-                      <MessageBar messageBarType={MessageBarType.warning}>{siteGroupsErr}</MessageBar>
-                      <DefaultButton text="Tentar carregar grupos novamente" onClick={() => loadSiteGroups()} />
-                    </>
-                  ) : null}
-                  {!siteGroupsLoading ? (
-                    <Stack
-                      tokens={{ childrenGap: 6 }}
-                      styles={{
-                        root: {
-                          maxHeight: 240,
-                          overflowY: 'auto',
-                          border: '1px solid #edebe9',
-                          borderRadius: 4,
-                          padding: 8,
-                        },
-                      }}
-                    >
-                      {(g.groupTitles ?? [])
-                        .filter(
-                          (t) =>
-                            !siteGroups.some(
-                              (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
-                            )
-                        )
-                        .filter((t) => {
-                          const q = spGroupRuleNameFilter.trim().toLowerCase();
-                          return !q || t.toLowerCase().includes(q);
-                        })
-                        .map((t, oi) => (
-                          <Checkbox
-                            key={`tx-orphan-${g.id}-${oi}-${t}`}
-                            label={`${t} (guardado; não na lista do site)`}
-                            checked
-                            onChange={(_, c) => {
-                              if (c) return;
-                              setFc((p) => ({
-                                ...p,
-                                textConditionalVisibility: {
-                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
-                                    if (gr.id !== g.id) return gr;
-                                    const cur = gr.groupTitles ?? [];
-                                    const n = normSpGroupTitle(t);
-                                    const next = cur.filter((x) => normSpGroupTitle(x) !== n);
-                                    const out: ITextFieldConditionalGroup = { ...gr };
-                                    if (next.length) out.groupTitles = next;
-                                    else delete out.groupTitles;
-                                    return out;
-                                  }),
-                                },
-                              }));
-                            }}
-                          />
-                        ))}
-                      {siteGroupsSortedForRules.map((sg) => {
-                        const cur = g.groupTitles ?? [];
-                        const n = normSpGroupTitle(sg.Title);
-                        const checked = cur.some((x) => normSpGroupTitle(x) === n);
-                        return (
-                          <Checkbox
-                            key={`tx-sg-${g.id}-${sg.Id}`}
-                            label={sg.Title}
-                            title={sg.Description || undefined}
-                            checked={checked}
-                            onChange={(_, c) => {
-                              setFc((p) => ({
-                                ...p,
-                                textConditionalVisibility: {
-                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
-                                    if (gr.id !== g.id) return gr;
-                                    const prevTitles = gr.groupTitles ?? [];
-                                    let next: string[];
-                                    if (c) {
-                                      next = checked ? prevTitles : prevTitles.concat([sg.Title]);
-                                    } else {
-                                      next = prevTitles.filter((x) => normSpGroupTitle(x) !== n);
-                                    }
-                                    const out: ITextFieldConditionalGroup = { ...gr };
-                                    if (next.length) out.groupTitles = next;
-                                    else delete out.groupTitles;
-                                    return out;
-                                  }),
-                                },
-                              }));
-                            }}
-                          />
-                        );
-                      })}
-                      {siteGroupsSorted.length > 0 &&
-                      !siteGroupsSortedForRules.length &&
-                      spGroupRuleNameFilter.trim() ? (
-                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                          Nenhum grupo corresponde ao filtro.
-                        </Text>
-                      ) : null}
-                      {!siteGroupsSorted.length && !(g.groupTitles ?? []).length ? (
-                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                          Nenhum grupo no site.
-                        </Text>
-                      ) : null}
-                    </Stack>
-                  ) : null}
-                  <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 10 } }}>
-                    Excluir: grupos SharePoint
-                  </Text>
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Opcional. Vazio = não excluir ninguém por grupo. Com grupos marcados, a regra não aplica a quem
-                    pertencer a algum deles.
-                  </Text>
-                  <TextField
-                    placeholder="Filtrar grupos a excluir"
-                    value={spExcludeGroupRuleNameFilter}
-                    onChange={(_: unknown, v?: string) => setSpExcludeGroupRuleNameFilter(v ?? '')}
-                    styles={{ root: { maxWidth: 420 } }}
-                  />
-                  {!siteGroupsLoading ? (
-                    <Stack
-                      tokens={{ childrenGap: 6 }}
-                      styles={{
-                        root: {
-                          maxHeight: 240,
-                          overflowY: 'auto',
-                          border: '1px solid #edebe9',
-                          borderRadius: 4,
-                          padding: 8,
-                          marginTop: 4,
-                        },
-                      }}
-                    >
-                      {(g.excludeGroupTitles ?? [])
-                        .filter(
-                          (t) =>
-                            !siteGroups.some(
-                              (sg) => normSpGroupTitle(sg.Title) === normSpGroupTitle(t)
-                            )
-                        )
-                        .filter((t) => {
-                          const q = spExcludeGroupRuleNameFilter.trim().toLowerCase();
-                          return !q || t.toLowerCase().includes(q);
-                        })
-                        .map((t, oi) => (
-                          <Checkbox
-                            key={`tx-ex-orphan-${g.id}-${oi}-${t}`}
-                            label={`${t} (guardado; não na lista do site)`}
-                            checked
-                            onChange={(_, c) => {
-                              if (c) return;
-                              setFc((p) => ({
-                                ...p,
-                                textConditionalVisibility: {
-                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
-                                    if (gr.id !== g.id) return gr;
-                                    const cur = gr.excludeGroupTitles ?? [];
-                                    const n = normSpGroupTitle(t);
-                                    const next = cur.filter((x) => normSpGroupTitle(x) !== n);
-                                    const out: ITextFieldConditionalGroup = { ...gr };
-                                    if (next.length) out.excludeGroupTitles = next;
-                                    else delete out.excludeGroupTitles;
-                                    return out;
-                                  }),
-                                },
-                              }));
-                            }}
-                          />
-                        ))}
-                      {siteGroupsSortedForExcludeRules.map((sg) => {
-                        const cur = g.excludeGroupTitles ?? [];
-                        const n = normSpGroupTitle(sg.Title);
-                        const checked = cur.some((x) => normSpGroupTitle(x) === n);
-                        return (
-                          <Checkbox
-                            key={`tx-ex-sg-${g.id}-${sg.Id}`}
-                            label={sg.Title}
-                            title={sg.Description || undefined}
-                            checked={checked}
-                            onChange={(_, c) => {
-                              setFc((p) => ({
-                                ...p,
-                                textConditionalVisibility: {
-                                  groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
-                                    if (gr.id !== g.id) return gr;
-                                    const prevTitles = gr.excludeGroupTitles ?? [];
-                                    let next: string[];
-                                    if (c) {
-                                      next = checked ? prevTitles : prevTitles.concat([sg.Title]);
-                                    } else {
-                                      next = prevTitles.filter((x) => normSpGroupTitle(x) !== n);
-                                    }
-                                    const out: ITextFieldConditionalGroup = { ...gr };
-                                    if (next.length) out.excludeGroupTitles = next;
-                                    else delete out.excludeGroupTitles;
-                                    return out;
-                                  }),
-                                },
-                              }));
-                            }}
-                          />
-                        );
-                      })}
-                      {siteGroupsSorted.length > 0 &&
-                      !siteGroupsSortedForExcludeRules.length &&
-                      spExcludeGroupRuleNameFilter.trim() ? (
-                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                          Nenhum grupo corresponde ao filtro.
-                        </Text>
-                      ) : null}
-                      {!siteGroupsSorted.length && !(g.excludeGroupTitles ?? []).length ? (
-                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                          Nenhum grupo no site.
-                        </Text>
-                      ) : null}
-                    </Stack>
-                  ) : null}
-                  <ChoiceGroup
-                    label="Operador lógico entre condições"
-                    selectedKey={g.groupOp}
-                    options={TEXT_COND_GROUP_OP_OPTS}
-                    onChange={(_, opt) =>
-                      opt &&
-                      setFc((p) => ({
-                        ...p,
-                        textConditionalVisibility: {
-                          groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                            gr.id === g.id ? { ...gr, groupOp: opt.key as TTextFieldConditionalGroupOp } : gr
-                          ),
-                        },
-                      }))
-                    }
-                  />
-                  <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>
-                    Condições
-                  </Text>
-                  {g.conditions.map((c) => (
-                    <Stack
-                      key={c.id}
-                      horizontal
-                      wrap
-                      tokens={{ childrenGap: 8 }}
-                      verticalAlign="end"
-                      styles={{ root: { alignItems: 'flex-end' } }}
-                    >
-                      <Dropdown
-                        label="Campo"
-                        options={refFieldOptions}
-                        selectedKey={c.refField || undefined}
-                        onChange={(_, o) =>
-                          o &&
-                          setFc((p) => ({
-                            ...p,
-                            textConditionalVisibility: {
-                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                                gr.id !== g.id
-                                  ? gr
-                                  : {
-                                      ...gr,
-                                      conditions: gr.conditions.map((row) =>
-                                        row.id === c.id ? { ...row, refField: String(o.key) } : row
-                                      ),
-                                    }
-                              ),
-                            },
-                          }))
-                        }
-                        styles={{ dropdown: { width: 180 } }}
-                      />
-                      <Dropdown
-                        label="Operador"
-                        options={TEXT_DISPLAY_OP_OPTS.map((x) => ({ key: x.key, text: x.text }))}
-                        selectedKey={c.op}
-                        onChange={(_, o) =>
-                          o &&
-                          setFc((p) => ({
-                            ...p,
-                            textConditionalVisibility: {
-                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                                gr.id !== g.id
-                                  ? gr
-                                  : {
-                                      ...gr,
-                                      conditions: gr.conditions.map((row) =>
-                                        row.id === c.id
-                                          ? { ...row, op: o.key as TTextFieldConditionalDisplayOp }
-                                          : row
-                                      ),
-                                    }
-                              ),
-                            },
-                          }))
-                        }
-                        styles={{ dropdown: { width: 160 } }}
-                      />
-                      <Dropdown
-                        label="Comparar"
-                        options={[
-                          { key: 'literal', text: 'Texto fixo' },
-                          { key: 'field', text: 'Campo' },
-                          { key: 'token', text: 'Token' },
-                        ]}
-                        selectedKey={c.compareKind}
-                        disabled={c.op === 'isEmpty' || c.op === 'isFilled'}
-                        onChange={(_, o) =>
-                          o &&
-                          setFc((p) => ({
-                            ...p,
-                            textConditionalVisibility: {
-                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                                gr.id !== g.id
-                                  ? gr
-                                  : {
-                                      ...gr,
-                                      conditions: gr.conditions.map((row) =>
-                                        row.id === c.id ? { ...row, compareKind: o.key as TFormCompareKind } : row
-                                      ),
-                                    }
-                              ),
-                            },
-                          }))
-                        }
-                        styles={{ dropdown: { width: 112 } }}
-                      />
-                      <TextField
-                        label="Valor"
-                        value={c.compareValue}
-                        disabled={c.op === 'isEmpty' || c.op === 'isFilled'}
-                        onChange={(_, v) =>
-                          setFc((p) => ({
-                            ...p,
-                            textConditionalVisibility: {
-                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                                gr.id !== g.id
-                                  ? gr
-                                  : {
-                                      ...gr,
-                                      conditions: gr.conditions.map((row) =>
-                                        row.id === c.id ? { ...row, compareValue: v ?? '' } : row
-                                      ),
-                                    }
-                              ),
-                            },
-                          }))
-                        }
-                        styles={{ fieldGroup: { minWidth: 140 } }}
-                      />
-                      <DefaultButton
-                        text="Remover"
-                        disabled={g.conditions.length < 2}
-                        onClick={() =>
-                          setFc((p) => ({
-                            ...p,
-                            textConditionalVisibility: {
-                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
-                                if (gr.id !== g.id) return gr;
-                                const filt = gr.conditions.filter((row) => row.id !== c.id);
-                                return {
-                                  ...gr,
-                                  conditions: filt.length
-                                    ? filt
-                                    : [newTextConditionalCondition(defaultRefField)],
-                                };
-                              }),
-                            },
-                          }))
-                        }
-                      />
-                    </Stack>
-                  ))}
-                  <DefaultButton
-                    text="Adicionar condição"
-                    onClick={() =>
-                      setFc((p) => ({
-                        ...p,
-                        textConditionalVisibility: {
-                          groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                            gr.id === g.id
-                              ? {
-                                  ...gr,
-                                  conditions: [...gr.conditions, newTextConditionalCondition(defaultRefField)],
-                                }
-                              : gr
-                          ),
-                        },
-                      }))
-                    }
-                  />
-                  <Dropdown
-                    label="Ação deste grupo"
-                    options={[
-                      { key: 'show', text: 'Mostrar' },
-                      { key: 'hide', text: 'Ocultar' },
-                      { key: 'disable', text: 'Desabilitar' },
-                    ]}
-                    selectedKey={g.action}
-                    onChange={(_, o) =>
-                      o &&
-                      setFc((p) => ({
-                        ...p,
-                        textConditionalVisibility: {
-                          groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                            gr.id === g.id ? { ...gr, action: o.key as TTextFieldConditionalAction } : gr
-                          ),
-                        },
-                      }))
-                    }
-                    styles={{ dropdown: { maxWidth: 280 } }}
-                  />
-                </FormManagerCollapseSection>
-              ))}
-              </Stack>
-            </FormManagerCollapseSection>
+            {renderCondicionaisSection()}
+
           </Stack>
         )}
         {(mt === 'url' || mt === 'unknown') && (
@@ -3111,6 +3159,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
             Pré-visualização: {buildFieldUiRules(internalName, ed, fc, { mappedType: mt }).length} regra(s) gerada(s)
             para este campo.
           </Text>
+        )}
+          </>
         )}
         <Stack horizontal tokens={{ childrenGap: 8 }}>
           <PrimaryButton text="Aplicar" onClick={handleApply} />

@@ -1101,20 +1101,26 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const fieldsListedForRulesTab = useMemo(() => {
     const byName = new Map(meta.map((x) => [x.InternalName, x]));
+    const inSomeStep = (internalName: string): boolean => {
+      for (let si = 0; si < steps.length; si++) {
+        if (steps[si].fieldNames.indexOf(internalName) !== -1) return true;
+      }
+      return false;
+    };
     return fields
-      .filter(
-        (fc) =>
-          fc.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
-          !isFormBannerFieldConfig(fc) &&
-          !FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fc.internalName)
-      )
+      .filter((fc) => {
+        if (fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return false;
+        if (FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fc.internalName) && !inSomeStep(fc.internalName))
+          return false;
+        return true;
+      })
       .slice()
       .sort((a, b) => {
         const ta = byName.get(a.internalName)?.Title ?? a.internalName;
         const tb = byName.get(b.internalName)?.Title ?? b.internalName;
         return ta.localeCompare(tb, 'pt');
       });
-  }, [fields, meta]);
+  }, [fields, meta, steps]);
 
   const requiredFieldsMissingFromSteps = useMemo(
     () => requiredListFieldsMissingFromSteps(meta, steps),
