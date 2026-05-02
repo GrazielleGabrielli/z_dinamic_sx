@@ -20,6 +20,8 @@ import {
   Icon,
   IconButton,
   Toggle,
+  keyframes,
+  mergeStyles,
 } from '@fluentui/react';
 import { FieldsService, GroupsService, filterSiteGroupsByNameQuery, mergeSystemMetadataFields } from '../../../../services';
 import type { FieldMappedType, IFieldMetadata, IGroupDetails } from '../../../../services';
@@ -137,6 +139,24 @@ function fieldRulesTabMappedTypeOrderIndex(t: FieldMappedType | undefined): numb
   if (t === undefined) return 1000;
   const i = FIELD_RULES_TAB_SORT_TYPE_ORDER.indexOf(t);
   return i === -1 ? 999 : i;
+}
+
+const poolBulkMovePulse = keyframes({
+  '0%, 100%': { transform: 'scale(1)', opacity: 1 },
+  '50%': { transform: 'scale(1.12)', opacity: 0.82 },
+});
+
+const poolBulkMoveIconClassName = mergeStyles({
+  animation: `${poolBulkMovePulse} 1.15s ease-in-out infinite`,
+  borderRadius: 6,
+  background: '#edebe9',
+});
+
+function structureStepMenuLabel(step: IFormStepConfig, stepIdx: number): string {
+  if (step.id === FORM_OCULTOS_STEP_ID) return 'Ocultos';
+  if (step.id === FORM_FIXOS_STEP_ID) return 'Fixos';
+  const t = step.title?.trim();
+  return t || `Etapa ${stepIdx + 1}`;
 }
 
 function attachmentLibraryFromPanelState(
@@ -809,6 +829,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
   const [fieldRulesTabSort, setFieldRulesTabSort] = useState<'asc' | 'desc' | 'type'>('asc');
+  const [structurePoolSelected, setStructurePoolSelected] = useState<string[]>([]);
+  const structurePoolSelectedRef = useRef<string[]>([]);
+  structurePoolSelectedRef.current = structurePoolSelected;
   const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
   const [redirectInsertNonceByBtn, setRedirectInsertNonceByBtn] = useState<Record<string, number>>({});
   const [redirectReplaceNonceByBtn, setRedirectReplaceNonceByBtn] = useState<Record<string, number>>({});
@@ -1195,33 +1218,62 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     );
   }, [meta]);
 
-  const addField = (internalName: string): void => {
-    if (!internalName) return;
-    setSteps((prevSteps) => {
-      const st = ensureCoreSteps(prevSteps);
-      let already = false;
-      for (let s = 0; s < st.length; s++) {
-        if (st[s].fieldNames.indexOf(internalName) !== -1) {
-          already = true;
-          break;
-        }
-      }
-      if (already) return st;
-      const oi = st.findIndex((x) => x.id === FORM_OCULTOS_STEP_ID);
-      const idx = oi >= 0 ? oi : 0;
-      const sid = st[idx].id;
-      const nextSteps = st.map((s, i) =>
-        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
-      );
-      setFields((prev) => {
-        const withF = prev.some((f) => f.internalName === internalName)
-          ? prev
-          : prev.concat([{ internalName, sectionId: sid }]);
-        return fieldsAlignedToSteps(withF, nextSteps);
-      });
-      return nextSteps;
+  const toggleStructurePoolSelect = useCallback((internalName: string, selected: boolean): void => {
+    setStructurePoolSelected((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(internalName);
+      else next.delete(internalName);
+      return Array.from(next);
     });
-  };
+  }, []);
+
+  const placeSelectedFieldsIntoStep = useCallback((targetStepIdx: number): void => {
+    const names = structurePoolSelectedRef.current.slice();
+    if (!names.length) return;
+    setSteps((prevSteps) => {
+      let next = ensureCoreSteps(prevSteps);
+      if (targetStepIdx < 0 || targetStepIdx >= next.length) return prevSteps;
+      const sid = next[targetStepIdx].id;
+      const isFixos = sid === FORM_FIXOS_STEP_ID;
+
+      for (let i = 0; i < names.length; i++) {
+        const internalName = names[i];
+        const insertBefore = next[targetStepIdx].fieldNames.length;
+        next = insertFieldNameIntoStep(next, internalName, targetStepIdx, insertBefore);
+      }
+
+      setFields((prevFields) => {
+        let f = prevFields;
+        for (let i = 0; i < names.length; i++) {
+          const internalName = names[i];
+          let exists = false;
+          for (let j = 0; j < f.length; j++) {
+            if (f[j].internalName === internalName) {
+              exists = true;
+              break;
+            }
+          }
+          if (exists) continue;
+          if (isFixos) {
+            f = f.concat([
+              {
+                internalName,
+                sectionId: sid,
+                fixedPlacement: 'top',
+                chromePositionMode: 'sticky',
+              },
+            ]);
+          } else {
+            f = f.concat([{ internalName, sectionId: sid }]);
+          }
+        }
+        return fieldsAlignedToSteps(f, next);
+      });
+
+      return next;
+    });
+    setStructurePoolSelected([]);
+  }, []);
 
   const addBannerField = (): void => {
     const internalName = `${FORM_BANNER_INTERNAL_PREFIX}${Date.now().toString(36)}_${Math.random()
@@ -1247,41 +1299,6 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 bannerImageUrl: '',
                 bannerPlacement: 'inStep',
                 bannerWidthPercent: 100,
-              },
-            ]);
-        return fieldsAlignedToSteps(withF, nextSteps);
-      });
-      return nextSteps;
-    });
-  };
-
-  const addFieldToFixos = (internalName: string): void => {
-    if (!internalName) return;
-    setSteps((prevSteps) => {
-      const st = ensureCoreSteps(prevSteps);
-      let already = false;
-      for (let s = 0; s < st.length; s++) {
-        if (st[s].fieldNames.indexOf(internalName) !== -1) {
-          already = true;
-          break;
-        }
-      }
-      if (already) return st;
-      const fi = st.findIndex((x) => x.id === FORM_FIXOS_STEP_ID);
-      const idx = fi >= 0 ? fi : 0;
-      const sid = st[idx].id;
-      const nextSteps = st.map((s, i) =>
-        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
-      );
-      setFields((prev) => {
-        const withF = prev.some((f) => f.internalName === internalName)
-          ? prev
-          : prev.concat([
-              {
-                internalName,
-                sectionId: sid,
-                fixedPlacement: 'top',
-                chromePositionMode: 'sticky',
               },
             ]);
         return fieldsAlignedToSteps(withF, nextSteps);
@@ -2011,7 +2028,43 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 {requiredFieldsMissingFromSteps.map((f) => `${f.Title} (${f.InternalName})`).join(', ')}
               </MessageBar>
             )}
-        
+            {structurePoolSelected.length > 0 && (
+              <Stack
+                horizontal
+                verticalAlign="center"
+                wrap
+                tokens={{ childrenGap: 10 }}
+                styles={{
+                  root: {
+                    padding: '10px 12px',
+                    borderRadius: 4,
+                    border: '1px solid #c8c6c4',
+                    background: '#fff4ce',
+                  },
+                }}
+              >
+                <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                  {structurePoolSelected.length} campo(s) selecionado(s)
+                </Text>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  Escolha a etapa de destino:
+                </Text>
+                <IconButton
+                  className={poolBulkMoveIconClassName}
+                  iconProps={{ iconName: 'Forward' }}
+                  title="Mover para etapa…"
+                  ariaLabel="Abrir lista de etapas para mover os campos selecionados"
+                  menuProps={{
+                    items: steps.map((step, stepIdx) => ({
+                      key: step.id,
+                      text: structureStepMenuLabel(step, stepIdx),
+                      onClick: () => placeSelectedFieldsIntoStep(stepIdx),
+                    })),
+                  }}
+                />
+                <DefaultButton text="Limpar seleção" onClick={() => setStructurePoolSelected([])} />
+              </Stack>
+            )}
             <FormManagerCollapseSection
               title="Layout do formulário (vista)"
               isOpen={isEstruturaOpen(ESTRUTURA_COLLAPSE_IDS.formLayout)}
@@ -2239,6 +2292,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             >
                               <Icon iconName="GripperBarVertical" />
                             </span>
+                            <Checkbox
+                              checked={structurePoolSelected.indexOf(fname) !== -1}
+                              onChange={(_, c) => toggleStructurePoolSelect(fname, !!c)}
+                              styles={{ text: { display: 'none' } }}
+                              title="Selecionar para mover em conjunto"
+                            />
                             <Text styles={{ root: { fontWeight: 600, minWidth: 80 } }}>Banner</Text>
                             <Text variant="small" styles={{ root: { color: '#605e5c', flex: '1 1 200px' } }}>
                               {fname} · imagem por URL (não grava na lista)
@@ -2417,6 +2476,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         >
                           <Icon iconName="GripperBarVertical" />
                         </span>
+                        <Checkbox
+                          checked={structurePoolSelected.indexOf(fname) !== -1}
+                          onChange={(_, c) => toggleStructurePoolSelect(fname, !!c)}
+                          styles={{ text: { display: 'none' } }}
+                          title="Selecionar para mover em conjunto"
+                        />
                         <Text styles={{ root: { fontWeight: 600, minWidth: 120 } }}>
                           {mm ? mm.Title : fname === FORM_ATTACHMENTS_FIELD_INTERNAL ? 'Anexos ao item' : fname}
                         </Text>
@@ -2504,8 +2569,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         Campos fora do formulário
                       </Text>
                       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                        Ainda não estão em nenhuma etapa visível: por defeito ficam em Ocultos. Arraste para outra
-                        etapa ou marque para incluir em Ocultos.
+                        Campos ainda fora do formulário: marque os que quiser e use a barra amarela no topo desta aba
+                        (ícone a pulsar), ou arraste para a etapa desejada.
                       </Text>
                       {(() => {
                         let attInPool = false;
@@ -2545,8 +2610,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             </span>
                             <Checkbox
                               label="Anexos ao item (controlo de ficheiros)"
-                              checked={false}
-                              onChange={(_, c) => (c ? addField(FORM_ATTACHMENTS_FIELD_INTERNAL) : undefined)}
+                              checked={structurePoolSelected.indexOf(FORM_ATTACHMENTS_FIELD_INTERNAL) !== -1}
+                              onChange={(_, c) => toggleStructurePoolSelect(FORM_ATTACHMENTS_FIELD_INTERNAL, !!c)}
                             />
                             <Text variant="small" styles={{ root: { minWidth: 80 } }}>
                               anexos
@@ -2610,8 +2675,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             </span>
                             <Checkbox
                               label={`${m.Title} (${m.InternalName})${m.Required ? ' *' : ''}`}
-                              checked={false}
-                              onChange={(_, c) => (c ? addField(m.InternalName) : undefined)}
+                              checked={structurePoolSelected.indexOf(m.InternalName) !== -1}
+                              onChange={(_, c) => toggleStructurePoolSelect(m.InternalName, !!c)}
                             />
                             <Text variant="small" styles={{ root: { minWidth: 80 } }}>
                               {m.MappedType}
@@ -2628,7 +2693,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         Incluir em Fixos
                       </Text>
                       <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                        Marque para colocar em Fixos; em cada linha defina se fica fixo no topo ou em baixo.
+                        Marque os campos e use a barra amarela no topo da aba Estrutura para colocar em Fixos ou outra
+                        etapa; em Fixos defina topo ou rodapé na linha do item.
                       </Text>
                       <Stack
                         horizontal
@@ -2683,8 +2749,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             </span>
                             <Checkbox
                               label={`${m.Title} (${m.InternalName})${m.Required ? ' *' : ''}`}
-                              checked={false}
-                              onChange={(_, c) => (c ? addFieldToFixos(m.InternalName) : undefined)}
+                              checked={structurePoolSelected.indexOf(m.InternalName) !== -1}
+                              onChange={(_, c) => toggleStructurePoolSelect(m.InternalName, !!c)}
                             />
                             <Text variant="small" styles={{ root: { minWidth: 80 } }}>
                               {m.MappedType}
