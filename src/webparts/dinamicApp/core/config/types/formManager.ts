@@ -314,6 +314,8 @@ export interface ITextFieldConditionalGroup {
   groupOp: TTextFieldConditionalGroupOp;
   conditions: ITextFieldConditionalCondition[];
   action: TTextFieldConditionalAction;
+  /** Opcional: sobrepõe `action` para criar, editar ou só visualização. */
+  actionByMode?: Partial<Record<TFormManagerFormMode, TTextFieldConditionalAction>>;
 }
 
 export interface ITextFieldConditionalVisibility {
@@ -358,6 +360,8 @@ export interface IFormFieldConfig {
   width?: 'full' | 'half';
   /** Largura na grelha 12; legado: `width: half` → 6. */
   columnSpan?: TFormFieldColumnSpan;
+  /** Sobrepõe `columnSpan` por modo (Criar, Editar, Ver). */
+  columnSpanByMode?: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>>;
   /** Campos neste grupo abrem em painel/modal */
   modalGroupId?: string;
   /** Seção efetiva quando condição (avaliada no motor com prefixo de regra dedicada) */
@@ -397,8 +401,13 @@ export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName
 }
 
 export function resolveFieldColumnSpan(
-  fc: Pick<IFormFieldConfig, 'columnSpan' | 'width'>
+  fc: Pick<IFormFieldConfig, 'columnSpan' | 'width' | 'columnSpanByMode'>,
+  mode?: TFormManagerFormMode
 ): TFormFieldColumnSpan {
+  if (mode) {
+    const bm = fc.columnSpanByMode?.[mode];
+    if (bm === 3 || bm === 4 || bm === 6 || bm === 8 || bm === 12) return bm;
+  }
   const c = fc.columnSpan;
   if (c === 3 || c === 4 || c === 6 || c === 8 || c === 12) return c;
   if (fc.width === 'half') return 6;

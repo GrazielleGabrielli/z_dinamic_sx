@@ -9,6 +9,7 @@ import type {
   ITextFieldConditionalGroup,
   ITextFieldConditionalVisibility,
   TTextFieldConditionalDisplayOp,
+  TTextFieldConditionalAction,
   IFormSectionConfig,
   IFormStepConfig,
   IFormCustomButtonConfig,
@@ -58,6 +59,11 @@ import { isTextInputMaskKind, TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from './formTextI
 const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText']);
 
 const TEXT_COND_DISPLAY_OPS = new Set<string>(['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'isFilled']);
+
+function sanitizeTextConditionalAction(raw: unknown): TTextFieldConditionalAction | undefined {
+  if (raw === 'hide' || raw === 'disable' || raw === 'show') return raw;
+  return undefined;
+}
 
 function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalVisibility | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -112,6 +118,17 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       const cv = typeof cr.compareValue === 'string' ? cr.compareValue.slice(0, 8000) : '';
       conditions.push({ id: cid, refField, op, compareKind: ck, compareValue: cv });
     }
+    let actionByMode: Partial<Record<TFormManagerFormMode, TTextFieldConditionalAction>> | undefined;
+    const abmRaw = gr.actionByMode;
+    if (abmRaw && typeof abmRaw === 'object') {
+      const amb: Partial<Record<TFormManagerFormMode, TTextFieldConditionalAction>> = {};
+      const am = abmRaw as Record<string, unknown>;
+      for (const mk of ['create', 'edit', 'view'] as const) {
+        const sv = sanitizeTextConditionalAction(am[mk]);
+        if (sv) amb[mk] = sv;
+      }
+      if (Object.keys(amb).length > 0) actionByMode = amb;
+    }
     groups.push({
       id,
       modes,
@@ -120,6 +137,7 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       groupOp,
       conditions,
       action,
+      ...(actionByMode ? { actionByMode } : {}),
     });
   }
   if (!groups.length) return undefined;
@@ -533,6 +551,20 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
       const cs = (f as { columnSpan?: unknown }).columnSpan;
       if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) return { columnSpan: cs };
       return {};
+    })(),
+    ...((): {
+      columnSpanByMode?: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>>;
+    } => {
+      const raw = (f as { columnSpanByMode?: unknown }).columnSpanByMode;
+      if (!raw || typeof raw !== 'object') return {};
+      const o = raw as Record<string, unknown>;
+      const out: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>> = {};
+      const modes: TFormManagerFormMode[] = ['create', 'edit', 'view'];
+      for (let mi = 0; mi < modes.length; mi++) {
+        const cs = o[modes[mi]];
+        if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) out[modes[mi]] = cs;
+      }
+      return Object.keys(out).length ? { columnSpanByMode: out } : {};
     })(),
     ...(typeof f.modalGroupId === 'string' ? { modalGroupId: f.modalGroupId.trim() } : {}),
     ...(typeof f.effectiveSectionId === 'string' ? { effectiveSectionId: f.effectiveSectionId.trim() } : {}),

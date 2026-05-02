@@ -219,6 +219,18 @@ const MODE_OPTS: { key: TFormManagerFormMode; label: string }[] = [
 
 const ALL_MODES: TFormManagerFormMode[] = ['create', 'edit', 'view'];
 
+const TEXT_COND_MODE_ACTION_LABELS: Record<TFormManagerFormMode, string> = {
+  create: 'Novo registo',
+  edit: 'Editar',
+  view: 'Visualização',
+};
+
+const TEXT_COND_ACTION_OPTS: IDropdownOption[] = [
+  { key: 'show', text: 'Mostrar' },
+  { key: 'hide', text: 'Ocultar' },
+  { key: 'disable', text: 'Desabilitar' },
+];
+
 type TMentionItem = {
   key: string;
   insert: string;
@@ -2331,6 +2343,40 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                           />
                         </Stack>
                       ))}
+                      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                        Ação quando as condições se verificam
+                      </Text>
+                      <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
+                        {MODE_OPTS.map((mo) => {
+                          const modeScoped = g.modes.length > 0 && g.modes.indexOf(mo.key) === -1;
+                          return (
+                            <Dropdown
+                              key={`${g.id}-action-${mo.key}`}
+                              label={TEXT_COND_MODE_ACTION_LABELS[mo.key]}
+                              options={TEXT_COND_ACTION_OPTS}
+                              selectedKey={g.actionByMode?.[mo.key] ?? g.action}
+                              disabled={modeScoped}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                const k = String(o.key) as TTextFieldConditionalAction;
+                                setFc((p) => ({
+                                  ...p,
+                                  textConditionalVisibility: {
+                                    groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                      if (gr.id !== g.id) return gr;
+                                      return {
+                                        ...gr,
+                                        actionByMode: { ...(gr.actionByMode ?? {}), [mo.key]: k },
+                                      };
+                                    }),
+                                  },
+                                }));
+                              }}
+                              styles={{ dropdown: { width: 200 } }}
+                            />
+                          );
+                        })}
+                      </Stack>
                       <DefaultButton
                         text="Adicionar condição"
                         onClick={() =>
@@ -2348,27 +2394,6 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                             },
                           }))
                         }
-                      />
-                      <Dropdown
-                        label="Ação deste grupo"
-                        options={[
-                          { key: 'show', text: 'Mostrar' },
-                          { key: 'hide', text: 'Ocultar' },
-                          { key: 'disable', text: 'Desabilitar' },
-                        ]}
-                        selectedKey={g.action}
-                        onChange={(_, o) =>
-                          o &&
-                          setFc((p) => ({
-                            ...p,
-                            textConditionalVisibility: {
-                              groups: (p.textConditionalVisibility?.groups ?? []).map((gr) =>
-                                gr.id === g.id ? { ...gr, action: o.key as TTextFieldConditionalAction } : gr
-                              ),
-                            },
-                          }))
-                        }
-                        styles={{ dropdown: { maxWidth: 280 } }}
                       />
                     </FormManagerCollapseSection>
                   ))}

@@ -552,6 +552,23 @@ const FIELD_COLUMN_SPAN_OPTIONS: IDropdownOption[] = [
   { key: '3', text: '3 — ex.: 3+3+3+3' },
 ];
 
+function formatFieldColumnSpanConfigSummary(fc: IFormFieldConfig | undefined, fname: string): string {
+  const base: Pick<IFormFieldConfig, 'internalName' | 'columnSpan' | 'width' | 'columnSpanByMode'> = fc ?? {
+    internalName: fname,
+  };
+  const n = resolveFieldColumnSpan(base, 'create');
+  const v = resolveFieldColumnSpan(base, 'view');
+  const e = resolveFieldColumnSpan(base, 'edit');
+  if (n === v && v === e) return String(n);
+  return `N${n} · V${v} · E${e}`;
+}
+
+const COLUMN_SPAN_BY_MODE_TABS: { mode: TFormManagerFormMode; headerText: string }[] = [
+  { mode: 'create', headerText: 'Novo' },
+  { mode: 'view', headerText: 'Ver' },
+  { mode: 'edit', headerText: 'Editar' },
+];
+
 function clampFormRootPercentInput(s: string): number {
   const n = Number(String(s).replace(',', '.').trim());
   if (!isFinite(n)) return 100;
@@ -867,6 +884,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [fieldRulesTabSort, setFieldRulesTabSort] = useState<'asc' | 'desc' | 'type'>('asc');
   const [cloneRulesModalTarget, setCloneRulesModalTarget] = useState<string | null>(null);
   const [cloneRulesSourceKey, setCloneRulesSourceKey] = useState<string | undefined>(undefined);
+  const [columnSpanModalField, setColumnSpanModalField] = useState<string | null>(null);
   const [structurePoolSelected, setStructurePoolSelected] = useState<string[]>([]);
   const structurePoolSelectedRef = useRef<string[]>([]);
   structurePoolSelectedRef.current = structurePoolSelected;
@@ -1282,6 +1300,26 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setCloneRulesModalTarget(null);
     setCloneRulesSourceKey(undefined);
   }, []);
+
+  const applyFieldColumnSpanForMode = useCallback(
+    (fname: string, mode: TFormManagerFormMode, span: TFormFieldColumnSpan) => {
+      setFields((prev) => {
+        const ix = prev.findIndex((f) => f.internalName === fname);
+        const applyOne = (base: IFormFieldConfig): IFormFieldConfig => {
+          const next: IFormFieldConfig = { ...base };
+          const by: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>> = {
+            ...(next.columnSpanByMode ?? {}),
+          };
+          by[mode] = span;
+          next.columnSpanByMode = by;
+          return next;
+        };
+        if (ix >= 0) return prev.map((f, j) => (j === ix ? applyOne(f) : f));
+        return [...prev, applyOne({ internalName: fname })];
+      });
+    },
+    []
+  );
 
   const requiredFieldsMissingFromSteps = useMemo(
     () => requiredListFieldsMissingFromSteps(meta, steps),
@@ -2592,35 +2630,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                             ? ' · sistema: só leitura no formulário (aba Regras não aplica)'
                             : ''}
                         </Text>
-                        <Dropdown
-                          label="Colunas"
-                          options={FIELD_COLUMN_SPAN_OPTIONS}
-                          selectedKey={String(
-                            resolveFieldColumnSpan(fcRow ?? { internalName: fname })
-                          )}
-                          onChange={(_, o) => {
-                            if (!o) return;
-                            const span = Number(o.key);
-                            if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
-                            setFields((prev) => {
-                              const ix = prev.findIndex((f) => f.internalName === fname);
-                              const apply = (base: IFormFieldConfig): IFormFieldConfig => {
-                                const next: IFormFieldConfig = { ...base };
-                                if (span === 12) {
-                                  delete next.columnSpan;
-                                  if (next.width === 'half') delete next.width;
-                                } else {
-                                  next.columnSpan = span as TFormFieldColumnSpan;
-                                  if (next.width === 'half') delete next.width;
-                                }
-                                return next;
-                              };
-                              if (ix >= 0) return prev.map((f, j) => (j === ix ? apply(f) : f));
-                              return [...prev, apply({ internalName: fname })];
-                            });
-                          }}
-                          styles={{ root: { maxWidth: 220 } }}
-                        />
+                        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
+                          <DefaultButton text="Colunas" onClick={() => setColumnSpanModalField(fname)} />
+                          <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
+                            {formatFieldColumnSpanConfigSummary(fcRow, fname)}
+                          </Text>
+                        </Stack>
                         {st.id === FORM_FIXOS_STEP_ID && fcRow && (
                           <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
                             <Dropdown
@@ -3822,6 +3837,59 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           ))}
         </Stack>
       )}
+      <Modal isOpen={columnSpanModalField !== null} onDismiss={() => setColumnSpanModalField(null)} isBlocking>
+        <Stack
+          tokens={{ childrenGap: 16 }}
+          styles={{
+            root: {
+              background: '#ffffff',
+              padding: 24,
+              maxWidth: 440,
+              margin: '48px auto',
+              borderRadius: 4,
+              boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
+            },
+          }}
+        >
+          <Text variant="large">Colunas na grelha</Text>
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            Campo:{' '}
+            <strong>
+              {columnSpanModalField
+                ? meta.find((m) => m.InternalName === columnSpanModalField)?.Title ?? columnSpanModalField
+                : '—'}
+            </strong>{' '}
+            {columnSpanModalField ? (
+              <span style={{ fontFamily: 'monospace' }}>({columnSpanModalField})</span>
+            ) : null}
+          </Text>
+          <Pivot>
+            {COLUMN_SPAN_BY_MODE_TABS.map(({ mode, headerText }) => (
+              <PivotItem key={mode} headerText={headerText}>
+                <Dropdown
+                  label="Colunas ocupadas (de 12)"
+                  options={FIELD_COLUMN_SPAN_OPTIONS}
+                  selectedKey={String(
+                    resolveFieldColumnSpan(
+                      fields.find((f) => f.internalName === columnSpanModalField) ?? {
+                        internalName: columnSpanModalField ?? '',
+                      },
+                      mode
+                    )
+                  )}
+                  onChange={(_, o) => {
+                    if (!o || !columnSpanModalField) return;
+                    const span = Number(o.key);
+                    if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
+                    applyFieldColumnSpanForMode(columnSpanModalField, mode, span as TFormFieldColumnSpan);
+                  }}
+                />
+              </PivotItem>
+            ))}
+          </Pivot>
+          <DefaultButton text="Fechar" onClick={() => setColumnSpanModalField(null)} />
+        </Stack>
+      </Modal>
       <Modal isOpen={cloneRulesModalTarget !== null} onDismiss={dismissCloneRulesModal} isBlocking>
         <Stack
           tokens={{ childrenGap: 16 }}

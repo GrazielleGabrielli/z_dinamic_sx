@@ -4660,7 +4660,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               <div
                 key={fc.internalName}
                 style={{
-                  gridColumn: `span ${resolveFieldColumnSpan(fc)}`,
+                  gridColumn: `span ${resolveFieldColumnSpan(fc, formMode)}`,
                   minWidth: 0,
                 }}
               >

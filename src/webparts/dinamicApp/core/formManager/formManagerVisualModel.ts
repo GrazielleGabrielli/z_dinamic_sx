@@ -12,7 +12,33 @@ import {
   type ITextFieldConditionalGroup,
   type ITextFieldConditionalVisibility,
   type TLookupFilterOperator,
+  type TTextFieldConditionalAction,
 } from '../config/types/formManager';
+
+const ALL_TEXT_COND_MODES: TFormManagerFormMode[] = ['create', 'edit', 'view'];
+
+function activeModesForTextConditionalGroup(g: ITextFieldConditionalGroup): TFormManagerFormMode[] {
+  return g.modes?.length ? g.modes : ALL_TEXT_COND_MODES;
+}
+
+function effectiveTextConditionalAction(g: ITextFieldConditionalGroup, mode: TFormManagerFormMode): TTextFieldConditionalAction {
+  const per = g.actionByMode?.[mode];
+  return per ?? g.action;
+}
+
+function clusterTextConditionalModesByAction(
+  g: ITextFieldConditionalGroup
+): { modes: TFormManagerFormMode[]; action: TTextFieldConditionalAction }[] {
+  const active = activeModesForTextConditionalGroup(g);
+  const map = new Map<TTextFieldConditionalAction, TFormManagerFormMode[]>();
+  for (let i = 0; i < active.length; i++) {
+    const m = active[i];
+    const a = effectiveTextConditionalAction(g, m);
+    if (!map.has(a)) map.set(a, []);
+    map.get(a)!.push(m);
+  }
+  return Array.from(map.entries()).map(([action, modes]) => ({ action, modes }));
+}
 
 export function isSetComputedAllowedForMappedType(mt: FieldMappedType | 'unknown' | undefined): boolean {
   if (!mt || mt === 'unknown' || mt === 'calculated') return false;
@@ -577,33 +603,40 @@ export function compileTextFieldConditionalVisibilityRules(
     const when = buildWhenFromTextConditionalGroup(g);
     if (!when) continue;
     const gid = safeIdSegment(g.id || `g${i}`);
-    const modePayload = g.modes?.length ? { modes: g.modes } : {};
     const groupPayload = g.groupTitles?.length ? { groupTitles: g.groupTitles } : {};
     const excludePayload = g.excludeGroupTitles?.length ? { excludeGroupTitles: g.excludeGroupTitles } : {};
-    if (g.action === 'disable') {
-      out.push({
-        ...modePayload,
-        ...groupPayload,
-        ...excludePayload,
-        id: `ui_f_${seg}_txdis_${gid}`,
-        action: 'setDisabled',
-        field: internalName,
-        disabled: true,
-        when,
-      });
-    } else {
-      out.push({
-        ...modePayload,
-        ...groupPayload,
-        ...excludePayload,
-        id: `ui_f_${seg}_txvis_${gid}`,
-        action: 'setVisibility',
-        targetKind: 'field',
-        targetId: internalName,
-        visibility: g.action === 'hide' ? 'hide' : 'show',
-        when,
-        tags: [FORM_VISIBILITY_PREFER_HIDE_TAG],
-      });
+    const clusters = clusterTextConditionalModesByAction(g);
+    for (let c = 0; c < clusters.length; c++) {
+      const cl = clusters[c];
+      const { modes, action } = cl;
+      if (!modes.length) continue;
+      const modePayload = modes.length === ALL_TEXT_COND_MODES.length ? {} : { modes };
+      const suf = clusters.length > 1 ? `_${c + 1}` : '';
+      if (action === 'disable') {
+        out.push({
+          ...modePayload,
+          ...groupPayload,
+          ...excludePayload,
+          id: `ui_f_${seg}_txdis_${gid}${suf}`,
+          action: 'setDisabled',
+          field: internalName,
+          disabled: true,
+          when,
+        });
+      } else {
+        out.push({
+          ...modePayload,
+          ...groupPayload,
+          ...excludePayload,
+          id: `ui_f_${seg}_txvis_${gid}${suf}`,
+          action: 'setVisibility',
+          targetKind: 'field',
+          targetId: internalName,
+          visibility: action === 'hide' ? 'hide' : 'show',
+          when,
+          tags: [FORM_VISIBILITY_PREFER_HIDE_TAG],
+        });
+      }
     }
   }
   return out;
