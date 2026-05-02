@@ -25,6 +25,7 @@ import {
   evaluateValidateDateRulesForField,
   findEnabledSetComputedRule,
   getMergedValidateValueNumberBounds,
+  clampNumberToOptionalBounds,
   withRuleRuntimeDynamicContext,
   type IFormRuleRuntimeContext,
 } from '../../core/formManager/formRuleEngine';
@@ -712,7 +713,27 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             type="number"
             placeholder={fc.placeholder}
             value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
-            onChange={(_, v) => updateField(name, v === '' ? null : Number(v))}
+            onChange={(_, v) => {
+              if (v === '') {
+                updateField(name, null);
+                return;
+              }
+              const parsed = Number(String(v).replace(',', '.'));
+              if (!isFinite(parsed)) return;
+              const maxN = numBounds?.maxNumber;
+              const next = maxN !== undefined && parsed > maxN ? maxN : parsed;
+              updateField(name, next);
+            }}
+            onBlur={() => {
+              if (readOnly) return;
+              if (mergedFieldValue === null || mergedFieldValue === undefined) return;
+              const t = String(mergedFieldValue).trim();
+              if (t === '') return;
+              const parsed = Number(t.replace(',', '.'));
+              if (!isFinite(parsed)) return;
+              const c = clampNumberToOptionalBounds(parsed, numBounds);
+              if (c !== parsed) updateField(name, c);
+            }}
             required={isRequired}
             {...common}
             description={cell ? undefined : help}

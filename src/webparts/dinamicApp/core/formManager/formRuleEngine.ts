@@ -563,6 +563,17 @@ export function getMergedValidateValueNumberBounds(
   return { minNumber: minN, maxNumber: maxN };
 }
 
+export function clampNumberToOptionalBounds(
+  n: number,
+  bounds: { minNumber?: number; maxNumber?: number } | undefined
+): number {
+  if (!bounds) return n;
+  let x = n;
+  if (bounds.maxNumber !== undefined && x > bounds.maxNumber) x = bounds.maxNumber;
+  if (bounds.minNumber !== undefined && x < bounds.minNumber) x = bounds.minNumber;
+  return x;
+}
+
 function isValueEmptyForRequiredField(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;
