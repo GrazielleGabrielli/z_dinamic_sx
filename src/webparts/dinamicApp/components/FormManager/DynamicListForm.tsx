@@ -66,6 +66,36 @@ import {
   resolveFieldColumnSpan,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
+
+function buildPackedGridColumnSpans(
+  visibleFields: IFormFieldConfig[],
+  formMode: TFormManagerFormMode
+): Map<string, number> {
+  const items = visibleFields.map((fc) => ({
+    fc,
+    baseSpan: resolveFieldColumnSpan(fc, formMode),
+  }));
+  const out = new Map<string, number>();
+  let i = 0;
+  while (i < items.length) {
+    const row: typeof items = [];
+    let used = 0;
+    while (i < items.length) {
+      const it = items[i];
+      if (row.length > 0 && used + it.baseSpan > 12) break;
+      row.push(it);
+      used += it.baseSpan;
+      i++;
+    }
+    const deficit = 12 - used;
+    for (let r = 0; r < row.length; r++) {
+      const isLast = r === row.length - 1;
+      const base = row[r].baseSpan;
+      out.set(row[r].fc.internalName, isLast && deficit > 0 ? base + deficit : base);
+    }
+  }
+  return out;
+}
 import { isDynamicToken } from '../../core/dynamicTokens';
 import {
   buildFormDerivedState,
@@ -4641,6 +4671,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (derived.sectionVisible[sec.id] === false) continue;
       const fields = bySection.get(sec.id);
       if (!fields?.length) continue;
+      const visibleFields = fields.filter((fc) => derived.fieldVisible[fc.internalName] !== false);
+      if (!visibleFields.length) continue;
+      const packedSpans = buildPackedGridColumnSpans(visibleFields, formMode);
       out.push(
         <Stack key={sec.id} tokens={{ childrenGap: 12 }} styles={{ root: { marginBottom: 16 } }}>
           {!hideStepHeading ? (
@@ -4656,11 +4689,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               width: '100%',
             }}
           >
-            {fields.map((fc) => (
+            {visibleFields.map((fc) => (
               <div
                 key={fc.internalName}
                 style={{
-                  gridColumn: `span ${resolveFieldColumnSpan(fc, formMode)}`,
+                  gridColumn: `span ${packedSpans.get(fc.internalName) ?? resolveFieldColumnSpan(fc, formMode)}`,
                   minWidth: 0,
                 }}
               >
