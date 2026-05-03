@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Stack, Text, ActionButton, MessageBar, MessageBarType, Dropdown, IDropdownOption } from '@fluentui/react';
+import { Stack, ActionButton, MessageBar, MessageBarType, Dropdown, IDropdownOption } from '@fluentui/react';
 import { FieldsService, UsersService } from '../../../../services';
 import {
   IChartSeriesConfig,
@@ -206,16 +206,10 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
     <div style={{ marginBottom: 24 }}>
       <Stack
         horizontal
-        horizontalAlign="space-between"
+        horizontalAlign="end"
         verticalAlign="center"
         styles={{ root: { marginBottom: 12 } }}
       >
-        <Text
-          variant="mediumPlus"
-          styles={{ root: { fontWeight: 600, color: '#605e5c' } }}
-        >
-          Dashboard
-        </Text>
         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
           {linkableTables.length > 0 && onLinkedTableChange !== undefined && (
             <Dropdown

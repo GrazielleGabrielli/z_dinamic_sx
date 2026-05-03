@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Text, Stack, ActionButton } from '@fluentui/react';
+import { Stack, ActionButton } from '@fluentui/react';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { coerceDashboardShape, parseConfig } from '../core/config/validators';
 import {
@@ -458,16 +458,11 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
       <Stack styles={{ root: { padding: '20px 24px 0' } }}>
         <Stack
           horizontal
-          horizontalAlign={config.mode === 'formManager' ? 'end' : 'space-between'}
+          horizontalAlign="end"
           verticalAlign="center"
           tokens={{ childrenGap: 8 }}
           styles={{ root: { padding: '16px 0 8px' } }}
         >
-          {config.mode !== 'formManager' && (
-            <Text variant="xLarge" styles={{ root: { fontWeight: 600 } }}>
-              {config.dataSource.title}
-            </Text>
-          )}
           <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
             {config.mode === 'list' && canShowListConfigButtons && (
               <ActionButton
@@ -509,6 +504,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
             pageWebServerRelativeUrl={siteUrl}
+            isListPageEditMode={isEditMode}
             activeViewModeByBlockId={activeViewModeByBlockId}
             onListViewModeChange={handleListViewModeChange}
             onDashboardLinkedTableChange={
@@ -540,7 +536,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
                   }
                 : undefined
             }
-            onSwitchToCharts={handleSwitchDashboardToCharts}
+            onSwitchToCharts={
+              canShowListConfigButtons ? handleSwitchDashboardToCharts : undefined
+            }
             onCardClick={handleDashboardCardClick}
             onSeriesClick={handleDashboardSeriesClick}
             dashboardAppliesListFilter={dashboardAppliesListFilter}

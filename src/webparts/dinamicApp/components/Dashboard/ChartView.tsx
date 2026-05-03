@@ -267,15 +267,12 @@ export const ChartView: React.FC<IChartViewProps> = ({
     <div style={{ marginBottom: 24 }}>
       <Stack
         horizontal
-        horizontalAlign="space-between"
+        horizontalAlign="end"
         verticalAlign="center"
         wrap
         tokens={{ childrenGap: 8 }}
         styles={{ root: { marginBottom: 12 } }}
       >
-        <Text variant="mediumPlus" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
-          Dashboard
-        </Text>
         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
           {linkableTables.length > 0 && onLinkedTableChange !== undefined && (
             <Dropdown

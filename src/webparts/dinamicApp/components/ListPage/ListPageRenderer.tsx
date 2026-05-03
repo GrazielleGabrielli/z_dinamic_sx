@@ -59,6 +59,8 @@ export interface IListPageRendererProps {
   onClearAllFilters?: () => void;
   /** Sinal para resetar filtros internos da TableView. */
   clearTableFiltersSignal?: number;
+  /** Rótulos dos filtros da tabela só quando o utilizador está em modo edição da página. */
+  isListPageEditMode?: boolean;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -126,6 +128,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   onDashboardLinkedTableChange,
   onClearAllFilters,
   clearTableFiltersSignal,
+  isListPageEditMode,
 }) => {
   const rootDash = config.dashboard;
   const layoutPadding = React.useMemo(
@@ -204,6 +207,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
             }
             clearFiltersSignal={clearTableFiltersSignal}
             onClearFilters={onClearAllFilters}
+            showFilterFieldLabels={isListPageEditMode === true}
           />
         </Stack>
       );
