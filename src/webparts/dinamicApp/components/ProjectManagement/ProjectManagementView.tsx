@@ -10,10 +10,7 @@ import type {
   IProjectManagementColumnConfig,
 } from '../../core/config/types';
 import { buildListFilter, getActiveViewModeFilters, isNoteFieldPath } from '../../core/listView';
-import {
-  filterViewModesForCurrentUser,
-  pickFallbackViewModeId,
-} from '../../core/listView/viewModeAccess';
+import { filterViewModesForCurrentUser, resolveDefaultViewModeIdForUser } from '../../core/listView/viewModeAccess';
 import { useViewModeMembership } from '../../core/listView/useViewModeMembership';
 import { buildDynamicContext, parseQueryString } from '../../core/dynamicTokens';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
@@ -127,7 +124,11 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
   const itemsService = useMemo(() => new ItemsService(), []);
   const fieldsService = useMemo(() => new FieldsService(), []);
   const viewModesForAccess = listView.viewModes ?? EMPTY_VIEW_MODES;
-  const membership = useViewModeMembership(viewModesForAccess, pageWebServerRelativeUrl);
+  const membership = useViewModeMembership(
+    viewModesForAccess,
+    pageWebServerRelativeUrl,
+    listView.viewModeDefaultRules
+  );
 
   useEffect(() => {
     const usersService = new UsersService();
@@ -154,20 +155,24 @@ export const ProjectManagementView: React.FC<IProjectManagementViewProps> = ({
       .then((fieldMetadata) => {
         setFieldMetadata(fieldMetadata);
         const selectExpand = buildSelectExpand(listView.columns, ruleFields);
-        const desiredMode = listView.activeViewModeId ?? viewModesForAccess[0]?.id ?? 'all';
-        const effectiveMode =
-          membership
-            ? pickFallbackViewModeId(
-                desiredMode,
-                filterViewModesForCurrentUser(
-                  viewModesForAccess,
-                  membership.userId,
-                  membership.groupByWeb,
-                  membership.pageNorm
-                ),
-                viewModesForAccess
-              )
-            : desiredMode;
+        const visible = membership
+          ? filterViewModesForCurrentUser(
+              viewModesForAccess,
+              membership.userId,
+              membership.groupByWeb,
+              membership.pageNorm
+            )
+          : viewModesForAccess;
+        const effectiveMode = membership
+          ? resolveDefaultViewModeIdForUser(
+              listView,
+              visible,
+              viewModesForAccess,
+              membership.userId,
+              membership.groupByWeb,
+              membership.pageNorm
+            )
+          : listView.activeViewModeId ?? viewModesForAccess[0]?.id ?? 'all';
         const listViewWithMode = { ...listView, activeViewModeId: effectiveMode };
         const viewModeFilters = getActiveViewModeFilters(listViewWithMode);
         const viewModeFilterStr = buildListFilter(viewModeFilters, { dynamicContext, fieldsMetadata: fieldMetadata });

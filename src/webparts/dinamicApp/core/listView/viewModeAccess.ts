@@ -1,4 +1,4 @@
-import type { IListViewModeConfig } from '../config/types';
+import type { IListViewConfig, IListViewModeConfig, IListViewModeDefaultRule } from '../config/types';
 
 export function normWebPath(s: string): string {
   const t = (s || '').trim().replace(/\/+$/, '') || '/';
@@ -24,6 +24,34 @@ export function collectDistinctAccessWebKeys(modes: IListViewModeConfig[], pageW
     keys.add(resolveAccessWebKey(w, pageWeb));
   }
   return Array.from(keys);
+}
+
+export function collectDistinctAccessWebKeysFromDefaultRules(
+  rules: IListViewModeDefaultRule[] | undefined,
+  pageWeb: string
+): string[] {
+  if (!rules?.length) return [];
+  const keys = new Set<string>();
+  const pg = normWebPath(pageWeb);
+  keys.add(pg);
+  for (let i = 0; i < rules.length; i++) {
+    const a = rules[i]?.access;
+    if (!a || (a.allowedGroupIds?.length ?? 0) === 0) continue;
+    keys.add(resolveAccessWebKey(a.webServerRelativeUrl, pageWeb));
+  }
+  return Array.from(keys);
+}
+
+export function mergeAccessWebKeysForViewModes(
+  modes: IListViewModeConfig[],
+  defaultRules: IListViewModeDefaultRule[] | undefined,
+  pageWeb: string
+): string[] {
+  const s = new Set(collectDistinctAccessWebKeys(modes, pageWeb));
+  for (const k of collectDistinctAccessWebKeysFromDefaultRules(defaultRules, pageWeb)) {
+    s.add(k);
+  }
+  return Array.from(s);
 }
 
 export function userCanUseViewMode(
@@ -68,4 +96,34 @@ export function pickFallbackViewModeId(
   const prev = previousFullModes.find((m) => m.id === desiredId);
   if (prev && visibleModes.some((m) => m.id === prev.id)) return prev.id;
   return visibleModes[0]?.id ?? 'all';
+}
+
+export function resolveDefaultViewModeIdForUser(
+  listView: IListViewConfig | undefined,
+  visibleModes: IListViewModeConfig[],
+  fullModes: IListViewModeConfig[],
+  currentUserId: number,
+  groupMembershipByWeb: Map<string, Set<number>>,
+  pageServerRelativeUrl: string
+): string {
+  const rules = listView?.viewModeDefaultRules;
+  if (rules && rules.length > 0) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      const modeId = typeof rule.viewModeId === 'string' ? rule.viewModeId.trim() : '';
+      if (!modeId || !visibleModes.some((m) => m.id === modeId)) continue;
+      const a = rule.access;
+      if (a === undefined) {
+        return modeId;
+      }
+      const g = a.allowedGroupIds?.length ?? 0;
+      const u = a.allowedUserIds?.length ?? 0;
+      if (g === 0 && u === 0) continue;
+      const synthetic: IListViewModeConfig = { id: modeId, label: '', filters: [], access: a };
+      if (userCanUseViewMode(synthetic, currentUserId, groupMembershipByWeb, pageServerRelativeUrl)) {
+        return modeId;
+      }
+    }
+  }
+  return pickFallbackViewModeId(listView?.activeViewModeId, visibleModes, fullModes);
 }

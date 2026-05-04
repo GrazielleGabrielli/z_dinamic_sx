@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Icon, IconButton } from '@fluentui/react';
 import type { ITableColumnConfig, ISortConfig } from '../../core/table/types';
+import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import { toggleSortDirection } from '../../core/table/utils/sortBuilder';
 import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
@@ -29,10 +30,9 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
   const handleSortClick = (col: ITableColumnConfig, ev: React.MouseEvent<unknown>): void => {
     ev.stopPropagation();
     if (!tableSortable || !col.sortable) return;
-    const nextDir = sortConfig?.field === col.internalName
-      ? toggleSortDirection(sortConfig.direction)
-      : 'asc';
-    onSort(col.internalName, nextDir);
+    const oPath = columnODataPath(col);
+    const nextDir = sortConfig?.field === oPath ? toggleSortDirection(sortConfig.direction) : 'asc';
+    onSort(oPath, nextDir);
   };
 
   const showFilterSort = tableSortable && onColumnFilter && onOpenFilter;
@@ -44,7 +44,7 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
           <th
             key={col.id}
             className={DINAMIC_SX_TABLE_CLASS.headerCell}
-            data-field={col.internalName}
+            data-field={columnODataPath(col)}
             style={{
               textAlign: col.align ?? 'left',
               minWidth: col.minWidth,
@@ -62,7 +62,10 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
                   <span
                     className={DINAMIC_SX_TABLE_CLASS.headerFilterTrigger}
                     role="presentation"
-                    onClick={(ev) => { ev.stopPropagation(); onOpenFilter(col.internalName, ev.currentTarget as HTMLElement); }}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onOpenFilter(columnODataPath(col), ev.currentTarget as HTMLElement);
+                    }}
                     style={{ display: 'inline-flex', cursor: 'pointer' }}
                   >
                     <IconButton
@@ -75,11 +78,11 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
                   {col.sortable && (
                     <IconButton
                       iconProps={{
-                        iconName: sortConfig?.field === col.internalName
+                        iconName: sortConfig?.field === columnODataPath(col)
                           ? (sortConfig.direction === 'asc' ? 'SortUp' : 'SortDown')
                           : 'Sort',
                       }}
-                      title={sortConfig?.field === col.internalName ? (sortConfig.direction === 'asc' ? 'Ordenação ascendente' : 'Ordenação descendente') : 'Ordenar'}
+                      title={sortConfig?.field === columnODataPath(col) ? (sortConfig.direction === 'asc' ? 'Ordenação ascendente' : 'Ordenação descendente') : 'Ordenar'}
                       ariaLabel="Ordenar"
                       onClick={(ev) => handleSortClick(col, ev)}
                       styles={{ root: { width: 24, height: 24 }, icon: { fontSize: 12 } }}
@@ -89,7 +92,7 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
               )}
               {!showFilterSort && tableSortable && col.sortable && (
                 <Icon
-                  iconName={sortConfig?.field === col.internalName ? (sortConfig.direction === 'asc' ? 'SortUp' : 'SortDown') : 'Sort'}
+                  iconName={sortConfig?.field === columnODataPath(col) ? (sortConfig.direction === 'asc' ? 'SortUp' : 'SortDown') : 'Sort'}
                   styles={{ root: { marginLeft: 4, fontSize: 12, cursor: 'pointer' } }}
                   onClick={(ev) => handleSortClick(col, ev)}
                 />

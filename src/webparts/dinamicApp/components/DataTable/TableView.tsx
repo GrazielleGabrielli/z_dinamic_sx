@@ -28,6 +28,7 @@ import { readListItemId } from '../../../../services/items/listItemId';
 import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss, scopeCardCssByInstance } from './tableLayoutClasses';
+import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 
 const TOP_FILTER_DROPDOWN_STYLES: Partial<IDropdownStyles> = {
@@ -46,14 +47,26 @@ const TOP_FILTER_DROPDOWN_STYLES: Partial<IDropdownStyles> = {
 const EMPTY_VIEW_MODES: IListViewModeConfig[] = [];
 
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
-  const columns = (listView.columns ?? []).map((c) => ({
-    id: c.field,
-    internalName: c.field,
-    label: c.label ?? c.field,
-    visible: true,
-    sortable: true,
-    expandConfig: c.expandField ? { displayField: c.expandField } : undefined,
-  }));
+  const rawCols = listView.columns ?? [];
+  const countByField = new Map<string, number>();
+  for (let i = 0; i < rawCols.length; i++) {
+    const f = rawCols[i].field;
+    countByField.set(f, (countByField.get(f) ?? 0) + 1);
+  }
+  const columns = rawCols.map((c, idx) => {
+    const expand = c.expandField?.trim();
+    const idSafe = expand ? `${c.field}__${expand}`.replace(/[^\w-]/g, '_') : c.field;
+    const dupField = (countByField.get(c.field) ?? 0) > 1;
+    const firstIdx = rawCols.findIndex((x) => x.field === c.field);
+    return {
+      id: idSafe,
+      internalName: c.field,
+      label: c.label ?? c.field,
+      visible: true,
+      sortable: dupField ? idx === firstIdx : true,
+      expandConfig: expand ? { displayField: expand } : undefined,
+    };
+  });
   return {
     enabled: true,
     columns: columns as ITableConfig['columns'],
@@ -277,8 +290,9 @@ export const TableView: React.FC<ITableViewProps> = ({
         const field = prev.field;
         for (let i = 0; i < normalized.columns.length; i++) {
           const c = normalized.columns[i];
+          const path = columnODataPath(c);
           const prefix = c.internalName + '/';
-          if (field === c.internalName || field.indexOf(prefix) === 0) {
+          if (field === path || field === c.internalName || field.indexOf(prefix) === 0) {
             if (!c.sortable) return normalized.defaultSort ?? null;
             break;
           }
@@ -310,7 +324,7 @@ export const TableView: React.FC<ITableViewProps> = ({
         ? buildListFilter(dashboardListFilters, { dynamicContext, fieldsMetadata: fieldMetadata })
         : undefined;
     const sortPart = `${effectiveSort?.field ?? ''}|${effectiveSort?.direction ?? ''}`;
-    const colsKey = columns.map((c) => c.internalName).join(',');
+    const colsKey = columns.map((c) => `${c.internalName}/${c.expandConfig?.displayField ?? ''}`).join(',');
     return [
       listTitle,
       listWeb ?? '',

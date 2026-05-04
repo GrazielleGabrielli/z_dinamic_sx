@@ -61,6 +61,9 @@ export function buildConfig(params: {
           ? params.listView.listRowActions
           : defaults.listView.listRowActions,
       ...(params.listView?.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
+      ...(params.listView?.viewModeDefaultRules?.length
+        ? { viewModeDefaultRules: params.listView.viewModeDefaultRules }
+        : {}),
     },
     projectManagement: params.projectManagement ?? defaults.projectManagement,
     ...(params.listPageLayout?.sections?.length ? { listPageLayout: params.listPageLayout } : {}),

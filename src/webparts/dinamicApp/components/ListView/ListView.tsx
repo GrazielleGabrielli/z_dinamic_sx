@@ -27,8 +27,10 @@ import { readListItemId } from '../../../../services/items/listItemId';
 const DEFAULT_COLUMN_COUNT = 10;
 
 function columnConfigToIColumn(c: IListViewColumnConfig, index: number): IColumn {
+  const expand = c.expandField?.trim();
+  const colKey = expand ? `${c.field}_${expand}`.replace(/[^\w-]/g, '_') : c.field;
   const base: IColumn = {
-    key: c.field,
+    key: colKey,
     name: c.label ?? c.field,
     fieldName: c.field,
     minWidth: c.width ?? 80,

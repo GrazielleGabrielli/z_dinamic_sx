@@ -98,6 +98,9 @@ function mergeWizardFormIntoConfig(
       viewModes: mergedForm.viewModes,
       activeViewModeId: mergedForm.activeViewModeId,
       ...(mergedForm.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : { viewModePicker: undefined }),
+      ...(mergedForm.viewModeDefaultRules && mergedForm.viewModeDefaultRules.length > 0
+        ? { viewModeDefaultRules: mergedForm.viewModeDefaultRules }
+        : { viewModeDefaultRules: undefined }),
     },
     projectManagement: prev.projectManagement,
     formManager:

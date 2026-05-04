@@ -153,15 +153,18 @@ export function buildTableTopFiltersOData(
 
 export function buildListSelect(columns: IListViewConfig['columns']): string[] {
   if (!columns || columns.length === 0) return ['Id', 'Title'];
-  const select: string[] = ['Id'];
+  const selectSet = new Set<string>(['Id']);
   for (const c of columns) {
     if (!c.field) continue;
     if (c.expandField) {
-      select.push(`${c.field}/Id`, `${c.field}/Title`);
+      const df = c.expandField.trim() || 'Title';
+      selectSet.add(`${c.field}/Id`);
+      selectSet.add(`${c.field}/${df}`);
     } else {
-      select.push(c.field);
+      selectSet.add(c.field);
     }
   }
+  const select = Array.from(selectSet);
   if (select.length === 1) select.push('Title');
   return select;
 }

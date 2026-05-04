@@ -21,6 +21,7 @@ import {
   Link,
   TooltipHost,
   Icon,
+  Toggle,
   Pivot,
   PivotItem,
   MessageBar,
@@ -36,6 +37,7 @@ import type {
   IListViewColumnConfig,
   IListViewModeConfig,
   IListViewModeAccessConfig,
+  IListViewModeDefaultRule,
   IListViewFilterConfig,
   ITableFilterFieldConfig,
   IPaginationConfig,
@@ -91,6 +93,7 @@ interface IFieldOption {
   selected: boolean;
   label: string;
   expandField: string;
+  expandFieldsSelected: string[];
 }
 
 const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
@@ -107,33 +110,59 @@ const USER_EXPAND_FIELDS: IDropdownOption[] = [
 function toFieldOption(meta: IFieldMetadata, existing?: IListViewColumnConfig): IFieldOption {
   const selected = existing !== undefined;
   const needsExpand = EXPANDABLE.indexOf(meta.MappedType) !== -1;
-  const expandField = needsExpand
-    ? (existing?.expandField ?? meta.LookupField ?? 'Title')
-    : '';
+  const ef = (existing?.expandField ?? meta.LookupField ?? 'Title').trim() || 'Title';
+  const expandFieldsSelected = needsExpand && existing ? [ef] : needsExpand ? [] : [];
   return {
     meta,
     selected,
     label: existing?.label ?? meta.Title,
-    expandField,
+    expandField: needsExpand ? (existing ? ef : meta.LookupField ?? 'Title') : '',
+    expandFieldsSelected,
+  };
+}
+
+function fieldOptionFromColumnGroup(meta: IFieldMetadata, group: IListViewColumnConfig[]): IFieldOption {
+  const needsExpand = EXPANDABLE.indexOf(meta.MappedType) !== -1;
+  const keys = needsExpand
+    ? Array.from(new Set(group.map((c) => (c.expandField ?? meta.LookupField ?? 'Title').trim() || 'Title')))
+    : [];
+  const first = group[0];
+  return {
+    meta,
+    selected: true,
+    label: first?.label?.trim() ? first.label : meta.Title,
+    expandField: keys[0] ?? 'Title',
+    expandFieldsSelected: keys,
   };
 }
 
 function applyColumnsToOptions(opts: IFieldOption[], cols: IListViewColumnConfig[]): IFieldOption[] {
   const map = new Map(opts.map((o) => [o.meta.InternalName, o]));
-  const ordered: IFieldOption[] = [];
+  const byField = new Map<string, IListViewColumnConfig[]>();
   for (let i = 0; i < cols.length; i++) {
     const c = cols[i];
+    if (!byField.has(c.field)) byField.set(c.field, []);
+    byField.get(c.field)!.push(c);
+  }
+  const ordered: IFieldOption[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    if (seen.has(c.field)) continue;
+    seen.add(c.field);
     const o = map.get(c.field);
     if (!o) continue;
-    ordered.push({
-      ...o,
-      selected: true,
-      label: c.label && c.label.trim() ? c.label : o.meta.Title,
-      expandField: c.expandField ?? o.expandField,
-    });
+    const group = byField.get(c.field) ?? [c];
+    ordered.push(fieldOptionFromColumnGroup(o.meta, group));
     map.delete(c.field);
   }
-  map.forEach((o) => ordered.push({ ...o, selected: false }));
+  map.forEach((o) =>
+    ordered.push({
+      ...o,
+      selected: false,
+      expandFieldsSelected: EXPANDABLE.indexOf(o.meta.MappedType) !== -1 ? [] : [],
+    })
+  );
   return ordered;
 }
 
@@ -142,14 +171,23 @@ function buildOptions(
   currentColumns: IListViewColumnConfig[]
 ): IFieldOption[] {
   const byName = new Map(fields.map((f) => [f.InternalName, f]));
-  const selectedSet = new Set(currentColumns.map((c) => c.field));
+  const byField = new Map<string, IListViewColumnConfig[]>();
+  for (let i = 0; i < currentColumns.length; i++) {
+    const c = currentColumns[i];
+    if (!byField.has(c.field)) byField.set(c.field, []);
+    byField.get(c.field)!.push(c);
+  }
   const ordered: IFieldOption[] = [];
+  const used = new Set<string>();
   currentColumns.forEach((c) => {
+    if (used.has(c.field)) return;
+    used.add(c.field);
     const meta = byName.get(c.field);
-    if (meta) ordered.push(toFieldOption(meta, c));
+    if (meta) ordered.push(fieldOptionFromColumnGroup(meta, byField.get(c.field) ?? [c]));
   });
   fields.forEach((f) => {
-    if (!selectedSet.has(f.InternalName)) ordered.push(toFieldOption(f, undefined));
+    if (used.has(f.InternalName)) return;
+    ordered.push(toFieldOption(f, undefined));
   });
   return ordered;
 }
@@ -408,6 +446,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [listViewModePicker, setListViewModePicker] = useState<TViewModePicker>(
     listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown'
   );
+  const [viewModeDefaultRules, setViewModeDefaultRules] = useState<IListViewModeDefaultRule[]>(
+    () => listView.viewModeDefaultRules?.map((r) => ({ ...r })) ?? []
+  );
   const [viewModeEditingId, setViewModeEditingId] = useState<string | null>(null);
   const [viewModeEditLabel, setViewModeEditLabel] = useState('');
   const [viewModeEditFilters, setViewModeEditFilters] = useState<IListViewFilterConfig[]>([]);
@@ -475,6 +516,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setPaginationLayout(pagination.layout ?? 'buttons');
     setViewModes(listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
     setActiveViewModeId(listView.activeViewModeId ?? 'all');
+    setViewModeDefaultRules(listView.viewModeDefaultRules?.map((r) => ({ ...r })) ?? []);
     setListViewModePicker(listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
@@ -503,7 +545,37 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 
   const toggle = (internalName: string): void => {
     setOptions((prev) =>
-      prev.map((o) => (o.meta.InternalName === internalName ? { ...o, selected: !o.selected } : o))
+      prev.map((o) => {
+        if (o.meta.InternalName !== internalName) return o;
+        const nextSel = !o.selected;
+        if (!nextSel) {
+          return { ...o, selected: false, expandFieldsSelected: [] };
+        }
+        const needsExpand = EXPANDABLE.indexOf(o.meta.MappedType) !== -1;
+        const efs =
+          needsExpand && (o.expandFieldsSelected?.length ?? 0) === 0
+            ? [(o.expandField ?? o.meta.LookupField ?? 'Title').trim() || 'Title']
+            : o.expandFieldsSelected ?? [];
+        const ef0 = (efs[0] ?? o.meta.LookupField ?? 'Title').trim() || 'Title';
+        return { ...o, selected: true, expandFieldsSelected: efs.length ? efs : [ef0], expandField: ef0 };
+      })
+    );
+  };
+
+  const toggleLookupExpandField = (internalName: string, expandKey: string, checked: boolean): void => {
+    setOptions((prev) =>
+      prev.map((o) => {
+        if (o.meta.InternalName !== internalName) return o;
+        let next = [...(o.expandFieldsSelected ?? [])];
+        if (checked) {
+          if (next.indexOf(expandKey) === -1) next.push(expandKey);
+        } else {
+          next = next.filter((k) => k !== expandKey);
+          if (next.length === 0) next = ['Title'];
+        }
+        const ef0 = (next[0] ?? 'Title').trim() || 'Title';
+        return { ...o, expandFieldsSelected: next, expandField: ef0 };
+      })
     );
   };
 
@@ -515,7 +587,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 
   const setExpandField = (internalName: string, expandField: string): void => {
     setOptions((prev) =>
-      prev.map((o) => (o.meta.InternalName === internalName ? { ...o, expandField } : o))
+      prev.map((o) =>
+        o.meta.InternalName === internalName
+          ? { ...o, expandField, expandFieldsSelected: [expandField] }
+          : o
+      )
     );
   };
 
@@ -742,18 +818,37 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   };
 
   const buildSavePayload = useCallback(() => {
-    const columns: IListViewColumnConfig[] = options
-      .filter((o) => o.selected)
-      .map((o) => {
-        const base = {
+    const columns: IListViewColumnConfig[] = [];
+    for (let i = 0; i < options.length; i++) {
+      const o = options[i];
+      if (!o.selected) continue;
+      if (EXPANDABLE.indexOf(o.meta.MappedType) !== -1) {
+        const keys =
+          o.meta.MappedType === 'lookup' || o.meta.MappedType === 'user'
+            ? o.expandFieldsSelected.length > 0
+              ? o.expandFieldsSelected
+              : [(o.expandField ?? 'Title').trim() || 'Title']
+            : [(o.expandField ?? 'Title').trim() || 'Title'];
+        const expandOpts = getExpandFieldOptions(o.meta);
+        const labelFor = (k: string): string => {
+          const hit = expandOpts.find((x) => String(x.key) === k);
+          return `${o.meta.Title} – ${hit?.text ?? k}`;
+        };
+        for (let j = 0; j < keys.length; j++) {
+          const ek = (keys[j] ?? 'Title').trim() || 'Title';
+          columns.push({
+            field: o.meta.InternalName,
+            label: keys.length > 1 ? labelFor(ek) : o.label.trim() ? o.label : o.meta.Title,
+            expandField: ek,
+          });
+        }
+      } else {
+        columns.push({
           field: o.meta.InternalName,
           label: o.label.trim() ? o.label : o.meta.Title,
-        };
-        if (EXPANDABLE.indexOf(o.meta.MappedType) !== -1) {
-          return { ...base, expandField: o.expandField.trim() || 'Title' };
-        }
-        return base;
-      });
+        });
+      }
+    }
     const nextPagination: IPaginationConfig = {
       ...pagination,
       enabled: paginationEnabled,
@@ -849,6 +944,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(nextTableFilterFields.length > 0 ? { tableFilterFields: nextTableFilterFields } : { tableFilterFields: undefined }),
       ...(listCardViewEnabled && listDefaultDisplayMode === 'cards' ? { listDefaultDisplayMode: 'cards' as const } : {}),
       ...(listViewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
+      ...(viewModeDefaultRules.length > 0
+        ? { viewModeDefaultRules: viewModeDefaultRules.map((r) => ({ ...r })) }
+        : { viewModeDefaultRules: undefined }),
     };
     return {
       listView: listViewOut,
@@ -880,6 +978,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     listDefaultDisplayMode,
     localPdfTemplate,
     listViewModePicker,
+    viewModeDefaultRules,
+    lookupListFields,
   ]);
 
   const tableJsonPreviewRef = useRef(buildSavePayload());
@@ -937,6 +1037,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setCardCssText(bundle.listView.customCardCss ?? '');
       setViewModes(bundle.listView.viewModes?.length ? bundle.listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
       setActiveViewModeId(bundle.listView.activeViewModeId ?? 'all');
+      setViewModeDefaultRules(bundle.listView.viewModeDefaultRules?.map((r) => ({ ...r })) ?? []);
       setListViewModePicker(bundle.listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
       setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
@@ -967,6 +1068,31 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   };
 
   const viewModeDefaultOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
+  const addViewModeDefaultRule = (): void => {
+    const firstId = viewModes[0]?.id ?? 'all';
+    setViewModeDefaultRules((prev) => [...prev, { viewModeId: firstId }]);
+  };
+  const updateViewModeDefaultRule = (index: number, patch: Partial<IListViewModeDefaultRule>): void => {
+    setViewModeDefaultRules((prev) => {
+      const next = prev.slice();
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  };
+  const removeViewModeDefaultRule = (index: number): void => {
+    setViewModeDefaultRules((prev) => prev.filter((_, i) => i !== index));
+  };
+  const moveViewModeDefaultRule = (index: number, dir: -1 | 1): void => {
+    setViewModeDefaultRules((prev) => {
+      const j = index + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = prev.slice();
+      const t = next[index];
+      next[index] = next[j];
+      next[j] = t;
+      return next;
+    });
+  };
   const startViewModeAdd = (): void => {
     setViewModeEditLabel('Novo modo');
     setViewModeEditFilters([]);
@@ -1221,6 +1347,68 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => opt && setActiveViewModeId(String(opt.key))}
                     styles={{ root: { maxWidth: 280 } }}
                   />
+                  <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 14, display: 'block' } }}>
+                    Modo inicial por grupo ou utilizador
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c', display: 'block', marginBottom: 8 } }}>
+                    Ordem importa: a primeira regra em que o utilizador se enquadra e o modo lhe é visível define o separador ao abrir. Se nenhuma servir, usa-se &quot;Modo padrão&quot;. Regra sem restrição (sem grupos/pessoas) aplica-se a quem vê esse modo.
+                  </Text>
+                  {viewModeDefaultRules.map((rule, idx) => {
+                    const restrict = rule.access !== undefined;
+                    return (
+                      <div
+                        key={idx}
+                        style={{ border: '1px solid #edebe9', borderRadius: 6, padding: 12, marginBottom: 8, background: '#fff' }}
+                      >
+                        <Stack horizontal verticalAlign="end" wrap tokens={{ childrenGap: 8 }}>
+                          <Dropdown
+                            label={idx === 0 ? 'Modo' : undefined}
+                            selectedKey={rule.viewModeId}
+                            options={viewModeDefaultOptions}
+                            onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) =>
+                              opt && updateViewModeDefaultRule(idx, { viewModeId: String(opt.key) })
+                            }
+                            styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: 280 } }}
+                          />
+                          <IconButton
+                            iconProps={{ iconName: 'ChevronUp' }}
+                            title="Subir"
+                            disabled={idx === 0}
+                            onClick={() => moveViewModeDefaultRule(idx, -1)}
+                          />
+                          <IconButton
+                            iconProps={{ iconName: 'ChevronDown' }}
+                            title="Descer"
+                            disabled={idx === viewModeDefaultRules.length - 1}
+                            onClick={() => moveViewModeDefaultRule(idx, 1)}
+                          />
+                          <IconButton
+                            iconProps={{ iconName: 'Delete' }}
+                            title="Remover regra"
+                            onClick={() => removeViewModeDefaultRule(idx)}
+                          />
+                        </Stack>
+                        <Toggle
+                          label="Restringir a grupos ou pessoas"
+                          checked={restrict}
+                          onChange={(_, v) => {
+                            if (v) updateViewModeDefaultRule(idx, { access: {} });
+                            else updateViewModeDefaultRule(idx, { access: undefined });
+                          }}
+                          styles={{ root: { marginTop: 8 } }}
+                        />
+                        {restrict ? (
+                          <ViewModeAccessSection
+                            value={rule.access}
+                            onChange={(next) => updateViewModeDefaultRule(idx, { access: next })}
+                            pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+                            listWebServerRelativeUrl={listWebServerRelativeUrl}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  <DefaultButton text="Adicionar regra de modo inicial" onClick={addViewModeDefaultRule} />
                   {viewModes.map((m) => {
                     const accessLine = accessSummary(m.access);
                     return (
@@ -1417,7 +1605,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   }
                 >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Marque as colunas que deseja exibir. Para lookups e usuários, escolha o campo de exibição.
+                    Marque as colunas que deseja exibir. Em lookup ou utilizador, marque abaixo um ou mais campos da lista
+                    ligada (cada um vira coluna na tabela).
                   </Text>
                   {options.map((o) => (
                     <Stack
@@ -1446,9 +1635,40 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                           placeholder={o.meta.Title}
                           styles={{ root: { maxWidth: '100%' } }}
                         />
-                        {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
+                        {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 &&
+                          o.selected &&
+                          (o.meta.MappedType === 'lookup' || o.meta.MappedType === 'user') && (
+                          <Stack
+                            tokens={{ childrenGap: 6 }}
+                            styles={{
+                              root: {
+                                marginTop: 6,
+                                paddingLeft: 20,
+                                borderLeft: '3px solid #edebe9',
+                              },
+                            }}
+                          >
+                            <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
+                              Campos da lista ligada
+                            </Text>
+                            {getExpandFieldOptions(o.meta).map((opt) => {
+                              const k = String(opt.key);
+                              return (
+                                <Checkbox
+                                  key={k}
+                                  label={opt.text}
+                                  checked={o.expandFieldsSelected.indexOf(k) !== -1}
+                                  onChange={(_, v) => toggleLookupExpandField(o.meta.InternalName, k, !!v)}
+                                />
+                              );
+                            })}
+                          </Stack>
+                        )}
+                        {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 &&
+                          o.selected &&
+                          (o.meta.MappedType === 'lookupmulti' || o.meta.MappedType === 'usermulti') && (
                           <Dropdown
-                            label="Campo expandido (lookup/user)"
+                            label="Campo expandido (lookup multi / utilizadores)"
                             selectedKey={o.expandField || 'Title'}
                             options={getExpandFieldOptions(o.meta)}
                             onChange={(_, opt) => setExpandField(o.meta.InternalName, (opt?.key as string) ?? 'Title')}
@@ -1502,9 +1722,40 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                         placeholder={o.meta.Title}
                         styles={{ root: { maxWidth: '100%' } }}
                       />
-                      {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.selected && (
+                      {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 &&
+                        o.selected &&
+                        (o.meta.MappedType === 'lookup' || o.meta.MappedType === 'user') && (
+                        <Stack
+                          tokens={{ childrenGap: 6 }}
+                          styles={{
+                            root: {
+                              marginTop: 6,
+                              paddingLeft: 20,
+                              borderLeft: '3px solid #edebe9',
+                            },
+                          }}
+                        >
+                          <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
+                            Campos da lista ligada
+                          </Text>
+                          {getExpandFieldOptions(o.meta).map((opt) => {
+                            const k = String(opt.key);
+                            return (
+                              <Checkbox
+                                key={k}
+                                label={opt.text}
+                                checked={o.expandFieldsSelected.indexOf(k) !== -1}
+                                onChange={(_, v) => toggleLookupExpandField(o.meta.InternalName, k, !!v)}
+                              />
+                            );
+                          })}
+                        </Stack>
+                      )}
+                      {EXPANDABLE.indexOf(o.meta.MappedType) !== -1 &&
+                        o.selected &&
+                        (o.meta.MappedType === 'lookupmulti' || o.meta.MappedType === 'usermulti') && (
                         <Dropdown
-                          label="Campo expandido (lookup/user)"
+                          label="Campo expandido (lookup multi / utilizadores)"
                           selectedKey={o.expandField || 'Title'}
                           options={getExpandFieldOptions(o.meta)}
                           onChange={(_, opt) => setExpandField(o.meta.InternalName, (opt?.key as string) ?? 'Title')}

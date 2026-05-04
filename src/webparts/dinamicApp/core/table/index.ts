@@ -2,6 +2,7 @@ export * from './types';
 export * from './constants/tableDefaults';
 export * from './utils/fieldTypeMapper';
 export * from './utils/selectExpandBuilder';
+export * from './utils/columnODataPath';
 export * from './utils/sortBuilder';
 export * from './utils/valueResolver';
 export * from './utils/displayValueFormatter';

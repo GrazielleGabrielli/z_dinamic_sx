@@ -13,6 +13,7 @@ import {
   SpinnerSize,
   ChoiceGroup,
   IChoiceGroupOption,
+  Toggle,
 } from '@fluentui/react';
 import { FieldsService } from '../../../../../services';
 import type { IFieldMetadata } from '../../../../../services';
@@ -20,6 +21,7 @@ import type {
   IListViewModeConfig,
   IListViewFilterConfig,
   IListViewModeAccessConfig,
+  IListViewModeDefaultRule,
   TFilterOperator,
   TViewModePicker,
 } from '../../../core/config/types';
@@ -211,6 +213,29 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
   };
 
   const defaultOptions: IDropdownOption[] = viewModes.map((m) => ({ key: m.id, text: m.label }));
+  const viewModeDefaultRules = form.viewModeDefaultRules ?? [];
+
+  const addDefaultRule = (): void => {
+    const firstId = viewModes[0]?.id ?? 'all';
+    onChange({ viewModeDefaultRules: [...viewModeDefaultRules, { viewModeId: firstId }] });
+  };
+  const updateDefaultRule = (index: number, patch: Partial<IListViewModeDefaultRule>): void => {
+    const next = viewModeDefaultRules.slice();
+    next[index] = { ...next[index], ...patch };
+    onChange({ viewModeDefaultRules: next });
+  };
+  const removeDefaultRule = (index: number): void => {
+    onChange({ viewModeDefaultRules: viewModeDefaultRules.filter((_, i) => i !== index) });
+  };
+  const moveDefaultRule = (index: number, dir: -1 | 1): void => {
+    const j = index + dir;
+    if (j < 0 || j >= viewModeDefaultRules.length) return;
+    const next = viewModeDefaultRules.slice();
+    const t = next[index];
+    next[index] = next[j];
+    next[j] = t;
+    onChange({ viewModeDefaultRules: next });
+  };
 
   return (
     <Stack tokens={{ childrenGap: 20 }}>
@@ -244,6 +269,65 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
         onChange={handleDefaultChange}
         styles={{ root: { maxWidth: 320 } }}
       />
+
+      <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+        Modo inicial por grupo ou utilizador
+      </Text>
+      <Text variant="small" styles={{ root: { color: '#605e5c', display: 'block', marginBottom: 4 } }}>
+        Regras por ordem: a primeira que se aplicar ao utilizador e ao modo visível define o separador ao abrir. Caso contrário, usa-se o modo padrão acima.
+      </Text>
+      {viewModeDefaultRules.map((rule, idx) => {
+        const restrict = rule.access !== undefined;
+        return (
+          <div
+            key={idx}
+            style={{ border: '1px solid #edebe9', borderRadius: 8, padding: 12, marginBottom: 8, background: '#fff' }}
+          >
+            <Stack horizontal verticalAlign="end" wrap tokens={{ childrenGap: 8 }}>
+              <Dropdown
+                label={idx === 0 ? 'Modo' : undefined}
+                selectedKey={rule.viewModeId}
+                options={defaultOptions}
+                onChange={(_: React.FormEvent, opt?: IDropdownOption) =>
+                  opt && updateDefaultRule(idx, { viewModeId: String(opt.key) })
+                }
+                styles={{ root: { flex: '1 1 200px', minWidth: 0, maxWidth: 320 } }}
+              />
+              <IconButton
+                iconProps={{ iconName: 'ChevronUp' }}
+                title="Subir"
+                disabled={idx === 0}
+                onClick={() => moveDefaultRule(idx, -1)}
+              />
+              <IconButton
+                iconProps={{ iconName: 'ChevronDown' }}
+                title="Descer"
+                disabled={idx === viewModeDefaultRules.length - 1}
+                onClick={() => moveDefaultRule(idx, 1)}
+              />
+              <IconButton iconProps={{ iconName: 'Delete' }} title="Remover" onClick={() => removeDefaultRule(idx)} />
+            </Stack>
+            <Toggle
+              label="Restringir a grupos ou pessoas"
+              checked={restrict}
+              onChange={(_, v) => {
+                if (v) updateDefaultRule(idx, { access: {} });
+                else updateDefaultRule(idx, { access: undefined });
+              }}
+              styles={{ root: { marginTop: 8 } }}
+            />
+            {restrict ? (
+              <ViewModeAccessSection
+                value={rule.access}
+                onChange={(next) => updateDefaultRule(idx, { access: next })}
+                pageWebServerRelativeUrl={pageWebServerRelativeUrl}
+                listWebServerRelativeUrl={listWebServerRelativeUrl}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+      <DefaultButton text="Adicionar regra de modo inicial" onClick={addDefaultRule} />
 
       <Stack tokens={{ childrenGap: 8 }}>
         <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>

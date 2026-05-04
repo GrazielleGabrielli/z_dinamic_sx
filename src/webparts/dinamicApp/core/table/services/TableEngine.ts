@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { normalizeTableConfig } from '../utils/tableConfigNormalizer';
 import { buildSelect, buildExpand, buildSelectExpand } from '../utils/selectExpandBuilder';
+import { columnODataPath } from '../utils/columnODataPath';
 import { buildOrderBy } from '../utils/sortBuilder';
 import {
   resolveRawCellValue,
@@ -56,8 +57,9 @@ export class TableEngine {
     let blocked = false;
     for (let i = 0; i < cols.length; i++) {
       const c = cols[i];
+      const path = columnODataPath(c);
       const prefix = c.internalName + '/';
-      if (field === c.internalName || field.indexOf(prefix) === 0) {
+      if (field === path || field === c.internalName || field.indexOf(prefix) === 0) {
         if (!c.sortable) blocked = true;
         break;
       }

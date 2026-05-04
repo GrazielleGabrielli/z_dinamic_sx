@@ -12,6 +12,7 @@ import {
   IListViewFilterConfig,
   IListViewModeConfig,
   IListViewModeAccessConfig,
+  IListViewModeDefaultRule,
   IPdfTemplateConfig,
   IPdfTemplateElement,
   TViewMode,
@@ -153,6 +154,23 @@ function sanitizeViewModeAccessRaw(raw: unknown): IListViewModeAccessConfig | un
   if (u.length) acc.allowedUserIds = u;
   if (web) acc.webServerRelativeUrl = web;
   return Object.keys(acc).length ? acc : {};
+}
+
+function sanitizeViewModeDefaultRules(raw: unknown): IListViewModeDefaultRule[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: IListViewModeDefaultRule[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i];
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const viewModeId = typeof r.viewModeId === 'string' ? r.viewModeId.trim() : '';
+    if (!viewModeId) continue;
+    const acc = r.access !== undefined ? sanitizeViewModeAccessRaw(r.access) : undefined;
+    const entry: IListViewModeDefaultRule = { viewModeId };
+    if (acc !== undefined) entry.access = acc;
+    out.push(entry);
+  }
+  return out.length ? out : undefined;
 }
 
 function sanitizeViewModesList(raw: unknown, fallback: IListViewModeConfig[]): IListViewModeConfig[] {
@@ -331,12 +349,14 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
           ...(typeof f.label === 'string' && f.label.trim() ? { label: f.label.trim() } : {}),
         }))
     : undefined;
+  const viewModeDefaultRules = sanitizeViewModeDefaultRules(lvo.viewModeDefaultRules);
   return {
     columns: lvo.columns ?? defaults.columns,
     filters: lvo.filters ?? defaults.filters,
     sort: lvo.sort ?? defaults.sort,
     viewModes: sanitizeViewModesList(lvo.viewModes, defaults.viewModes ?? []),
     activeViewModeId: lvo.activeViewModeId ?? defaults.activeViewModeId,
+    ...(viewModeDefaultRules ? { viewModeDefaultRules } : {}),
     pdfExportEnabled: lvo.pdfExportEnabled ?? false,
     ...(lvo.listCardViewEnabled === true ? { listCardViewEnabled: true } : {}),
     ...(lvo.listCardViewEnabled === true && lvo.listDefaultDisplayMode === 'cards'

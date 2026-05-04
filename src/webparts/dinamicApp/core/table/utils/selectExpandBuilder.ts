@@ -8,7 +8,7 @@ function needsExpand(column: ITableColumnConfig): boolean {
 }
 
 export function buildSelect(columns: ITableColumnConfig[]): string[] {
-  const select: string[] = ['Id'];
+  const selectSet = new Set<string>(['Id']);
   const hasTitle = columns.some((c) => c.internalName === 'Title');
 
   for (const c of columns) {
@@ -16,12 +16,15 @@ export function buildSelect(columns: ITableColumnConfig[]): string[] {
     if (c.internalName === 'Id') continue;
 
     if (needsExpand(c)) {
-      select.push(`${c.internalName}/Id`, `${c.internalName}/Title`);
+      const df = c.expandConfig?.displayField ?? 'Title';
+      selectSet.add(`${c.internalName}/Id`);
+      selectSet.add(`${c.internalName}/${df}`);
     } else {
-      select.push(c.internalName);
+      selectSet.add(c.internalName);
     }
   }
 
+  const select = Array.from(selectSet);
   if (!hasTitle && select.length === 1) select.push('Title');
   return select;
 }

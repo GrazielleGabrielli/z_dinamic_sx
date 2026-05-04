@@ -157,6 +157,18 @@ export interface IListViewModeConfig {
   access?: IListViewModeAccessConfig;
 }
 
+/**
+ * Regra ordenada para o modo de visualização inicial quando o utilizador abre a lista.
+ * A primeira regra em que o utilizador satisfaz `access` (ou `access` omitido = qualquer um)
+ * e o `viewModeId` está entre os modos visíveis para esse utilizador é aplicada.
+ * Se nenhuma servir, usa-se `activeViewModeId` como fallback.
+ */
+export interface IListViewModeDefaultRule {
+  viewModeId: string;
+  /** Omitido: qualquer utilizador que veja o modo. Caso contrário, mesma semântica que em modos (grupos OU utilizadores). */
+  access?: IListViewModeAccessConfig;
+}
+
 /** Modo inicial da lista quando Tabela/Cards está ativo. */
 export type TListViewDisplayMode = 'table' | 'cards';
 
@@ -268,6 +280,8 @@ export interface IListViewConfig {
   sort: IListViewSortConfig | null;
   viewModes?: IListViewModeConfig[];
   activeViewModeId?: string;
+  /** Regras ordenadas para o modo inicial por grupo/utilizador (ver `IListViewModeDefaultRule`). */
+  viewModeDefaultRules?: IListViewModeDefaultRule[];
   /** Campos expostos como controles de filtro na barra da tabela. */
   tableFilterFields?: ITableFilterFieldConfig[];
   /** Omitido ou `dropdown`: lista suspensa. `tabs`: abas horizontais (Fluent Pivot). */

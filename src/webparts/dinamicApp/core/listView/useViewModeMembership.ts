@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { IListViewModeConfig } from '../config/types';
+import type { IListViewModeConfig, IListViewModeDefaultRule } from '../config/types';
 import { UsersService } from '../../../../services/users/UsersService';
-import {
-  collectDistinctAccessWebKeys,
-  normWebPath,
-} from './viewModeAccess';
+import { mergeAccessWebKeysForViewModes, normWebPath } from './viewModeAccess';
 
 export interface IViewModeMembershipState {
   userId: number;
@@ -14,7 +11,8 @@ export interface IViewModeMembershipState {
 
 export function useViewModeMembership(
   viewModes: IListViewModeConfig[],
-  pageWebServerRelativeUrl: string | undefined
+  pageWebServerRelativeUrl: string | undefined,
+  viewModeDefaultRules?: IListViewModeDefaultRule[]
 ): IViewModeMembershipState | null {
   const pageNorm = useMemo(() => normWebPath(pageWebServerRelativeUrl || '/'), [pageWebServerRelativeUrl]);
   const [state, setState] = useState<IViewModeMembershipState | null>(null);
@@ -22,8 +20,17 @@ export function useViewModeMembership(
   useEffect(() => {
     const us = new UsersService();
     let cancelled = false;
-    const needsMembership = viewModes.some((m) => m.access !== undefined && m.access !== null);
-    const needsGroups = viewModes.some((m) => (m.access?.allowedGroupIds?.length ?? 0) > 0);
+    const rulesNeedAccess =
+      (viewModeDefaultRules ?? []).some((r) => {
+        const a = r.access;
+        if (a === undefined) return false;
+        return (a.allowedGroupIds?.length ?? 0) > 0 || (a.allowedUserIds?.length ?? 0) > 0;
+      });
+    const needsMembership =
+      viewModes.some((m) => m.access !== undefined && m.access !== null) || rulesNeedAccess;
+    const needsGroups =
+      viewModes.some((m) => (m.access?.allowedGroupIds?.length ?? 0) > 0) ||
+      (viewModeDefaultRules ?? []).some((r) => (r.access?.allowedGroupIds?.length ?? 0) > 0);
 
     us.getCurrentUser()
       .then(async (u) => {
@@ -36,7 +43,7 @@ export function useViewModeMembership(
           setState({ userId: u.Id, groupByWeb: new Map(), pageNorm });
           return;
         }
-        const keys = collectDistinctAccessWebKeys(viewModes, pageNorm);
+        const keys = mergeAccessWebKeysForViewModes(viewModes, viewModeDefaultRules, pageNorm);
         const pairs = await Promise.all(
           keys.map(async (k) => {
             const ids = await us.getCurrentUserGroupIds(k === pageNorm ? undefined : k);
@@ -52,7 +59,7 @@ export function useViewModeMembership(
     return () => {
       cancelled = true;
     };
-  }, [viewModes, pageNorm]);
+  }, [viewModes, pageNorm, viewModeDefaultRules]);
 
   return state;
 }
