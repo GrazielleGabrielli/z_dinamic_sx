@@ -16,15 +16,9 @@ export function buildSelect(columns: ITableColumnConfig[]): string[] {
     if (c.internalName === 'Id') continue;
 
     if (needsExpand(c)) {
-      const df = (c.expandConfig?.displayField ?? 'Title').trim() || 'Title';
-      if (df.indexOf('/') !== -1) {
-        const idSuffix = [...df.split('/').slice(0, -1), 'Id'].join('/');
-        selectSet.add(`${c.internalName}/${idSuffix}`);
-        selectSet.add(`${c.internalName}/${df}`);
-      } else {
-        selectSet.add(`${c.internalName}/Id`);
-        selectSet.add(`${c.internalName}/${df}`);
-      }
+      const df = c.expandConfig?.displayField ?? 'Title';
+      selectSet.add(`${c.internalName}/Id`);
+      selectSet.add(`${c.internalName}/${df}`);
     } else {
       selectSet.add(c.internalName);
     }

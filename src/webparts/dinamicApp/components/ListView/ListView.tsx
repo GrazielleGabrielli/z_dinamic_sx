@@ -39,32 +39,9 @@ function columnConfigToIColumn(c: IListViewColumnConfig, index: number): IColumn
   if (expandField) {
     base.onRender = (item: Record<string, unknown>) => {
       const val = item[c.field];
-      if (val == null || typeof val !== 'object') return '';
-      if (expandField.indexOf('/') !== -1) {
-        const segs = expandField.split('/');
-        let cur: unknown = val;
-        for (let si = 0; si < segs.length; si++) {
-          if (Array.isArray(cur)) {
-            const rest = segs.slice(si).join('/');
-            return cur
-              .map((el) => {
-                let x: unknown = el;
-                const parts = rest.split('/');
-                for (let pi = 0; pi < parts.length; pi++) {
-                  if (x == null || typeof x !== 'object') return '';
-                  x = (x as Record<string, unknown>)[parts[pi]];
-                }
-                return x != null && x !== '' ? String(x) : '';
-              })
-              .filter(Boolean)
-              .join(', ');
-          }
-          if (cur == null || typeof cur !== 'object') return '';
-          cur = (cur as Record<string, unknown>)[segs[si]];
-        }
-        return cur != null && cur !== '' ? String(cur) : '';
-      }
-      const v = expandField in (val as object) ? (val as Record<string, unknown>)[expandField] : val;
+      const v = val && typeof val === 'object' && expandField in (val as object)
+        ? (val as Record<string, unknown>)[expandField]
+        : val;
       return v !== null && v !== undefined ? String(v) : '';
     };
   }
