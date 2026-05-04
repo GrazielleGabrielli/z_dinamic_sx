@@ -233,6 +233,7 @@
 
 ### 10.7. Ganho de velocidade em novas implantações
 
+
 ## 11. Valor Gerado
 
 ### 11.1. Valor para a empresa
