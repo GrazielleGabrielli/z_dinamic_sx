@@ -390,3 +390,61 @@ A WebPart permite manter uma base comum de experiência, ao mesmo tempo em que o
 Quando utilizada de forma recorrente em projetos internos e externos, a WebPart pode sustentar diferentes modelos de monetização.
 
 Entre as possibilidades estão pacotes de implantação, licenciamento por cliente ou ambiente, suporte recorrente, evolução contratada, customizações adicionais e uso como parte de uma oferta comercial mais ampla para soluções SharePoint.
+
+---
+
+## 7. Objetivos da WebPart
+
+### 7.1. Reduzir tempo de desenvolvimento
+
+Um dos objetivos centrais da WebPart é diminuir o tempo necessário para entregar soluções em SharePoint.
+
+Isso acontece porque a base já concentra padrões comuns, o que reduz a necessidade de começar do zero a cada nova demanda.
+
+### 7.2. Padronizar entregas
+
+A solução busca garantir que diferentes projetos sigam uma mesma lógica de estrutura, comportamento e apresentação.
+
+Com isso, as entregas ficam mais consistentes, mais fáceis de entender e mais simples de sustentar ao longo do tempo.
+
+### 7.3. Permitir reutilização em múltiplos projetos
+
+A WebPart foi pensada para ser reaproveitada em contextos diferentes, com variações controladas por configuração.
+
+Esse objetivo aumenta o retorno sobre o desenvolvimento e evita que a mesma lógica seja reescrita diversas vezes.
+
+### 7.4. Facilitar manutenção
+
+Ao concentrar comportamentos em uma base comum, a manutenção passa a ser mais simples e centralizada.
+
+Na prática, isso reduz o esforço para corrigir, ajustar ou evoluir a solução sem impactar cada projeto de forma isolada.
+
+### 7.5. Permitir evolução por configuração
+
+A ideia é que a solução cresça por parametrização, e não apenas por novas implementações manuais.
+
+Assim, novos cenários podem ser atendidos com ajustes de regras, campos, filtros, visões e comportamentos.
+
+### 7.6. Apoiar demandas internas e comerciais
+
+A WebPart deve atender tanto necessidades internas quanto oportunidades ligadas a clientes e propostas comerciais.
+
+Essa dupla utilidade amplia o valor da solução e fortalece seu papel como ativo estratégico da empresa.
+
+### 7.7. Reduzir retrabalho técnico
+
+Um objetivo importante é evitar que a equipe repita o mesmo esforço em demandas parecidas.
+
+Ao reaproveitar a base e os padrões já definidos, a solução libera tempo para melhorias de maior impacto.
+
+### 7.8. Dar mais autonomia para configuração de páginas
+
+A WebPart busca tornar a configuração mais acessível para quem precisa ajustar páginas, filtros ou visualizações.
+
+Com isso, parte das mudanças pode ser conduzida sem depender de uma nova implementação completa.
+
+### 7.9. Criar uma base única para múltiplos tipos de solução
+
+A solução deve funcionar como um ponto central para diferentes formatos de entrega dentro do SharePoint.
+
+Isso inclui páginas, tabelas, cards, formulários e outras experiências que possam compartilhar a mesma lógica de configuração e reaproveitamento.

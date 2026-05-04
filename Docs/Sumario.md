@@ -162,6 +162,7 @@
 
 ### 7.9. Criar uma base única para múltiplos tipos de solução
 
+
 ## 8. Público-Alvo
 
 ### 8.1. Clientes que utilizam SharePoint
@@ -181,6 +182,7 @@
 ### 8.8. Equipes de sustentação e suporte
 
 ### 8.9. Gestores responsáveis por produtividade e padronização
+
 
 ## 9. Cenários de Uso
 
