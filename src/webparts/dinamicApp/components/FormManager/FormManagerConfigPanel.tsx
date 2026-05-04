@@ -894,6 +894,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [cloneRulesSourceKey, setCloneRulesSourceKey] = useState<string | undefined>(undefined);
   const [columnSpanModalField, setColumnSpanModalField] = useState<string | null>(null);
   const [structurePoolSelected, setStructurePoolSelected] = useState<string[]>([]);
+  const [structureFieldOpen, setStructureFieldOpen] = useState<Record<string, boolean>>({});
   const structurePoolSelectedRef = useRef<string[]>([]);
   structurePoolSelectedRef.current = structurePoolSelected;
   const [redirectReplaceBraceForBtnId, setRedirectReplaceBraceForBtnId] = useState<string | null>(null);
@@ -1371,6 +1372,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     });
   }, []);
 
+  const toggleStructureField = useCallback((internalName: string): void => {
+    setStructureFieldOpen((prev) => ({ ...prev, [internalName]: !prev[internalName] }));
+  }, []);
+
   const placeSelectedFieldsIntoStep = useCallback((targetStepIdx: number): void => {
     const names = structurePoolSelectedRef.current.slice();
     if (!names.length) return;
@@ -1443,6 +1448,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 bannerImageUrl: '',
                 bannerPlacement: 'inStep',
                 bannerWidthPercent: 100,
+                bannerHeightPx: 240,
               },
             ]);
         return fieldsAlignedToSteps(withF, nextSteps);
@@ -1505,6 +1511,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 bannerImageUrl: '',
                 bannerPlacement: 'inStep',
                 bannerWidthPercent: 100,
+                bannerHeightPx: 240,
                 fixedPlacement: 'top',
                 chromePositionMode: 'sticky',
               },
@@ -2475,6 +2482,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     if (isAlert && fcRow) {
                       const alertWhenUi = alertWhenUiFromNode(fcRow.alertWhen, meta);
                       const alertWhenEnabled = fcRow.alertWhen !== undefined;
+                      const alertOpen = structureFieldOpen[fname] === true;
+                      const currentAlertFields =
+                        (fcRow as IFormFieldConfig & { alertFields?: string[] }).alertFields ?? [];
                       return (
                         <Stack
                           key={fname}
@@ -2511,44 +2521,49 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               styles={{ text: { display: 'none' } }}
                               title="Selecionar para mover em conjunto"
                             />
+                            <IconButton
+                              iconProps={{ iconName: alertOpen ? 'ChevronDown' : 'ChevronRight' }}
+                              title={alertOpen ? 'Fechar configurações' : 'Abrir configurações'}
+                              ariaLabel={alertOpen ? 'Fechar configurações' : 'Abrir configurações'}
+                              onClick={() => toggleStructureField(fname)}
+                              styles={{ root: { width: 30, height: 30 } }}
+                            />
                             <Text styles={{ root: { fontWeight: 600, minWidth: 80 } }}>Alerta</Text>
                             <Text variant="small" styles={{ root: { color: '#605e5c', flex: '1 1 200px' } }}>
-                              {fname} · bloco condicional em destaque (não grava na lista)
+                              {fname} · {alertOpen ? 'configurações visíveis' : 'clique para configurar'}
                             </Text>
                             <DefaultButton text="Remover" onClick={() => removeField(fname)} />
                           </Stack>
-                          <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
-                            <TextField
-                              label="Título"
-                              value={fcRow.alertTitle ?? ''}
-                              onChange={(_, v) => {
-                                const t = v ?? '';
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname ? { ...f, alertTitle: t.trim() || undefined } : f
-                                  )
-                                );
-                              }}
-                            />
-                            <TextField
-                              label="Mensagem"
-                              multiline
-                              rows={3}
-                              styles={{ root: { minWidth: 260, flex: '1 1 360px' } }}
-                              value={fcRow.alertMessage ?? ''}
-                              onChange={(_, v) => {
-                                const t = v ?? '';
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname ? { ...f, alertMessage: t.trim() || undefined } : f
-                                  )
-                                );
-                              }}
-                            />
-                            {(() => {
-                              const currentAlertFields =
-                                (fcRow as IFormFieldConfig & { alertFields?: string[] }).alertFields ?? [];
-                              return (
+                          {alertOpen ? (
+                            <>
+                              <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                                <TextField
+                                  label="Título"
+                                  value={fcRow.alertTitle ?? ''}
+                                  onChange={(_, v) => {
+                                    const t = v ?? '';
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertTitle: t.trim() || undefined } : f
+                                      )
+                                    );
+                                  }}
+                                />
+                                <TextField
+                                  label="Mensagem"
+                                  multiline
+                                  rows={3}
+                                  styles={{ root: { minWidth: 260, flex: '1 1 360px' } }}
+                                  value={fcRow.alertMessage ?? ''}
+                                  onChange={(_, v) => {
+                                    const t = v ?? '';
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertMessage: t.trim() || undefined } : f
+                                      )
+                                    );
+                                  }}
+                                />
                                 <Dropdown
                                   label="Campos no alerta"
                                   placeholder="Selecione um ou vários campos"
@@ -2569,220 +2584,221 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                                     );
                                   }}
                                 />
-                              );
-                            })()}
-                            <Dropdown
-                              label="Tipo"
-                              options={[
-                                { key: 'info', text: 'Informação' },
-                                { key: 'success', text: 'Sucesso' },
-                                { key: 'warning', text: 'Aviso' },
-                                { key: 'error', text: 'Erro' },
-                              ]}
-                              selectedKey={resolveAlertVariant(fcRow)}
-                              onChange={(_, o) => {
-                                if (!o) return;
-                                const k = String(o.key) as TFormAlertVariant;
-                                setFields((prev) =>
-                                  prev.map((f) => (f.internalName === fname ? { ...f, alertVariant: k } : f))
-                                );
-                              }}
-                            />
-                          </Stack>
-                          <Checkbox
-                            label="Mostrar só quando a condição abaixo for verdadeira"
-                            checked={alertWhenEnabled}
-                            onChange={(_, c) => {
-                              if (c) {
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname
-                                      ? {
-                                          ...f,
-                                          alertWhen: whenUiToNode(alertWhenUi),
-                                        }
-                                      : f
-                                  )
-                                );
-                              } else {
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname ? { ...f, alertWhen: undefined } : f
-                                  )
-                                );
-                              }
-                            }}
-                          />
-                          {alertWhenEnabled && (
-                            <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
-                              <Dropdown
-                                label="Campo"
-                                options={fieldOptions}
-                                selectedKey={alertWhenUi.field || undefined}
-                                onChange={(_, o) =>
-                                  o &&
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname
-                                        ? { ...f, alertWhen: whenUiToNode({ ...alertWhenUi, field: String(o.key) }) }
-                                        : f
-                                    )
-                                  )
-                                }
-                              />
-                              <Dropdown
-                                label="Operador"
-                                options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
-                                selectedKey={alertWhenUi.op}
-                                onChange={(_, o) =>
-                                  o &&
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname
-                                        ? { ...f, alertWhen: whenUiToNode({ ...alertWhenUi, op: o.key as TFormConditionOp }) }
-                                        : f
-                                    )
-                                  )
-                                }
-                              />
-                              <Dropdown
-                                label="Comparar com"
-                                options={[
-                                  { key: 'literal', text: 'Texto fixo' },
-                                  { key: 'field', text: 'Outro campo' },
-                                  { key: 'token', text: 'Token' },
-                                ]}
-                                selectedKey={alertWhenUi.compareKind}
-                                onChange={(_, o) =>
-                                  o &&
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname
-                                        ? {
-                                            ...f,
-                                            alertWhen: whenUiToNode({
-                                              ...alertWhenUi,
-                                              compareKind: o.key as IWhenUi['compareKind'],
-                                            }),
-                                          }
-                                        : f
-                                    )
-                                  )
-                                }
-                              />
-                              <TextField
-                                label="Valor"
-                                value={alertWhenUi.compareValue}
-                                onChange={(_, v) =>
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname
-                                        ? {
-                                            ...f,
-                                            alertWhen: whenUiToNode({
-                                              ...alertWhenUi,
-                                              compareValue: v ?? '',
-                                            }),
-                                          }
-                                        : f
-                                    )
-                                  )
-                                }
-                                disabled={
-                                  alertWhenUi.op === 'isEmpty' ||
-                                  alertWhenUi.op === 'isFilled' ||
-                                  alertWhenUi.op === 'isTrue' ||
-                                  alertWhenUi.op === 'isFalse'
-                                }
-                              />
-                            </Stack>
-                          )}
-                          <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
-                            <TextField
-                              label="Ícone"
-                              description="Opcional. Nome de ícone Fluent."
-                              styles={{ root: { minWidth: 180, maxWidth: 260 } }}
-                              value={fcRow.alertIconName ?? ''}
-                              onChange={(_, v) => {
-                                const t = v ?? '';
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname ? { ...f, alertIconName: t.trim() || undefined } : f
-                                  )
-                                );
-                              }}
-                            />
-                            <Checkbox
-                              label="Destacar visualmente"
-                              checked={fcRow.alertEmphasized === true}
-                              onChange={(_, c) =>
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname ? { ...f, alertEmphasized: !!c } : f
-                                  )
-                                )
-                              }
-                            />
-                            <Checkbox
-                              label="Fechável"
-                              checked={fcRow.alertDismissible === true}
-                              onChange={(_, c) =>
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname ? { ...f, alertDismissible: !!c } : f
-                                  )
-                                )
-                              }
-                            />
-                            <Dropdown
-                              label="Posição no formulário"
-                              options={BANNER_PLACEMENT_DROPDOWN_OPTIONS}
-                              selectedKey={resolveAlertPlacement(fcRow)}
-                              onChange={(_, o) => {
-                                if (!o) return;
-                                const k = String(o.key) as TFormBannerPlacement;
-                                setFields((prev) =>
-                                  prev.map((f) => (f.internalName === fname ? { ...f, alertPlacement: k } : f))
-                                );
-                              }}
-                            />
-                          </Stack>
-                          {resolveAlertPlacement(fcRow) !== 'inStep' && (
-                            <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
-                              <Dropdown
-                                label="Zona fixa"
-                                options={FIXED_CHROME_PLACEMENT_OPTIONS}
-                                selectedKey={resolveFixedPlacement(fcRow)}
-                                onChange={(_, o) => {
-                                  if (!o) return;
-                                  const k = String(o.key) as TFixedChromePlacement;
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname ? { ...f, fixedPlacement: k } : f
-                                    )
-                                  );
+                                <Dropdown
+                                  label="Tipo"
+                                  options={[
+                                    { key: 'info', text: 'Informação' },
+                                    { key: 'success', text: 'Sucesso' },
+                                    { key: 'warning', text: 'Aviso' },
+                                    { key: 'error', text: 'Erro' },
+                                  ]}
+                                  selectedKey={resolveAlertVariant(fcRow)}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const k = String(o.key) as TFormAlertVariant;
+                                    setFields((prev) =>
+                                      prev.map((f) => (f.internalName === fname ? { ...f, alertVariant: k } : f))
+                                    );
+                                  }}
+                                />
+                              </Stack>
+                              <Checkbox
+                                label="Mostrar só quando a condição abaixo for verdadeira"
+                                checked={alertWhenEnabled}
+                                onChange={(_, c) => {
+                                  if (c) {
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname
+                                          ? {
+                                              ...f,
+                                              alertWhen: whenUiToNode(alertWhenUi),
+                                            }
+                                          : f
+                                      )
+                                    );
+                                  } else {
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertWhen: undefined } : f
+                                      )
+                                    );
+                                  }
                                 }}
                               />
-                              <Dropdown
-                                label="Posicionamento"
-                                options={CHROME_POSITION_MODE_OPTIONS}
-                                selectedKey={resolveChromePositionMode(fcRow)}
-                                onChange={(_, o) => {
-                                  if (!o) return;
-                                  const k = String(o.key) as TChromePositionMode;
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                              {alertWhenEnabled && (
+                                <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
+                                  <Dropdown
+                                    label="Campo"
+                                    options={fieldOptions}
+                                    selectedKey={alertWhenUi.field || undefined}
+                                    onChange={(_, o) =>
+                                      o &&
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname
+                                            ? { ...f, alertWhen: whenUiToNode({ ...alertWhenUi, field: String(o.key) }) }
+                                            : f
+                                        )
+                                      )
+                                    }
+                                  />
+                                  <Dropdown
+                                    label="Operador"
+                                    options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                                    selectedKey={alertWhenUi.op}
+                                    onChange={(_, o) =>
+                                      o &&
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname
+                                            ? { ...f, alertWhen: whenUiToNode({ ...alertWhenUi, op: o.key as TFormConditionOp }) }
+                                            : f
+                                        )
+                                      )
+                                    }
+                                  />
+                                  <Dropdown
+                                    label="Comparar com"
+                                    options={[
+                                      { key: 'literal', text: 'Texto fixo' },
+                                      { key: 'field', text: 'Outro campo' },
+                                      { key: 'token', text: 'Token' },
+                                    ]}
+                                    selectedKey={alertWhenUi.compareKind}
+                                    onChange={(_, o) =>
+                                      o &&
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname
+                                            ? {
+                                                ...f,
+                                                alertWhen: whenUiToNode({
+                                                  ...alertWhenUi,
+                                                  compareKind: o.key as IWhenUi['compareKind'],
+                                                }),
+                                              }
+                                            : f
+                                        )
+                                      )
+                                    }
+                                  />
+                                  <TextField
+                                    label="Valor"
+                                    value={alertWhenUi.compareValue}
+                                    onChange={(_, v) =>
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname
+                                            ? {
+                                                ...f,
+                                                alertWhen: whenUiToNode({
+                                                  ...alertWhenUi,
+                                                  compareValue: v ?? '',
+                                                }),
+                                              }
+                                            : f
+                                        )
+                                      )
+                                    }
+                                    disabled={
+                                      alertWhenUi.op === 'isEmpty' ||
+                                      alertWhenUi.op === 'isFilled' ||
+                                      alertWhenUi.op === 'isTrue' ||
+                                      alertWhenUi.op === 'isFalse'
+                                    }
+                                  />
+                                </Stack>
+                              )}
+                              <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                                <TextField
+                                  label="Ícone"
+                                  description="Opcional. Nome de ícone Fluent."
+                                  styles={{ root: { minWidth: 180, maxWidth: 260 } }}
+                                  value={fcRow.alertIconName ?? ''}
+                                  onChange={(_, v) => {
+                                    const t = v ?? '';
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertIconName: t.trim() || undefined } : f
+                                      )
+                                    );
+                                  }}
+                                />
+                                <Checkbox
+                                  label="Destacar visualmente"
+                                  checked={fcRow.alertEmphasized === true}
+                                  onChange={(_, c) =>
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertEmphasized: !!c } : f
+                                      )
                                     )
-                                  );
-                                }}
-                              />
-                            </Stack>
-                          )}
+                                  }
+                                />
+                                <Checkbox
+                                  label="Fechável"
+                                  checked={fcRow.alertDismissible === true}
+                                  onChange={(_, c) =>
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertDismissible: !!c } : f
+                                      )
+                                    )
+                                  }
+                                />
+                                <Dropdown
+                                  label="Posição no formulário"
+                                  options={BANNER_PLACEMENT_DROPDOWN_OPTIONS}
+                                  selectedKey={resolveAlertPlacement(fcRow)}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const k = String(o.key) as TFormBannerPlacement;
+                                    setFields((prev) =>
+                                      prev.map((f) => (f.internalName === fname ? { ...f, alertPlacement: k } : f))
+                                    );
+                                  }}
+                                />
+                              </Stack>
+                              {resolveAlertPlacement(fcRow) !== 'inStep' && (
+                                <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                                  <Dropdown
+                                    label="Zona fixa"
+                                    options={FIXED_CHROME_PLACEMENT_OPTIONS}
+                                    selectedKey={resolveFixedPlacement(fcRow)}
+                                    onChange={(_, o) => {
+                                      if (!o) return;
+                                      const k = String(o.key) as TFixedChromePlacement;
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname ? { ...f, fixedPlacement: k } : f
+                                        )
+                                      );
+                                    }}
+                                  />
+                                  <Dropdown
+                                    label="Posicionamento"
+                                    options={CHROME_POSITION_MODE_OPTIONS}
+                                    selectedKey={resolveChromePositionMode(fcRow)}
+                                    onChange={(_, o) => {
+                                      if (!o) return;
+                                      const k = String(o.key) as TChromePositionMode;
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                        )
+                                      );
+                                    }}
+                                  />
+                                </Stack>
+                              )}
+                            </>
+                          ) : null}
                         </Stack>
                       );
                     }
                     if (isBanner && fcRow) {
+                      const bannerOpen = structureFieldOpen[fname] === true;
                       return (
                         <Stack
                           key={fname}
@@ -2819,149 +2835,160 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                               styles={{ text: { display: 'none' } }}
                               title="Selecionar para mover em conjunto"
                             />
+                            <IconButton
+                              iconProps={{ iconName: bannerOpen ? 'ChevronDown' : 'ChevronRight' }}
+                              title={bannerOpen ? 'Fechar configurações' : 'Abrir configurações'}
+                              ariaLabel={bannerOpen ? 'Fechar configurações' : 'Abrir configurações'}
+                              onClick={() => toggleStructureField(fname)}
+                              styles={{ root: { width: 30, height: 30 } }}
+                            />
                             <Text styles={{ root: { fontWeight: 600, minWidth: 80 } }}>Banner</Text>
                             <Text variant="small" styles={{ root: { color: '#605e5c', flex: '1 1 200px' } }}>
-                              {fname} · imagem por URL (não grava na lista)
+                              {fname} · {bannerOpen ? 'configurações visíveis' : 'clique para configurar'}
                             </Text>
                             <DefaultButton text="Remover" onClick={() => removeField(fname)} />
                           </Stack>
-                          <TextField
-                            label="URL da imagem"
-                            value={fcRow.bannerImageUrl ?? ''}
-                            onChange={(_, v) => {
-                              const t = v ?? '';
-                              setFields((prev) =>
-                                prev.map((f) =>
-                                  f.internalName === fname ? { ...f, bannerImageUrl: t.trim() || undefined } : f
-                                )
-                              );
-                            }}
-                          />
-                          <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
-                            <TextField
-                              label="Largura (%)"
-                              description="Largura da imagem em % da área do formulário (1–100)."
-                              styles={{ root: { minWidth: 140, maxWidth: 200 } }}
-                              value={String(resolveBannerWidthPercent(fcRow))}
-                              onChange={(_, v) => {
-                                const t = (v ?? '').trim().replace(',', '.');
-                                if (t === '') {
+                          {bannerOpen ? (
+                            <>
+                              <TextField
+                                label="URL da imagem"
+                                value={fcRow.bannerImageUrl ?? ''}
+                                onChange={(_, v) => {
+                                  const t = v ?? '';
                                   setFields((prev) =>
                                     prev.map((f) =>
-                                      f.internalName === fname ? { ...f, bannerWidthPercent: undefined } : f
+                                      f.internalName === fname ? { ...f, bannerImageUrl: t.trim() || undefined } : f
                                     )
                                   );
-                                  return;
-                                }
-                                const n = Number(t);
-                                if (!isFinite(n)) return;
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname
-                                      ? { ...f, bannerWidthPercent: Math.min(100, Math.max(1, n)) }
-                                      : f
-                                  )
-                                );
-                              }}
-                            />
-                            <TextField
-                              label="Altura (%)"
-                              description="Opcional. Altura máxima em % da altura da janela (1–100)."
-                              styles={{ root: { minWidth: 140, maxWidth: 200 } }}
-                              value={
-                                fcRow.bannerHeightPercent != null && isFinite(fcRow.bannerHeightPercent)
-                                  ? String(fcRow.bannerHeightPercent)
-                                  : ''
-                              }
-                              onChange={(_, v) => {
-                                const t = (v ?? '').trim().replace(',', '.');
-                                if (t === '') {
-                                  setFields((prev) =>
-                                    prev.map((f) =>
-                                      f.internalName === fname ? { ...f, bannerHeightPercent: undefined } : f
-                                    )
-                                  );
-                                  return;
-                                }
-                                const n = Number(t);
-                                if (!isFinite(n)) return;
-                                setFields((prev) =>
-                                  prev.map((f) =>
-                                    f.internalName === fname
-                                      ? { ...f, bannerHeightPercent: Math.min(100, Math.max(1, n)) }
-                                      : f
-                                  )
-                                );
-                              }}
-                            />
-                          </Stack>
-                          <Stack tokens={{ childrenGap: 8 }}>
-                            {st.id === FORM_FIXOS_STEP_ID ? (
-                              <>
-                                <Dropdown
-                                  label="Zona fixa"
-                                  options={FIXED_CHROME_PLACEMENT_OPTIONS}
-                                  selectedKey={resolveFixedPlacement(fcRow)}
-                                  onChange={(_, o) => {
-                                    if (!o) return;
-                                    const k = String(o.key) as TFixedChromePlacement;
-                                    setFields((prev) =>
-                                      prev.map((f) =>
-                                        f.internalName === fname ? { ...f, fixedPlacement: k } : f
-                                      )
-                                    );
-                                  }}
-                                />
-                                <Dropdown
-                                  label="Posicionamento"
-                                  options={CHROME_POSITION_MODE_OPTIONS}
-                                  selectedKey={resolveChromePositionMode(fcRow)}
-                                  onChange={(_, o) => {
-                                    if (!o) return;
-                                    const k = String(o.key) as TChromePositionMode;
-                                    setFields((prev) =>
-                                      prev.map((f) =>
-                                        f.internalName === fname ? { ...f, chromePositionMode: k } : f
-                                      )
-                                    );
-                                  }}
-                                />
-                              </>
-                            ) : (
-                              <>
-                                <Dropdown
-                                  label="Posição no formulário"
-                                  options={BANNER_PLACEMENT_DROPDOWN_OPTIONS}
-                                  selectedKey={resolveBannerPlacement(fcRow)}
-                                  onChange={(_, o) => {
-                                    if (!o) return;
-                                    const k = String(o.key) as TFormBannerPlacement;
-                                    setFields((prev) =>
-                                      prev.map((f) =>
-                                        f.internalName === fname ? { ...f, bannerPlacement: k } : f
-                                      )
-                                    );
-                                  }}
-                                />
-                                {resolveBannerPlacement(fcRow) !== 'inStep' && (
-                                  <Dropdown
-                                    label="Posicionamento"
-                                    options={CHROME_POSITION_MODE_OPTIONS}
-                                    selectedKey={resolveChromePositionMode(fcRow)}
-                                    onChange={(_, o) => {
-                                      if (!o) return;
-                                      const k = String(o.key) as TChromePositionMode;
+                                }}
+                              />
+                              <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                                <TextField
+                                  label="Largura (%)"
+                                  description="Largura da imagem em % da área do formulário (1–100)."
+                                  styles={{ root: { minWidth: 140, maxWidth: 200 } }}
+                                  value={String(resolveBannerWidthPercent(fcRow))}
+                                  onChange={(_, v) => {
+                                    const t = (v ?? '').trim().replace(',', '.');
+                                    if (t === '') {
                                       setFields((prev) =>
                                         prev.map((f) =>
-                                          f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                          f.internalName === fname ? { ...f, bannerWidthPercent: undefined } : f
                                         )
                                       );
-                                    }}
-                                  />
+                                      return;
+                                    }
+                                    const n = Number(t);
+                                    if (!isFinite(n)) return;
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname
+                                          ? { ...f, bannerWidthPercent: Math.min(100, Math.max(1, n)) }
+                                          : f
+                                      )
+                                    );
+                                  }}
+                                />
+                                <TextField
+                                  label="Altura (px)"
+                                  description="Opcional. Altura do banner em pixels."
+                                  styles={{ root: { minWidth: 140, maxWidth: 200 } }}
+                                  value={
+                                    fcRow.bannerHeightPx != null && isFinite(fcRow.bannerHeightPx)
+                                      ? String(fcRow.bannerHeightPx)
+                                      : ''
+                                  }
+                                  onChange={(_, v) => {
+                                    const t = (v ?? '').trim().replace(',', '.');
+                                    if (t === '') {
+                                      setFields((prev) =>
+                                        prev.map((f) =>
+                                          f.internalName === fname ? { ...f, bannerHeightPx: undefined } : f
+                                        )
+                                      );
+                                      return;
+                                    }
+                                    const n = Number(t);
+                                    if (!isFinite(n)) return;
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname
+                                          ? { ...f, bannerHeightPx: Math.min(2000, Math.max(40, Math.floor(n))) }
+                                          : f
+                                      )
+                                    );
+                                  }}
+                                />
+                              </Stack>
+                              <Stack tokens={{ childrenGap: 8 }}>
+                                {st.id === FORM_FIXOS_STEP_ID ? (
+                                  <>
+                                    <Dropdown
+                                      label="Zona fixa"
+                                      options={FIXED_CHROME_PLACEMENT_OPTIONS}
+                                      selectedKey={resolveFixedPlacement(fcRow)}
+                                      onChange={(_, o) => {
+                                        if (!o) return;
+                                        const k = String(o.key) as TFixedChromePlacement;
+                                        setFields((prev) =>
+                                          prev.map((f) =>
+                                            f.internalName === fname ? { ...f, fixedPlacement: k } : f
+                                          )
+                                        );
+                                      }}
+                                    />
+                                    <Dropdown
+                                      label="Posicionamento"
+                                      options={CHROME_POSITION_MODE_OPTIONS}
+                                      selectedKey={resolveChromePositionMode(fcRow)}
+                                      onChange={(_, o) => {
+                                        if (!o) return;
+                                        const k = String(o.key) as TChromePositionMode;
+                                        setFields((prev) =>
+                                          prev.map((f) =>
+                                            f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                          )
+                                        );
+                                      }}
+                                    />
+                                  </>
+                                ) : (
+                                  <>
+                                    <Dropdown
+                                      label="Posição no formulário"
+                                      options={BANNER_PLACEMENT_DROPDOWN_OPTIONS}
+                                      selectedKey={resolveBannerPlacement(fcRow)}
+                                      onChange={(_, o) => {
+                                        if (!o) return;
+                                        const k = String(o.key) as TFormBannerPlacement;
+                                        setFields((prev) =>
+                                          prev.map((f) =>
+                                            f.internalName === fname ? { ...f, bannerPlacement: k } : f
+                                          )
+                                        );
+                                      }}
+                                    />
+                                    {resolveBannerPlacement(fcRow) !== 'inStep' && (
+                                      <Dropdown
+                                        label="Posicionamento"
+                                        options={CHROME_POSITION_MODE_OPTIONS}
+                                        selectedKey={resolveChromePositionMode(fcRow)}
+                                        onChange={(_, o) => {
+                                          if (!o) return;
+                                          const k = String(o.key) as TChromePositionMode;
+                                          setFields((prev) =>
+                                            prev.map((f) =>
+                                              f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                            )
+                                          );
+                                        }}
+                                      />
+                                    )}
+                                  </>
                                 )}
-                              </>
-                            )}
-                          </Stack>
+                              </Stack>
+                            </>
+                          ) : null}
                         </Stack>
                       );
                     }

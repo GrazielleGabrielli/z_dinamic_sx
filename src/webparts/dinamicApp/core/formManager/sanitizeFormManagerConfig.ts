@@ -627,16 +627,18 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     const bw = typeof f.bannerWidthPercent === 'number' && isFinite(f.bannerWidthPercent)
       ? Math.min(100, Math.max(1, f.bannerWidthPercent))
       : undefined;
-    const bh = typeof f.bannerHeightPercent === 'number' && isFinite(f.bannerHeightPercent)
-      ? Math.min(100, Math.max(1, f.bannerHeightPercent))
-      : undefined;
+    const bh = typeof f.bannerHeightPx === 'number' && isFinite(f.bannerHeightPx)
+      ? Math.min(2000, Math.max(40, Math.floor(f.bannerHeightPx)))
+      : typeof f.bannerHeightPercent === 'number' && isFinite(f.bannerHeightPercent)
+        ? Math.min(2000, Math.max(40, Math.floor(f.bannerHeightPercent)))
+        : undefined;
     return {
       ...common,
       fieldKind: 'banner',
       ...(bannerImageUrl ? { bannerImageUrl } : {}),
       ...(placement ? { bannerPlacement: placement } : {}),
       ...(bw !== undefined ? { bannerWidthPercent: bw } : {}),
-      ...(bh !== undefined ? { bannerHeightPercent: bh } : {}),
+      ...(bh !== undefined ? { bannerHeightPx: bh } : {}),
     };
   }
   if (isAlert) {

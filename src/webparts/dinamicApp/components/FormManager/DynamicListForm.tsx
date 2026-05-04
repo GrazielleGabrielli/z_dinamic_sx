@@ -60,7 +60,7 @@ import {
   isFormBannerFieldConfig,
   resolveAlertPlacement,
   resolveBannerWidthPercent,
-  resolveBannerHeightPercent,
+  resolveBannerHeightPx,
   resolveBannerPlacement,
   resolveFixedPlacement,
   resolveChromePositionMode,
@@ -3879,16 +3879,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const url = (fc.bannerImageUrl ?? '').trim();
     const bannerLabel = (fc.label ?? 'Banner').trim() || 'Banner';
     const wPct = resolveBannerWidthPercent(fc);
-    const hPct = resolveBannerHeightPercent(fc);
+    const hPx = resolveBannerHeightPx(fc);
     const imgStyle: React.CSSProperties = {
       width: `${wPct}%`,
       maxWidth: '100%',
-      height: 'auto',
+      ...(hPx !== undefined ? { height: `${hPx}px` } : { height: 'auto' }),
       display: 'block',
       margin: '0 auto',
       borderRadius: 2,
       objectFit: 'contain',
-      ...(hPct !== undefined ? { maxHeight: `${hPct}vh` } : {}),
     };
     return (
       <>

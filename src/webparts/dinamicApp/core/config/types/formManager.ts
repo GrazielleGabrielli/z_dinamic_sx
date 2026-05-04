@@ -361,8 +361,8 @@ export interface IFormFieldConfig {
   bannerPlacement?: TFormBannerPlacement;
   /** Largura da imagem em % do contentor do formulário (1–100). Omitido = 100. */
   bannerWidthPercent?: number;
-  /** Altura máxima em % da altura da janela — aplicado como `vh` (1–100). */
-  bannerHeightPercent?: number;
+  /** Altura do banner em px. */
+  bannerHeightPx?: number;
   /** Só na etapa «Fixos»: fixar no topo ou rodapé do formulário. */
   fixedPlacement?: TFixedChromePlacement;
   /** Fixos ou banner fixo no topo/rodapé: sticky, absoluto ao contentor, ou fluxo normal na zona. */
@@ -462,10 +462,12 @@ export function resolveBannerWidthPercent(fc: IFormFieldConfig): number {
   return Math.min(100, Math.max(1, n));
 }
 
-export function resolveBannerHeightPercent(fc: IFormFieldConfig): number | undefined {
-  const n = fc.bannerHeightPercent;
-  if (typeof n !== 'number' || !isFinite(n)) return undefined;
-  return Math.min(100, Math.max(1, n));
+export function resolveBannerHeightPx(fc: IFormFieldConfig): number | undefined {
+  const n = fc.bannerHeightPx;
+  if (typeof n === 'number' && isFinite(n)) return Math.min(2000, Math.max(40, Math.floor(n)));
+  const legacy = (fc as { bannerHeightPercent?: number }).bannerHeightPercent;
+  if (typeof legacy === 'number' && isFinite(legacy)) return Math.min(2000, Math.max(40, Math.floor(legacy)));
+  return undefined;
 }
 
 export function resolveFixedPlacement(fc: IFormFieldConfig): TFixedChromePlacement {
