@@ -448,3 +448,43 @@ Com isso, parte das mudanças pode ser conduzida sem depender de uma nova implem
 A solução deve funcionar como um ponto central para diferentes formatos de entrega dentro do SharePoint.
 
 Isso inclui páginas, tabelas, cards, formulários e outras experiências que possam compartilhar a mesma lógica de configuração e reaproveitamento.
+
+---
+
+## 8. Público-Alvo
+
+### 8.1. Clientes que utilizam SharePoint
+
+Organizações que já operam no SharePoint e precisam de soluções mais rápidas, padronizadas e fáceis de evoluir.
+
+### 8.2. Equipes internas
+
+Times que mantêm ou entregam soluções corporativas e precisam reduzir esforço repetitivo sem perder controle sobre a entrega.
+
+### 8.3. Consultores e analistas de implantação
+
+Profissionais que trabalham com configuração, adaptação e entrega de soluções e ganham eficiência com uma base reutilizável.
+
+### 8.4. Administradores de portal
+
+Responsáveis pela sustentação do ambiente que precisam de mais previsibilidade, organização e facilidade para ajustes.
+
+### 8.5. Áreas que precisam de formulários e visualizações customizadas
+
+Departamentos que dependem de páginas, filtros, listas e formulários adaptados ao fluxo de trabalho e ao contexto da operação.
+
+### 8.6. Empresas que buscam soluções rápidas sem desenvolvimento do zero
+
+Negócios que querem acelerar entregas e evitar projetos inteiros construídos para necessidades que se repetem.
+
+### 8.7. Equipes comerciais que vendem soluções SharePoint
+
+Times que precisam de uma oferta mais concreta, demonstrável e com apelo de valor para clientes.
+
+### 8.8. Equipes de sustentação e suporte
+
+Grupos que recebem solicitações recorrentes e precisam de uma solução mais organizada para manter, corrigir e evoluir.
+
+### 8.9. Gestores responsáveis por produtividade e padronização
+
+Lideranças que buscam mais previsibilidade, menos retrabalho e melhor aproveitamento do esforço técnico já investido.
