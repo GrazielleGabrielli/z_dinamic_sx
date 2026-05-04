@@ -1021,3 +1021,1169 @@ Pontos que exigem validação:
 - viabilidade de reposição de esforço por reutilização;
 - aderência entre demanda de mercado e capacidade da solução;
 - retorno esperado em comparação ao esforço de manutenção da base.
+
+---
+
+## 14. Descrição Funcional
+
+### 14.1. Seleção de listas e bibliotecas
+
+A WebPart começa pela escolha da fonte de dados que será usada na experiência. Essa fonte pode ser uma lista ou biblioteca do SharePoint, definida conforme o objetivo da página ou do processo.
+
+A seleção precisa considerar não apenas onde estão os dados, mas também como eles serão consumidos. Em alguns cenários, a mesma solução pode ler uma lista principal e, em paralelo, consultar listas de apoio para enriquecer a exibição, os filtros ou as regras de negócio.
+
+Essa etapa permite adaptar a solução a diferentes contextos sem criar uma nova WebPart para cada origem de dados. A escolha da fonte também influencia quais campos estarão disponíveis, quais ações poderão ser executadas e quais tipos de visualização fazem mais sentido.
+
+### 14.2. Leitura de campos e metadados
+
+Após selecionar a fonte, a solução identifica os campos e metadados disponíveis para uso. Isso inclui campos simples, campos de escolha, datas, usuários, valores numéricos, referências e outras propriedades da lista ou biblioteca.
+
+A leitura dos metadados permite entender a estrutura do conteúdo sem depender de codificação específica para cada cenário. Com isso, a WebPart consegue montar exibições e comportamentos a partir da configuração recebida.
+
+Em termos práticos, essa leitura dá base para decidir quais campos serão exibidos, quais podem ser usados como filtro, quais são obrigatórios, quais influenciam regras condicionais e quais podem ficar ocultos ou em modo somente leitura.
+
+### 14.3. Configuração de visualizações
+
+A visualização define como os dados serão apresentados ao usuário. A mesma base pode ser exibida em formatos diferentes, dependendo da necessidade da área ou do objetivo da página.
+
+A solução pode trabalhar com visão em tabela, visão em cards, visão resumida, visão administrativa, visão de acompanhamento ou outras variações configuráveis. O formato escolhido muda a forma de leitura, a densidade de informação e a experiência do usuário.
+
+Essa configuração também pode ser ajustada por contexto. Uma mesma lista pode aparecer de forma mais analítica para um gestor e de forma mais operacional para um time de execução.
+
+### 14.4. Filtros dinâmicos
+
+Os filtros servem para refinar os dados exibidos com base em critérios selecionados no momento do uso. Eles podem responder a parâmetros simples, múltiplos critérios ou combinações entre campos.
+
+Na prática, os filtros podem ser montados para buscar registros por status, categoria, responsável, período, palavra-chave, unidade, prioridade ou qualquer outro campo permitido pela configuração.
+
+O comportamento do filtro pode variar conforme a necessidade: atualização automática da visualização, aplicação por botão, combinação de filtros simultâneos ou refinamento progressivo dos resultados.
+
+### 14.5. Tabela dinâmica
+
+A tabela dinâmica é uma das formas mais objetivas de exibir dados. Ela funciona bem quando a necessidade é comparar registros, avaliar status, identificar pendências e permitir consulta rápida.
+
+A tabela pode exibir colunas diferentes conforme a configuração, incluir ordenação, paginação, destaque de estados e ações por linha. Também pode ser adaptada para usos mais administrativos, com maior volume de dados e foco em operação.
+
+Esse modo de visualização é útil quando o usuário precisa navegar por uma base estruturada sem perder controle sobre o que está vendo e sem depender da tabela padrão do SharePoint em todos os casos.
+
+### 14.6. Cards e dashboards
+
+Os cards permitem organizar a informação de forma mais visual e resumida. São indicados para contextos em que a leitura rápida é mais importante do que a visualização completa de todos os campos.
+
+Os dashboards, por sua vez, podem reunir indicadores, contagens, resumos e blocos de informação em uma mesma tela. Eles ajudam a transformar dados operacionais em visão de acompanhamento.
+
+Essa abordagem é útil para portais internos, áreas de gestão, painéis administrativos e experiências em que o usuário precisa de síntese, comparação e leitura rápida do cenário.
+
+### 14.7. Formulários dinâmicos
+
+Os formulários dinâmicos permitem criar experiências de cadastro, edição ou consulta com comportamento configurável. A mesma solução pode ser usada para diferentes tipos de formulário, dependendo da estrutura e das regras definidas.
+
+O formulário pode ser ajustado para exibir apenas os campos necessários, organizar a ordem da entrada de dados, aplicar validações e mudar o comportamento conforme o valor de um campo ou o perfil do usuário.
+
+Esse recurso é importante porque reduz a dependência de formulários fixos e permite adaptar a experiência ao fluxo real da operação, sem exigir uma implementação separada para cada caso.
+
+### 14.8. Regras por campo
+
+As regras por campo definem como cada informação deve se comportar dentro da interface. Um campo pode ser exibido, ocultado, obrigatório, somente leitura ou ativado somente em determinadas condições.
+
+Essas regras podem depender de status, perfil, tipo de item, valor preenchido, contexto da visualização ou outras condições previstas na configuração.
+
+Na prática, isso permite que a solução reaja ao conteúdo e ao cenário sem precisar de lógica fixa para cada formulário ou tabela.
+
+### 14.9. Persistência de configuração
+
+A configuração da solução precisa ser salva para que a WebPart mantenha o comportamento definido pelo usuário ou pela equipe responsável.
+
+Essa persistência permite que a experiência continue consistente entre carregamentos, edições e publicações, sem exigir nova configuração toda vez que a página for acessada.
+
+A persistência também facilita evolução, pois a base configurada pode ser ajustada ao longo do tempo, sem perder o histórico lógico do que foi definido para aquela experiência.
+
+### 14.10. Permissões e controle de acesso
+
+A solução deve respeitar as permissões do ambiente e, quando necessário, aplicar controles adicionais de acesso conforme o cenário.
+
+Isso pode significar exibir dados diferentes para perfis diferentes, limitar ações a grupos específicos, ocultar campos sensíveis ou impedir interações que não façam sentido para determinados usuários.
+
+O controle de acesso é essencial para que a WebPart não apenas mostre dados, mas faça isso de maneira coerente com a governança do SharePoint e com a responsabilidade de cada grupo de usuários.
+
+### 14.11. Ações e comportamentos por item
+
+Cada item exibido pela solução pode ter ações associadas, como abrir detalhes, editar, visualizar, aprovar, rejeitar, navegar para outra página ou executar uma ação complementar.
+
+Essas ações podem variar de acordo com o tipo de item, com seu status ou com o perfil de quem está acessando. Em alguns casos, o mesmo item pode oferecer mais de uma ação; em outros, pode não exibir ação alguma.
+
+Esse comportamento torna a experiência mais funcional e aproxima a solução de um fluxo de trabalho real, e não apenas de uma consulta estática de dados.
+
+### 14.12. Layout e experiência visual
+
+A solução busca manter uma experiência clara, organizada e consistente. O layout precisa ser suficiente para orientar o usuário, destacar o que importa e não sobrecarregar a leitura.
+
+A experiência visual pode variar conforme o tipo de visualização, mas sempre deve preservar legibilidade, hierarquia de informação e padronização entre blocos.
+
+Esse ponto é importante porque a WebPart não existe apenas para mostrar dados; ela precisa transformar dados em uma experiência de uso compreensível e funcional.
+
+### 14.13. Configuração de campos exibidos
+
+A configuração de campos exibidos define quais informações entram na interface. Nem tudo o que existe na lista precisa aparecer para o usuário final.
+
+Esse controle ajuda a reduzir ruído, destacar o que é relevante e adaptar a apresentação ao propósito da página ou da visualização.
+
+Também permite criar experiências diferentes a partir da mesma base de dados, sem duplicar listas ou criar soluções paralelas.
+
+### 14.14. Configuração de campos obrigatórios
+
+Os campos obrigatórios servem para garantir integridade na entrada de dados. Quando um campo é obrigatório, a solução impede ou sinaliza o salvamento até que a informação necessária seja preenchida.
+
+Essa regra pode ser aplicada de forma fixa ou condicional, dependendo do contexto do formulário, do tipo de item ou do perfil do usuário.
+
+Esse recurso evita dados incompletos e reduz retrabalho posterior na operação.
+
+### 14.15. Configuração de campos somente leitura
+
+Campos somente leitura são usados quando a informação deve ser exibida, mas não alterada pelo usuário naquele momento.
+
+Isso é útil para preservar valores calculados, dados de referência, informações derivadas de outro sistema ou campos que só podem ser modificados por um perfil específico.
+
+A configuração de leitura ajuda a proteger a integridade do processo e a diferenciar o que é entrada de dados do que é apenas consulta.
+
+### 14.16. Configuração de campos ocultos
+
+Campos ocultos continuam fazendo parte da estrutura, mas não aparecem para o usuário em determinado contexto.
+
+Eles podem ser úteis para armazenar valores de apoio, controlar regras, registrar informações técnicas ou manter dados internos que não precisam ser exibidos.
+
+Esse recurso permite flexibilidade sem comprometer a simplicidade da interface.
+
+### 14.17. Configuração de filtros superiores
+
+Os filtros superiores ficam em destaque acima da visualização principal e ajudam o usuário a refinar rapidamente os dados.
+
+Eles são indicados quando a necessidade é de leitura contínua e filtragem recorrente, como por status, período, área, responsável, prioridade ou categoria.
+
+Esse tipo de filtro melhora a navegação e reduz a dependência de buscas manuais em listas extensas.
+
+### 14.18. Configuração de filtros por coluna
+
+Os filtros por coluna permitem refinar resultados diretamente em cada campo da tabela.
+
+Esse formato é útil quando o usuário precisa comparar ou localizar registros com mais precisão, sem perder a leitura contextual da tabela inteira.
+
+A presença de filtros por coluna amplia a autonomia do usuário e melhora o consumo da base em cenários operacionais.
+
+### 14.19. Configuração de paginação
+
+A paginação organiza grandes volumes de informação em blocos menores, melhorando performance percebida e legibilidade.
+
+A solução pode controlar a quantidade de itens por página, o modo de navegação e, conforme o cenário, a forma de carregamento dos registros.
+
+Esse recurso é importante para manter a interface fluida mesmo quando a base de dados cresce.
+
+### 14.20. Configuração de ações customizadas
+
+Ações customizadas permitem adaptar a WebPart a necessidades específicas de operação, navegação ou interação.
+
+Essas ações podem abrir páginas relacionadas, disparar rotinas complementares, acessar detalhes do item, orientar fluxos de aprovação ou executar comportamentos próprios do cenário.
+
+O valor desse recurso está em transformar a interface em algo mais próximo da operação real da área, sem perder a base comum da solução.
+
+## 15. Arquitetura Técnica
+
+### 15.1. Estrutura SPFx
+
+A solução é baseada no modelo de desenvolvimento do SharePoint Framework, o que permite integração nativa com páginas e componentes do SharePoint moderno.
+
+Isso garante que a WebPart se comporte como parte do ecossistema da plataforma, respeitando o contexto da página, os dados disponíveis e o ambiente de execução.
+
+### 15.2. Componentes React
+
+A interface é organizada em componentes que separam visualização, interação e estado de forma compreensível.
+
+Essa abordagem facilita evolução, reuso e manutenção, porque cada parte da experiência pode ser ajustada sem necessariamente alterar toda a solução.
+
+### 15.3. Contextos e providers
+
+Contextos e providers ajudam a compartilhar informações entre partes da interface, como configuração ativa, dados carregados, estado de filtros e permissões aplicadas.
+
+Essa estrutura reduz acoplamento entre partes da experiência e mantém a solução mais organizada durante a renderização.
+
+### 15.4. Hooks e estados compartilhados
+
+Os hooks organizam a leitura de dados, o controle de estado e o comportamento da interface em pontos reutilizáveis.
+
+Isso permite que diferentes partes da solução consumam a mesma lógica sem duplicação desnecessária.
+
+### 15.5. Services e engines de domínio
+
+Serviços e camadas de domínio concentram regras de negócio, leitura de dados e transformação de informação antes da renderização.
+
+Essa separação ajuda a manter a interface mais limpa e torna mais simples evoluir comportamento sem espalhar lógica por toda a aplicação.
+
+### 15.6. Types e interfaces
+
+Tipos e interfaces definem a estrutura esperada para dados, configurações e resultados.
+
+Isso melhora previsibilidade, documentação interna e consistência entre o que a solução recebe, processa e exibe.
+
+### 15.7. Helpers e utils
+
+Helpers e utilitários concentram operações repetidas, pequenas transformações e funções de apoio.
+
+Eles ajudam a evitar repetição de código e facilitam ajustes em regras comuns da solução.
+
+### 15.8. Comunicação com SharePoint
+
+A comunicação com SharePoint é a base da solução, já que é dali que vêm listas, bibliotecas, itens, campos e metadados.
+
+A WebPart precisa ler, interpretar e, quando permitido, atualizar informações de forma alinhada às regras do ambiente.
+
+### 15.9. Persistência da configuração
+
+As configurações definidas para cada cenário precisam ser armazenadas de forma estável para garantir continuidade e reuso.
+
+Essa persistência viabiliza que a mesma experiência seja reaberta, alterada ou reutilizada sem perda do que foi configurado.
+
+### 15.10. Estilos e consistência visual
+
+Os estilos precisam manter identidade e consistência entre as diferentes visualizações.
+
+Mesmo quando a solução muda de tabela para cards ou de formulário para dashboard, a experiência precisa continuar reconhecível e coerente.
+
+### 15.11. Extensibilidade e evolução
+
+A base técnica precisa aceitar novas demandas sem exigir reconstrução completa.
+
+Esse ponto é fundamental para que a solução continue útil em cenários novos, mantendo a proposta de evolução por reaproveitamento.
+
+### 15.12. Separação de responsabilidades
+
+A solução separa visualização, configuração, regra e acesso a dados para reduzir complexidade e facilitar manutenção.
+
+Essa separação também ajuda a identificar onde cada ajuste deve ser feito, evitando que pequenas mudanças contaminem todo o restante.
+
+### 15.13. Organização de pastas
+
+A organização de pastas deve refletir a lógica da solução, com áreas claras para componentes, serviços, tipos, helpers, configurações e estilos.
+
+Isso facilita entendimento do projeto e torna a manutenção mais segura.
+
+### 15.14. Padrões adotados no projeto
+
+Os padrões do projeto precisam apoiar consistência, previsibilidade e escalabilidade.
+
+Isso inclui convenções de nomeação, forma de tratar configuração, padrão de leitura dos dados e regras de separação entre o que é base e o que é cenário.
+
+## 16. Fluxo de Funcionamento
+
+### 16.1. Inclusão da WebPart na página
+
+O fluxo começa com a inserção da WebPart na página SharePoint.
+
+Nesse momento, a solução passa a existir dentro do contexto da página e aguarda a configuração do cenário desejado.
+
+### 16.2. Configuração da lista SharePoint
+
+Depois da inclusão, é definido qual conjunto de dados será usado como base da experiência.
+
+A lista ou biblioteca escolhida determina quais informações poderão ser lidas e como a visualização será montada.
+
+### 16.3. Seleção de campos
+
+O usuário responsável escolhe quais campos precisam aparecer, quais vão servir como apoio e quais serão usados em regras ou filtros.
+
+Essa etapa define a estrutura prática da experiência final.
+
+### 16.4. Definição de visualizações
+
+A solução permite escolher o formato de apresentação mais adequado ao caso.
+
+O mesmo conteúdo pode ser exibido como tabela, cards, dashboard, formulário ou outra variação prevista pela configuração.
+
+### 16.5. Configuração de filtros e regras
+
+Os filtros e regras são definidos para orientar o que será exibido, em que condição e para quem.
+
+Isso pode incluir filtros por status, por período, por perfil, por valor ou por qualquer outro critério suportado pela configuração.
+
+### 16.6. Salvamento da configuração
+
+Depois que o cenário é definido, a configuração é salva para que a WebPart mantenha esse comportamento no acesso seguinte.
+
+Esse salvamento garante continuidade e permite ajustes futuros sem perda do que foi feito.
+
+### 16.7. Renderização da interface final
+
+Com a configuração salva, a interface é montada e exibida ao usuário com o comportamento esperado.
+
+A renderização precisa traduzir a configuração em uma experiência clara, funcional e coerente com o cenário.
+
+### 16.8. Leitura dinâmica dos dados
+
+Ao abrir a página, a solução lê os dados de forma dinâmica e aplica a lógica definida para aquele contexto.
+
+Isso permite que a mesma base mostre resultados diferentes conforme o filtro, o perfil, a visualização ou a regra aplicada.
+
+### 16.9. Aplicação de permissões
+
+As permissões são verificadas para que cada usuário veja e faça apenas o que estiver permitido.
+
+Essa etapa preserva segurança, governança e conformidade com o ambiente SharePoint.
+
+### 16.10. Execução de ações configuradas
+
+Quando o usuário interage com a interface, ações configuradas podem ser executadas conforme o tipo de item ou a necessidade do fluxo.
+
+Essas ações fecham o ciclo entre leitura, visualização e operação.
+
+## 17. Maturidade da Solução
+
+### 17.1. Funcionalidades estáveis
+
+As funcionalidades estáveis são aquelas já testadas e usadas com previsibilidade.
+
+Elas compõem a base mais segura da solução e servem como referência para novas entregas.
+
+### 17.2. Funcionalidades em validação
+
+Funcionalidades em validação são recursos que já existem, mas ainda podem passar por ajustes de comportamento, usabilidade ou consistência.
+
+Essas partes precisam de uso acompanhado e feedback real para confirmar sua maturidade.
+
+### 17.3. Funcionalidades experimentais
+
+Funcionalidades experimentais são aquelas que ampliam a solução, mas ainda dependem de confirmação de valor, estabilidade ou aderência ao uso real.
+
+Elas devem ser tratadas com mais cuidado antes de entrarem em usos mais amplos.
+
+### 17.4. Pendências técnicas
+
+Pendências técnicas são pontos que ainda precisam de ajuste para fortalecer estabilidade, desempenho ou cobertura funcional.
+
+Essa lista ajuda a separar o que já pode ser usado do que ainda exige evolução.
+
+### 17.5. Pendências de documentação
+
+A maturidade da solução não depende apenas do código, mas também da clareza de uso.
+
+Pendências de documentação indicam o que ainda precisa ser explicado, organizado ou formalizado para facilitar adoção e suporte.
+
+### 17.6. Recomendações para piloto
+
+Antes de ampliar o uso, o ideal é rodar pilotos controlados em cenários representativos.
+
+Isso permite validar valor, identificar ajustes e reduzir risco de expansão precoce.
+
+### 17.7. Critérios para evolução para produto
+
+Para virar produto, a solução precisa ter repetibilidade, documentação, estabilidade e clareza de proposta.
+
+Também precisa demonstrar que resolve cenários reais com consistência em mais de um contexto.
+
+### 17.8. Critérios para uso comercial
+
+O uso comercial exige clareza sobre valor entregue, limites do escopo e modelo de suporte.
+
+Sem isso, a solução corre risco de ser vendida com expectativa maior do que a base realmente sustenta.
+
+### 17.9. Nível atual de prontidão da solução
+
+O nível de prontidão deve refletir o que já está estável, o que ainda precisa de validação e o que depende de evolução.
+
+Esse ponto é essencial para posicionar a WebPart de forma honesta e sustentável.
+
+## 18. Funcionalidades Atuais
+
+### 18.1. Disponíveis
+
+As funcionalidades disponíveis são as que já podem ser usadas como base real da solução.
+
+#### 18.1.1. Wizard de configuração
+
+O wizard orienta a configuração da solução passo a passo, reduzindo a complexidade para quem precisa montar um cenário novo.
+
+Ele ajuda a organizar a experiência inicial e a registrar as escolhas principais da WebPart.
+
+#### 18.1.2. Leitura de listas e bibliotecas
+
+A solução consegue consumir dados de listas e bibliotecas SharePoint para compor a experiência exibida.
+
+Esse recurso é a base para praticamente todo o restante da funcionalidade.
+
+#### 18.1.3. Tabela dinâmica
+
+A tabela dinâmica mostra registros em formato estruturado, com foco em leitura, comparação e operação.
+
+Ela é útil para bases administrativas, listas operacionais e visões com volume moderado ou alto de informação.
+
+#### 18.1.4. Filtros por coluna e filtros superiores
+
+A solução oferece mecanismos de filtragem que ajudam a localizar e refinar dados rapidamente.
+
+Os dois modos se complementam: o filtro superior dá visão geral e o filtro por coluna permite análise mais específica.
+
+#### 18.1.5. Paginação server-side
+
+A paginação server-side ajuda a trabalhar com grandes volumes de dados sem carregar tudo de uma vez.
+
+Isso melhora performance percebida e organiza a navegação entre os registros.
+
+#### 18.1.6. Dashboard configurável
+
+O dashboard configurável permite exibir resumos, indicadores e blocos de informação de forma orientada ao contexto.
+
+Ele serve bem para visão executiva, operacional e administrativa.
+
+#### 18.1.7. Formulários dinâmicos
+
+Os formulários dinâmicos permitem criar experiências de cadastro, edição e consulta adaptáveis ao cenário.
+
+Eles são importantes para processos que exigem diferentes campos, regras ou comportamentos.
+
+#### 18.1.8. Regras por campo
+
+As regras por campo controlam obrigatoriedade, visibilidade, edição e comportamento condicionado.
+
+Esse recurso dá flexibilidade à solução sem precisar criar formulários separados para cada caso.
+
+#### 18.1.9. Ações por item
+
+Ações por item permitem que cada linha ou registro tenha comportamentos específicos associados.
+
+Isso pode incluir abrir, editar, navegar, analisar ou executar ações complementares.
+
+#### 18.1.10. Persistência de configuração em JSON
+
+A persistência em JSON mantém o cenário configurado salvo de forma estruturada.
+
+Isso favorece reuso, manutenção e futuro versionamento.
+
+### 18.2. Parcialmente implementadas
+
+Essas funcionalidades já fazem parte da direção da solução, mas podem exigir acabamento, ajuste de comportamento ou refinamento visual.
+
+#### 18.2.1. Experiências avançadas de layout
+
+O objetivo é ampliar a liberdade de apresentação sem perder consistência.
+
+Ainda assim, essa camada deve continuar conectada à lógica de configuração central.
+
+#### 18.2.2. Refinamentos de dashboard e gráficos
+
+Os dashboards podem evoluir para formas mais ricas de leitura visual.
+
+O foco aqui é transformar informação em leitura mais clara, sem criar complexidade desnecessária.
+
+#### 18.2.3. Regras mais ricas de visualização
+
+Regras mais avançadas permitem tornar a interface mais contextual.
+
+Isso inclui comportamentos condicionais que respondem ao valor dos campos, ao status ou ao perfil do usuário.
+
+#### 18.2.4. Templates avançados de formulários
+
+Os templates avançados ajudam a acelerar a criação de formulários em cenários recorrentes.
+
+Eles também ajudam a padronizar experiência e reduzir ajustes manuais.
+
+### 18.3. Em evolução
+
+Funcionalidades em evolução são aquelas que já têm direção clara, mas ainda estão amadurecendo.
+
+#### 18.3.1. Melhorias de usabilidade
+
+As melhorias de usabilidade buscam simplificar a configuração e tornar a experiência mais intuitiva.
+
+#### 18.3.2. Expansão dos modos de visualização
+
+A solução pode crescer para suportar mais formatos de leitura e apresentação.
+
+Isso amplia o tipo de cenário que pode ser atendido pela mesma base.
+
+#### 18.3.3. Aprimoramento de permissões e automações
+
+Esse ponto visa tornar a solução mais precisa em perfis, controles e respostas automáticas ao cenário.
+
+### 18.4. Planejadas
+
+Funcionalidades planejadas representam a evolução futura da solução.
+
+#### 18.4.1. Editor visual de layout
+
+Um editor visual facilitaria a composição da experiência sem depender tanto de configuração textual.
+
+#### 18.4.2. Mais tipos de visualização
+
+Novas visualizações ampliariam a flexibilidade da WebPart em diferentes áreas e contextos.
+
+#### 18.4.3. Versionamento de configurações
+
+Versionar configurações ajudaria a controlar evolução, rollback e comparação entre versões.
+
+#### 18.4.4. Exportação e importação de modelos
+
+Esse recurso permitiria copiar cenários entre ambientes, projetos ou clientes com mais rapidez.
+
+## 19. Diferenciais da Solução
+
+### 19.1. Solução criada especificamente para SharePoint
+
+A solução nasce dentro do contexto da plataforma e conversa com necessidades reais do ambiente.
+
+Isso reduz improviso e aumenta aderência ao uso esperado.
+
+### 19.2. Reaproveitável em múltiplos clientes
+
+A mesma base pode ser usada em vários projetos com adaptações controladas.
+
+Esse é um dos principais pontos de geração de valor.
+
+### 19.3. Redução de WebParts isoladas por demanda
+
+Em vez de criar um componente para cada pedido, a proposta concentra padrões em uma base única.
+
+Isso diminui fragmentação e melhora manutenção.
+
+### 19.4. Configuração sem alteração de código
+
+Quando a solução permite ajustes por configuração, o tempo de resposta melhora e a dependência técnica diminui.
+
+### 19.5. Arquitetura modular
+
+A modularidade facilita evolução por partes e reduz impacto de mudanças.
+
+### 19.6. Potencial de produto
+
+A solução já nasce com potencial de virar produto interno, oferta licenciável ou pacote de implantação.
+
+### 19.7. Aderência a demandas reais de consultoria
+
+A WebPart está alinhada ao tipo de problema que aparece repetidamente em projetos de consultoria.
+
+### 19.8. Flexibilidade para diferentes cenários
+
+A mesma base pode atender perfis e necessidades distintas sem perder a lógica principal.
+
+### 19.9. Padronização de experiência visual
+
+A padronização visual melhora a percepção de qualidade e reduz variação entre entregas.
+
+### 19.10. Base evolutiva para novos módulos
+
+A solução pode crescer de forma incremental, incorporando novos recursos ao longo do tempo.
+
+## 20. Possibilidades Comerciais
+
+### 20.1. Uso interno pela empresa
+
+A primeira forma de valor é usar a solução como ativo interno para acelerar entregas.
+
+### 20.2. Implantação por cliente
+
+A WebPart pode ser adaptada e entregue como parte de um projeto específico.
+
+### 20.3. Cobrança por projeto
+
+O valor pode ser vinculado ao escopo de implantação em cada demanda.
+
+### 20.4. Cobrança por licença
+
+A solução pode ser licenciada para uso em determinado cliente, ambiente ou cenário.
+
+### 20.5. Cobrança por mensalidade
+
+A mensalidade faz sentido quando a solução é acompanhada por suporte, manutenção e evolução.
+
+### 20.6. Modelo SaaS
+
+Em um modelo SaaS, a lógica de uso passa a ser mais recorrente e baseada em acesso contínuo.
+
+### 20.7. Manutenção e evolução contratada
+
+Além da implantação, a solução pode gerar receita por evolução contínua.
+
+### 20.8. Comissão por implantação
+
+Quando a solução gera novas oportunidades, pode haver participação por negócio fechado.
+
+### 20.9. Licenciamento por ambiente
+
+Uma forma de monetização pode considerar o ambiente onde a solução é utilizada.
+
+### 20.10. Licenciamento por número de usuários
+
+Outra possibilidade é vincular custo ao volume de usuários que consomem a solução.
+
+### 20.11. Pacote de implantação
+
+A entrega pode ser empacotada com implantação, configuração, validação e handover.
+
+### 20.12. Suporte recorrente
+
+Suporte recorrente fortalece a relação de longo prazo e protege a base instalada.
+
+### 20.13. Customizações adicionais
+
+Mudanças fora da configuração padrão podem ser cobradas como extensão de escopo.
+
+### 20.14. Treinamento e capacitação
+
+Treinamento pode ser parte da proposta comercial para acelerar adoção e reduzir suporte.
+
+### 20.15. Documentação como parte da entrega
+
+Documentação agrega valor e reduz dependência operacional após a implantação.
+
+## 21. Modelo de Uso e Licenciamento
+
+### 21.1. Uso interno
+
+No uso interno, a solução serve como base para acelerar o trabalho da empresa.
+
+### 21.2. Uso em clientes
+
+Em clientes, o foco passa a ser entrega, suporte, adaptação e governança.
+
+### 21.3. Uso por projeto
+
+Por projeto, a solução é aplicada em escopo fechado, com entrega vinculada ao contexto daquele trabalho.
+
+### 21.4. Uso recorrente como produto
+
+Quando recorrente, a solução deixa de ser só um projeto e passa a se comportar como produto.
+
+### 21.5. Uso em modelo SaaS ou assinatura
+
+Nesse modelo, a solução pode ser consumida continuamente com base em acesso ou assinatura.
+
+### 21.6. Critérios para implantação
+
+A implantação precisa considerar compatibilidade do ambiente, escopo e dados de origem.
+
+### 21.7. Licença por cliente
+
+A licença por cliente organiza o uso conforme o contrato ou a conta atendida.
+
+### 21.8. Licença por ambiente
+
+Essa modalidade pode separar produção, homologação e outros contextos de uso.
+
+### 21.9. Licença por volume de uso
+
+O volume de uso pode considerar acessos, cenários ou quantidade de implantações.
+
+### 21.10. Condições para manutenção e suporte
+
+Suporte e manutenção precisam de combinação clara entre responsabilidade, prazo e nível de atendimento.
+
+## 22. Proposta de Negociação
+
+### 22.1. Reconhecimento da autoria
+
+A negociação deve reconhecer quem criou e consolidou a solução.
+
+### 22.2. Definição de direitos de uso
+
+É importante separar autoria, uso interno e uso comercial.
+
+### 22.3. Comissão por cliente
+
+Quando a solução for usada em negócios novos, pode haver participação por cliente fechado.
+
+### 22.4. Remuneração por manutenção e evolução
+
+Evoluir a solução também é trabalho de valor e pode compor remuneração.
+
+### 22.5. Reajuste salarial ou mudança de senioridade
+
+Quando a solução gera valor estratégico, isso pode ser refletido em reconhecimento formal.
+
+### 22.6. Acordo sobre uso comercial
+
+O uso comercial precisa ter limites e condições explícitos.
+
+### 22.7. Proteção da solução como ativo criado
+
+A solução deve ser tratada como ativo intelectual relevante.
+
+### 22.8. Definição de responsabilidades futuras
+
+Negociação sem definição de responsabilidade tende a gerar ambiguidade depois.
+
+### 22.9. Condições para transferência de conhecimento
+
+Se houver repasse, ele deve ser estruturado para não perder contexto ou valor.
+
+### 22.10. Condições para evolução do produto
+
+O crescimento do produto precisa ter regra de decisão e aprovação.
+
+### 22.11. Participação em receita recorrente
+
+Quando houver modelo recorrente, a participação pode ser discutida.
+
+### 22.12. Registro formal do acordo
+
+Formalizar evita ruído e protege as partes envolvidas.
+
+## 23. Modelo de Governança
+
+### 23.1. Perfis de acesso
+
+Perfis diferentes precisam de visões e permissões diferentes.
+
+### 23.2. Responsáveis pela configuração
+
+A configuração deve ter dono claro para evitar alterações sem controle.
+
+### 23.3. Responsáveis pela manutenção
+
+Manutenção precisa de responsável definido, com prioridade e escopo claros.
+
+### 23.4. Processo de publicação
+
+Publicar sem validação aumenta risco, então o processo precisa ser controlado.
+
+### 23.5. Processo de aprovação
+
+Alterações relevantes devem passar por aprovação, especialmente em clientes.
+
+### 23.6. Versionamento das configurações
+
+Versionar ajuda a rastrear mudanças e reverter quando necessário.
+
+### 23.7. Controle por ambiente
+
+Ambiente de desenvolvimento, homologação e produção não devem se misturar.
+
+### 23.8. Registro de alterações
+
+Registrar mudança é essencial para suporte e auditoria.
+
+### 23.9. Critérios para uso em clientes
+
+Cliente precisa de governança mais forte porque o impacto de erro é maior.
+
+### 23.10. Boas práticas de implantação
+
+Implantar com checklist, validação e documentação reduz problema futuro.
+
+### 23.11. Gestão de permissões
+
+Permissões devem ser revisadas com cuidado para evitar acesso indevido.
+
+### 23.12. Processo de suporte e sustentação
+
+Sustentação precisa de fluxo para diagnóstico, ajuste e evolução contínua.
+
+## 24. Estratégia de Implantação
+
+### 24.1. Implantação piloto
+
+O piloto é a forma mais segura de validar a solução em escala reduzida.
+
+### 24.2. Seleção do primeiro cenário de uso
+
+O primeiro cenário deve ser representativo, mas não excessivamente complexo.
+
+### 24.3. Validação funcional
+
+A validação funcional confirma se a solução entrega o que foi prometido.
+
+### 24.4. Validação técnica
+
+A validação técnica confirma se a solução se comporta bem no ambiente.
+
+### 24.5. Treinamento dos usuários envolvidos
+
+Usuários precisam entender como usar e como manter o cenário.
+
+### 24.6. Coleta de feedback
+
+Feedback real ajuda a corrigir o que só aparece no uso.
+
+### 24.7. Ajustes pós-piloto
+
+Após o piloto, o ideal é tratar ajustes antes da expansão.
+
+### 24.8. Liberação para uso interno
+
+A liberação interna acontece quando a solução já mostrou consistência mínima.
+
+### 24.9. Liberação para uso em clientes
+
+Em clientes, a liberação exige mais critério e documentação.
+
+### 24.10. Evolução por versões
+
+Crescer por versões mantém o controle da solução ao longo do tempo.
+
+### 24.11. Documentação da implantação
+
+Documentar a implantação evita perda de conhecimento.
+
+### 24.12. Acompanhamento dos resultados
+
+Depois da implantação, medir resultado é o que confirma valor real.
+
+## 25. Roadmap de Evolução
+
+### 25.1. Editor visual de layout
+
+Um editor visual de layout permitiria montar a apresentação da WebPart com mais rapidez e menos dependência de configuração manual.
+
+A ideia é tornar a composição das telas mais intuitiva, especialmente em cenários onde a mesma base precisa gerar experiências diferentes sem alterar a lógica principal.
+
+### 25.2. Mais tipos de visualização
+
+O aumento de tipos de visualização amplia a utilidade da solução em contextos distintos.
+
+Isso inclui, por exemplo, visões mais voltadas à operação, à gestão, à consulta rápida ou à apresentação resumida da informação.
+
+### 25.3. Dashboards
+
+O roadmap prevê ampliar a camada de dashboard para que a solução vá além da lista ou do formulário isolado.
+
+Isso pode incluir resumos por status, agrupamentos, contagens, indicadores simples e visões de acompanhamento para tomada de decisão.
+
+### 25.4. Regras condicionais avançadas
+
+As regras condicionais avançadas tornam a experiência mais inteligente e aderente ao contexto do usuário.
+
+Com elas, a solução pode reagir melhor a combinações de campos, perfis, estados do item e regras de negócio mais elaboradas.
+
+### 25.5. Permissões por perfil
+
+Permissões por perfil permitem controlar de forma mais refinada o que cada grupo pode ver, alterar ou executar.
+
+Esse avanço é importante para cenários com múltiplos públicos, onde a mesma solução precisa respeitar níveis diferentes de responsabilidade.
+
+### 25.6. Templates prontos
+
+Templates prontos aceleram a criação de novos cenários porque reutilizam estruturas já validadas.
+
+Eles reduzem o esforço de começar do zero e ajudam a padronizar a qualidade das entregas.
+
+### 25.7. Exportação e importação de configurações
+
+Esse recurso facilita mover cenários entre ambientes ou projetos, sem necessidade de reconstruir tudo manualmente.
+
+Também ajuda em backup, replicação e distribuição de modelos reutilizáveis.
+
+### 25.8. Versionamento de configurações
+
+Versionar configurações é fundamental para rastrear evolução, comparar estados e reverter mudanças quando necessário.
+
+Esse recurso traz mais segurança para ambientes com uso contínuo e múltiplos responsáveis.
+
+### 25.9. Marketplace interno de componentes
+
+Um marketplace interno permitiria organizar componentes, blocos e recursos reutilizáveis em uma lógica mais acessível para a equipe.
+
+Isso favorece reaproveitamento e acelera a montagem de soluções futuras.
+
+### 25.10. Assistente com IA para gerar configurações
+
+Um assistente com IA pode apoiar a geração de configurações iniciais a partir de descrições textuais ou padrões de uso.
+
+A proposta aqui é reduzir tempo de setup e facilitar a criação de cenários para usuários com menos familiaridade técnica.
+
+### 25.11. Biblioteca de layouts reutilizáveis
+
+A biblioteca de layouts ajuda a consolidar modelos visuais aprovados e disponíveis para reutilização.
+
+Esse recurso fortalece padronização e acelera novas implantações.
+
+### 25.12. Histórico de alterações
+
+O histórico de alterações registra o que foi modificado, quando, por quem e em que contexto.
+
+Isso melhora rastreabilidade, auditoria e suporte.
+
+### 25.13. Logs de uso e auditoria
+
+Logs de uso e auditoria ajudam a entender como a solução está sendo consumida na prática.
+
+Além de apoiar suporte, eles também ajudam a validar valor, identificar pontos de melhoria e reforçar governança.
+
+### 25.14. Integração com Power Automate
+
+A integração com Power Automate abre espaço para automatizar passos complementares ao uso da WebPart.
+
+Isso pode incluir notificações, aprovações, atualizações de status e rotinas de apoio ao processo.
+
+### 25.15. Integração com Power BI
+
+A integração com Power BI amplia a capacidade analítica da solução.
+
+Com isso, a WebPart pode deixar de ser apenas camada de interação e passar a alimentar análises e indicadores mais ricos.
+
+## 26. Riscos e Pontos de Atenção
+
+### 26.1. Manutenção da solução
+
+Uma solução reutilizável precisa de manutenção contínua para não perder valor ao longo do tempo.
+
+Se a manutenção não for acompanhada, a base pode acumular ajustes pontuais e ficar mais difícil de evoluir.
+
+### 26.2. Controle de versões
+
+Sem controle de versões, fica difícil saber qual configuração está em uso e qual mudança gerou determinado comportamento.
+
+Esse risco afeta suporte, estabilidade e previsibilidade.
+
+### 26.3. Governança de uso
+
+A ausência de governança pode gerar usos fora do propósito da solução.
+
+Isso tende a aumentar confusão sobre escopo, responsabilidades e limites de suporte.
+
+### 26.4. Segurança e permissões
+
+Como a solução opera sobre dados de SharePoint, qualquer falha de permissão pode expor informação indevida ou bloquear uso legítimo.
+
+Esse ponto exige revisão cuidadosa em ambientes internos e, principalmente, em clientes.
+
+### 26.5. Limites do SharePoint
+
+A solução depende das capacidades e limites da plataforma.
+
+Quando o cenário exige algo fora desses limites, a expectativa precisa ser ajustada para evitar frustração ou superposição indevida de escopo.
+
+### 26.6. Documentação técnica
+
+Sem documentação clara, suporte e evolução ficam mais lentos.
+
+Esse risco cresce quando a solução começa a ser usada por mais de uma equipe ou em mais de um cliente.
+
+### 26.7. Suporte
+
+Se não existir um fluxo claro de suporte, a solução pode perder confiança rapidamente.
+
+É importante definir quem recebe chamados, como prioriza e como responde.
+
+### 26.8. Responsabilidade sobre evolução
+
+Quando ninguém é responsável pela evolução, a solução tende a parar no primeiro estágio de uso.
+
+Esse risco afeta diretamente o potencial de produto.
+
+### 26.9. Dependência de ambiente SharePoint
+
+A solução está diretamente ligada ao ambiente SharePoint e às condições de uso desse ambiente.
+
+Mudanças de tenant, permissões, políticas ou versão podem impactar o comportamento esperado.
+
+### 26.10. Compatibilidade com diferentes clientes
+
+Cada cliente pode ter particularidades de estrutura, governança e operação.
+
+Isso exige validação antes de assumir que uma configuração funcionará da mesma forma em todos os contextos.
+
+### 26.11. Crescimento desorganizado da solução
+
+Se a solução crescer sem padrão, o ganho de reutilização pode se perder.
+
+Por isso, expansão precisa ser guiada por regras, critérios e escopo bem definidos.
+
+### 26.12. Necessidade de validação antes da comercialização
+
+Nem toda funcionalidade está pronta para virar oferta comercial.
+
+Antes de vender, é necessário validar estabilidade, repetibilidade, documentação, suporte e limites reais da solução.
+
+## 27. Materiais de Apoio
+
+### 27.1. Prints da interface
+
+Prints ajudam a mostrar a solução de forma rápida e objetiva.
+
+Eles são úteis para registro interno, apresentação executiva e material comercial.
+
+### 27.2. Fluxo visual de configuração
+
+Um fluxo visual ajuda a explicar a jornada de configuração sem exigir leitura técnica profunda.
+
+Esse material é especialmente útil para onboarding e treinamento.
+
+### 27.3. Exemplos de uso real
+
+Exemplos reais tornam a proposta mais concreta.
+
+Eles ajudam a demonstrar que a solução resolve cenários aplicáveis, e não apenas hipóteses genéricas.
+
+### 27.4. Demonstração prática
+
+A demonstração prática é uma das formas mais fortes de validar valor.
+
+Ela mostra como a solução se comporta em tempo real e facilita entendimento por públicos técnicos e não técnicos.
+
+### 27.5. Guia do administrador
+
+O guia do administrador deve explicar configuração, manutenção, publicação e suporte da solução.
+
+Ele precisa ser suficientemente detalhado para reduzir dependência de conhecimento informal.
+
+### 27.6. Guia do usuário final
+
+O guia do usuário final deve focar no uso cotidiano.
+
+Ele deve explicar leitura, filtros, interação com itens, formulários e comportamentos esperados.
+
+### 27.7. Guia técnico para desenvolvedores
+
+Esse guia é para quem vai evoluir ou sustentar a base.
+
+Deve cobrir estrutura, padrões, pontos de extensão e cuidados de manutenção.
+
+### 27.8. Guia comercial para apresentação a clientes
+
+O guia comercial precisa transformar a solução em discurso de valor.
+
+Ele deve mostrar problema, benefício, diferenciais e possibilidades de contratação sem entrar em excesso técnico.
+
+### 27.9. FAQ da solução
+
+O FAQ ajuda a reduzir dúvidas repetidas e acelera entendimento.
+
+Ele é útil para usuários, gestores, suporte e apresentação comercial.
+
+### 27.10. Exemplos de configurações JSON
+
+Exemplos de JSON ajudam a mostrar como a solução é parametrizada.
+
+Também servem para referência técnica e validação de padrões.
+
+### 27.11. Modelos de implantação
+
+Os modelos de implantação organizam como a solução pode ser levada a diferentes cenários.
+
+Isso inclui ambientes internos, clientes, pilotos e variações de escopo.
+
+### 27.12. Roteiro de demonstração
+
+O roteiro de demonstração ajuda a conduzir apresentações com ordem, foco e clareza.
+
+Ele evita que a demo dependa de improviso e garante que os pontos de valor sejam mostrados.
+
+## 28. Conclusão
+
+### 28.1. Solução reutilizável e estratégica
+
+A WebPart não deve ser vista apenas como uma entrega pontual.
+
+Ela representa uma base reutilizável com valor técnico e estratégico para a empresa.
+
+### 28.2. Potencial para redução de esforço operacional
+
+Ao concentrar padrões recorrentes em uma base comum, a solução reduz esforço repetitivo.
+
+Isso melhora produtividade e libera tempo para atividades de maior valor.
+
+### 28.3. Potencial de produto interno ou comercial
+
+Se bem governada e documentada, a solução pode ser usada internamente e também ofertada ao mercado.
+
+Esse duplo potencial aumenta o retorno do investimento feito no desenvolvimento.
+
+### 28.4. Importância do alinhamento sobre autoria, uso e remuneração
+
+Quando a solução começa a gerar valor fora do uso interno, autoria e uso precisam estar claros.
+
+Esse alinhamento evita conflito e dá segurança para a evolução do ativo.
+
+### 28.5. Próximos passos recomendados
+
+Os próximos passos devem priorizar validação, documentação, governança e definição do modelo de uso.
+
+Isso ajuda a transformar uma solução funcional em algo sustentável e replicável.
+
+### 28.6. Encaminhamento para validação e negociação
+
+Depois de validada, a proposta pode seguir para negociação de uso, escopo e responsabilidades.
+
+Esse é o ponto em que a solução deixa de ser apenas técnica e passa a ter estrutura formal de adoção.
+
+## 29. Apêndice Técnico
+
+### 29.1. Estrutura do projeto
+
+O projeto deve ser organizado para separar claramente o que é interface, regra, configuração e apoio técnico.
+
+Essa organização facilita leitura, manutenção e evolução.
+
+### 29.2. Convenções de nomeação
+
+Convenções de nomeação evitam ambiguidade e ajudam o time a localizar partes da solução rapidamente.
+
+Elas também reduzem erro durante manutenção e expansão.
+
+### 29.3. Arquivos principais
+
+Os arquivos principais representam os pontos centrais de funcionamento da solução.
+
+Esse apêndice deve ajudar a identificar onde procurar cada responsabilidade.
+
+### 29.4. Exemplos de JSON
+
+Os exemplos de JSON servem como referência para entender a forma como a solução recebe e persiste configuração.
+
+Também ajudam a visualizar o modelo de dados usado pela WebPart.
+
+### 29.5. Fluxos de configuração e renderização
+
+Este item deve mostrar como a configuração se transforma em interface.
+
+Ele é útil para entender a relação entre entrada, regra e apresentação.
+
+### 29.6. Componentes principais
+
+Os componentes principais são as peças que formam a experiência final.
+
+Eles precisam ser documentados para facilitar suporte e evolução.
+
+### 29.7. Hooks principais
+
+Os hooks devem ser listados quando forem relevantes para leitura de estado, comportamento e compartilhamento de lógica.
+
+Isso ajuda a localizar o que controla o ciclo da solução.
+
+### 29.8. Contextos utilizados
+
+Os contextos mostram quais informações são compartilhadas entre partes da aplicação.
+
+Esse registro é útil para manutenção e compreensão do fluxo interno.
+
+### 29.9. Services utilizados
+
+Os services concentram acessos e regras mais estáveis da solução.
+
+Documentá-los ajuda a entender onde está a lógica central.
+
+### 29.10. Tipos e interfaces principais
+
+Tipos e interfaces definem o contrato da solução.
+
+Eles são parte importante da previsibilidade e da qualidade técnica.
+
+### 29.11. Helpers e funções auxiliares
+
+Helpers e funções auxiliares reduzem repetição e concentram pequenas transformações.
+
+Este item serve para apoiar leitura e manutenção do código.
+
+### 29.12. Padrões de estilização
+
+Os padrões de estilização garantem consistência visual entre componentes e cenários.
+
+Eles também ajudam a manter a identidade da solução.
+
+### 29.13. Padrões de comunicação com SharePoint
+
+Esse ponto registra como a solução conversa com listas, bibliotecas, campos e dados do ambiente.
+
+Ele é essencial para manutenção e integração.
+
+### 29.14. Observações técnicas para manutenção
+
+As observações técnicas devem registrar cuidados, limitações e recomendações para evolução segura.
+
+Esse fechamento do apêndice ajuda a preservar conhecimento e reduzir perda de contexto ao longo do tempo.
