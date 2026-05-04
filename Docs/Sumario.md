@@ -256,6 +256,7 @@
 
 ### 11.10. Geração de novas oportunidades comerciais
 
+
 ## 12. Indicadores de Impacto
 
 ### 12.1. Tempo economizado por entrega
@@ -277,6 +278,7 @@
 ### 12.9. Indicadores sugeridos para acompanhamento
 
 ### 12.10. Métricas para validar o retorno da solução
+
 
 ## 13. Escopo da Solução
 
