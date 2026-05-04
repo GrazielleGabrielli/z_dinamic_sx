@@ -302,6 +302,7 @@
 
 ### 13.10. Pontos que exigem validação antes da comercialização
 
+
 ## 14. Descrição Funcional
 
 ### 14.1. Seleção de listas e bibliotecas
@@ -343,6 +344,7 @@
 ### 14.19. Configuração de paginação
 
 ### 14.20. Configuração de ações customizadas
+
 
 ## 15. Arquitetura Técnica
 

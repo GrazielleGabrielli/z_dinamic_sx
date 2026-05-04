@@ -838,3 +838,186 @@ Para validar o retorno da WebPart, compare o esforço inicial com os ganhos acum
 - potencial de receita recorrente.
 
 Com essas métricas, a empresa consegue medir retorno técnico, operacional e comercial.
+
+---
+
+## 13. Escopo da Solução
+
+### 13.1. Funcionalidades contempladas
+
+A WebPart Dinâmica contempla um conjunto de funcionalidades voltadas a criação, leitura e apresentação de informações no SharePoint de forma configurável e reaproveitável.
+
+Entre as funcionalidades cobertas estão:
+
+- exibição de dados a partir de listas e bibliotecas SharePoint;
+- criação de páginas e áreas configuráveis por contexto;
+- renderização de informações em formatos como tabela, cards, listas resumidas e visões operacionais;
+- aplicação de filtros e critérios de busca sobre os dados exibidos;
+- montagem de formulários de consulta, cadastro ou acompanhamento;
+- configuração de campos exibidos, ordem de apresentação e regras de visualização;
+- uso de metadados para compor experiências mais ricas sem depender de páginas diferentes para cada caso;
+- organização de informações com foco em usabilidade e padronização;
+- reuso de uma mesma base para múltiplos cenários;
+- suporte a experiências internas, administrativas e operacionais;
+- adaptação da interface conforme o tipo de conteúdo ou necessidade da área usuária.
+
+Do ponto de vista funcional, a solução deve permitir que a mesma base seja aplicada em diferentes contextos com variações controladas por configuração, mantendo consistência entre as entregas e reduzindo esforço de implementação repetida.
+
+### 13.2. Funcionalidades fora do escopo atual
+
+Nem toda necessidade de SharePoint faz parte do escopo atual da WebPart Dinâmica. O objetivo da solução é cobrir cenários recorrentes e configuráveis, e não substituir toda e qualquer demanda customizada.
+
+Ficam fora do escopo atual, por padrão:
+
+- desenvolvimento de módulos totalmente específicos para um único cliente sem reaproveitamento;
+- criação de fluxos complexos de workflow com várias etapas de automação externa;
+- integrações avançadas com múltiplos sistemas de terceiros que exijam projeto próprio;
+- relatórios analíticos aprofundados ou painéis de BI completos;
+- processamento massivo de dados fora do padrão de uso da interface;
+- regras altamente específicas que exijam lógica exclusiva e não reaproveitável;
+- funcionalidades administrativas que dependam de permissões ou governança fora do ambiente previsto;
+- migrações de dados extensas ou reestruturações completas de conteúdo;
+- personalizações visuais que descaracterizem a lógica comum da solução;
+- funcionalidades que extrapolem a proposta de uma base configurável e reutilizável.
+
+Esse recorte é importante para preservar a proposta da WebPart como solução padronizável. Quando uma necessidade estiver fora desse escopo, ela deve ser tratada como evolução específica, extensão controlada ou iniciativa separada.
+
+### 13.3. Premissas para uso
+
+O uso da WebPart Dinâmica parte de algumas premissas que precisam ser atendidas para que a solução entregue o valor esperado.
+
+Premissas principais:
+
+- o ambiente deve estar em SharePoint compatível com o uso previsto;
+- as listas, bibliotecas e metadados precisam estar organizados de forma mínima para leitura e configuração;
+- os usuários envolvidos devem ter permissões adequadas ao tipo de acesso esperado;
+- a área solicitante precisa definir claramente o cenário de uso antes da configuração;
+- os dados de entrada devem seguir padrões minimamente consistentes;
+- a solução deve ser usada dentro dos limites definidos para escopo e reutilização;
+- a governança da informação deve estar alinhada ao objetivo do portal ou da área;
+- mudanças de comportamento precisam respeitar a lógica configurável da solução;
+- a equipe responsável deve validar os cenários antes de expandir o uso para novos casos;
+- a documentação de configuração e manutenção deve acompanhar a evolução da base.
+
+Essas premissas garantem que a solução continue simples de manter, previsível para a equipe e útil para diferentes contextos sem perder padronização.
+
+### 13.4. Dependências técnicas
+
+A WebPart Dinâmica depende de alguns elementos técnicos para funcionar corretamente e manter sua proposta de reaproveitamento.
+
+Dependências principais:
+
+- ambiente SharePoint disponível e operacional;
+- acesso às listas, bibliotecas e dados que serão consumidos pela solução;
+- permissões corretas para leitura, cadastro, edição ou administração;
+- estrutura mínima de metadados e campos nas fontes de dados;
+- configuração consistente das listas ou bibliotecas utilizadas;
+- navegador compatível com a experiência esperada;
+- disponibilidade da base da solução para ajustes e manutenção;
+- documentação de configuração para facilitar evolução e suporte;
+- alinhamento com as regras do portal, da área ou do cliente;
+- validação prévia dos cenários antes de colocar a solução em uso amplo.
+
+Dependências mais específicas podem existir conforme o cenário, mas o princípio geral é que a WebPart trabalhe sobre uma base estável, com dados organizados e governança suficiente para permitir configuração segura e reutilização consistente.
+
+### 13.5. Requisitos mínimos do ambiente
+
+Para considerar o ambiente apto ao uso da WebPart, é necessário que exista uma base operacional compatível com o modelo de configuração da solução.
+
+Requisitos mínimos esperados:
+
+- SharePoint disponível na versão ou ambiente previsto para uso;
+- acesso funcional às listas, bibliotecas e páginas necessárias;
+- permissões mínimas para leitura e configuração;
+- estrutura básica de campos e metadados;
+- navegador atual e compatível com a experiência da solução;
+- conectividade estável com o ambiente;
+- capacidade de manutenção da base e das configurações;
+- governança mínima para organizar os dados consumidos pela WebPart;
+- documentação básica do cenário de uso;
+- validação do fluxo esperado antes da implantação definitiva.
+
+### 13.6. Limitações conhecidas
+
+A solução é voltada para cenários configuráveis e reutilizáveis. Por isso, existem limitações que precisam ser reconhecidas desde o início.
+
+Limitações conhecidas:
+
+- não substitui desenvolvimento totalmente customizado para casos muito específicos;
+- não é destinada a cargas analíticas complexas ou BI completo;
+- pode exigir adequações quando a estrutura de dados estiver desorganizada;
+- depende da qualidade das listas, bibliotecas e metadados utilizados;
+- pode perder eficiência em cenários com regras excessivamente únicas;
+- não deve ser usada como solução para automação de processos muito extensos sem validação adicional;
+- não cobre, por padrão, integrações avançadas com múltiplos sistemas externos;
+- não elimina a necessidade de governança e manutenção;
+- pode exigir ajustes de escopo quando o uso pretendido sair da lógica configurável;
+- depende de alinhamento claro entre expectativa e capacidade real da base.
+
+### 13.7. Critérios para considerar a solução implantável
+
+A WebPart pode ser considerada implantável quando o cenário estiver claro, os dados estiverem organizados e a configuração puder ser aplicada sem depender de uma reconstrução completa.
+
+Critérios principais:
+
+- escopo definido e validado com a área solicitante;
+- dados de origem organizados e acessíveis;
+- permissões corretas para os usuários envolvidos;
+- regras de uso documentadas ou minimamente acordadas;
+- compatibilidade do ambiente com a solução;
+- testes funcionais executados em cenário representativo;
+- ausência de bloqueios técnicos relevantes;
+- entendimento claro sobre o que será entregue na primeira versão;
+- validação de que o caso cabe no modelo configurável da WebPart;
+- aprovação para seguir com implantação controlada ou definitiva.
+
+### 13.8. Critérios para uso interno
+
+Para uso interno, a solução deve atender necessidades da empresa sem comprometer governança, suporte ou reutilização futura.
+
+Critérios recomendados:
+
+- alinhamento com uma demanda real e recorrente da operação;
+- definição de responsável pelo uso e acompanhamento;
+- ambiente interno compatível com a solução;
+- dados internos minimamente organizados;
+- validação de segurança e permissão;
+- documentação suficiente para suporte e manutenção;
+- expectativa de ganho em produtividade, padronização ou velocidade;
+- possibilidade de reaproveitamento em mais de um processo interno;
+- aceitação da área usuária quanto ao modelo configurável;
+- viabilidade de sustentar a solução ao longo do tempo.
+
+### 13.9. Critérios para uso em clientes
+
+Quando aplicada em clientes, a WebPart precisa ser tratada com critérios mais claros de entrega, suporte e responsabilidade.
+
+Critérios recomendados:
+
+- escopo comercial aprovado;
+- expectativa do cliente alinhada à proposta da solução;
+- definição clara de responsabilidades entre empresa e cliente;
+- dados e acessos disponibilizados no formato necessário;
+- ambiente do cliente compatível com a implantação;
+- validação de requisitos antes da execução;
+- aceite sobre limites da solução e do que ficará fora do escopo;
+- acordo sobre manutenção, suporte e evolução;
+- documentação de implantação e operação;
+- validação de que a solução agrega valor ao cenário do cliente.
+
+### 13.10. Pontos que exigem validação antes da comercialização
+
+Antes de posicionar a WebPart como oferta comercial, alguns pontos precisam estar validados para evitar promessas fora da capacidade real da solução.
+
+Pontos que exigem validação:
+
+- estabilidade da solução em cenários reais;
+- repetibilidade da implantação em diferentes projetos;
+- clareza sobre limites técnicos e funcionais;
+- modelo de suporte e manutenção;
+- documentação suficiente para uso e evolução;
+- consistência da experiência em mais de um ambiente;
+- entendimento sobre precificação, pacote ou recorrência;
+- viabilidade de reposição de esforço por reutilização;
+- aderência entre demanda de mercado e capacidade da solução;
+- retorno esperado em comparação ao esforço de manutenção da base.
