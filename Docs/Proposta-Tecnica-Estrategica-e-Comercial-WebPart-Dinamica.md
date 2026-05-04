@@ -451,40 +451,50 @@ Isso inclui páginas, tabelas, cards, formulários e outras experiências que po
 
 ---
 
-## 8. Público-Alvo
+## 8. Onde a Solução Pode Ser Aplicada
 
-### 8.1. Clientes que utilizam SharePoint
+A WebPart Dinâmica pode ser aplicada em diferentes contextos onde exista necessidade de criar páginas, formulários, listas, filtros, visualizações ou experiências customizadas no SharePoint.
 
-Organizações que já operam no SharePoint e precisam de soluções mais rápidas, padronizadas e fáceis de evoluir.
+O objetivo desta seção não é limitar o uso da solução a um único público, mas demonstrar onde ela pode gerar valor prático para a empresa, para projetos internos e para possíveis entregas a clientes.
 
-### 8.2. Equipes internas
+### 8.1. Projetos internos da empresa
 
-Times que mantêm ou entregam soluções corporativas e precisam reduzir esforço repetitivo sem perder controle sobre a entrega.
+A solução pode ser utilizada em demandas internas que exigem criação de páginas, formulários, listagens, dashboards simples ou visualizações específicas dentro do SharePoint.
 
-### 8.3. Consultores e analistas de implantação
+Nesses casos, a WebPart contribui para reduzir o tempo de entrega, padronizar a experiência e evitar que cada nova solicitação seja tratada como um desenvolvimento isolado.
 
-Profissionais que trabalham com configuração, adaptação e entrega de soluções e ganham eficiência com uma base reutilizável.
+### 8.2. Projetos para clientes SharePoint
 
-### 8.4. Administradores de portal
+Em projetos de clientes, a WebPart pode funcionar como um acelerador de implantação, permitindo entregar soluções customizadas com mais velocidade e consistência.
 
-Responsáveis pela sustentação do ambiente que precisam de mais previsibilidade, organização e facilidade para ajustes.
+A mesma base pode ser adaptada conforme o cliente, a lista, o processo ou a identidade visual necessária, reduzindo esforço técnico sem comprometer a personalização da entrega.
 
-### 8.5. Áreas que precisam de formulários e visualizações customizadas
+### 8.3. Portais corporativos
 
-Departamentos que dependem de páginas, filtros, listas e formulários adaptados ao fluxo de trabalho e ao contexto da operação.
+A solução pode apoiar a construção de portais corporativos que precisam exibir informações, listas, comunicados, documentos, solicitações ou painéis simples de acompanhamento.
 
-### 8.6. Empresas que buscam soluções rápidas sem desenvolvimento do zero
+Esse uso permite criar experiências mais organizadas e padronizadas dentro do ambiente SharePoint.
 
-Negócios que querem acelerar entregas e evitar projetos inteiros construídos para necessidades que se repetem.
+### 8.4. Processos administrativos
 
-### 8.7. Equipes comerciais que vendem soluções SharePoint
+A WebPart pode ser aplicada em processos internos que dependem de formulários, filtros, aprovações, acompanhamento de status, cadastros ou consultas.
 
-Times que precisam de uma oferta mais concreta, demonstrável e com apelo de valor para clientes.
+Exemplos possíveis incluem solicitações internas, controle de acessos, registros administrativos, gestão documental e acompanhamento de demandas.
 
-### 8.8. Equipes de sustentação e suporte
+### 8.5. Equipes de implantação e sustentação
 
-Grupos que recebem solicitações recorrentes e precisam de uma solução mais organizada para manter, corrigir e evoluir.
+Para equipes que implantam, configuram ou mantêm soluções SharePoint, a WebPart oferece uma base mais organizada para atender demandas recorrentes.
 
-### 8.9. Gestores responsáveis por produtividade e padronização
+Isso reduz retrabalho, facilita manutenção e melhora a previsibilidade das entregas.
 
-Lideranças que buscam mais previsibilidade, menos retrabalho e melhor aproveitamento do esforço técnico já investido.
+### 8.6. Área comercial e pré-vendas
+
+A solução também pode apoiar apresentações comerciais, demonstrações e propostas para clientes.
+
+Por ser uma base configurável e demonstrável, ela permite mostrar de forma prática como a empresa pode entregar soluções SharePoint com mais agilidade, padronização e potencial de evolução.
+
+### 8.7. Gestão e tomada de decisão
+
+Para a liderança, a WebPart representa uma oportunidade de transformar esforço técnico já investido em um ativo reutilizável.
+
+Sua aplicação pode gerar ganhos de produtividade, redução de custo operacional, aumento da capacidade de entrega e abertura para novos modelos comerciais.
