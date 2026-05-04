@@ -16,6 +16,31 @@ function getByPath(obj: unknown, path: string): unknown {
   return current;
 }
 
+/** Caminho com `/` (ex.: `Gerente/Title` ou `Membros/Title` em coleção). */
+function resolveExpandedPath(value: unknown, path: string): string {
+  const p = path.trim();
+  if (!p) return '';
+  if (p.indexOf('/') === -1) {
+    if (value == null) return '';
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const v = (value as Record<string, unknown>)[p];
+      return v != null && v !== '' ? String(v) : '';
+    }
+    return String(value ?? '');
+  }
+  const [head, ...tails] = p.split('/');
+  const tail = tails.join('/');
+  if (value == null || typeof value !== 'object') return '';
+  const child = (value as Record<string, unknown>)[head];
+  if (Array.isArray(child)) {
+    return child
+      .map((c) => resolveExpandedPath(c, tail))
+      .filter((s) => s.length > 0)
+      .join(', ');
+  }
+  return resolveExpandedPath(child, tail);
+}
+
 export function resolveRawCellValue(
   item: Record<string, unknown>,
   column: ITableColumnConfig
@@ -40,8 +65,14 @@ function resolveSingleExpandedValue(
   const displayFields = expandConfig.displayFields ?? (expandConfig.displayField ? [expandConfig.displayField] : ['Title']);
   const parts: string[] = [];
   for (const f of displayFields) {
-    const v = obj[f];
-    if (v != null && v !== '') parts.push(String(v));
+    let s = '';
+    if (f.indexOf('/') !== -1) {
+      s = resolveExpandedPath(obj, f);
+    } else {
+      const v = obj[f];
+      s = v != null && v !== '' ? String(v) : '';
+    }
+    if (s) parts.push(s);
   }
   return parts.join(' - ');
 }

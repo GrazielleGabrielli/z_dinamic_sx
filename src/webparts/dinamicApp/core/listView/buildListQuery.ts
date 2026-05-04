@@ -158,8 +158,15 @@ export function buildListSelect(columns: IListViewConfig['columns']): string[] {
     if (!c.field) continue;
     if (c.expandField) {
       const df = c.expandField.trim() || 'Title';
-      selectSet.add(`${c.field}/Id`);
-      selectSet.add(`${c.field}/${df}`);
+      const root = c.field;
+      if (df.indexOf('/') !== -1) {
+        const idSuffix = [...df.split('/').slice(0, -1), 'Id'].join('/');
+        selectSet.add(`${root}/${idSuffix}`);
+        selectSet.add(`${root}/${df}`);
+      } else {
+        selectSet.add(`${root}/Id`);
+        selectSet.add(`${root}/${df}`);
+      }
     } else {
       selectSet.add(c.field);
     }

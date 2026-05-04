@@ -200,11 +200,23 @@ function buildExpandOptionsFromLookupList(fields: IFieldMetadata[]): IDropdownOp
       f.InternalName !== 'Title' &&
       !isNoteFieldMeta(f)
   );
+  const nested = fields.filter(
+    (f) =>
+      ['lookup', 'lookupmulti', 'user', 'usermulti'].indexOf(f.MappedType) !== -1 && !isNoteFieldMeta(f)
+  );
   const options: IDropdownOption[] = [
     { key: 'Id', text: 'Id' },
     { key: 'Title', text: 'Title' },
   ];
   simple.forEach((f) => options.push({ key: f.InternalName, text: `${f.Title} (${f.InternalName})` }));
+  nested.forEach((f) => {
+    const kind =
+      f.MappedType === 'user' || f.MappedType === 'usermulti' ? 'pessoa' : 'lookup';
+    options.push({
+      key: `${f.InternalName}/Title`,
+      text: `${f.Title} (${f.InternalName}) → Title (${kind})`,
+    });
+  });
   return options;
 }
 
