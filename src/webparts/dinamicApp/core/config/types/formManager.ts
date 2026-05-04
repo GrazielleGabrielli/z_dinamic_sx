@@ -258,7 +258,9 @@ export const FORM_ATTACHMENTS_FIELD_INTERNAL = '__formAttachments';
 /** Prefixo de nomes sintéticos de banner (imagem por URL; não é coluna SharePoint). */
 export const FORM_BANNER_INTERNAL_PREFIX = '__formBanner_';
 
-export type TFormFieldConfigKind = 'field' | 'banner';
+export type TFormAlertVariant = 'info' | 'success' | 'warning' | 'error';
+
+export type TFormFieldConfigKind = 'field' | 'banner' | 'alert';
 
 /** Onde o banner aparece: na sequência da etapa, ou fixo (sticky) no topo/rodapé do formulário. */
 export type TFormBannerPlacement = 'inStep' | 'topFixed' | 'bottomFixed';
@@ -337,6 +339,24 @@ export interface IFormFieldConfig {
   fieldKind?: TFormFieldConfigKind;
   /** URL da imagem quando `fieldKind === 'banner'`. */
   bannerImageUrl?: string;
+  /** Só para `fieldKind === 'alert'`. */
+  alertVariant?: TFormAlertVariant;
+  /** Só para `fieldKind === 'alert'`. */
+  alertTitle?: string;
+  /** Só para `fieldKind === 'alert'`. */
+  alertMessage?: string;
+  /** Só para `fieldKind === 'alert'`. */
+  alertIconName?: string;
+  /** Só para `fieldKind === 'alert'`. */
+  alertFields?: string[];
+  /** Só para `fieldKind === 'alert'`. */
+  alertWhen?: TFormConditionNode;
+  /** Só para `fieldKind === 'alert'`. Omitido = `inStep`. */
+  alertPlacement?: TFormBannerPlacement;
+  /** Só para `fieldKind === 'alert'`. */
+  alertDismissible?: boolean;
+  /** Só para `fieldKind === 'alert'`. */
+  alertEmphasized?: boolean;
   /** Só para `fieldKind === 'banner'`. Omitido = `inStep`. */
   bannerPlacement?: TFormBannerPlacement;
   /** Largura da imagem em % do contentor do formulário (1–100). Omitido = 100. */
@@ -400,6 +420,10 @@ export function isFormBannerFieldConfig(fc: Pick<IFormFieldConfig, 'internalName
   return fc.fieldKind === 'banner' || fc.internalName.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0;
 }
 
+export function isFormAlertFieldConfig(fc: Pick<IFormFieldConfig, 'fieldKind'>): boolean {
+  return fc.fieldKind === 'alert';
+}
+
 export function resolveFieldColumnSpan(
   fc: Pick<IFormFieldConfig, 'columnSpan' | 'width' | 'columnSpanByMode'>,
   mode?: TFormManagerFormMode
@@ -418,6 +442,18 @@ export function resolveBannerPlacement(fc: IFormFieldConfig): TFormBannerPlaceme
   const p = fc.bannerPlacement;
   if (p === 'topFixed' || p === 'bottomFixed' || p === 'inStep') return p;
   return 'inStep';
+}
+
+export function resolveAlertPlacement(fc: IFormFieldConfig): TFormBannerPlacement {
+  const p = fc.alertPlacement;
+  if (p === 'topFixed' || p === 'bottomFixed' || p === 'inStep') return p;
+  return 'inStep';
+}
+
+export function resolveAlertVariant(fc: IFormFieldConfig): TFormAlertVariant {
+  const v = fc.alertVariant;
+  if (v === 'info' || v === 'success' || v === 'warning' || v === 'error') return v;
+  return 'info';
 }
 
 export function resolveBannerWidthPercent(fc: IFormFieldConfig): number {

@@ -56,16 +56,19 @@ import {
   FORM_OCULTOS_STEP_ID,
   FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
+  isFormAlertFieldConfig,
   isFormBannerFieldConfig,
-  resolveBannerPlacement,
+  resolveAlertPlacement,
   resolveBannerWidthPercent,
   resolveBannerHeightPercent,
+  resolveBannerPlacement,
   resolveFixedPlacement,
   resolveChromePositionMode,
   resolveTextareaRows,
   resolveFieldColumnSpan,
 } from '../../core/config/types/formManager';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
+import { FormManagerAlertBlock } from './FormManagerAlertBlock';
 
 function buildPackedGridColumnSpans(
   visibleFields: IFormFieldConfig[],
@@ -1107,7 +1110,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   );
   const names = useMemo(() => {
     const base = fieldConfigs
-      .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
+      .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f) && !isFormAlertFieldConfig(f))
       .map((f) => f.internalName);
     const baseSet = new Set(base);
     const extras = referencedPayloadOnlyNames.filter((n) => !baseSet.has(n));
@@ -1122,7 +1125,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           (f) =>
             f.sectionId === FORM_OCULTOS_STEP_ID &&
             f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
-            !isFormBannerFieldConfig(f)
+            !isFormBannerFieldConfig(f) &&
+            !isFormAlertFieldConfig(f)
         )
         .map((f) => f.internalName),
     [fieldConfigs]
@@ -4062,6 +4066,33 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         </Stack>
       );
     }
+    if (isFormAlertFieldConfig(fc)) {
+      if (fc.sectionId === FORM_FIXOS_STEP_ID) {
+        return (
+          <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 12 } }}>
+            <FormManagerAlertBlock
+              alert={fc}
+              values={values}
+              dynamicContext={dynamicContext}
+              userGroupTitles={userGroupTitles}
+              fieldLabelsByName={fieldLabelByName}
+            />
+          </Stack>
+        );
+      }
+      if (resolveAlertPlacement(fc) !== 'inStep') return null;
+      return (
+        <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 12 } }}>
+          <FormManagerAlertBlock
+            alert={fc}
+            values={values}
+            dynamicContext={dynamicContext}
+            userGroupTitles={userGroupTitles}
+            fieldLabelsByName={fieldLabelByName}
+          />
+        </Stack>
+      );
+    }
     if (isFormBannerFieldConfig(fc)) {
       if (fc.sectionId === FORM_FIXOS_STEP_ID) {
         return (
@@ -4662,8 +4693,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (scope === 'main' && inModal) continue;
       if (fc.sectionId === FORM_FIXOS_STEP_ID) continue;
       if (
-        isFormBannerFieldConfig(fc) &&
-        (resolveBannerPlacement(fc) === 'topFixed' || resolveBannerPlacement(fc) === 'bottomFixed')
+        ((isFormBannerFieldConfig(fc) && (resolveBannerPlacement(fc) === 'topFixed' || resolveBannerPlacement(fc) === 'bottomFixed')) ||
+          (isFormAlertFieldConfig(fc) &&
+            (resolveAlertPlacement(fc) === 'topFixed' || resolveAlertPlacement(fc) === 'bottomFixed')))
       ) {
         continue;
       }
@@ -4755,7 +4787,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (!fixosChromeActive) return false;
       return resolveFixedPlacement(fc) === 'top';
     }
-    return isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'topFixed';
+      return (
+        (isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'topFixed') ||
+        (isFormAlertFieldConfig(fc) && resolveAlertPlacement(fc) === 'topFixed')
+      );
   });
   const bottomChromeFields = fieldConfigs.filter((fc) => {
     if (derived.fieldVisible[fc.internalName] === false) return false;
@@ -4763,7 +4798,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (!fixosChromeActive) return false;
       return resolveFixedPlacement(fc) === 'bottom';
     }
-    return isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'bottomFixed';
+    return (
+      (isFormBannerFieldConfig(fc) && resolveBannerPlacement(fc) === 'bottomFixed') ||
+      (isFormAlertFieldConfig(fc) && resolveAlertPlacement(fc) === 'bottomFixed')
+    );
   });
 
   function renderOneCustomButton(b: IFormCustomButtonConfig): React.ReactElement {

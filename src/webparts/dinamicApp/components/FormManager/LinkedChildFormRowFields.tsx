@@ -16,9 +16,12 @@ import type { IFormFieldConfig, IFormLinkedChildFormConfig } from '../../core/co
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_BANNER_INTERNAL_PREFIX,
+  isFormAlertFieldConfig,
   isFormBannerFieldConfig,
+  resolveAlertPlacement,
   resolveTextareaRows,
 } from '../../core/config/types/formManager';
+import { FormManagerAlertBlock } from './FormManagerAlertBlock';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import {
   buildFormDerivedState,
@@ -600,6 +603,22 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const name = fc.internalName;
     if (derived.fieldVisible[name] === false) return null;
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return null;
+    if (isFormAlertFieldConfig(fc)) {
+      if (fc.sectionId === undefined) return null;
+      if (fc.sectionId === 'fixos' || resolveAlertPlacement(fc) === 'inStep') {
+        return (
+          <Stack key={name} tokens={{ childrenGap: 6 }} styles={{ root: { marginBottom: 8 } }}>
+            <FormManagerAlertBlock
+              alert={fc}
+              values={values}
+              dynamicContext={dynamicContext}
+              userGroupTitles={userGroupTitles}
+            />
+          </Stack>
+        );
+      }
+      return null;
+    }
 
     const setComputedRule = findEnabledSetComputedRule(shell.rules, name);
     const compRaw = derived.computedDisplay[name];

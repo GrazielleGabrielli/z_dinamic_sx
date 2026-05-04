@@ -513,8 +513,35 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     cmRaw === 'sticky' || cmRaw === 'absolute' || cmRaw === 'flow' ? cmRaw : undefined;
   const isBanner =
     f.fieldKind === 'banner' || internalName.indexOf(FORM_BANNER_INTERNAL_PREFIX) === 0;
+  const isAlert = f.fieldKind === 'alert';
   const bannerUrlRaw = typeof f.bannerImageUrl === 'string' ? f.bannerImageUrl.trim() : '';
   const bannerImageUrl = bannerUrlRaw ? bannerUrlRaw.slice(0, 4000) : undefined;
+  const alertVariant =
+    f.alertVariant === 'success' || f.alertVariant === 'warning' || f.alertVariant === 'error'
+      ? f.alertVariant
+      : f.alertVariant === 'info'
+        ? 'info'
+        : undefined;
+  const alertTitle = typeof f.alertTitle === 'string' ? f.alertTitle.trim().slice(0, 256) : '';
+  const alertMessage = typeof f.alertMessage === 'string' ? f.alertMessage.trim().slice(0, 8000) : '';
+  const alertIconName = typeof f.alertIconName === 'string' ? f.alertIconName.trim().slice(0, 128) : '';
+  const alertFields = Array.isArray(f.alertFields)
+    ? Array.from(
+        new Set(
+          (f.alertFields as unknown[])
+            .map((x) => String(x).trim())
+            .filter(Boolean)
+        )
+      ).slice(0, 25)
+    : [];
+  const alertWhen = sanitizeConditionNode(f.alertWhen);
+  const alertPlacementRaw = f.alertPlacement;
+  const alertPlacement: TFormBannerPlacement | undefined =
+    alertPlacementRaw === 'topFixed' || alertPlacementRaw === 'bottomFixed' || alertPlacementRaw === 'inStep'
+      ? alertPlacementRaw
+      : undefined;
+  const alertDismissible = f.alertDismissible === true;
+  const alertEmphasized = f.alertEmphasized === true;
   const tvtRaw = f.textValueTransform;
   const textValueTransform =
     tvtRaw === 'uppercase' || tvtRaw === 'lowercase' || tvtRaw === 'capitalize' ? tvtRaw : undefined;
@@ -610,6 +637,21 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
       ...(placement ? { bannerPlacement: placement } : {}),
       ...(bw !== undefined ? { bannerWidthPercent: bw } : {}),
       ...(bh !== undefined ? { bannerHeightPercent: bh } : {}),
+    };
+  }
+  if (isAlert) {
+    return {
+      ...common,
+      fieldKind: 'alert',
+      ...(alertVariant ? { alertVariant } : {}),
+      ...(alertTitle ? { alertTitle } : {}),
+      ...(alertMessage ? { alertMessage } : {}),
+      ...(alertIconName ? { alertIconName } : {}),
+      ...(alertFields.length ? { alertFields } : {}),
+      ...(alertWhen ? { alertWhen } : {}),
+      ...(alertPlacement ? { alertPlacement } : {}),
+      ...(alertDismissible ? { alertDismissible: true } : {}),
+      ...(alertEmphasized ? { alertEmphasized: true } : {}),
     };
   }
   return common;

@@ -62,6 +62,7 @@ import type {
   IFormManagerAttachmentLibraryConfig,
   IFormManagerPermissionBreakConfig,
   TFormBannerPlacement,
+  TFormAlertVariant,
 } from '../../core/config/types/formManager';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -70,7 +71,10 @@ import {
   FORM_FIXOS_STEP_ID,
   FORM_BUILTIN_HISTORY_BUTTON_ID,
   FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES,
+  isFormAlertFieldConfig,
   isFormBannerFieldConfig,
+  resolveAlertPlacement,
+  resolveAlertVariant,
   resolveBannerPlacement,
   resolveBannerWidthPercent,
   resolveFixedPlacement,
@@ -460,6 +464,10 @@ function numOpt(s: string): number | undefined {
 function defaultWhenUi(meta: IFieldMetadata[]): IWhenUi {
   const f = meta[0]?.InternalName ?? 'Title';
   return { field: f, op: 'eq', compareKind: 'literal', compareValue: '' };
+}
+
+function alertWhenUiFromNode(node: TFormConditionNode | undefined, meta: IFieldMetadata[]): IWhenUi {
+  return whenNodeToUi(node) ?? defaultWhenUi(meta);
 }
 
 function parseButtonWhenToRows(
@@ -1215,7 +1223,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       return false;
     };
     return fields.filter((fc) => {
-      if (fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc)) return false;
+      if (fc.internalName === FORM_ATTACHMENTS_FIELD_INTERNAL || isFormBannerFieldConfig(fc) || isFormAlertFieldConfig(fc))
+        return false;
       if (FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES.has(fc.internalName) && !inSomeStep(fc.internalName))
         return false;
       return true;
@@ -1442,6 +1451,36 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     });
   };
 
+  const addAlertField = (): void => {
+    const internalName = `__formAlert_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+    setSteps((prevSteps) => {
+      const st = ensureCoreSteps(prevSteps);
+      const oi = st.findIndex((x) => x.id === FORM_OCULTOS_STEP_ID);
+      const idx = oi >= 0 ? oi : 0;
+      const sid = st[idx].id;
+      const nextSteps = st.map((s, i) =>
+        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
+      );
+      setFields((prev) => {
+        const withF = prev.some((f) => f.internalName === internalName)
+          ? prev
+          : prev.concat([
+              {
+                internalName,
+                sectionId: sid,
+                fieldKind: 'alert',
+                label: 'Alerta',
+                alertVariant: 'info',
+                alertPlacement: 'inStep',
+                alertFields: [],
+              },
+            ]);
+        return fieldsAlignedToSteps(withF, nextSteps);
+      });
+      return nextSteps;
+    });
+  };
+
   const addBannerFieldToFixos = (): void => {
     const internalName = `${FORM_BANNER_INTERNAL_PREFIX}${Date.now().toString(36)}_${Math.random()
       .toString(36)
@@ -1468,6 +1507,38 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                 bannerWidthPercent: 100,
                 fixedPlacement: 'top',
                 chromePositionMode: 'sticky',
+              },
+            ]);
+        return fieldsAlignedToSteps(withF, nextSteps);
+      });
+      return nextSteps;
+    });
+  };
+
+  const addAlertFieldToFixos = (): void => {
+    const internalName = `__formAlert_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+    setSteps((prevSteps) => {
+      const st = ensureCoreSteps(prevSteps);
+      const fi = st.findIndex((x) => x.id === FORM_FIXOS_STEP_ID);
+      const idx = fi >= 0 ? fi : 0;
+      const sid = st[idx].id;
+      const nextSteps = st.map((s, i) =>
+        i === idx ? { ...s, fieldNames: s.fieldNames.concat([internalName]) } : s
+      );
+      setFields((prev) => {
+        const withF = prev.some((f) => f.internalName === internalName)
+          ? prev
+          : prev.concat([
+              {
+                internalName,
+                sectionId: sid,
+                fieldKind: 'alert',
+                label: 'Alerta',
+                alertVariant: 'info',
+                alertPlacement: 'inStep',
+                fixedPlacement: 'top',
+                chromePositionMode: 'sticky',
+                alertFields: [],
               },
             ]);
         return fieldsAlignedToSteps(withF, nextSteps);
@@ -2398,8 +2469,319 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         break;
                       }
                     }
+                    const isAlert = fcRow !== undefined && isFormAlertFieldConfig(fcRow);
                     const isBanner = fcRow !== undefined && isFormBannerFieldConfig(fcRow);
                     const reqStyles = requiredFieldRowStyles(mm, steps, fields);
+                    if (isAlert && fcRow) {
+                      const alertWhenUi = alertWhenUiFromNode(fcRow.alertWhen, meta);
+                      const alertWhenEnabled = fcRow.alertWhen !== undefined;
+                      return (
+                        <Stack
+                          key={fname}
+                          tokens={{ childrenGap: 8 }}
+                          styles={{
+                            root: {
+                              padding: '8px 10px',
+                              borderRadius: 4,
+                              ...(reqStyles ?? { background: '#faf9f8', border: '1px solid #edebe9' }),
+                            },
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={handleStructureFieldDrop(si, fIdx)}
+                        >
+                          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} wrap>
+                            <span
+                              draggable
+                              title="Arrastar campo"
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', dragPayloadFieldInStep(si, fIdx, fname));
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              style={{ cursor: 'grab', display: 'flex', alignItems: 'center', color: '#605e5c' }}
+                            >
+                              <Icon iconName="GripperBarVertical" />
+                            </span>
+                            <Checkbox
+                              checked={structurePoolSelected.indexOf(fname) !== -1}
+                              onChange={(_, c) => toggleStructurePoolSelect(fname, !!c)}
+                              styles={{ text: { display: 'none' } }}
+                              title="Selecionar para mover em conjunto"
+                            />
+                            <Text styles={{ root: { fontWeight: 600, minWidth: 80 } }}>Alerta</Text>
+                            <Text variant="small" styles={{ root: { color: '#605e5c', flex: '1 1 200px' } }}>
+                              {fname} · bloco condicional em destaque (não grava na lista)
+                            </Text>
+                            <DefaultButton text="Remover" onClick={() => removeField(fname)} />
+                          </Stack>
+                          <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                            <TextField
+                              label="Título"
+                              value={fcRow.alertTitle ?? ''}
+                              onChange={(_, v) => {
+                                const t = v ?? '';
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, alertTitle: t.trim() || undefined } : f
+                                  )
+                                );
+                              }}
+                            />
+                            <TextField
+                              label="Mensagem"
+                              multiline
+                              rows={3}
+                              styles={{ root: { minWidth: 260, flex: '1 1 360px' } }}
+                              value={fcRow.alertMessage ?? ''}
+                              onChange={(_, v) => {
+                                const t = v ?? '';
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, alertMessage: t.trim() || undefined } : f
+                                  )
+                                );
+                              }}
+                            />
+                            {(() => {
+                              const currentAlertFields =
+                                (fcRow as IFormFieldConfig & { alertFields?: string[] }).alertFields ?? [];
+                              return (
+                                <Dropdown
+                                  label="Campos no alerta"
+                                  placeholder="Selecione um ou vários campos"
+                                  multiSelect
+                                  options={fieldOptions}
+                                  selectedKeys={currentAlertFields}
+                                  styles={{ root: { minWidth: 240, flex: '1 1 320px' } }}
+                                  onChange={(_, o) => {
+                                    if (!o) return;
+                                    const key = String(o.key);
+                                    const next = new Set(currentAlertFields);
+                                    if (o.selected === true) next.add(key);
+                                    else next.delete(key);
+                                    setFields((prev) =>
+                                      prev.map((f) =>
+                                        f.internalName === fname ? { ...f, alertFields: Array.from(next) } : f
+                                      )
+                                    );
+                                  }}
+                                />
+                              );
+                            })()}
+                            <Dropdown
+                              label="Tipo"
+                              options={[
+                                { key: 'info', text: 'Informação' },
+                                { key: 'success', text: 'Sucesso' },
+                                { key: 'warning', text: 'Aviso' },
+                                { key: 'error', text: 'Erro' },
+                              ]}
+                              selectedKey={resolveAlertVariant(fcRow)}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                const k = String(o.key) as TFormAlertVariant;
+                                setFields((prev) =>
+                                  prev.map((f) => (f.internalName === fname ? { ...f, alertVariant: k } : f))
+                                );
+                              }}
+                            />
+                          </Stack>
+                          <Checkbox
+                            label="Mostrar só quando a condição abaixo for verdadeira"
+                            checked={alertWhenEnabled}
+                            onChange={(_, c) => {
+                              if (c) {
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname
+                                      ? {
+                                          ...f,
+                                          alertWhen: whenUiToNode(alertWhenUi),
+                                        }
+                                      : f
+                                  )
+                                );
+                              } else {
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, alertWhen: undefined } : f
+                                  )
+                                );
+                              }
+                            }}
+                          />
+                          {alertWhenEnabled && (
+                            <Stack horizontal tokens={{ childrenGap: 12 }} wrap>
+                              <Dropdown
+                                label="Campo"
+                                options={fieldOptions}
+                                selectedKey={alertWhenUi.field || undefined}
+                                onChange={(_, o) =>
+                                  o &&
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname
+                                        ? { ...f, alertWhen: whenUiToNode({ ...alertWhenUi, field: String(o.key) }) }
+                                        : f
+                                    )
+                                  )
+                                }
+                              />
+                              <Dropdown
+                                label="Operador"
+                                options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                                selectedKey={alertWhenUi.op}
+                                onChange={(_, o) =>
+                                  o &&
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname
+                                        ? { ...f, alertWhen: whenUiToNode({ ...alertWhenUi, op: o.key as TFormConditionOp }) }
+                                        : f
+                                    )
+                                  )
+                                }
+                              />
+                              <Dropdown
+                                label="Comparar com"
+                                options={[
+                                  { key: 'literal', text: 'Texto fixo' },
+                                  { key: 'field', text: 'Outro campo' },
+                                  { key: 'token', text: 'Token' },
+                                ]}
+                                selectedKey={alertWhenUi.compareKind}
+                                onChange={(_, o) =>
+                                  o &&
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname
+                                        ? {
+                                            ...f,
+                                            alertWhen: whenUiToNode({
+                                              ...alertWhenUi,
+                                              compareKind: o.key as IWhenUi['compareKind'],
+                                            }),
+                                          }
+                                        : f
+                                    )
+                                  )
+                                }
+                              />
+                              <TextField
+                                label="Valor"
+                                value={alertWhenUi.compareValue}
+                                onChange={(_, v) =>
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname
+                                        ? {
+                                            ...f,
+                                            alertWhen: whenUiToNode({
+                                              ...alertWhenUi,
+                                              compareValue: v ?? '',
+                                            }),
+                                          }
+                                        : f
+                                    )
+                                  )
+                                }
+                                disabled={
+                                  alertWhenUi.op === 'isEmpty' ||
+                                  alertWhenUi.op === 'isFilled' ||
+                                  alertWhenUi.op === 'isTrue' ||
+                                  alertWhenUi.op === 'isFalse'
+                                }
+                              />
+                            </Stack>
+                          )}
+                          <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                            <TextField
+                              label="Ícone"
+                              description="Opcional. Nome de ícone Fluent."
+                              styles={{ root: { minWidth: 180, maxWidth: 260 } }}
+                              value={fcRow.alertIconName ?? ''}
+                              onChange={(_, v) => {
+                                const t = v ?? '';
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, alertIconName: t.trim() || undefined } : f
+                                  )
+                                );
+                              }}
+                            />
+                            <Checkbox
+                              label="Destacar visualmente"
+                              checked={fcRow.alertEmphasized === true}
+                              onChange={(_, c) =>
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, alertEmphasized: !!c } : f
+                                  )
+                                )
+                              }
+                            />
+                            <Checkbox
+                              label="Fechável"
+                              checked={fcRow.alertDismissible === true}
+                              onChange={(_, c) =>
+                                setFields((prev) =>
+                                  prev.map((f) =>
+                                    f.internalName === fname ? { ...f, alertDismissible: !!c } : f
+                                  )
+                                )
+                              }
+                            />
+                            <Dropdown
+                              label="Posição no formulário"
+                              options={BANNER_PLACEMENT_DROPDOWN_OPTIONS}
+                              selectedKey={resolveAlertPlacement(fcRow)}
+                              onChange={(_, o) => {
+                                if (!o) return;
+                                const k = String(o.key) as TFormBannerPlacement;
+                                setFields((prev) =>
+                                  prev.map((f) => (f.internalName === fname ? { ...f, alertPlacement: k } : f))
+                                );
+                              }}
+                            />
+                          </Stack>
+                          {resolveAlertPlacement(fcRow) !== 'inStep' && (
+                            <Stack horizontal tokens={{ childrenGap: 12 }} wrap styles={{ root: { width: '100%' } }}>
+                              <Dropdown
+                                label="Zona fixa"
+                                options={FIXED_CHROME_PLACEMENT_OPTIONS}
+                                selectedKey={resolveFixedPlacement(fcRow)}
+                                onChange={(_, o) => {
+                                  if (!o) return;
+                                  const k = String(o.key) as TFixedChromePlacement;
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname ? { ...f, fixedPlacement: k } : f
+                                    )
+                                  );
+                                }}
+                              />
+                              <Dropdown
+                                label="Posicionamento"
+                                options={CHROME_POSITION_MODE_OPTIONS}
+                                selectedKey={resolveChromePositionMode(fcRow)}
+                                onChange={(_, o) => {
+                                  if (!o) return;
+                                  const k = String(o.key) as TChromePositionMode;
+                                  setFields((prev) =>
+                                    prev.map((f) =>
+                                      f.internalName === fname ? { ...f, chromePositionMode: k } : f
+                                    )
+                                  );
+                                }}
+                              />
+                            </Stack>
+                          )}
+                        </Stack>
+                      );
+                    }
                     if (isBanner && fcRow) {
                       return (
                         <Stack
@@ -2774,9 +3156,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         wrap
                         styles={{ root: { marginTop: 4 } }}
                       >
+                        <DefaultButton text="Adicionar alerta" onClick={addAlertField} />
                         <DefaultButton text="Adicionar banner" onClick={addBannerField} />
                         <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '1 1 240px' } }}>
-                          URL da imagem; arraste para a etapa. Não grava na lista.
+                          Alerta condicional ou banner por URL; arraste para a etapa. Não grava na lista.
                         </Text>
                       </Stack>
                       {metaSortedForPool.map((m) => {
@@ -2848,9 +3231,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         wrap
                         styles={{ root: { marginTop: 4 } }}
                       >
+                        <DefaultButton text="Adicionar alerta" onClick={addAlertFieldToFixos} />
                         <DefaultButton text="Adicionar banner" onClick={addBannerFieldToFixos} />
                         <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '1 1 240px' } }}>
-                          Banner por URL; depois escolha topo ou rodapé na linha do item.
+                          Alerta condicional ou banner por URL; depois escolha topo ou rodapé na linha do item.
                         </Text>
                       </Stack>
                       {metaSortedForPool.map((m) => {

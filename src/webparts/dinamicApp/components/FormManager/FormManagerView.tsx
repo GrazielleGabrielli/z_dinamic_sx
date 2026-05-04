@@ -12,6 +12,7 @@ import { DynamicListForm } from './DynamicListForm';
 import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
+  isFormAlertFieldConfig,
   isFormBannerFieldConfig,
   type IFormManagerConfig,
   type TFormManagerFormMode,
@@ -92,7 +93,7 @@ function formFieldInternalNames(fm: IFormManagerConfig, fieldMeta: IFieldMetadat
   const base: string[] =
     fm.fields.length > 0
       ? fm.fields
-          .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f))
+          .filter((f) => f.internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL && !isFormBannerFieldConfig(f) && !isFormAlertFieldConfig(f))
           .map((f) => f.internalName)
       : fieldMeta
           .filter((f) => !f.Hidden && !f.ReadOnlyField && f.InternalName !== 'Id')

@@ -20,6 +20,7 @@ import {
   FORM_BANNER_INTERNAL_PREFIX,
   FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES,
   FORM_VISIBILITY_PREFER_HIDE_TAG,
+  isFormAlertFieldConfig,
   isFormBannerFieldConfig,
 } from '../config/types/formManager';
 import type { IFieldMetadata } from '../../../../services';
@@ -615,7 +616,7 @@ export function areAllRequiredFieldsFilled(
     const name = fc.internalName;
     if (!fv(name)) continue;
 
-    if (isFormBannerFieldConfig(fc)) continue;
+    if (isFormBannerFieldConfig(fc) || isFormAlertFieldConfig(fc)) continue;
 
     if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) {
       const attReq = derived.fieldRequired[name] === true;
@@ -1610,7 +1611,7 @@ export function collectFormValidationErrors(
         const fc = fieldConfigs[i];
         const name = fc.internalName;
         if (!fieldVisible(name)) continue;
-        if (isFormBannerFieldConfig(fc)) continue;
+        if (isFormBannerFieldConfig(fc) || isFormAlertFieldConfig(fc)) continue;
         if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) {
           const attReq = derived.fieldRequired[name] === true;
           if (!attReq) continue;
@@ -1644,7 +1645,7 @@ export function collectFormValidationErrors(
         const fc = fieldConfigs[i];
         const name = fc.internalName;
         if (name === FORM_ATTACHMENTS_FIELD_INTERNAL) continue;
-        if (isFormBannerFieldConfig(fc)) continue;
+        if (isFormBannerFieldConfig(fc) || isFormAlertFieldConfig(fc)) continue;
         if (!fieldVisible(name)) continue;
         const req = derived.fieldRequired[name] === true;
         if (req && isEmptyish(values[name])) errors[name] = 'Obrigatório.';
@@ -1790,7 +1791,9 @@ export function buildFormFieldLabelMap(
     const meta = metaByName.get(name);
     const label = isFormBannerFieldConfig(fc)
       ? (fc.label?.trim() || 'Banner')
-      : (fc.label?.trim() || meta?.Title?.trim() || name).trim() || name;
+      : isFormAlertFieldConfig(fc)
+        ? (fc.alertTitle?.trim() || fc.label?.trim() || 'Alerta')
+        : (fc.label?.trim() || meta?.Title?.trim() || name).trim() || name;
     m.set(name, label);
   }
   metaByName.forEach((meta, name) => {

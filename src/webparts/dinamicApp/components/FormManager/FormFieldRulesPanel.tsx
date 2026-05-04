@@ -44,6 +44,7 @@ import type {
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
   FORM_SYSTEM_LIST_METADATA_INTERNAL_NAMES,
+  isFormAlertFieldConfig,
   isFormBannerFieldConfig,
 } from '../../core/config/types/formManager';
 import {
@@ -2488,6 +2489,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               />
               {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
                 !isFormBannerFieldConfig(fieldConfig) &&
+                !isFormAlertFieldConfig(fieldConfig) &&
                 isSetComputedAllowedForMappedType(mt) && (
                   <SetComputedRulesBlock
                     ed={ed}
@@ -2607,6 +2609,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
               />
               {internalName !== FORM_ATTACHMENTS_FIELD_INTERNAL &&
                 !isFormBannerFieldConfig(fieldConfig) &&
+                !isFormAlertFieldConfig(fieldConfig) &&
                 isSetComputedAllowedForMappedType(mt) && (
                   <SetComputedRulesBlock
                     ed={ed}
