@@ -216,6 +216,7 @@
 
 ### 9.15. Protótipos rápidos para validação com clientes
 
+
 ## 10. Antes e Depois da Solução
 
 ### 10.1. Cenário anterior à WebPart Dinâmica
