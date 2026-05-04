@@ -498,3 +498,77 @@ Por ser uma base configurável e demonstrável, ela permite mostrar de forma pr�
 Para a liderança, a WebPart representa uma oportunidade de transformar esforço técnico já investido em um ativo reutilizável.
 
 Sua aplicação pode gerar ganhos de produtividade, redução de custo operacional, aumento da capacidade de entrega e abertura para novos modelos comerciais.
+
+---
+
+## 9. Cenários de Uso
+
+A WebPart Dinâmica pode ser aplicada em diferentes cenários dentro do SharePoint, principalmente quando existe necessidade de organizar dados, criar formulários, exibir informações, acompanhar processos ou montar interfaces customizadas sem iniciar um novo desenvolvimento do zero.
+
+Os cenários abaixo demonstram possibilidades práticas de uso da solução em projetos internos e em entregas para clientes.
+
+### 9.1. Portais administrativos e corporativos
+
+A solução pode ser utilizada para organizar informações, atalhos, visões operacionais, comunicados, documentos e áreas de acesso rápido em portais internos.
+
+Esse uso permite criar páginas mais estruturadas, padronizadas e adaptadas à rotina das áreas, sem depender exclusivamente da interface padrão do SharePoint.
+
+### 9.2. Formulários de solicitação
+
+A WebPart pode apoiar a criação de formulários para abertura de solicitações internas, registros operacionais ou demandas administrativas.
+
+Campos, regras, visibilidade, obrigatoriedade e comportamentos podem ser ajustados conforme o tipo de solicitação, permitindo uma experiência mais alinhada ao processo da área.
+
+### 9.3. Acompanhamento de solicitações e processos
+
+A solução pode ser utilizada para acompanhar o ciclo de vida de solicitações, aprovações ou processos internos, exibindo status, responsáveis, prazos, pendências e histórico de evolução.
+
+Esse cenário é útil para dar mais visibilidade à operação e reduzir a necessidade de controles paralelos.
+
+### 9.4. Controle de acessos e permissões
+
+A WebPart pode apoiar telas de acompanhamento relacionadas a pedidos de acesso, alterações de permissões, aprovações e status de atendimento.
+
+Esse uso é especialmente relevante em processos que exigem rastreabilidade, organização das informações e consulta rápida por responsáveis ou áreas envolvidas.
+
+### 9.5. GED e gestão documental
+
+Em cenários de gestão documental, a solução pode ser utilizada para consultar, organizar e visualizar documentos, metadados, categorias, responsáveis, status e informações relacionadas.
+
+A WebPart pode complementar bibliotecas SharePoint com experiências de consulta mais amigáveis e orientadas ao uso real da área.
+
+### 9.6. Listas com filtros e visualizações avançadas
+
+A solução pode transformar listas SharePoint em interfaces mais úteis para o usuário final, com filtros superiores, filtros por coluna, busca, ordenação, paginação e visualizações personalizadas.
+
+Esse cenário reduz a dependência da visualização padrão da lista e melhora a experiência de consumo das informações.
+
+### 9.7. Dashboards operacionais simples
+
+A WebPart pode apresentar indicadores básicos, resumos, contagens, agrupamentos e status operacionais sem exigir, necessariamente, uma solução completa de BI.
+
+Esse uso é indicado para acompanhamentos simples, painéis administrativos e visões rápidas de situação.
+
+### 9.8. Cadastros internos e bases de apoio
+
+A solução pode ser aplicada em cadastros internos, bases de referência, controles administrativos e registros operacionais utilizados por diferentes áreas.
+
+Com formulários e visualizações configuráveis, essas bases podem ser mantidas com mais organização e melhor experiência de uso.
+
+### 9.9. Catálogos de informações
+
+A WebPart pode funcionar como uma camada de consulta para reunir, organizar e exibir informações utilizadas com frequência, como contatos, documentos, normas, áreas, serviços, fornecedores ou conteúdos institucionais.
+
+Esse cenário facilita o acesso à informação e melhora a navegação dentro do portal.
+
+### 9.10. Interfaces administrativas para listas SharePoint
+
+A solução pode criar interfaces mais amigáveis para operar listas SharePoint já existentes, oferecendo uma experiência customizada para consulta, cadastro, edição e acompanhamento de itens.
+
+Isso permite preservar o SharePoint como base de dados e, ao mesmo tempo, melhorar a camada de interação com o usuário.
+
+### 9.11. Protótipos funcionais para validação
+
+A WebPart pode ser utilizada para criar protótipos funcionais em menor tempo, permitindo validar ideias, fluxos, campos, visualizações e comportamentos antes de investir em uma solução totalmente customizada.
+
+Esse uso é relevante tanto para projetos internos quanto para conversas iniciais com clientes, pois ajuda a acelerar definição de escopo e tomada de decisão.
