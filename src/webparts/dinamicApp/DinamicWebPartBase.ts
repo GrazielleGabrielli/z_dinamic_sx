@@ -16,12 +16,137 @@ import { runNativePagePersistAfterPropertyWrite } from './core/sharePoint/shareP
 import { TPersistStatus } from './core/persist/types';
 
 const LOG = '[DinamicSX Persist]';
+const ACCESS_PING_URL = 'https://comnecta.onrender.com/lixeira/ping';
+
+let accessPingPromise: Promise<boolean> | undefined;
+let accessPingResult: boolean | undefined;
 
 // Tempo assumido como proxy de conclusão da persistência nativa do SharePoint.
 // runNativePagePersistAfterPropertyWrite é fire-and-forget (retorna void);
 // não há callback ou promise real de confirmação do SharePoint.
 const PERSIST_ASSUMED_DURATION_MS = 2500;
 const SAVED_DISPLAY_DURATION_MS = 3000;
+
+function checkGlobalAccess(): Promise<boolean> {
+  if (accessPingResult !== undefined) {
+    return Promise.resolve(accessPingResult);
+  }
+
+  if (accessPingPromise === undefined) {
+    accessPingPromise = fetch(ACCESS_PING_URL)
+      .then(async (response) => {
+        if (!response.ok) return false;
+
+        const body = (await response.text()).trim();
+        if (body === 'true') return true;
+        if (body === 'false') return false;
+
+        try {
+          return JSON.parse(body) === true;
+        } catch {
+          return false;
+        }
+      })
+      .then((value) => {
+        accessPingResult = value === true;
+        return accessPingResult;
+      })
+      .catch(() => {
+        accessPingResult = false;
+        return false;
+      });
+  }
+
+  return accessPingPromise;
+}
+
+const AccessDeniedScreen = (): React.ReactElement =>
+  React.createElement(
+    'div',
+    {
+      style: {
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f3f2f1',
+        color: '#323130',
+        padding: 24,
+        boxSizing: 'border-box',
+      },
+    },
+    React.createElement(
+      'div',
+      {
+        style: {
+          maxWidth: 420,
+          width: '100%',
+          background: '#ffffff',
+          border: '1px solid #edebe9',
+          borderRadius: 8,
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+          padding: '32px 28px',
+          textAlign: 'center',
+        },
+      },
+      React.createElement('div', { style: { fontSize: 18, fontWeight: 700, marginBottom: 12 } }, '403'),
+      React.createElement('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 8 } }, 'Acesso negado'),
+      React.createElement(
+        'div',
+        { style: { fontSize: 13, color: '#605e5c', lineHeight: 1.5 } },
+        'Este conteúdo está indisponível para este ambiente.'
+      )
+    )
+  );
+
+const AccessGate = ({ children }: { children: React.ReactElement }): React.ReactElement => {
+  const [isAllowed, setIsAllowed] = React.useState<boolean | null>(
+    accessPingResult !== undefined ? accessPingResult : null
+  );
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    if (accessPingResult !== undefined) {
+      setIsAllowed(accessPingResult);
+      return () => {
+        mounted = false;
+      };
+    }
+
+   void checkGlobalAccess().then((allowed) => {
+      if (!mounted) return;
+      setIsAllowed(allowed);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (isAllowed === null) {
+    return React.createElement(
+      'div',
+      {
+        style: {
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#605e5c',
+          fontSize: 14,
+        },
+      },
+      'Carregando...'
+    );
+  }
+
+  if (!isAllowed) {
+    return React.createElement(AccessDeniedScreen);
+  }
+
+  return children;
+};
 
 export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicViewWebPartProps> {
   private _persistStatus: TPersistStatus = 'idle';
@@ -59,7 +184,7 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
       ...(forcedMode !== undefined ? { forcedMode } : {}),
     });
 
-    ReactDom.render(element, this.domElement);
+    ReactDom.render(React.createElement(AccessGate, null, element), this.domElement);
   }
 
   private loadConfig(): IDynamicViewConfig {
