@@ -463,13 +463,16 @@ export function evaluateCondition(
 
 export function findEnabledSetComputedRule(
   rules: TFormRule[] | undefined,
-  fieldName: string
+  fieldName: string,
+  formMode?: TFormManagerFormMode
 ): Extract<TFormRule, { action: 'setComputed' }> | undefined {
   if (!rules?.length) return undefined;
-  for (let i = 0; i < rules.length; i++) {
+  for (let i = rules.length - 1; i >= 0; i--) {
     const r = rules[i];
     if (r.enabled === false) continue;
-    if (r.action === 'setComputed' && r.field === fieldName) return r as Extract<TFormRule, { action: 'setComputed' }>;
+    if (r.action !== 'setComputed' || r.field !== fieldName) continue;
+    if (formMode !== undefined && !ruleAppliesMode(r, formMode)) continue;
+    return r as Extract<TFormRule, { action: 'setComputed' }>;
   }
   return undefined;
 }
@@ -761,6 +764,28 @@ function tryResolveEvaluatedDatePlusDaysString(s: string): string | undefined {
   return undefined;
 }
 
+function tryResolvePlaceholderDatePlusDaysFields(
+  expression: string,
+  values: Record<string, unknown>
+): string | undefined {
+  const m = /^\{\{([^}]+)\}\}\s*([+-])\s*\{\{([^}]+)\}\}$/.exec(expression.trim());
+  if (!m) return undefined;
+  const baseField = String(m[1]).trim();
+  const sign = m[2] === '-' ? -1 : 1;
+  const daysField = String(m[3]).trim();
+  const rawBase = values[baseField];
+  const rawDays = values[daysField];
+  if (rawBase === undefined || rawBase === null || rawDays === undefined || rawDays === null) return undefined;
+  const baseStr = typeof rawBase === 'string' ? rawBase : String(rawBase);
+  const d = parseFormCalendarDateString(baseStr) ?? parseIsoDate(baseStr);
+  if (!d) return undefined;
+  const n = coerceNumber(rawDays);
+  if (!isFinite(n)) return undefined;
+  const s = startOfDay(d);
+  s.setDate(s.getDate() + sign * Math.trunc(n));
+  return toIsoDateString(s);
+}
+
 function resolveDatetimeComputedDisplayValue(
   expression: string,
   evaluated: unknown,
@@ -776,6 +801,8 @@ function resolveDatetimeComputedDisplayValue(
       const d = parseFormCalendarDateString(s) ?? parseIsoDate(s);
       if (d) return toIsoDateString(startOfDay(d));
     }
+    const twin = tryResolvePlaceholderDatePlusDaysFields(ex, values);
+    if (twin !== undefined) return twin;
   }
   if (typeof evaluated === 'number' && isFinite(evaluated)) {
     const base = startOfDay(new Date());
@@ -1426,7 +1453,15 @@ export function buildFormDerivedState(
       case 'setComputed': {
         if (fieldMetaByName) {
           const mtc = fieldMetaByName.get(rule.field)?.MappedType;
-          if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') break;
+          if (
+            mtc !== 'text' &&
+            mtc !== 'multiline' &&
+            mtc !== 'datetime' &&
+            mtc !== 'number' &&
+            mtc !== 'currency'
+          ) {
+            break;
+          }
         }
         const mtcField = fieldMetaByName?.get(rule.field)?.MappedType;
         let v = evaluateFormValueExpression(
@@ -1444,6 +1479,15 @@ export function buildFormDerivedState(
             dynamicContext
           );
           if (disp !== undefined) computedDisplay[rule.field] = disp;
+          break;
+        }
+        if (mtcField === 'number' || mtcField === 'currency') {
+          if (typeof v === 'number' && isFinite(v)) {
+            computedDisplay[rule.field] = v;
+          } else if (v !== undefined && v !== null) {
+            const n = Number(String(v).trim().replace(',', '.'));
+            if (!isNaN(n) && isFinite(n)) computedDisplay[rule.field] = n;
+          }
           break;
         }
         if (v !== undefined) {
@@ -1571,7 +1615,7 @@ export function effectiveValueForRequiredValidation(
   opts?: ISetComputedRequiredValidationOpts
 ): unknown {
   const base = values[fieldName];
-  const setRule = findEnabledSetComputedRule(rules, fieldName);
+  const setRule = findEnabledSetComputedRule(rules, fieldName, formMode);
   const dc = derived.computedDisplay[fieldName];
   if (!setRule || dc === undefined) return base;
   const itemId = pickFormItemIdForSetComputed(values, opts?.itemId);
@@ -2144,13 +2188,31 @@ export function buildSetComputedPrimarySavePatch(params: {
     if (formMode === 'create' && expressionReferencesSharePointItemId(expr)) continue;
 
     const mtc = fieldMetaByName.get(rule.field)?.MappedType;
-    if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') continue;
+    if (
+      mtc !== 'text' &&
+      mtc !== 'multiline' &&
+      mtc !== 'datetime' &&
+      mtc !== 'number' &&
+      mtc !== 'currency'
+    ) {
+      continue;
+    }
 
     let v = evaluateFormValueExpression(expr, values, dynamicContext, attachmentFolderUrl, lookupOptionSnapshots);
 
     if (mtc === 'datetime') {
       const disp = resolveDatetimeComputedDisplayValue(expr, v, values, dynamicContext);
       if (disp !== undefined) out[rule.field] = disp;
+      continue;
+    }
+
+    if (mtc === 'number' || mtc === 'currency') {
+      if (typeof v === 'number' && isFinite(v)) {
+        out[rule.field] = v;
+      } else if (v !== undefined && v !== null) {
+        const n = Number(String(v).trim().replace(',', '.'));
+        if (!isNaN(n) && isFinite(n)) out[rule.field] = n;
+      }
       continue;
     }
 
@@ -2215,7 +2277,15 @@ export function buildPostCreateItemIdComputedPatch(params: {
     if (!expressionReferencesSharePointItemId(expr)) continue;
 
     const mtc = fieldMetaByName.get(rule.field)?.MappedType;
-    if (mtc !== 'text' && mtc !== 'multiline' && mtc !== 'datetime') continue;
+    if (
+      mtc !== 'text' &&
+      mtc !== 'multiline' &&
+      mtc !== 'datetime' &&
+      mtc !== 'number' &&
+      mtc !== 'currency'
+    ) {
+      continue;
+    }
 
     let v = evaluateFormValueExpression(
       expr,
@@ -2228,6 +2298,16 @@ export function buildPostCreateItemIdComputedPatch(params: {
     if (mtc === 'datetime') {
       const disp = resolveDatetimeComputedDisplayValue(expr, v, valuesWithId, dynamicContext);
       if (disp !== undefined) out[rule.field] = disp;
+      continue;
+    }
+
+    if (mtc === 'number' || mtc === 'currency') {
+      if (typeof v === 'number' && isFinite(v)) {
+        out[rule.field] = v;
+      } else if (v !== undefined && v !== null) {
+        const n = Number(String(v).trim().replace(',', '.'));
+        if (!isNaN(n) && isFinite(n)) out[rule.field] = n;
+      }
       continue;
     }
 

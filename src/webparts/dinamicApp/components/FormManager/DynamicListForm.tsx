@@ -4171,7 +4171,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         </Stack>
       );
     }
-    const setComputedRule = findEnabledSetComputedRule(formManager.rules, name);
+    const setComputedRule = findEnabledSetComputedRule(formManager.rules, name, formMode);
     const comp = resolveSetComputedDisplayValue({
       derivedComputed: derived.computedDisplay[name],
       formMode,
@@ -4221,6 +4221,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
     const mergedFieldValue = ((): unknown => {
+      if (setComputedRule?.alwaysLiveComputed === true && comp !== undefined) return comp;
       if (formMode === 'view') return values[name];
       if (comp === undefined) return values[name];
       const v = values[name];

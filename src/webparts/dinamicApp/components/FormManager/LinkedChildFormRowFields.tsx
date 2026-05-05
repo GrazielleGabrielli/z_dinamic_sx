@@ -679,7 +679,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       return null;
     }
 
-    const setComputedRule = findEnabledSetComputedRule(shell.rules, name);
+    const setComputedRule = findEnabledSetComputedRule(shell.rules, name, formMode);
     const compRaw = derived.computedDisplay[name];
     const comp =
       setComputedRule?.alwaysLiveComputed === true || !rowPersisted ? compRaw : undefined;
@@ -721,6 +721,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const isRequired = derived.fieldRequired[name] === true || m.Required === true;
     const canFill = formMode !== 'view' && !readOnly;
     const mergedFieldValue = ((): unknown => {
+      if (setComputedRule?.alwaysLiveComputed === true && comp !== undefined) return comp;
       if (comp === undefined) return values[name];
       const v = values[name];
       if (v === undefined || v === null) return comp;
