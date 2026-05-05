@@ -164,6 +164,10 @@ export function collectFormManagerReferencedPayloadFieldNames(cfg: IFormManagerC
   }
   collectFromButtonActions(cfg.historyButtonActions, out);
   collectFromRules(cfg.rules, out);
+  const stCfg = cfg.steps ?? [];
+  for (let i = 0; i < stCfg.length; i++) {
+    collectFromConditionNode(stCfg[i].showStepWhen, out);
+  }
   const dh = cfg.dynamicHelp ?? [];
   for (let i = 0; i < dh.length; i++) {
     addFieldName(out, dh[i].field);

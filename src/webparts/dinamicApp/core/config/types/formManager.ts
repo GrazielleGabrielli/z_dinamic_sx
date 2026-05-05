@@ -503,6 +503,11 @@ export interface IFormStepConfig {
   fieldNames: string[];
   /** Modos em que a etapa entra no passador. Omitido ou vazio = Criar, Editar e Ver. */
   showInFormModes?: TFormManagerFormMode[];
+  /**
+   * Só avaliado quando a etapa já passa pelo filtro de modos. Omitida = sempre (no contexto desses modos).
+   * Mesmo modelo que `when` das regras (E/Ou em folhas sobre campos, grupos SharePoint).
+   */
+  showStepWhen?: TFormConditionNode;
 }
 
 /** Navegação visual entre etapas no formulário (várias etapas). */

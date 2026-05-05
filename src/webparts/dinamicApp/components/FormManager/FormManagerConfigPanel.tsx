@@ -107,6 +107,7 @@ import {
   type IWhenUi,
   whenUiToNode,
   whenNodeToUi,
+  summarizeConditionTreePt,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormFieldRulesPanel, FORM_FIELD_RULES_MENTION_PORTAL_ATTR } from './FormFieldRulesPanel';
 import { FormManagerComponentsTabContent, FormManagerCollapseSection } from './FormManagerComponentsTab';
@@ -490,12 +491,26 @@ function parseButtonWhenToRows(
   return { combiner: 'all', rows: [defaultWhenUi(meta)] };
 }
 
+function whenUiRowCompletesCondition(r: IWhenUi): boolean {
+  if (r.compareKind === 'spGroupMember' || r.compareKind === 'spGroupNotMember') {
+    return r.compareValue.trim().length > 0;
+  }
+  return r.field.trim().length > 0;
+}
+
 function buildButtonWhenFromRows(combiner: 'all' | 'any', rows: IWhenUi[]): TFormConditionNode | undefined {
-  const valid = rows.filter((r) => r.field.trim());
+  const valid = rows.filter(whenUiRowCompletesCondition);
   if (valid.length === 0) return undefined;
   const nodes = valid.map(whenUiToNode);
   if (nodes.length === 1) return nodes[0];
   return { kind: combiner, children: nodes };
+}
+
+function formatStepModesHint(step: IFormStepConfig): string {
+  const sel = step.showInFormModes;
+  if (!sel?.length) return 'Modos: todos';
+  const labels: Record<TFormManagerFormMode, string> = { create: 'Criar', edit: 'Editar', view: 'Ver' };
+  return `Modos: ${sel.map((m) => labels[m]).join(', ')}`;
 }
 
 function normSpGroupTitle(s: string): string {
@@ -869,6 +884,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
   const isEstruturaOpen = (id: string): boolean => estruturaOpen[id] === true;
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
+  const [stepVisibilityPanelStepId, setStepVisibilityPanelStepId] = useState<string | null>(null);
   const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
   const [customButtonsBarVertical, setCustomButtonsBarVertical] = useState<TFormCustomButtonsBarVertical>(
     () => value.customButtonsBarVertical ?? 'bottom'
@@ -1790,6 +1806,67 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   };
 
+  const patchStepById = useCallback((id: string, patch: Partial<IFormStepConfig>): void => {
+    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  }, []);
+
+  const patchStepVisibilityWhenRow = useCallback(
+    (stepId: string, ri: number, partial: Partial<IWhenUi>): void => {
+      setSteps((prev) =>
+        prev.map((st) => {
+          if (st.id !== stepId) return st;
+          const { combiner, rows } = parseButtonWhenToRows(st.showStepWhen, meta);
+          const nextRows = rows.map((r, i) => (i === ri ? { ...r, ...partial } : r));
+          const showStepWhen = buildButtonWhenFromRows(combiner, nextRows);
+          return { ...st, showStepWhen };
+        })
+      );
+    },
+    [meta]
+  );
+
+  const setStepVisibilityWhenCombiner = useCallback((stepId: string, combiner: 'all' | 'any'): void => {
+    setSteps((prev) =>
+      prev.map((st) => {
+        if (st.id !== stepId) return st;
+        const { rows } = parseButtonWhenToRows(st.showStepWhen, meta);
+        const showStepWhen = buildButtonWhenFromRows(combiner, rows);
+        return { ...st, showStepWhen };
+      })
+    );
+  }, [meta]);
+
+  const addStepVisibilityWhenRow = useCallback(
+    (stepId: string): void => {
+      setSteps((prev) =>
+        prev.map((st) => {
+          if (st.id !== stepId) return st;
+          const { combiner, rows } = parseButtonWhenToRows(st.showStepWhen, meta);
+          const nextRows = rows.concat([defaultWhenUi(meta)]);
+          const showStepWhen = buildButtonWhenFromRows(combiner, nextRows);
+          return { ...st, showStepWhen };
+        })
+      );
+    },
+    [meta]
+  );
+
+  const removeStepVisibilityWhenRow = useCallback(
+    (stepId: string, ri: number): void => {
+      setSteps((prev) =>
+        prev.map((st) => {
+          if (st.id !== stepId) return st;
+          const { combiner, rows } = parseButtonWhenToRows(st.showStepWhen, meta);
+          if (rows.length <= 1) return st;
+          const nextRows = rows.filter((_, i) => i !== ri);
+          const showStepWhen = buildButtonWhenFromRows(combiner, nextRows);
+          return { ...st, showStepWhen };
+        })
+      );
+    },
+    [meta]
+  );
+
   const reorderStep = (from: number, to: number): void => {
     setSteps((prev) => {
       const n = pinCoreStepsOrder(reorderByIndex(prev, from, to));
@@ -2157,6 +2234,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     }
   }, [jsonOpen]);
 
+  useEffect(() => {
+    if (stepVisibilityPanelStepId === null) return;
+    if (!steps.some((s) => s.id === stepVisibilityPanelStepId)) {
+      setStepVisibilityPanelStepId(null);
+    }
+  }, [steps, stepVisibilityPanelStepId]);
+
   const applyJsonFromPanel = useCallback(() => {
     setJsonPanelErr(undefined);
     try {
@@ -2421,38 +2505,17 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       Não entra no passador (reserva de campos)
                     </Text>
                   ) : (
-                    <Stack
-                      horizontal
-                      verticalAlign="center"
-                      wrap
-                      tokens={{ childrenGap: 12 }}
-                      styles={{ root: { alignItems: 'center' } }}
-                    >
+                    <Stack tokens={{ childrenGap: 6 }} styles={{ root: { alignItems: 'flex-start' } }}>
                       {st.id === FORM_FIXOS_STEP_ID && (
                         <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
-                          Topo ou rodapé fixo ·
+                          Topo ou rodapé fixo
                         </Text>
                       )}
-                      <Text variant="small" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
-                        Mostrar em:
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        {formatStepModesHint(st)}
+                        {st.showStepWhen ? ` · ${summarizeConditionTreePt(st.showStepWhen)}` : ''}
                       </Text>
-                      {ALL_FORM_MANAGER_MODES.map((m) => {
-                        const sel = st.showInFormModes;
-                        const checked = !sel?.length || sel.indexOf(m) !== -1;
-                        const label = m === 'create' ? 'Criar' : m === 'edit' ? 'Editar' : 'Ver';
-                        return (
-                          <Checkbox
-                            key={m}
-                            label={label}
-                            checked={checked}
-                            onChange={(_, c) =>
-                              updateStep(si, {
-                                showInFormModes: toggleStepShowInFormMode(st.showInFormModes, m, !!c),
-                              })
-                            }
-                          />
-                        );
-                      })}
+                      <DefaultButton text="Configurar" onClick={() => setStepVisibilityPanelStepId(st.id)} />
                     </Stack>
                   )}
                   {st.id !== FORM_OCULTOS_STEP_ID && st.id !== FORM_FIXOS_STEP_ID && (
@@ -4351,6 +4414,173 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           </Stack>
         </Stack>
       </Modal>
+      <Panel
+        isOpen={stepVisibilityPanelStepId !== null}
+        type={PanelType.medium}
+        headerText="Visibilidade da etapa"
+        closeButtonAriaLabel="Fechar"
+        onDismiss={() => setStepVisibilityPanelStepId(null)}
+        isLightDismiss
+        styles={{
+          scrollableContent: { maxHeight: '100%' },
+        }}
+      >
+        {(() => {
+          const vst = stepVisibilityPanelStepId
+            ? steps.find((x) => x.id === stepVisibilityPanelStepId)
+            : undefined;
+          if (!vst) return null;
+          const whenRowsState = parseButtonWhenToRows(vst.showStepWhen, meta);
+          return (
+            <Stack tokens={{ childrenGap: 14 }}>
+              <Text>
+                <span style={{ fontWeight: 600 }}>{vst.title}</span>{' '}
+                <span style={{ color: '#605e5c', fontFamily: 'monospace', fontSize: 12 }}>{vst.id}</span>
+              </Text>
+              <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                Modos de formulário
+              </Text>
+              <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="center">
+                {ALL_FORM_MANAGER_MODES.map((m) => {
+                  const sel = vst.showInFormModes;
+                  const checked = !sel?.length || sel.indexOf(m) !== -1;
+                  const label = m === 'create' ? 'Criar' : m === 'edit' ? 'Editar' : 'Ver';
+                  return (
+                    <Checkbox
+                      key={m}
+                      label={label}
+                      checked={checked}
+                      onChange={(_, c) =>
+                        patchStepById(vst.id, {
+                          showInFormModes: toggleStepShowInFormMode(vst.showInFormModes, m, !!c),
+                        })
+                      }
+                    />
+                  );
+                })}
+              </Stack>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                Todas marcadas ou nenhuma restrição = Criar, Editar e Ver.
+              </Text>
+              <Checkbox
+                label="Só mostrar esta etapa quando as condições abaixo forem verdadeiras"
+                checked={!!vst.showStepWhen}
+                onChange={(_, c) =>
+                  patchStepById(vst.id, {
+                    showStepWhen: c ? whenUiToNode(defaultWhenUi(meta)) : undefined,
+                  })
+                }
+              />
+              {vst.showStepWhen && (
+                <Stack tokens={{ childrenGap: 10 }}>
+                  <Dropdown
+                    label="Lógica entre condições"
+                    options={[
+                      { key: 'all', text: 'Todas (E)' },
+                      { key: 'any', text: 'Pelo menos uma (OU)' },
+                    ]}
+                    selectedKey={whenRowsState.rows.length <= 1 ? 'all' : whenRowsState.combiner}
+                    disabled={whenRowsState.rows.length <= 1}
+                    onChange={(_, o) =>
+                      o && setStepVisibilityWhenCombiner(vst.id, String(o.key) as 'all' | 'any')
+                    }
+                  />
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Condições sobre os dados do formulário (e grupos de utilizador, se aplicável).
+                  </Text>
+                  {whenRowsState.rows.map((row, ri) => (
+                    <Stack
+                      key={`step-${vst.id}-when-${ri}`}
+                      tokens={{ childrenGap: 8 }}
+                      styles={{
+                        root: {
+                          border: '1px solid #edebe9',
+                          borderRadius: 4,
+                          padding: 10,
+                          background: '#faf9f8',
+                        },
+                      }}
+                    >
+                      <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                        <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                          Condição {ri + 1}
+                        </Text>
+                        <IconButton
+                          iconProps={{ iconName: 'Delete' }}
+                          title="Remover condição"
+                          disabled={whenRowsState.rows.length <= 1}
+                          onClick={() => removeStepVisibilityWhenRow(vst.id, ri)}
+                        />
+                      </Stack>
+                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                        <Dropdown
+                          label="Campo"
+                          options={fieldOptions}
+                          selectedKey={row.field || undefined}
+                          disabled={
+                            row.compareKind === 'spGroupMember' ||
+                            row.compareKind === 'spGroupNotMember'
+                          }
+                          onChange={(_, o) => o && patchStepVisibilityWhenRow(vst.id, ri, { field: String(o.key) })}
+                        />
+                        <Dropdown
+                          label="Operador"
+                          options={CONDITION_OP_OPTIONS.map((x) => ({ key: x.key, text: x.text }))}
+                          selectedKey={row.op}
+                          disabled={
+                            row.compareKind === 'spGroupMember' ||
+                            row.compareKind === 'spGroupNotMember'
+                          }
+                          onChange={(_, o) =>
+                            o && patchStepVisibilityWhenRow(vst.id, ri, { op: o.key as TFormConditionOp })
+                          }
+                        />
+                        <Dropdown
+                          label="Comparar com"
+                          options={[
+                            { key: 'literal', text: 'Texto fixo' },
+                            { key: 'field', text: 'Outro campo' },
+                            { key: 'token', text: 'Token' },
+                            { key: 'spGroupMember', text: 'Membro do grupo' },
+                            { key: 'spGroupNotMember', text: 'Fora do grupo' },
+                          ]}
+                          selectedKey={row.compareKind}
+                          onChange={(_, o) =>
+                            o &&
+                            patchStepVisibilityWhenRow(vst.id, ri, {
+                              compareKind: o.key as IWhenUi['compareKind'],
+                            })
+                          }
+                        />
+                        <TextField
+                          label={
+                            row.compareKind === 'spGroupMember' ||
+                            row.compareKind === 'spGroupNotMember'
+                              ? 'Grupo (título)'
+                              : 'Valor'
+                          }
+                          value={row.compareValue}
+                          onChange={(_, v) =>
+                            patchStepVisibilityWhenRow(vst.id, ri, { compareValue: v ?? '' })
+                          }
+                          disabled={
+                            row.op === 'isEmpty' ||
+                            row.op === 'isFilled' ||
+                            row.op === 'isTrue' ||
+                            row.op === 'isFalse'
+                          }
+                        />
+                      </Stack>
+                    </Stack>
+                  ))}
+                  <DefaultButton text="Adicionar condição" onClick={() => addStepVisibilityWhenRow(vst.id)} />
+                </Stack>
+              )}
+              <DefaultButton text="Fechar" onClick={() => setStepVisibilityPanelStepId(null)} />
+            </Stack>
+          );
+        })()}
+      </Panel>
       <Panel
         isOpen={jsonOpen}
         type={PanelType.medium}

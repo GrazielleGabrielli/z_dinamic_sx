@@ -990,6 +990,23 @@ function describeWhenPt(when: TFormConditionNode | undefined): string {
   return `${leaf.field} ${op}${val}`;
 }
 
+export function summarizeConditionTreePt(node: TFormConditionNode | undefined): string {
+  if (!node) return '';
+  if (node.kind === 'all') {
+    const parts = node.children.map(summarizeConditionTreePt).filter((x) => x.trim().length > 0);
+    if (!parts.length) return '';
+    if (parts.length === 1) return parts[0];
+    return parts.join(' e ');
+  }
+  if (node.kind === 'any') {
+    const parts = node.children.map(summarizeConditionTreePt).filter((x) => x.trim().length > 0);
+    if (!parts.length) return '';
+    if (parts.length === 1) return parts[0];
+    return parts.join(' ou ');
+  }
+  return describeWhenPt(node);
+}
+
 export function describeRule(rule: TFormRule): string {
   const whenPt = describeWhenPt(rule.when);
   switch (rule.action) {

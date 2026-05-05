@@ -908,7 +908,14 @@ function sanitizeStep(raw: unknown): IFormStepConfig | undefined {
   const fieldNames = Array.isArray(s.fieldNames) ? (s.fieldNames as unknown[]).map((x) => String(x).trim()).filter(Boolean) : [];
   if (!id || !title) return undefined;
   const showInFormModes = sanitizeShowInFormModes(s.showInFormModes);
-  return { id, title, fieldNames, ...(showInFormModes?.length ? { showInFormModes } : {}) };
+  const showStepWhen = sanitizeConditionNode(s.showStepWhen);
+  return {
+    id,
+    title,
+    fieldNames,
+    ...(showInFormModes?.length ? { showInFormModes } : {}),
+    ...(showStepWhen ? { showStepWhen } : {}),
+  };
 }
 
 const MAX_ATTACHMENT_FOLDER_SEGMENTS = 10;

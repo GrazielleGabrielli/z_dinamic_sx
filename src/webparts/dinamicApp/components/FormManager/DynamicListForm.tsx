@@ -2602,12 +2602,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const nonSpecial = stepsAll.filter(
       (s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID
     );
-    return nonSpecial.filter((s) => stepVisibleInFormMode(s, formMode));
-  }, [stepsAll, formMode]);
+    return nonSpecial.filter(
+      (s) =>
+        stepVisibleInFormMode(s, formMode) &&
+        evaluateCondition(s.showStepWhen, values, dynamicContext, userGroupTitles)
+    );
+  }, [stepsAll, formMode, values, dynamicContext, userGroupTitles]);
 
   const fixosStepConfig = stepsAll?.find((s) => s.id === FORM_FIXOS_STEP_ID);
   const fixosChromeActive =
-    fixosStepConfig === undefined || stepVisibleInFormMode(fixosStepConfig, formMode);
+    fixosStepConfig === undefined ||
+    (stepVisibleInFormMode(fixosStepConfig, formMode) &&
+      evaluateCondition(fixosStepConfig.showStepWhen, values, dynamicContext, userGroupTitles));
   const [stepIndex, setStepIndex] = useState(0);
   const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
   type IConfirmRunResult = { proceed: boolean; valuesBaselinePatch?: Record<string, unknown> };
