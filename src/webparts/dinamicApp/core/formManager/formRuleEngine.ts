@@ -673,6 +673,19 @@ export interface IFormCustomButtonVisibilityOpts {
   userGroupTitles?: string[];
 }
 
+function resolveRuntimeItemAuthorId(ctx: IFormRuleRuntimeContext): number | undefined {
+  const fromCtx = ctx.authorId;
+  if (typeof fromCtx === 'number' && isFinite(fromCtx) && fromCtx > 0) return fromCtx;
+  const raw = ctx.values.AuthorId ?? ctx.values.authorId;
+  if (typeof raw === 'number' && isFinite(raw) && raw > 0) return raw;
+  const au = ctx.values.Author;
+  if (au && typeof au === 'object') {
+    const id = (au as { Id?: unknown }).Id;
+    if (typeof id === 'number' && isFinite(id) && id > 0) return id;
+  }
+  return undefined;
+}
+
 export function shouldShowCustomButton(
   b: IFormCustomButtonConfig,
   ctx: IFormRuleRuntimeContext,
@@ -696,6 +709,12 @@ export function shouldShowCustomButton(
   }
   if (op === 'update' && ctx.formMode === 'create') return false;
   if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, b)) return false;
+  if (b.showOnlyForItemAuthor === true) {
+    if (ctx.formMode === 'create') return false;
+    const aid = resolveRuntimeItemAuthorId(ctx);
+    if (aid === undefined) return false;
+    if (ctx.currentUserId !== aid) return false;
+  }
   if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext, ctx.userGroupTitles))
     return false;
   if (b.showOnlyWhenAllRequiredFilled === true && visibilityOpts?.allRequiredFilled !== true) return false;

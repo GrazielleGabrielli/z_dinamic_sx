@@ -763,6 +763,11 @@ export interface IFormCustomButtonConfig {
    * (regras + obrigatório na lista; anexos se obrigatórios). Cumulativo com grupos e condição «when».
    */
   showOnlyWhenAllRequiredFilled?: boolean;
+  /**
+   * Se true, o botão só aparece em item já gravado quando o utilizador atual é o autor (criador) do item.
+   * Cumulativo com grupos SharePoint, exclusões e condição «when». Em modo novo não aparece.
+   */
+  showOnlyForItemAuthor?: boolean;
   /** Loading ao gravar; omitido usa `defaultSubmitLoadingKind` do gestor. */
   submitLoadingKind?: TFormSubmitLoadingUiKind;
   /**

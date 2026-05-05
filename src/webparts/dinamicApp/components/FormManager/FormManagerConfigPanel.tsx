@@ -4037,6 +4037,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       })
                     }
                   />
+                  <Checkbox
+                    label="Só autor do item: utilizador atual = criador do item (AuthorId)"
+                    checked={btn.showOnlyForItemAuthor === true}
+                    onChange={(_, c) =>
+                      patchCustomButton(bi, {
+                        showOnlyForItemAuthor: c ? true : undefined,
+                      })
+                    }
+                  />
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Grupos do SharePoint
                   </Text>

@@ -781,6 +781,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ? (b.excludeGroupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
   const showOnlyWhenAllRequiredFilled = b.showOnlyWhenAllRequiredFilled === true ? true : undefined;
+  const showOnlyForItemAuthor = b.showOnlyForItemAuthor === true ? true : undefined;
   const shortDescriptionRaw = typeof b.shortDescription === 'string' ? b.shortDescription.trim() : '';
   const shortDescription = shortDescriptionRaw ? shortDescriptionRaw : undefined;
   const slKindRaw = b.submitLoadingKind;
@@ -853,6 +854,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(groupTitles?.length ? { groupTitles } : {}),
     ...(excludeGroupTitlesBtn?.length ? { excludeGroupTitles: excludeGroupTitlesBtn } : {}),
     ...(showOnlyWhenAllRequiredFilled ? { showOnlyWhenAllRequiredFilled: true } : {}),
+    ...(showOnlyForItemAuthor ? { showOnlyForItemAuthor: true } : {}),
     ...(submitLoadingKind ? { submitLoadingKind } : {}),
     ...(confirmBeforeRun ? { confirmBeforeRun } : {}),
     ...(finishAfterRun ? { finishAfterRun } : {}),
