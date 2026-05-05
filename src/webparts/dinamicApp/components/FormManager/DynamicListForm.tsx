@@ -2602,8 +2602,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const nonSpecial = stepsAll.filter(
       (s) => s.id !== FORM_OCULTOS_STEP_ID && s.id !== FORM_FIXOS_STEP_ID
     );
-    const forMode = nonSpecial.filter((s) => stepVisibleInFormMode(s, formMode));
-    return forMode.length > 0 ? forMode : nonSpecial;
+    return nonSpecial.filter((s) => stepVisibleInFormMode(s, formMode));
   }, [stepsAll, formMode]);
 
   const fixosStepConfig = stepsAll?.find((s) => s.id === FORM_FIXOS_STEP_ID);
@@ -3625,9 +3624,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   };
 
   const currentStepFieldSet = useMemo(() => {
-    if (!visibleStepsForUi?.length) return null;
+    if (visibleStepsForUi === null) return null;
+    if (!visibleStepsForUi.length) return new Set<string>();
     const s = visibleStepsForUi[stepIndex];
-    if (!s) return null;
+    if (!s) return new Set<string>();
     return new Set(s.fieldNames);
   }, [visibleStepsForUi, stepIndex]);
 
