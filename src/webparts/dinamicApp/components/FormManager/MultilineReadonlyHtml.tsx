@@ -47,6 +47,7 @@ export const MultilineReadonlyHtml: React.FC<IMultilineReadonlyHtmlProps> = ({
         background: '#ffffff',
         minHeight: 40,
         lineHeight: 1.5,
+        cursor: 'not-allowed',
       }}
       dangerouslySetInnerHTML={{ __html: html }}
     />

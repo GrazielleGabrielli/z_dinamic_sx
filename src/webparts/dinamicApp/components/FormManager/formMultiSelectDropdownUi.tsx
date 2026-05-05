@@ -3,20 +3,25 @@ import type { IDropdownOption, IDropdownStyles, ITheme } from '@fluentui/react';
 
 const REQ_EMPTY_BORDER = '#a4262c';
 
-export function multiSelectDropdownStyles(showReq: boolean | undefined): Partial<IDropdownStyles> {
-  const reqBorder =
-    showReq === true
-      ? {
-          dropdown: {
-            borderColor: REQ_EMPTY_BORDER,
-            borderWidth: 1,
-            borderStyle: 'solid' as const,
-            borderRadius: 2,
-          },
-        }
-      : {};
-  return {
-    ...reqBorder,
+const FORM_FIELD_CURSOR_DISABLED = 'not-allowed';
+
+export function multiSelectDropdownStyles(
+  showReq: boolean | undefined,
+  disabled?: boolean
+): Partial<IDropdownStyles> {
+  const dropdown: Record<string, string | number> = {};
+  if (showReq === true) {
+    Object.assign(dropdown, {
+      borderColor: REQ_EMPTY_BORDER,
+      borderWidth: 1,
+      borderStyle: 'solid' as const,
+      borderRadius: 2,
+    });
+  }
+  if (disabled) {
+    Object.assign(dropdown, { color: '#201f1e', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
+  }
+  const base: Partial<IDropdownStyles> = {
     title: {
       height: 'auto',
       minHeight: 32,
@@ -29,6 +34,14 @@ export function multiSelectDropdownStyles(showReq: boolean | undefined): Partial
       paddingTop: 4,
       paddingBottom: 4,
       paddingRight: 32,
+      ...(disabled
+        ? {
+            color: '#201f1e',
+            opacity: 1,
+            WebkitTextFillColor: '#201f1e',
+            cursor: FORM_FIELD_CURSOR_DISABLED,
+          }
+        : {}),
     },
     caretDownWrapper: {
       height: 'auto',
@@ -37,20 +50,31 @@ export function multiSelectDropdownStyles(showReq: boolean | undefined): Partial
       display: 'flex',
       alignItems: 'center',
       top: 0,
+      ...(disabled ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
     },
   };
+  if (Object.keys(dropdown).length > 0) {
+    base.dropdown = dropdown as IDropdownStyles['dropdown'];
+  }
+  if (disabled) {
+    base.caretDown = { color: '#605e5c', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED };
+  }
+  return base;
 }
 
 export function renderMultiSelectDropdownTitle(
   theme: ITheme,
-  options?: IDropdownOption[] | null
+  options?: IDropdownOption[] | null,
+  disabled?: boolean
 ): React.ReactElement | null {
   if (!options || options.length === 0) {
     return null;
   }
-  const bg = theme.palette.themeLighterAlt ?? theme.palette.themeLighter;
-  const fg = theme.palette.themePrimary;
-  const border = theme.palette.themeLight;
+  const bg = disabled
+    ? (theme.palette.neutralLighterAlt ?? theme.palette.white)
+    : (theme.palette.themeLighterAlt ?? theme.palette.themeLighter);
+  const fg = disabled ? '#201f1e' : theme.palette.themePrimary;
+  const border = disabled ? (theme.palette.neutralLight ?? '#edebe9') : theme.palette.themeLight;
   const r = theme.effects?.roundedCorner2 ?? 2;
   const fs = theme.fonts.small;
   return (
@@ -61,6 +85,7 @@ export function renderMultiSelectDropdownTitle(
         gap: 6,
         alignItems: 'center',
         maxWidth: '100%',
+        ...(disabled ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
       }}
     >
       {options.map((o) => (

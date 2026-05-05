@@ -23,6 +23,7 @@ import {
   SpinnerSize,
   useTheme,
 } from '@fluentui/react';
+import type { IStyle } from '@fluentui/react/lib/Styling';
 import type { IFieldMetadata } from '../../../../services';
 import type {
   IFormManagerConfig,
@@ -705,6 +706,8 @@ function createRunTimelineController(
 
 const REQ_EMPTY_BORDER = '#a4262c';
 
+const FORM_FIELD_CURSOR_DISABLED = 'not-allowed';
+
 function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;
@@ -727,16 +730,44 @@ function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
   return false;
 }
 
-function stylesTextFieldRequiredEmpty(active: boolean): { fieldGroup?: Record<string, string | number> } | undefined {
-  if (!active) return undefined;
-  return {
-    fieldGroup: {
+function stylesTextFieldRequiredEmpty(
+  active: boolean,
+  disabled?: boolean
+): { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } | undefined {
+  const fieldGroupMerge: Record<string, string | number> = {};
+  if (active) {
+    Object.assign(fieldGroupMerge, {
       borderColor: REQ_EMPTY_BORDER,
       borderWidth: 1,
       borderStyle: 'solid',
       borderRadius: 2,
-    },
-  };
+    });
+  }
+  if (disabled) {
+    Object.assign(fieldGroupMerge, { cursor: FORM_FIELD_CURSOR_DISABLED });
+  }
+
+  const out: { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } = {};
+  if (Object.keys(fieldGroupMerge).length) {
+    out.fieldGroup = fieldGroupMerge as IStyle;
+  }
+  if (disabled) {
+    out.root = { cursor: FORM_FIELD_CURSOR_DISABLED };
+    out.icon = { cursor: FORM_FIELD_CURSOR_DISABLED };
+    out.field = {
+      color: '#201f1e',
+      WebkitTextFillColor: '#201f1e',
+      opacity: 1,
+      cursor: FORM_FIELD_CURSOR_DISABLED,
+      selectors: {
+        '::placeholder': {
+          color: '#605e5c',
+          opacity: 1,
+        },
+      },
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function lookupIdFromValue(v: unknown): number | undefined {
@@ -795,17 +826,36 @@ function userTitleFromValue(v: unknown): string {
   return '';
 }
 
-function dropdownReqStyles(showReq: boolean | undefined) {
-  return showReq
-    ? {
-        dropdown: {
-          borderColor: REQ_EMPTY_BORDER,
-          borderWidth: 1,
-          borderStyle: 'solid',
-          borderRadius: 2,
-        },
-      }
-    : undefined;
+function dropdownReqStyles(
+  showReq: boolean | undefined,
+  disabled?: boolean
+): { dropdown?: IStyle; title?: IStyle; caretDown?: IStyle; caretDownWrapper?: IStyle } | undefined {
+  const out: { dropdown?: IStyle; title?: IStyle; caretDown?: IStyle; caretDownWrapper?: IStyle } = {};
+  const dropdown: Record<string, string | number> = {};
+  if (showReq) {
+    Object.assign(dropdown, {
+      borderColor: REQ_EMPTY_BORDER,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      borderRadius: 2,
+    });
+  }
+  if (disabled) {
+    const text = '#201f1e';
+    out.title = {
+      color: text,
+      opacity: 1,
+      WebkitTextFillColor: text,
+      cursor: FORM_FIELD_CURSOR_DISABLED,
+    };
+    out.caretDownWrapper = { cursor: FORM_FIELD_CURSOR_DISABLED };
+    out.caretDown = { color: '#605e5c', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED };
+    Object.assign(dropdown, { color: text, opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
+  }
+  if (Object.keys(dropdown).length) {
+    out.dropdown = dropdown as IStyle;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 interface IFormChromeZoneProps {
@@ -928,6 +978,7 @@ function ConfirmPromptFieldEditor(props: {
     root: {
       marginBottom: 0,
       ...(modalSurface ? { width: '100%' } : {}),
+      ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
     },
     label: {
       root: {
@@ -944,21 +995,25 @@ function ConfirmPromptFieldEditor(props: {
       selectors: {
         '&.ms-TextField-fieldGroup': { borderRadius: 10 },
       },
+      ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
     },
-    field: { borderRadius: 10 },
+    field: { borderRadius: 10, ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}) },
+    ...(dis ? { icon: { cursor: FORM_FIELD_CURSOR_DISABLED } } : {}),
     ...(modalSurface ? { wrapper: { width: '100%' } } : {}),
   };
   const ddStyles = {
     dropdown: {
       borderRadius: 10,
       border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
+      ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
     },
-    title: {
-      root: {
-        fontWeight: '600',
-        color: theme.palette.neutralPrimary,
-      },
-    },
+    ...(dis
+      ? {
+          title: { cursor: FORM_FIELD_CURSOR_DISABLED },
+          caretDownWrapper: { cursor: FORM_FIELD_CURSOR_DISABLED },
+          caretDown: { cursor: FORM_FIELD_CURSOR_DISABLED },
+        }
+      : {}),
   };
   const wrapModal = (node: React.ReactElement): React.ReactElement =>
     modalSurface ? (
@@ -995,6 +1050,7 @@ function ConfirmPromptFieldEditor(props: {
             offText="Não"
             disabled={dis}
             onChange={(_, c) => onChange({ ...editor, bool: !!c })}
+            styles={dis ? { root: { cursor: FORM_FIELD_CURSOR_DISABLED } } : undefined}
           />
         </Stack>
       );
@@ -1022,9 +1078,11 @@ function ConfirmPromptFieldEditor(props: {
             textField={{
               disabled: dis,
               styles: {
+                root: dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : undefined,
                 fieldGroup: tfStyles.fieldGroup,
                 field: tfStyles.field,
                 wrapper: { width: '100%' },
+                ...(dis ? { icon: { cursor: FORM_FIELD_CURSOR_DISABLED } } : {}),
               },
             }}
           />
@@ -4130,7 +4188,16 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             })()
           : String(comp);
       return (
-        <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+        <Stack
+          key={name}
+          tokens={{ childrenGap: 4 }}
+          styles={{
+            root: {
+              marginBottom: 12,
+              cursor: FORM_FIELD_CURSOR_DISABLED,
+            },
+          }}
+        >
           <Label required={reqComp}>{labelComp}</Label>
           <Text styles={{ root: { color: '#323130' } }}>{compShown}</Text>
           {helpComp && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{helpComp}</Text>}
@@ -4186,6 +4253,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 disabled
                 multiline={val.length > 100}
                 rows={val.length > 100 ? 2 : 1}
+                styles={{ root: { cursor: FORM_FIELD_CURSOR_DISABLED } }}
               />
             );
           })}
@@ -4216,6 +4284,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               checked={mergedFieldValue === true || mergedFieldValue === 1}
               onChange={(_, c) => updateField(name, !!c)}
               disabled={readOnly}
+              styles={readOnly ? { root: { cursor: FORM_FIELD_CURSOR_DISABLED } } : undefined}
             />
           </Stack>
         );
@@ -4253,7 +4322,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             {...common}
             description={help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             min={numBounds?.minNumber}
             max={numBounds?.maxNumber}
           />
@@ -4272,8 +4341,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{
+                disabled: readOnly,
                 errorMessage: err,
-                styles: stylesTextFieldRequiredEmpty(showReqEmpty),
+                styles: stylesTextFieldRequiredEmpty(showReqEmpty, readOnly),
               }}
             />
             {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
@@ -4297,7 +4367,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            styles={dropdownReqStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -4329,8 +4399,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-            styles={multiSelectDropdownStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -4373,7 +4443,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               required={isRequired}
               errorMessage={err}
               disabled={readOnly || lookupBlockedByParent}
-              styles={dropdownReqStyles(showReqEmpty)}
+              styles={dropdownReqStyles(showReqEmpty, readOnly || lookupBlockedByParent)}
             />
             {help ? (
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -4428,8 +4498,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               required={isRequired}
               errorMessage={err}
               disabled={readOnly || lookupBlockedByParentMulti}
-              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-              styles={multiSelectDropdownStyles(showReqEmpty)}
+              onRenderTitle={(opts) =>
+                renderMultiSelectDropdownTitle(theme, opts, readOnly || lookupBlockedByParentMulti)
+              }
+              styles={multiSelectDropdownStyles(showReqEmpty, readOnly || lookupBlockedByParentMulti)}
             />
             {help ? (
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -4461,7 +4533,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            styles={dropdownReqStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -4492,8 +4564,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-            styles={multiSelectDropdownStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -4511,7 +4583,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               }
               disabled={readOnly}
               errorMessage={err}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             />
             <TextField
               label="Descrição a apresentar"
@@ -4520,6 +4592,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 updateField(name, { Url: uv.Url, Description: v ?? '' })
               }
               disabled={readOnly}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             />
             {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
@@ -4570,7 +4643,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               {...common}
               {...(maxCapMl !== undefined ? { maxLength: maxCapMl } : {})}
               description={help}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             />
             {charHintMl ? (
               <Text variant="small" styles={{ root: { color: charHintMl.color } }}>{charHintMl.text}</Text>
@@ -4612,6 +4685,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           borderColor: inputBorder,
           borderRadius: 2,
           outline: 'none',
+          ...(readOnly ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
         };
         if (maskOpts) {
           return (
@@ -4672,7 +4746,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               {...common}
               {...(maxCapTx !== undefined ? { maxLength: maxCapTx } : {})}
               description={help}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             />
             {charHintTx ? (
               <Text variant="small" styles={{ root: { color: charHintTx.color } }}>{charHintTx.text}</Text>

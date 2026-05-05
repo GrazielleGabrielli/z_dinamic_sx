@@ -395,7 +395,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
                     borderRadius: 16,
                     border: '1px solid #edebe9',
                     maxWidth: '100%',
-                    cursor: 'pointer',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
                   },
                 }}
                 role="button"
@@ -430,7 +430,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
                   background: '#faf9f8',
                   borderRadius: 8,
                   border: '1px solid #edebe9',
-                  cursor: 'pointer',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
                 },
               }}
               role="button"
@@ -511,7 +511,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
                   background: '#faf9f8',
                   borderRadius: 6,
                   border: '1px solid #edebe9',
-                  cursor: 'pointer',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
                 },
               }}
               role="button"
@@ -581,9 +581,12 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
     </>
   );
 
+  const uploaderOuterRoot =
+    disabled ? ({ marginBottom: 12, cursor: 'not-allowed' as const } as const) : ({ marginBottom: 12 } as const);
+
   if (layout === 'default') {
     return (
-      <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+      <Stack tokens={{ childrenGap: 8 }} styles={{ root: uploaderOuterRoot }}>
         {header}
         {!disabled && (
           <div style={reqWrapStyle}>
@@ -605,7 +608,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
 
   if (layout === 'ribbon') {
     return (
-      <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+      <Stack tokens={{ childrenGap: 8 }} styles={{ root: uploaderOuterRoot }}>
         {header}
         {!disabled && (
           <div style={reqWrapStyle}>
@@ -656,7 +659,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
 
   if (layout === 'compact') {
     return (
-      <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+      <Stack tokens={{ childrenGap: 8 }} styles={{ root: uploaderOuterRoot }}>
         {header}
         {!disabled && (
           <div style={reqWrapStyle}>
@@ -688,7 +691,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
 
   if (layout === 'card') {
     return (
-      <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+      <Stack tokens={{ childrenGap: 8 }} styles={{ root: uploaderOuterRoot }}>
         {header}
         {!disabled && (
           <div style={reqWrapStyle}>
@@ -763,7 +766,7 @@ export const FormAttachmentUploader: React.FC<IFormAttachmentUploaderProps> = ({
   }
 
   return (
-    <Stack tokens={{ childrenGap: 8 }} styles={{ root: { marginBottom: 12 } }}>
+    <Stack tokens={{ childrenGap: 8 }} styles={{ root: uploaderOuterRoot }}>
       {header}
       {!disabled && (
         <div style={reqWrapStyle}>

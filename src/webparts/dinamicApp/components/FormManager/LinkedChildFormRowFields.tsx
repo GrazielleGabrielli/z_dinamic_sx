@@ -11,6 +11,7 @@ import {
   Label,
   useTheme,
 } from '@fluentui/react';
+import type { IStyle } from '@fluentui/react/lib/Styling';
 import type { IFieldMetadata } from '../../../../services';
 import type { IFormFieldConfig, IFormLinkedChildFormConfig } from '../../core/config/types/formManager';
 import {
@@ -53,6 +54,8 @@ import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInpu
 import { parseUrlFieldValue } from '../../core/formManager/formUrlUtils';
 
 const REQ_EMPTY_BORDER = '#a4262c';
+
+const FORM_FIELD_CURSOR_DISABLED = 'not-allowed';
 
 function lookupIdFromValue(v: unknown): number | undefined {
   if (typeof v === 'number' && isFinite(v)) return v;
@@ -105,29 +108,85 @@ function userTitleFromValue(v: unknown): string {
   return '';
 }
 
-function dropdownReqStyles(showReq: boolean | undefined) {
-  return showReq
-    ? {
-        dropdown: {
-          borderColor: REQ_EMPTY_BORDER,
-          borderWidth: 1,
-          borderStyle: 'solid',
-          borderRadius: 2,
-        },
-      }
-    : undefined;
-}
-
-function stylesTextFieldRequiredEmpty(active: boolean): { fieldGroup?: Record<string, string | number> } | undefined {
-  if (!active) return undefined;
-  return {
-    fieldGroup: {
+function dropdownReqStyles(
+  showReq: boolean | undefined,
+  disabled?: boolean
+): {
+  dropdown?: IStyle;
+  title?: IStyle;
+  caretDown?: IStyle;
+  caretDownWrapper?: IStyle;
+} | undefined {
+  const out: {
+    dropdown?: IStyle;
+    title?: IStyle;
+    caretDown?: IStyle;
+    caretDownWrapper?: IStyle;
+  } = {};
+  const dropdown: Record<string, string | number> = {};
+  if (showReq) {
+    Object.assign(dropdown, {
       borderColor: REQ_EMPTY_BORDER,
       borderWidth: 1,
       borderStyle: 'solid',
       borderRadius: 2,
-    },
-  };
+    });
+  }
+  if (disabled) {
+    const text = '#201f1e';
+    out.title = {
+      color: text,
+      opacity: 1,
+      WebkitTextFillColor: text,
+      cursor: FORM_FIELD_CURSOR_DISABLED,
+    };
+    out.caretDownWrapper = { cursor: FORM_FIELD_CURSOR_DISABLED };
+    out.caretDown = { color: '#605e5c', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED };
+    Object.assign(dropdown, { color: text, opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
+  }
+  if (Object.keys(dropdown).length) {
+    out.dropdown = dropdown as IStyle;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function stylesTextFieldRequiredEmpty(
+  active: boolean,
+  disabled?: boolean
+): { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } | undefined {
+  const fieldGroupMerge: Record<string, string | number> = {};
+  if (active) {
+    Object.assign(fieldGroupMerge, {
+      borderColor: REQ_EMPTY_BORDER,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      borderRadius: 2,
+    });
+  }
+  if (disabled) {
+    Object.assign(fieldGroupMerge, { cursor: FORM_FIELD_CURSOR_DISABLED });
+  }
+  const out: { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } = {};
+  if (Object.keys(fieldGroupMerge).length) {
+    out.fieldGroup = fieldGroupMerge as IStyle;
+  }
+  if (disabled) {
+    out.root = { cursor: FORM_FIELD_CURSOR_DISABLED };
+    out.icon = { cursor: FORM_FIELD_CURSOR_DISABLED };
+    out.field = {
+      color: '#201f1e',
+      WebkitTextFillColor: '#201f1e',
+      opacity: 1,
+      cursor: FORM_FIELD_CURSOR_DISABLED,
+      selectors: {
+        '::placeholder': {
+          color: '#605e5c',
+          opacity: 1,
+        },
+      },
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
@@ -700,6 +759,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
                 disabled
                 multiline={val.length > 100}
                 rows={val.length > 100 ? 2 : 1}
+                styles={{ root: { cursor: FORM_FIELD_CURSOR_DISABLED } }}
               />
             );
           })}
@@ -719,6 +779,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               checked={mergedFieldValue === true || mergedFieldValue === 1}
               onChange={(_, c) => updateField(name, !!c)}
               disabled={readOnly}
+              styles={readOnly ? { root: { cursor: FORM_FIELD_CURSOR_DISABLED } } : undefined}
             />
           </Stack>
         );
@@ -756,7 +817,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             min={numBounds?.minNumber}
             max={numBounds?.maxNumber}
           />
@@ -776,8 +837,9 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               disabled={readOnly}
               textField={{
                 ...(cell ? { ariaLabel: label } : {}),
+                disabled: readOnly,
                 errorMessage: err,
-                styles: stylesTextFieldRequiredEmpty(showReqEmpty),
+                styles: stylesTextFieldRequiredEmpty(showReqEmpty, readOnly),
               }}
             />
             {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
@@ -801,7 +863,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            styles={dropdownReqStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -833,8 +895,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-            styles={multiSelectDropdownStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -877,7 +939,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               required={isRequired}
               errorMessage={err}
               disabled={readOnly || lookupBlockedByParent}
-              styles={dropdownReqStyles(showReqEmpty)}
+              styles={dropdownReqStyles(showReqEmpty, readOnly || lookupBlockedByParent)}
             />
             {help && !cell ? (
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -932,8 +994,10 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               required={isRequired}
               errorMessage={err}
               disabled={readOnly || lookupBlockedByParentMulti}
-              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-              styles={multiSelectDropdownStyles(showReqEmpty)}
+              onRenderTitle={(opts) =>
+                renderMultiSelectDropdownTitle(theme, opts, readOnly || lookupBlockedByParentMulti)
+              }
+              styles={multiSelectDropdownStyles(showReqEmpty, readOnly || lookupBlockedByParentMulti)}
             />
             {help && !cell ? (
               <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
@@ -965,7 +1029,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty)}
+            styles={dropdownReqStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -996,8 +1060,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             errorMessage={err}
             disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts)}
-            styles={multiSelectDropdownStyles(showReqEmpty)}
+            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
           />
         );
       }
@@ -1014,7 +1078,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               onChange={(_, v) => updateField(name, { Url: v ?? '', Description: uv.Description })}
               disabled={readOnly}
               errorMessage={err}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             />
             <TextField
               label={cell ? undefined : 'Descrição a apresentar'}
@@ -1022,6 +1086,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               value={uv.Description}
               onChange={(_, v) => updateField(name, { Url: uv.Url, Description: v ?? '' })}
               disabled={readOnly}
+              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
             />
             {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
@@ -1045,6 +1110,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           borderColor: inputBorder,
           borderRadius: 2,
           outline: 'none',
+          ...(readOnly ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
         };
         if (maskOpts) {
           return (
@@ -1094,7 +1160,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
           />
         );
       }
@@ -1126,7 +1192,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
           />
         );
       }
@@ -1141,7 +1207,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty)}
+            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
           />
         );
     }
