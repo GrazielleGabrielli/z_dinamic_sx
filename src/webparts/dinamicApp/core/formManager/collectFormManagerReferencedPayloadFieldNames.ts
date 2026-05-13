@@ -15,7 +15,9 @@ function isSyntheticFieldName(name: string): boolean {
 function addFieldName(out: Set<string>, raw: string | undefined): void {
   const t = typeof raw === 'string' ? raw.trim() : '';
   if (!t || isSyntheticFieldName(t)) return;
-  out.add(t);
+  const base = t.split('/')[0]?.trim();
+  if (!base || isSyntheticFieldName(base)) return;
+  out.add(base);
 }
 
 function collectFromJoinTemplate(tpl: string | undefined, out: Set<string>): void {

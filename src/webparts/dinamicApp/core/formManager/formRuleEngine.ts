@@ -156,6 +156,15 @@ export function resolveDateFieldDefaultValue(
 export interface IGetDefaultValuesFromRulesOptions {
   isDateTimeField?: (internalName: string) => boolean;
   userGroupTitles?: string[];
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >;
+}
+
+export interface IEvaluateConditionOpts {
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >;
 }
 
 function normGroupTitle(s: string): string {
@@ -191,7 +200,9 @@ export function isAttachmentFolderUploaderVisible(
     if (!modes.length || modes.indexOf(ctx.formMode) === -1) return false;
   }
   if (!userInAnyGroup(ctx.userGroupTitles, node.showUploaderGroupTitles)) return false;
-  return evaluateCondition(node.showUploaderWhen, ctx.values, ctx.dynamicContext, ctx.userGroupTitles);
+  return evaluateCondition(node.showUploaderWhen, ctx.values, ctx.dynamicContext, ctx.userGroupTitles, {
+    lookupOptionSnapshots: ctx.lookupOptionSnapshots,
+  });
 }
 
 function isEmptyish(v: unknown): boolean {
@@ -231,6 +242,25 @@ function readPathValue(root: unknown, path: string[]): unknown {
     return readPathValue(next, path.slice(1));
   }
   return undefined;
+}
+
+function readFormConditionFieldPath(
+  fieldPath: string,
+  values: Record<string, unknown>,
+  opts?: IEvaluateConditionOpts
+): unknown {
+  const trimmed = fieldPath.trim();
+  if (!trimmed) return undefined;
+  const segments = trimmed.split('/').map((s) => s.trim()).filter(Boolean);
+  if (!segments.length) return undefined;
+  const rootName = segments[0];
+  if (segments.length === 1) return values[rootName];
+  const subPath = segments.slice(1);
+  const fromRoot = readPathValue(values[rootName], subPath);
+  if (fromRoot !== undefined && fromRoot !== null) return fromRoot;
+  const snap = opts?.lookupOptionSnapshots?.[rootName];
+  if (snap === undefined || snap === null) return fromRoot;
+  return readPathValue(snap, subPath);
 }
 
 function toScalarString(v: unknown): string {
@@ -413,11 +443,12 @@ function compareResolved(left: unknown, op: string, right: unknown): boolean {
 function resolveCompare(
   ref: IFormCompareRef | undefined,
   values: Record<string, unknown>,
-  ctx: IDynamicContext
+  ctx: IDynamicContext,
+  conditionOpts?: IEvaluateConditionOpts
 ): unknown {
   if (!ref) return undefined;
   if (ref.kind === 'literal') return ref.value;
-  if (ref.kind === 'field') return values[ref.value];
+  if (ref.kind === 'field') return readFormConditionFieldPath(ref.value, values, conditionOpts);
   const tok = ref.value.indexOf('[') === 0 ? ref.value : `[${ref.value}]`;
   return tokenResolver.resolveStringToken(tok, ctx);
 }
@@ -426,18 +457,20 @@ export function evaluateCondition(
   node: TFormConditionNode | undefined,
   values: Record<string, unknown>,
   dynamicContext: IDynamicContext,
-  userGroupTitles: string[] = []
+  userGroupTitles: string[] = [],
+  conditionOpts?: IEvaluateConditionOpts
 ): boolean {
   if (!node) return true;
   if (node.kind === 'all') {
     for (let i = 0; i < node.children.length; i++) {
-      if (!evaluateCondition(node.children[i], values, dynamicContext, userGroupTitles)) return false;
+      if (!evaluateCondition(node.children[i], values, dynamicContext, userGroupTitles, conditionOpts))
+        return false;
     }
     return true;
   }
   if (node.kind === 'any') {
     for (let i = 0; i < node.children.length; i++) {
-      if (evaluateCondition(node.children[i], values, dynamicContext, userGroupTitles)) return true;
+      if (evaluateCondition(node.children[i], values, dynamicContext, userGroupTitles, conditionOpts)) return true;
     }
     return false;
   }
@@ -448,14 +481,14 @@ export function evaluateCondition(
     return node.invert ? !inG : inG;
   }
   if (node.kind === 'leaf') {
-    const left = values[node.field];
-    const right = resolveCompare(node.compare, values, dynamicContext);
+    const left = readFormConditionFieldPath(node.field, values, conditionOpts);
+    const right = resolveCompare(node.compare, values, dynamicContext, conditionOpts);
     return compareResolved(left, node.op, right);
   }
   const legacy = node as { field?: string; op?: TFormConditionOp; compare?: IFormCompareRef };
   if (typeof legacy.field === 'string' && legacy.field.trim() && legacy.op) {
-    const left = values[legacy.field];
-    const right = resolveCompare(legacy.compare, values, dynamicContext);
+    const left = readFormConditionFieldPath(legacy.field, values, conditionOpts);
+    const right = resolveCompare(legacy.compare, values, dynamicContext, conditionOpts);
     return compareResolved(left, legacy.op, right);
   }
   return false;
@@ -506,11 +539,13 @@ export function resolveSetComputedDisplayValue(args: {
 export function getMergedValidateValueLengthBounds(
   rules: TFormRule[] | undefined,
   fieldName: string,
-  ctx: Pick<IFormRuleRuntimeContext, 'formMode' | 'values' | 'userGroupTitles' | 'dynamicContext'>,
+  ctx: Pick<IFormRuleRuntimeContext, 'formMode' | 'values' | 'userGroupTitles' | 'dynamicContext'> & {
+    conditionOpts?: IEvaluateConditionOpts;
+  },
   fieldVisibleMap: Record<string, boolean> | undefined
 ): { minLength?: number; maxLength?: number } | undefined {
   if (!rules?.length) return undefined;
-  const { formMode, values, userGroupTitles, dynamicContext } = ctx;
+  const { formMode, values, userGroupTitles, dynamicContext, conditionOpts } = ctx;
   let minL: number | undefined;
   let maxL: number | undefined;
   for (let r = 0; r < rules.length; r++) {
@@ -520,7 +555,7 @@ export function getMergedValidateValueLengthBounds(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
-    if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
+    if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, conditionOpts)) continue;
     if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
     if (rule.minLength !== undefined) {
       minL = minL === undefined ? rule.minLength : Math.max(minL, rule.minLength);
@@ -540,11 +575,13 @@ export function getMergedValidateValueLengthBounds(
 export function getMergedValidateValueNumberBounds(
   rules: TFormRule[] | undefined,
   fieldName: string,
-  ctx: Pick<IFormRuleRuntimeContext, 'formMode' | 'values' | 'userGroupTitles' | 'dynamicContext'>,
+  ctx: Pick<IFormRuleRuntimeContext, 'formMode' | 'values' | 'userGroupTitles' | 'dynamicContext'> & {
+    conditionOpts?: IEvaluateConditionOpts;
+  },
   fieldVisibleMap: Record<string, boolean> | undefined
 ): { minNumber?: number; maxNumber?: number } | undefined {
   if (!rules?.length) return undefined;
-  const { formMode, values, userGroupTitles, dynamicContext } = ctx;
+  const { formMode, values, userGroupTitles, dynamicContext, conditionOpts } = ctx;
   let minN: number | undefined;
   let maxN: number | undefined;
   for (let r = 0; r < rules.length; r++) {
@@ -554,7 +591,7 @@ export function getMergedValidateValueNumberBounds(
     if (rule.enabled === false) continue;
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
-    if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
+    if (!evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, conditionOpts)) continue;
     if (fieldVisibleMap && fieldVisibleMap[fieldName] === false) continue;
     if (rule.minNumber !== undefined) {
       minN = minN === undefined ? rule.minNumber : Math.max(minN, rule.minNumber);
@@ -715,7 +752,12 @@ export function shouldShowCustomButton(
     if (aid === undefined) return false;
     if (ctx.currentUserId !== aid) return false;
   }
-  if (b.when && !evaluateCondition(b.when, ctx.values, ctx.dynamicContext, ctx.userGroupTitles))
+  if (
+    b.when &&
+    !evaluateCondition(b.when, ctx.values, ctx.dynamicContext, ctx.userGroupTitles, {
+      lookupOptionSnapshots: ctx.lookupOptionSnapshots,
+    })
+  )
     return false;
   if (b.showOnlyWhenAllRequiredFilled === true && visibilityOpts?.allRequiredFilled !== true) return false;
   return true;
@@ -1274,9 +1316,10 @@ export function collectApplicableValidateDateRules(
     dynamicContext: IDynamicContext;
     fieldVisible: (name: string) => boolean;
     now?: Date;
+    conditionOpts?: IEvaluateConditionOpts;
   }
 ): import('../config/types/formManager').IFormRuleValidateDate[] {
-  const { formMode, submitKind, userGroupTitles, dynamicContext, fieldVisible } = params;
+  const { formMode, submitKind, userGroupTitles, dynamicContext, fieldVisible, conditionOpts } = params;
   if (formMode === 'view') return [];
   const isDraft = submitKind === 'draft';
   const out: import('../config/types/formManager').IFormRuleValidateDate[] = [];
@@ -1288,7 +1331,7 @@ export function collectApplicableValidateDateRules(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, conditionOpts);
     if (!whenOk) continue;
     if (!fieldVisible(field)) continue;
     if (isDraft) continue;
@@ -1308,6 +1351,7 @@ export function evaluateValidateDateRulesForField(
     dynamicContext: IDynamicContext;
     fieldVisible: (name: string) => boolean;
     now?: Date;
+    conditionOpts?: IEvaluateConditionOpts;
   }
 ): string | undefined {
   const applicable = collectApplicableValidateDateRules(rules, field, values, params);
@@ -1371,6 +1415,10 @@ export function buildFormDerivedState(
   fieldMetaByName?: ReadonlyMap<string, IFieldMetadata>
 ): IFormDerivedUiState {
   const { values, formMode, dynamicContext, attachmentFolderUrl, userGroupTitles } = ctx;
+  const condOpts: IEvaluateConditionOpts | undefined =
+    ctx.lookupOptionSnapshots !== undefined && ctx.lookupOptionSnapshots !== null
+      ? { lookupOptionSnapshots: ctx.lookupOptionSnapshots }
+      : undefined;
   const fieldVisible: Record<string, boolean> = {};
   const sectionVisible: Record<string, boolean> = {};
   const fieldRequired: Record<string, boolean> = {};
@@ -1426,7 +1474,7 @@ export function buildFormDerivedState(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, ctx.submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, rule)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, condOpts);
     if (!whenOk) continue;
 
     switch (rule.action) {
@@ -1566,7 +1614,7 @@ export function buildFormDerivedState(
   const dh = cfg.dynamicHelp ?? [];
   for (let i = 0; i < dh.length; i++) {
     const h = dh[i];
-    if (evaluateCondition(h.when, values, dynamicContext, userGroupTitles))
+    if (evaluateCondition(h.when, values, dynamicContext, userGroupTitles, condOpts))
       dynamicHelpByField[h.field] = h.helpText;
   }
 
@@ -1661,6 +1709,10 @@ export function collectFormValidationErrors(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const { values, formMode, submitKind, dynamicContext, userGroupTitles } = ctx;
+  const condOpts: IEvaluateConditionOpts | undefined =
+    ctx.lookupOptionSnapshots !== undefined && ctx.lookupOptionSnapshots !== null
+      ? { lookupOptionSnapshots: ctx.lookupOptionSnapshots }
+      : undefined;
   if (formMode === 'view') return errors;
 
   const derived = buildFormDerivedState(cfg, fieldConfigs, ctx, buttonOverlay, metaByName);
@@ -1722,7 +1774,7 @@ export function collectFormValidationErrors(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, rule)) continue;
-    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles);
+    const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, condOpts);
 
     switch (rule.action) {
       case 'validateValue': {
@@ -1787,7 +1839,7 @@ export function collectFormValidationErrors(
       case 'attachmentRules': {
         if (isDraft) break;
         const attWhen = rule.requiredWhen
-          ? evaluateCondition(rule.requiredWhen, values, dynamicContext, userGroupTitles)
+          ? evaluateCondition(rule.requiredWhen, values, dynamicContext, userGroupTitles, condOpts)
           : true;
         const count =
           (attachmentCtx?.attachmentCount ?? 0) +
@@ -2101,13 +2153,18 @@ export function getDefaultValuesFromRules(
   opts?: IGetDefaultValuesFromRulesOptions
 ): Record<string, unknown> {
   const next = { ...values };
+  let modified = false;
   const rules = cfg.rules ?? [];
   const isDt = opts?.isDateTimeField;
   const ug = opts?.userGroupTitles ?? [];
+  const defCondOpts: IEvaluateConditionOpts | undefined =
+    opts?.lookupOptionSnapshots !== undefined && opts?.lookupOptionSnapshots !== null
+      ? { lookupOptionSnapshots: opts.lookupOptionSnapshots }
+      : undefined;
   for (let i = 0; i < rules.length; i++) {
     const rule = rules[i];
     if (rule.action !== 'setDefault' || rule.enabled === false) continue;
-    if (!evaluateCondition(rule.when, next, dynamicContext, ug)) continue;
+    if (!evaluateCondition(rule.when, next, dynamicContext, ug, defCondOpts)) continue;
 
     let resolved: unknown;
     if (isDt?.(rule.field) === true && typeof rule.value === 'string') {
@@ -2145,9 +2202,12 @@ export function getDefaultValuesFromRules(
       }
     }
 
-    if (resolved !== undefined && isEmptyish(next[rule.field])) next[rule.field] = resolved;
+    if (resolved !== undefined && isEmptyish(next[rule.field])) {
+      next[rule.field] = resolved;
+      modified = true;
+    }
   }
-  return next;
+  return modified ? next : values;
 }
 
 export function expressionReferencesSharePointItemId(expression: string): boolean {
@@ -2201,7 +2261,13 @@ export function buildSetComputedPrimarySavePatch(params: {
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
-    if (rule.when && !evaluateCondition(rule.when, values, dynamicContext, userGroupTitles)) continue;
+    if (
+      rule.when &&
+      !evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, {
+        lookupOptionSnapshots,
+      })
+    )
+      continue;
 
     const expr = rule.expression ?? '';
     if (formMode === 'create' && expressionReferencesSharePointItemId(expr)) continue;
@@ -2289,7 +2355,12 @@ export function buildPostCreateItemIdComputedPatch(params: {
     if (rule.enabled === false) continue;
     if (!ruleAppliesSubmit(rule, submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(userGroupTitles, rule)) continue;
-    if (rule.when && !evaluateCondition(rule.when, valuesWithId, dynamicContext, userGroupTitles))
+    if (
+      rule.when &&
+      !evaluateCondition(rule.when, valuesWithId, dynamicContext, userGroupTitles, {
+        lookupOptionSnapshots,
+      })
+    )
       continue;
 
     const expr = rule.expression ?? '';

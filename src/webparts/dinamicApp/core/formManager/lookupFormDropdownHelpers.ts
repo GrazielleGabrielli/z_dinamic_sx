@@ -1,5 +1,10 @@
 import type { IFieldMetadata } from '../../../../services';
-import type { IFormFieldConfig } from '../config/types/formManager';
+import type {
+  IFormFieldConfig,
+  IFormManagerConfig,
+  IFormStepConfig,
+  TFormConditionNode,
+} from '../config/types/formManager';
 
 function extractLookupId(v: unknown): number | undefined {
   if (typeof v === 'number' && isFinite(v)) return v;
@@ -119,13 +124,119 @@ export function resolveLookupFormLabelInternalName(
   return d || 'Title';
 }
 
+export type TLookupReloadFilterRow = {
+  parentField: string;
+  childField?: string;
+  filterOperator?: string;
+  odataFilterTemplate?: string;
+};
+
+export function buildLookupReloadRowSignatures(params: {
+  fieldConfigs: readonly IFormFieldConfig[];
+  metaByName: ReadonlyMap<string, IFieldMetadata>;
+  lookupFilters: Readonly<Record<string, TLookupReloadFilterRow | undefined>>;
+  values: Readonly<Record<string, unknown>>;
+  collectInjectFields: (lookupInternalName: string) => readonly string[];
+}): { joinedKey: string; rowKeyByField: Record<string, string> } {
+  const { fieldConfigs, metaByName, lookupFilters, values, collectInjectFields } = params;
+  const rowKeyByField: Record<string, string> = {};
+  const parts: string[] = [];
+  for (let i = 0; i < fieldConfigs.length; i++) {
+    const fc = fieldConfigs[i];
+    const fn = fc.internalName;
+    const m = metaByName.get(fn);
+    if (!m || (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti')) continue;
+    const listId = String(m.LookupList ?? '');
+    const labelDisp = resolveLookupFormLabelInternalName(m, fc);
+    const extrasSig = JSON.stringify(fc.lookupOptionExtraSelectFields ?? []);
+    const subPropSig = fc.lookupOptionLabelSubProp ?? '';
+    const detailSig = JSON.stringify(fc.lookupOptionDetailBelowFields ?? []);
+    const lf = lookupFilters[fn];
+    const injectSig = collectInjectFields(fn).slice().sort().join('|');
+    let parentSig = '';
+    if (lf) {
+      const parentVal = values[lf.parentField];
+      const parentId = extractLookupId(parentVal);
+      parentSig =
+        parentId !== undefined
+          ? String(parentId)
+          : typeof parentVal === 'string'
+            ? parentVal
+            : typeof parentVal === 'number'
+              ? String(parentVal)
+              : '';
+    }
+    const row =
+      lf != null
+        ? `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t${injectSig}\t${lf.parentField}\t${lf.childField ?? ''}\t${lf.filterOperator ?? ''}\t${parentSig}`
+        : `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t${injectSig}\t`;
+    rowKeyByField[fn] = row;
+    parts.push(row);
+  }
+  parts.sort();
+  return { joinedKey: parts.join('\n'), rowKeyByField };
+}
+
 /** Id + etiqueta + extras + detalhe abaixo (ordenado, sem repetir). */
+function walkConditionNodes(node: TFormConditionNode | undefined, visit: (n: TFormConditionNode) => void): void {
+  if (!node) return;
+  if (node.kind === 'all' || node.kind === 'any') {
+    for (let i = 0; i < node.children.length; i++) walkConditionNodes(node.children[i], visit);
+    return;
+  }
+  visit(node);
+}
+
+function collectFirstSubfieldAfterRoot(
+  node: TFormConditionNode | undefined,
+  lookupRoot: string,
+  into: Set<string>
+): void {
+  const root = lookupRoot.trim();
+  if (!root) return;
+  const takePath = (raw: string | undefined): void => {
+    const path = (raw ?? '').trim();
+    if (!path || path.indexOf('/') === -1) return;
+    const parts = path.split('/').map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2 || parts[0] !== root) return;
+    const sub = parts[1];
+    if (sub) into.add(sub);
+  };
+  walkConditionNodes(node, (n) => {
+    if (n.kind !== 'leaf') return;
+    takePath(n.field);
+    if (n.compare?.kind === 'field') takePath(n.compare.value);
+  });
+}
+
+/**
+ * Campos na lista ligada do lookup a incluir no $select das opções (regras, passos, ajuda dinâmica).
+ */
+export function collectLookupSelectInjectFields(
+  cfg: Partial<Pick<IFormManagerConfig, 'rules' | 'steps' | 'dynamicHelp'>>,
+  lookupInternalName: string
+): string[] {
+  const subs = new Set<string>();
+  const rules = cfg.rules ?? [];
+  for (let i = 0; i < rules.length; i++) {
+    collectFirstSubfieldAfterRoot(rules[i].when, lookupInternalName, subs);
+  }
+  const steps = cfg.steps ?? [];
+  for (let i = 0; i < steps.length; i++) {
+    collectFirstSubfieldAfterRoot((steps[i] as IFormStepConfig).showStepWhen, lookupInternalName, subs);
+  }
+  const dh = cfg.dynamicHelp ?? [];
+  for (let i = 0; i < dh.length; i++) collectFirstSubfieldAfterRoot(dh[i].when, lookupInternalName, subs);
+  return Array.from(subs);
+}
+
 export function buildLookupDropdownSelectRaw(
   meta: IFieldMetadata,
   fc: Pick<
     IFormFieldConfig,
     'lookupOptionLabelField' | 'lookupOptionExtraSelectFields' | 'lookupOptionDetailBelowFields'
-  >
+  >,
+  injectSelectFields?: readonly string[]
 ): string[] {
   const label = resolveLookupFormLabelInternalName(meta, fc);
   const extras = fc.lookupOptionExtraSelectFields ?? [];
@@ -140,6 +251,13 @@ export function buildLookupDropdownSelectRaw(
     const x = details[i]?.trim();
     if (!x || x === 'Id') continue;
     set.add(x);
+  }
+  if (injectSelectFields) {
+    for (let i = 0; i < injectSelectFields.length; i++) {
+      const x = injectSelectFields[i]?.trim();
+      if (!x || x === 'Id') continue;
+      set.add(x);
+    }
   }
   return Array.from(set);
 }

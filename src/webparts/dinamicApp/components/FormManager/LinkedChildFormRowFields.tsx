@@ -40,6 +40,8 @@ import { applyTextTransformsToRecordValues } from '../../core/formManager/formTe
 import {
   buildLookupDropdownSelectRaw,
   buildLookupODataFilter,
+  buildLookupReloadRowSignatures,
+  collectLookupSelectInjectFields,
   hasConfiguredLookupFilter,
   isParentValueReadyForLookupFilter,
   lookupRowToOptionText,
@@ -244,6 +246,10 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
   rowPersisted = false,
 }) => {
   const theme = useTheme();
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const childFormRef = useRef(childForm);
+  childFormRef.current = childForm;
   const itemsService = useMemo(() => new ItemsService(), []);
   const fieldsService = useMemo(() => new FieldsService(), []);
   const lookupDestMetaCacheRef = useRef<Record<string, IFieldMetadata[]>>({});
@@ -285,6 +291,38 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     [orderedFieldConfigs, metaByName]
   );
 
+  const lookupDetailSnapshot = useMemo(() => {
+    const out: Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined> = {};
+    for (let i = 0; i < orderedFieldConfigs.length; i++) {
+      const fc = orderedFieldConfigs[i];
+      const m = metaByName.get(fc.internalName);
+      if (!m || (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti')) continue;
+      const opts = lookupOptions[fc.internalName] ?? [];
+      if (m.MappedType === 'lookup') {
+        const id = lookupIdFromValue(values[fc.internalName]);
+        if (!id) {
+          out[fc.internalName] = undefined;
+          continue;
+        }
+        const opt = opts.find((o) => String(o.key) === String(id));
+        const data =
+          opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
+        out[fc.internalName] = data;
+      } else {
+        const sel = normalizeIdTitleArray(values[fc.internalName]);
+        const many: Record<string, unknown>[] = [];
+        for (let s = 0; s < sel.length; s++) {
+          const opt = opts.find((o) => String(o.key) === String(sel[s].Id));
+          const row =
+            opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
+          if (row) many.push(row);
+        }
+        out[fc.internalName] = many.length ? many : undefined;
+      }
+    }
+    return out;
+  }, [orderedFieldConfigs, metaByName, lookupOptions, values]);
+
   const runtimeCtx: IFormRuleRuntimeContext = useMemo(
     () => ({
       formMode,
@@ -294,14 +332,20 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       currentUserId,
       authorId,
       dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
+      lookupOptionSnapshots: lookupDetailSnapshot,
     }),
-    [formMode, values, userGroupTitles, currentUserId, authorId, dynamicContext]
+    [formMode, values, userGroupTitles, currentUserId, authorId, dynamicContext, lookupDetailSnapshot]
   );
 
   const derived = useMemo(
     () => buildFormDerivedState(shell, fieldConfigs, runtimeCtx, undefined, metaByName),
     [shell, fieldConfigs, runtimeCtx, metaByName]
   );
+
+  const derivedRef = useRef(derived);
+  derivedRef.current = derived;
+  const orderedFieldConfigsRef = useRef(orderedFieldConfigs);
+  orderedFieldConfigsRef.current = orderedFieldConfigs;
 
   const validateValueNumberMergedByField = useMemo(() => {
     const rules = shell.rules ?? [];
@@ -312,6 +356,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       values,
       userGroupTitles,
       dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
+      conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
     };
     for (let i = 0; i < orderedFieldConfigs.length; i++) {
       const n = orderedFieldConfigs[i].internalName;
@@ -331,6 +376,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     dynamicContext,
     currentUserId,
     derived.fieldVisible,
+    lookupDetailSnapshot,
   ]);
 
   const validateDateCalendarPropsByField = useMemo(() => {
@@ -345,6 +391,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       dynamicContext: dyn,
       fieldVisible: (fn: string) => vis[fn] !== false,
       now: new Date(),
+      conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
     };
     for (let i = 0; i < datetimeFieldInternalNames.length; i++) {
       const n = datetimeFieldInternalNames[i];
@@ -364,6 +411,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     dynamicContext,
     currentUserId,
     derived.fieldVisible,
+    lookupDetailSnapshot,
   ]);
 
   const fieldConfigByInternalName = useMemo(
@@ -403,6 +451,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         dynamicContext: withRuleRuntimeDynamicContext(dynamicContext, currentUserId),
         fieldVisible: (fn) => derived.fieldVisible[fn] !== false,
         now: new Date(),
+        conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
       });
       if (msg) {
         updateField(name, null);
@@ -416,7 +465,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         return rest;
       });
     },
-    [updateField, values, shell.rules, formMode, userGroupTitles, dynamicContext, currentUserId, derived]
+    [updateField, values, shell.rules, formMode, userGroupTitles, dynamicContext, currentUserId, derived, lookupDetailSnapshot]
   );
 
   useEffect(() => {
@@ -437,6 +486,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         dynamicContext: dyn,
         fieldVisible: fv,
         now: new Date(),
+        conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
       });
       if (msg) {
         patches[name] = null;
@@ -478,6 +528,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     dynamicContext,
     currentUserId,
     onChange,
+    lookupDetailSnapshot,
   ]);
 
   useEffect(() => {
@@ -530,12 +581,12 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
 
         if (lf) {
           if (lf.childField && lf.filterOperator) {
-            const parentVal = values[lf.parentField];
+            const parentVal = valuesRef.current[lf.parentField];
             const parentMeta = metaByName.get(lf.parentField);
             const childFieldMeta = fieldMetaList?.find((x) => x.InternalName === lf.childField);
             filter = buildLookupODataFilter(lf.childField, lf.filterOperator, parentVal, parentMeta, childFieldMeta);
           } else if (lf.odataFilterTemplate) {
-            const parentVal = values[lf.parentField];
+            const parentVal = valuesRef.current[lf.parentField];
             const pid = typeof parentVal === 'number' && isFinite(parentVal) ? parentVal :
               (typeof parentVal === 'object' && parentVal !== null && 'Id' in parentVal &&
                typeof (parentVal as Record<string, unknown>).Id === 'number'
@@ -544,7 +595,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           }
         }
 
-        const selectRaw = buildLookupDropdownSelectRaw(m, fc ?? {});
+        const selectRaw = buildLookupDropdownSelectRaw(
+          m,
+          fc ?? {},
+          collectLookupSelectInjectFields(childFormRef.current, fieldName)
+        );
         const labelFieldName = resolveLookupFormLabelInternalName(m, fc ?? {});
         const labelMeta = fieldMetaList?.find((x) => x.InternalName === labelFieldName);
 
@@ -568,93 +623,53 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         setLookupOptions((o) => ({ ...o, [fieldName]: [] }));
       }
     },
-    [itemsService, metaByName, fieldsService, fieldConfigByInternalName, values]
+    [itemsService, metaByName, fieldsService, fieldConfigByInternalName]
   );
 
-  const lookupFetchKey = useMemo(() => {
-    const parts: string[] = [];
-    for (let i = 0; i < orderedFieldConfigs.length; i++) {
-      const fn = orderedFieldConfigs[i].internalName;
-      const m = metaByName.get(fn);
-      if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
-      const listId = String(m.LookupList ?? '');
-      const fc = orderedFieldConfigs[i];
-      const labelDisp = resolveLookupFormLabelInternalName(m, fc ?? {});
-      const extrasSig = JSON.stringify(fc?.lookupOptionExtraSelectFields ?? []);
-      const subPropSig = fc?.lookupOptionLabelSubProp ?? '';
-      const detailSig = JSON.stringify(fc?.lookupOptionDetailBelowFields ?? []);
-      const lf = derived.lookupFilters[fn];
-      if (lf) {
-        const parentVal = values[lf.parentField];
-        const parentId = typeof parentVal === 'number' && isFinite(parentVal) ? parentVal :
-          (typeof parentVal === 'object' && parentVal !== null && 'Id' in parentVal &&
-           typeof (parentVal as Record<string, unknown>).Id === 'number'
-           ? (parentVal as Record<string, unknown>).Id as number : undefined);
-        const parentSig = parentId !== undefined ? String(parentId) :
-          typeof parentVal === 'string' ? parentVal :
-          typeof parentVal === 'number' ? String(parentVal) : '';
-        parts.push(
-          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t${lf.parentField}\t${lf.childField ?? ''}\t${lf.filterOperator ?? ''}\t${parentSig}`
-        );
-      } else {
-        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t`);
-      }
-    }
-    parts.sort();
-    return parts.join('\n');
-  }, [orderedFieldConfigs, metaByName, derived.lookupFilters, values]);
+  const lookupFetchKey = useMemo(
+    () =>
+      buildLookupReloadRowSignatures({
+        fieldConfigs: orderedFieldConfigs,
+        metaByName,
+        lookupFilters: derived.lookupFilters,
+        values,
+        collectInjectFields: (fn) => collectLookupSelectInjectFields(childFormRef.current, fn),
+      }).joinedKey,
+    [orderedFieldConfigs, metaByName, derived.lookupFilters, values, childForm.rules, childForm.steps]
+  );
 
-  const lookupDetailSnapshot = useMemo(() => {
-    const out: Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined> = {};
-    for (let i = 0; i < orderedFieldConfigs.length; i++) {
-      const fc = orderedFieldConfigs[i];
-      const detailFns = fc.lookupOptionDetailBelowFields ?? [];
-      if (!detailFns.length) continue;
-      const m = metaByName.get(fc.internalName);
-      if (!m || (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti')) continue;
-      const opts = lookupOptions[fc.internalName] ?? [];
-      if (m.MappedType === 'lookup') {
-        const id = lookupIdFromValue(values[fc.internalName]);
-        if (!id) {
-          out[fc.internalName] = undefined;
-          continue;
-        }
-        const opt = opts.find((o) => String(o.key) === String(id));
-        const data =
-          opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
-        out[fc.internalName] = data;
-      } else {
-        const sel = normalizeIdTitleArray(values[fc.internalName]);
-        const many: Record<string, unknown>[] = [];
-        for (let s = 0; s < sel.length; s++) {
-          const opt = opts.find((o) => String(o.key) === String(sel[s].Id));
-          const row =
-            opt && typeof opt === 'object' && 'data' in opt ? (opt as { data?: Record<string, unknown> }).data : undefined;
-          if (row) many.push(row);
-        }
-        out[fc.internalName] = many.length ? many : undefined;
-      }
-    }
-    return out;
-  }, [orderedFieldConfigs, metaByName, lookupOptions, values]);
+  const lastLookupRowKeyByFieldRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
-    let cancelled = false;
-    void (async (): Promise<void> => {
-      for (let i = 0; i < orderedFieldConfigs.length; i++) {
-        if (cancelled) return;
-        const fn = orderedFieldConfigs[i].internalName;
-        const m = metaByName.get(fn);
-        if (m?.MappedType === 'lookup' || m?.MappedType === 'lookupmulti') {
-          const lf = derived.lookupFilters[fn];
-          await loadLookupOptions(fn, lf);
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      void (async (): Promise<void> => {
+        const pack = buildLookupReloadRowSignatures({
+          fieldConfigs: orderedFieldConfigsRef.current,
+          metaByName,
+          lookupFilters: derivedRef.current.lookupFilters,
+          values: valuesRef.current,
+          collectInjectFields: (fn) => collectLookupSelectInjectFields(childFormRef.current, fn),
+        });
+        const fcs = orderedFieldConfigsRef.current;
+        for (let i = 0; i < fcs.length; i++) {
+          if (!alive) return;
+          const fn = fcs[i].internalName;
+          const m = metaByName.get(fn);
+          if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
+          const rk = pack.rowKeyByField[fn];
+          if (rk === undefined) continue;
+          if (lastLookupRowKeyByFieldRef.current[fn] === rk) continue;
+          lastLookupRowKeyByFieldRef.current[fn] = rk;
+          await loadLookupOptions(fn, derivedRef.current.lookupFilters[fn]);
         }
-      }
-    })();
+      })();
+    }, 350);
     return (): void => {
-      cancelled = true;
+      alive = false;
+      window.clearTimeout(timer);
     };
-  }, [lookupFetchKey, loadLookupOptions, orderedFieldConfigs, metaByName, derived.lookupFilters, values]);
+  }, [lookupFetchKey, loadLookupOptions, metaByName]);
 
   type TRenderMode = 'default' | 'compact' | 'cell';
 
@@ -672,6 +687,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               values={values}
               dynamicContext={dynamicContext}
               userGroupTitles={userGroupTitles}
+              lookupOptionSnapshots={lookupDetailSnapshot}
             />
           </Stack>
         );

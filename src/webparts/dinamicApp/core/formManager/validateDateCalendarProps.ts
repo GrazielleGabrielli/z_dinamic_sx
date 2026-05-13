@@ -5,6 +5,7 @@ import {
   evaluateValidateDateRulesForField,
   mergeValidateDateCalendarBounds,
   startOfDay,
+  type IEvaluateConditionOpts,
 } from './formRuleEngine';
 
 export interface IValidateDateCalendarProps {
@@ -112,6 +113,7 @@ export function buildValidateDateCalendarProps(
     dynamicContext: IDynamicContext;
     fieldVisible: (name: string) => boolean;
     now?: Date;
+    conditionOpts?: IEvaluateConditionOpts;
   }
 ): IValidateDateCalendarProps {
   const applicable = collectApplicableValidateDateRules(rules, field, values, params);

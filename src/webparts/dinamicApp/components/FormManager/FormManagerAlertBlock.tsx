@@ -13,6 +13,9 @@ export interface IFormManagerAlertBlockProps {
   userGroupTitles?: string[];
   fieldLabelsByName?: ReadonlyMap<string, string>;
   onConfigure?: () => void;
+  lookupOptionSnapshots?: Readonly<
+    Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
+  >;
 }
 
 type TAlertSkin = {
@@ -94,6 +97,7 @@ export const FormManagerAlertBlock: React.FC<IFormManagerAlertBlockProps> = ({
   userGroupTitles = [],
   fieldLabelsByName,
   onConfigure,
+  lookupOptionSnapshots,
 }) => {
   const variant = resolveAlertVariant(alert);
   const skin = ALERT_SKIN[variant];
@@ -113,8 +117,10 @@ export const FormManagerAlertBlock: React.FC<IFormManagerAlertBlockProps> = ({
 
   const visible = useMemo(() => {
     if (!alert.alertWhen) return true;
-    return evaluateCondition(alert.alertWhen, values, dynamicContext, userGroupTitles);
-  }, [alert.alertWhen, values, dynamicContext, userGroupTitles]);
+    return evaluateCondition(alert.alertWhen, values, dynamicContext, userGroupTitles, {
+      lookupOptionSnapshots,
+    });
+  }, [alert.alertWhen, values, dynamicContext, userGroupTitles, lookupOptionSnapshots]);
 
   if (!visible) return null;
   if (dismissed && canDismiss) return null;

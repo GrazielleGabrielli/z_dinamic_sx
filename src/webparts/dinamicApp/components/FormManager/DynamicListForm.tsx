@@ -47,6 +47,8 @@ import { applyTextTransformsToRecordValues } from '../../core/formManager/formTe
 import {
   buildLookupDropdownSelectRaw,
   buildLookupODataFilter,
+  buildLookupReloadRowSignatures,
+  collectLookupSelectInjectFields,
   hasConfiguredLookupFilter,
   isParentValueReadyForLookupFilter,
   lookupRowToOptionText,
@@ -422,7 +424,8 @@ function reduceCustomButtonActions(
   dynamicContext: IDynamicContext,
   baseOverlay: IFormButtonFieldOverlay,
   attachmentFolderUrl: IFormAttachmentFolderUrlContext | undefined,
-  userGroupTitles: string[]
+  userGroupTitles: string[],
+  conditionOpts?: { lookupOptionSnapshots?: IFormRuleRuntimeContext['lookupOptionSnapshots'] }
 ): { mergedValues: Record<string, unknown>; mergedOverlay: IFormButtonFieldOverlay } {
   let next = { ...startValues };
   const mergedOverlay: IFormButtonFieldOverlay = {
@@ -434,7 +437,7 @@ function reduceCustomButtonActions(
   };
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
-    if (a.when && !evaluateCondition(a.when, next, dynamicContext, userGroupTitles)) {
+    if (a.when && !evaluateCondition(a.when, next, dynamicContext, userGroupTitles, conditionOpts)) {
       continue;
     }
     if (a.kind === 'setFieldValue') {
@@ -1267,6 +1270,10 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     itemToFormValues(initialItem ?? undefined, names)
   );
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const formManagerRef = useRef(formManager);
+  formManagerRef.current = formManager;
   const [submitUi, setSubmitUi] = useState<TFormSubmitLoadingUiKind | null>(null);
   const submitting = submitUi !== null;
   const [formError, setFormError] = useState<string | undefined>(undefined);
@@ -1633,17 +1640,6 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [linkedConfigsSorted, linkedRowsById, formManager]);
 
   useEffect(() => {
-    if (formMode !== 'create') return;
-    setValues((prev) => {
-      const merged = getDefaultValuesFromRules(formManager, prev, dynamicContext, {
-        isDateTimeField: isDateTimeFieldFromMeta,
-        userGroupTitles,
-      });
-      return merged;
-    });
-  }, [formManager, formMode, dynamicContext, isDateTimeFieldFromMeta, userGroupTitles]);
-
-  useEffect(() => {
     setValues((prev) => applyTextTransformsToRecordValues(prev, fieldConfigs, metaByName));
   }, [values, fieldConfigs, metaByName]);
 
@@ -1713,6 +1709,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return out;
   }, [fieldConfigs, metaByName, lookupOptions, values]);
 
+  useEffect(() => {
+    if (formMode !== 'create') return;
+    setValues((prev) => {
+      const merged = getDefaultValuesFromRules(formManager, prev, dynamicContext, {
+        isDateTimeField: isDateTimeFieldFromMeta,
+        userGroupTitles,
+        lookupOptionSnapshots: lookupDetailSnapshot,
+      });
+      return merged;
+    });
+  }, [formManager, formMode, dynamicContext, isDateTimeFieldFromMeta, userGroupTitles, lookupDetailSnapshot]);
+
   const runtimeCtx = useCallback(
     (submitKind?: TFormSubmitKind): IFormRuleRuntimeContext => ({
       formMode,
@@ -1766,6 +1774,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     ]
   );
 
+  const derivedRef = useRef(derived);
+  derivedRef.current = derived;
+  const fieldConfigsRef = useRef(fieldConfigs);
+  fieldConfigsRef.current = fieldConfigs;
+
   const validateDateCalendarPropsByField = useMemo(() => {
     const rules = formManager.rules ?? [];
     const vis = derived.fieldVisible;
@@ -1778,6 +1791,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       dynamicContext: dyn,
       fieldVisible: (fn: string) => vis[fn] !== false,
       now: new Date(),
+      conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
     };
     for (let i = 0; i < datetimeFieldInternalNames.length; i++) {
       const n = datetimeFieldInternalNames[i];
@@ -1797,6 +1811,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     dynamicContext,
     currentUserId,
     derived.fieldVisible,
+    lookupDetailSnapshot,
   ]);
 
   const validateValueLengthMergedByField = useMemo(() => {
@@ -1808,6 +1823,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       values,
       userGroupTitles,
       dynamicContext,
+      conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
     };
     for (let i = 0; i < fieldConfigs.length; i++) {
       const n = fieldConfigs[i].internalName;
@@ -1818,7 +1834,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
     }
     return out;
-  }, [formManager.rules, fieldConfigs, formMode, values, userGroupTitles, dynamicContext, derived.fieldVisible]);
+  }, [formManager.rules, fieldConfigs, formMode, values, userGroupTitles, dynamicContext, derived.fieldVisible, lookupDetailSnapshot]);
 
   const validateValueNumberMergedByField = useMemo(() => {
     const rules = formManager.rules ?? [];
@@ -1829,6 +1845,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       values,
       userGroupTitles,
       dynamicContext,
+      conditionOpts: { lookupOptionSnapshots: lookupDetailSnapshot },
     };
     for (let i = 0; i < fieldConfigs.length; i++) {
       const n = fieldConfigs[i].internalName;
@@ -1839,7 +1856,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
     }
     return out;
-  }, [formManager.rules, fieldConfigs, formMode, values, userGroupTitles, dynamicContext, derived.fieldVisible]);
+  }, [formManager.rules, fieldConfigs, formMode, values, userGroupTitles, dynamicContext, derived.fieldVisible, lookupDetailSnapshot]);
 
   const flatPendingFiles = useMemo(() => {
     if (multiFolderAttachmentMode) return Object.values(pendingFilesByFolder).flat();
@@ -1950,17 +1967,21 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 
         if (lf) {
           if (lf.childField && lf.filterOperator) {
-            const parentVal = values[lf.parentField];
+            const parentVal = valuesRef.current[lf.parentField];
             const parentMeta = metaByName.get(lf.parentField);
             const childFieldMeta = fieldMetaList?.find((x) => x.InternalName === lf.childField);
             filter = buildLookupODataFilter(lf.childField, lf.filterOperator, parentVal, parentMeta, childFieldMeta);
           } else if (lf.odataFilterTemplate) {
-            const pid = lookupIdFromValue(values[lf.parentField]);
+            const pid = lookupIdFromValue(valuesRef.current[lf.parentField]);
             if (pid !== undefined) filter = lf.odataFilterTemplate.split('{parent}').join(String(pid));
           }
         }
 
-        const selectRaw = buildLookupDropdownSelectRaw(m, fc ?? {});
+        const selectRaw = buildLookupDropdownSelectRaw(
+          m,
+          fc ?? {},
+          collectLookupSelectInjectFields(formManagerRef.current, fieldName)
+        );
         const labelFieldName = resolveLookupFormLabelInternalName(m, fc ?? {});
         const labelMeta = fieldMetaList?.find((x) => x.InternalName === labelFieldName);
 
@@ -1985,57 +2006,61 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         setLookupOptions((o) => ({ ...o, [fieldName]: [] }));
       }
     },
-    [itemsService, metaByName, listWeb, fieldsService, fieldConfigByInternalName, values]
+    [itemsService, metaByName, listWeb, fieldsService, fieldConfigByInternalName]
   );
 
-  const lookupFetchKey = useMemo(() => {
-    const parts: string[] = [];
-    for (let i = 0; i < fieldConfigs.length; i++) {
-      const fn = fieldConfigs[i].internalName;
-      const m = metaByName.get(fn);
-      if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
-      const listId = String(m.LookupList ?? '');
-      const fc = fieldConfigs[i];
-      const labelDisp = resolveLookupFormLabelInternalName(m, fc ?? {});
-      const extrasSig = JSON.stringify(fc?.lookupOptionExtraSelectFields ?? []);
-      const subPropSig = fc?.lookupOptionLabelSubProp ?? '';
-      const detailSig = JSON.stringify(fc?.lookupOptionDetailBelowFields ?? []);
-      const lf = derived.lookupFilters[fn];
-      if (lf) {
-        const parentVal = values[lf.parentField];
-        const parentId = lookupIdFromValue(parentVal);
-        const parentSig = parentId !== undefined ? String(parentId) :
-          typeof parentVal === 'string' ? parentVal :
-          typeof parentVal === 'number' ? String(parentVal) : '';
-        parts.push(
-          `${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t${lf.parentField}\t${lf.childField ?? ''}\t${lf.filterOperator ?? ''}\t${parentSig}`
-        );
-      } else {
-        parts.push(`${fn}\t${listId}\t${labelDisp}\t${extrasSig}\t${subPropSig}\t${detailSig}\t`);
-      }
-    }
-    parts.sort();
-    return parts.join('\n');
-  }, [fieldConfigs, metaByName, derived.lookupFilters, values]);
+  const lookupFetchKey = useMemo(
+    () =>
+      buildLookupReloadRowSignatures({
+        fieldConfigs,
+        metaByName,
+        lookupFilters: derived.lookupFilters,
+        values,
+        collectInjectFields: (fn) => collectLookupSelectInjectFields(formManagerRef.current, fn),
+      }).joinedKey,
+    [
+      fieldConfigs,
+      metaByName,
+      derived.lookupFilters,
+      values,
+      formManager.rules,
+      formManager.steps,
+      formManager.dynamicHelp,
+    ]
+  );
+
+  const lastLookupRowKeyByFieldRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
-    let cancelled = false;
-    void (async (): Promise<void> => {
-      for (let i = 0; i < fieldConfigs.length; i++) {
-        if (cancelled) return;
-        const fn = fieldConfigs[i].internalName;
-        const m = metaByName.get(fn);
-        if (m?.MappedType === 'lookup' || m?.MappedType === 'lookupmulti') {
-          const lf = derived.lookupFilters[fn];
-          await loadLookupOptions(fn, lf);
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      void (async (): Promise<void> => {
+        const pack = buildLookupReloadRowSignatures({
+          fieldConfigs: fieldConfigsRef.current,
+          metaByName,
+          lookupFilters: derivedRef.current.lookupFilters,
+          values: valuesRef.current,
+          collectInjectFields: (fn) => collectLookupSelectInjectFields(formManagerRef.current, fn),
+        });
+        const fcs = fieldConfigsRef.current;
+        for (let i = 0; i < fcs.length; i++) {
+          if (!alive) return;
+          const fn = fcs[i].internalName;
+          const m = metaByName.get(fn);
+          if (m?.MappedType !== 'lookup' && m?.MappedType !== 'lookupmulti') continue;
+          const rk = pack.rowKeyByField[fn];
+          if (rk === undefined) continue;
+          if (lastLookupRowKeyByFieldRef.current[fn] === rk) continue;
+          lastLookupRowKeyByFieldRef.current[fn] = rk;
+          await loadLookupOptions(fn, derivedRef.current.lookupFilters[fn]);
         }
-      }
-    })();
+      })();
+    }, 350);
     return (): void => {
-      cancelled = true;
+      alive = false;
+      window.clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fieldConfigs, metaByName, derived, values entram via lookupFetchKey (conteúdo estável).
-  }, [lookupFetchKey, loadLookupOptions]);
+  }, [lookupFetchKey, loadLookupOptions, metaByName]);
 
   useEffect(() => {
     if (formMode === 'create' || !itemId) {
@@ -2605,15 +2630,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return nonSpecial.filter(
       (s) =>
         stepVisibleInFormMode(s, formMode) &&
-        evaluateCondition(s.showStepWhen, values, dynamicContext, userGroupTitles)
+        evaluateCondition(s.showStepWhen, values, dynamicContext, userGroupTitles, {
+          lookupOptionSnapshots: lookupDetailSnapshot,
+        })
     );
-  }, [stepsAll, formMode, values, dynamicContext, userGroupTitles]);
+  }, [stepsAll, formMode, values, dynamicContext, userGroupTitles, lookupDetailSnapshot]);
 
   const fixosStepConfig = stepsAll?.find((s) => s.id === FORM_FIXOS_STEP_ID);
   const fixosChromeActive =
     fixosStepConfig === undefined ||
     (stepVisibleInFormMode(fixosStepConfig, formMode) &&
-      evaluateCondition(fixosStepConfig.showStepWhen, values, dynamicContext, userGroupTitles));
+      evaluateCondition(fixosStepConfig.showStepWhen, values, dynamicContext, userGroupTitles, {
+        lookupOptionSnapshots: lookupDetailSnapshot,
+      }));
   const [stepIndex, setStepIndex] = useState(0);
   const [historyBtn, setHistoryBtn] = useState<IFormCustomButtonConfig | null>(null);
   type IConfirmRunResult = { proceed: boolean; valuesBaselinePatch?: Record<string, unknown> };
@@ -2747,6 +2776,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             getDefaultValuesFromRules(formManager, empty, dynamicContext, {
               isDateTimeField: isDateTimeFieldFromMeta,
               userGroupTitles,
+              lookupOptionSnapshots: lookupDetailSnapshot,
             })
           );
           setButtonOverlay({ show: new Set<string>(), hide: new Set<string>() });
@@ -2882,7 +2912,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       dynamicContext,
       buttonOverlay,
       attachmentFolderUrl,
-      userGroupTitles
+      userGroupTitles,
+      { lookupOptionSnapshots: lookupDetailSnapshot }
     );
     if (actions.length > 0 && tl) {
       tl.ok(ti);
@@ -4139,6 +4170,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               dynamicContext={dynamicContext}
               userGroupTitles={userGroupTitles}
               fieldLabelsByName={fieldLabelByName}
+              lookupOptionSnapshots={lookupDetailSnapshot}
             />
           </Stack>
         );
@@ -4152,6 +4184,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             dynamicContext={dynamicContext}
             userGroupTitles={userGroupTitles}
             fieldLabelsByName={fieldLabelByName}
+            lookupOptionSnapshots={lookupDetailSnapshot}
           />
         </Stack>
       );
