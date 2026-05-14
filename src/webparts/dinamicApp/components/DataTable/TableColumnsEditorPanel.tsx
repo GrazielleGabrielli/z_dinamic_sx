@@ -301,7 +301,7 @@ function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
 }
 
-type TListTabListaSection = 'pagination' | 'viewModes' | 'columns' | 'filterFields';
+type TListTabListaSection = 'pagination' | 'listTableCards' | 'viewModes' | 'columns' | 'filterFields';
 
 function ListTabListaCollapse(props: {
   title: string;
@@ -924,6 +924,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       });
     }
     const { listDefaultDisplayMode: _carryListDefault, viewModePicker: _omitVmPicker, ...carryRest } = carryListView;
+    const effectiveListCardEnabled =
+      mode === 'list' ? listCardViewEnabled : !!(carryListView.listCardViewEnabled ?? false);
+    const effectiveListCardDefault: TListViewDisplayMode =
+      mode === 'list'
+        ? listDefaultDisplayMode
+        : carryListView.listDefaultDisplayMode === 'cards'
+          ? 'cards'
+          : 'table';
     const nextTableFilterFields: ITableFilterFieldConfig[] = tableFilterFields
       .filter((f) => f.field.trim())
       .map((f) => ({ field: f.field.trim(), ...(f.label?.trim() ? { label: f.label.trim() } : {}) }));
@@ -933,7 +941,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       viewModes,
       activeViewModeId,
       pdfExportEnabled,
-      listCardViewEnabled,
+      listCardViewEnabled: effectiveListCardEnabled,
       customTableCssSlots: undefined,
       ...(cssTrim ? { customTableCss: cssTrim } : { customTableCss: undefined }),
       ...(cardCssTrim ? { customCardCss: cardCssTrim } : { customCardCss: undefined }),
@@ -942,7 +950,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
       ...(nextTableFilterFields.length > 0 ? { tableFilterFields: nextTableFilterFields } : { tableFilterFields: undefined }),
-      ...(listCardViewEnabled && listDefaultDisplayMode === 'cards' ? { listDefaultDisplayMode: 'cards' as const } : {}),
+      ...(effectiveListCardEnabled && effectiveListCardDefault === 'cards'
+        ? { listDefaultDisplayMode: 'cards' as const }
+        : {}),
       ...(listViewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
       ...(viewModeDefaultRules.length > 0
         ? { viewModeDefaultRules: viewModeDefaultRules.map((r) => ({ ...r })) }
@@ -1315,6 +1325,51 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     </>
                   )}
                 </ListTabListaCollapse>
+                {mode === 'list' && (
+                  <ListTabListaCollapse
+                    title="Vista em tabela ou cartões"
+                    isOpen={listTabListaSectionOpen.listTableCards === true}
+                    onToggle={() =>
+                      setListTabListaSectionOpen((p) => ({
+                        ...p,
+                        listTableCards: p.listTableCards === true ? false : true,
+                      }))
+                    }
+                  >
+                    <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
+                      Aplica-se à vista em lista FlexView (não à listagem acima do formulário no modo gestor).
+                    </Text>
+                    <Stack tokens={{ childrenGap: 6 }}>
+                      <Checkbox
+                        label="Permitir alternar entre tabela e cartões na lista"
+                        checked={listCardViewEnabled}
+                        onChange={(_, v) => {
+                          const on = !!v;
+                          setListCardViewEnabled(on);
+                          if (!on) setListDefaultDisplayMode('table');
+                        }}
+                      />
+                      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                        Mostra na barra da lista a opção Tabela ou Cartões (as mesmas colunas em grelha de cartões).
+                      </Text>
+                      {listCardViewEnabled && (
+                        <Dropdown
+                          label="Visualização ao abrir"
+                          selectedKey={listDefaultDisplayMode}
+                          options={[
+                            { key: 'table', text: 'Tabela' },
+                            { key: 'cards', text: 'Cartões' },
+                          ]}
+                          onChange={(_: React.FormEvent, opt?: IDropdownOption) => {
+                            const k = opt?.key as TListViewDisplayMode | undefined;
+                            if (k === 'table' || k === 'cards') setListDefaultDisplayMode(k);
+                          }}
+                          styles={{ root: { maxWidth: 280 } }}
+                        />
+                      )}
+                    </Stack>
+                  </ListTabListaCollapse>
+                )}
                 <ListTabListaCollapse
                   title="Modos de visualização"
                   isOpen={listTabListaSectionOpen.viewModes === true}
@@ -1491,35 +1546,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     </div>
                   )}
                   {viewModeEditingId === null && <DefaultButton text="Adicionar modo de visualização" onClick={startViewModeAdd} />}
-                  <Stack tokens={{ childrenGap: 6 }}>
-                    <Checkbox
-                      label="Permitir visualização em cards na lista"
-                      checked={listCardViewEnabled}
-                      onChange={(_, v) => {
-                        const on = !!v;
-                        setListCardViewEnabled(on);
-                        if (!on) setListDefaultDisplayMode('table');
-                      }}
-                    />
-                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                      Exibe na lista a opção Tabela ou Cards (mesmas colunas em grade de cartões).
-                    </Text>
-                    {listCardViewEnabled && (
-                      <Dropdown
-                        label="Visualização inicial"
-                        selectedKey={listDefaultDisplayMode}
-                        options={[
-                          { key: 'table', text: 'Tabela' },
-                          { key: 'cards', text: 'Cards' },
-                        ]}
-                        onChange={(_: React.FormEvent, opt?: IDropdownOption) => {
-                          const k = opt?.key as TListViewDisplayMode | undefined;
-                          if (k === 'table' || k === 'cards') setListDefaultDisplayMode(k);
-                        }}
-                        styles={{ root: { maxWidth: 280 } }}
-                      />
-                    )}
-                  </Stack>
                 </ListTabListaCollapse>
                 <ListTabListaCollapse
                   title="Filtros da tabela"
