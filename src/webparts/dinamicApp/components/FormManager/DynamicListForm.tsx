@@ -5138,6 +5138,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           formManager.historyEnabled === true && (
             <FormItemHistoryUi
               actionLog={formManager.actionLog}
+              itemVersioning={formManager.itemVersioning}
+              primaryListTitle={listTitle}
+              listWebServerRelativeUrl={listWeb}
               sourceItemId={itemId}
               presentationKind={formManager.historyPresentationKind ?? 'panel'}
               layoutKind={formManager.historyLayoutKind ?? 'list'}

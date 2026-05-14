@@ -448,4 +448,29 @@ export class ItemsService {
       throw new Error(`ItemsService.getItemVersions("${listTitleOrId}", ${itemId}): ${e}`);
     }
   }
+
+  async getItemVersionSnapshot(
+    listTitleOrId: string,
+    itemId: number,
+    versionId: number,
+    opts?: { webServerRelativeUrl?: string; fieldInternalNames?: string[] }
+  ): Promise<Record<string, unknown>> {
+    try {
+      const sp = this.spForWeb(opts?.webServerRelativeUrl);
+      const base = ['Title', 'Created', 'Modified'];
+      const extra = (opts?.fieldInternalNames ?? [])
+        .map((x) => x.trim())
+        .filter((x) => /^[A-Za-z0-9_]+$/.test(x));
+      const select = Array.from(new Set([...base, ...extra]));
+      const raw = await listRef(sp, listTitleOrId)
+        .items.getById(itemId)
+        .versions.getById(versionId)
+        .select(...select)();
+      return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    } catch (e) {
+      throw new Error(
+        `ItemsService.getItemVersionSnapshot("${listTitleOrId}", ${itemId}, ${versionId}): ${e}`
+      );
+    }
+  }
 }

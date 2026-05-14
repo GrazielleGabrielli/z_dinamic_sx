@@ -10,11 +10,13 @@ import {
   PanelType,
   Modal,
   DefaultButton,
+  IconButton,
   useTheme,
   type ITheme,
 } from '@fluentui/react';
 import type {
   IFormManagerActionLogConfig,
+  IFormManagerItemVersioningConfig,
   TFormHistoryPresentationKind,
   TFormHistoryLayoutKind,
   TFormCustomButtonPaletteSlot,
@@ -28,10 +30,15 @@ import {
   parseActionLogButtonIdFromStoredHtml,
   stripActionLogMarkerFromStoredHtml,
 } from '../../core/formManager/formActionLog';
-import { ItemsService, FieldsService } from '../../../../services';
+import { fieldInternalsForItemVersionODataSelect } from '../../core/formManager/itemVersionSnapshotFields';
+import { ItemsService, FieldsService, type IFieldMetadata } from '../../../../services';
+import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 
 export interface IFormItemHistoryUiProps {
   actionLog: IFormManagerActionLogConfig | undefined;
+  itemVersioning: IFormManagerItemVersioningConfig | undefined;
+  primaryListTitle: string;
+  listWebServerRelativeUrl?: string;
   sourceItemId: number;
   presentationKind: TFormHistoryPresentationKind;
   layoutKind?: TFormHistoryLayoutKind;
@@ -303,8 +310,62 @@ function renderAuditEntries(
   );
 }
 
+const HISTORY_SECTION_IDS = {
+  audit: 'histAuditLog',
+  versions: 'histSpVersions',
+} as const;
+
+function formatVersionFieldValue(v: unknown): string {
+  if (v == null || v === '') return '—';
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (v instanceof Date) return v.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  if (typeof v === 'object' && v !== null && 'Title' in (v as Record<string, unknown>)) {
+    return String((v as { Title?: string }).Title ?? '').trim() || '—';
+  }
+  if (typeof v === 'object' && v !== null && 'Label' in (v as Record<string, unknown>)) {
+    return String((v as { Label?: string }).Label ?? '').trim() || '—';
+  }
+  return '[objeto]';
+}
+
+function renderVersionSnapshotTable(
+  snap: Record<string, unknown>,
+  colors: IHistoryUiColors
+): React.ReactNode {
+  const keys = Object.keys(snap)
+    .filter((k) => !k.startsWith('odata') && k !== '__metadata' && k !== 'ID')
+    .sort((a, b) => a.localeCompare(b));
+  return (
+    <Stack tokens={{ childrenGap: 6 }}>
+      {keys.map((k) => (
+        <Stack key={k} horizontal tokens={{ childrenGap: 8 }} verticalAlign="start" wrap>
+          <Text
+            variant="small"
+            styles={{
+              root: {
+                color: colors.bodySubtext,
+                fontFamily: 'monospace',
+                minWidth: 120,
+                flexShrink: 0,
+              },
+            }}
+          >
+            {k}
+          </Text>
+          <Text variant="small" styles={{ root: { color: colors.bodyText, flex: 1 } }}>
+            {formatVersionFieldValue(snap[k])}
+          </Text>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
 export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
   actionLog,
+  itemVersioning,
+  primaryListTitle,
+  listWebServerRelativeUrl,
   sourceItemId,
   presentationKind,
   layoutKind = 'list',
@@ -326,20 +387,80 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
   const [err, setErr] = useState<string | undefined>(undefined);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [resolvedActionField, setResolvedActionField] = useState<string>('');
+  const [versionRows, setVersionRows] = useState<
+    { versionLabel: string; versionId: number; created?: string; isCurrentVersion?: boolean }[]
+  >([]);
+  const [versionLoading, setVersionLoading] = useState(false);
+  const [versionErr, setVersionErr] = useState<string | undefined>(undefined);
+  const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null);
+  const [verSnap, setVerSnap] = useState<Record<string, unknown> | null>(null);
+  const [verSnapLoading, setVerSnapLoading] = useState(false);
+  const [verSnapErr, setVerSnapErr] = useState<string | undefined>(undefined);
+  const [versionSnapshotPrimaryMeta, setVersionSnapshotPrimaryMeta] = useState<IFieldMetadata[]>([]);
+  const [openHistSections, setOpenHistSections] = useState<Record<string, boolean>>({
+    [HISTORY_SECTION_IDS.audit]: true,
+    [HISTORY_SECTION_IDS.versions]: true,
+  });
+  const toggleHistSection = (id: string): void => {
+    setOpenHistSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+  const histSectionIsOpen = (id: string): boolean => openHistSections[id] !== false;
 
-  useEffect(() => {
-    if (!isOpen || !sourceItemId || sourceItemId < 1) return;
+  const showAuditBlock = useMemo(() => {
     const logList = actionLog?.listTitle?.trim();
     const actionField = actionLog?.actionFieldInternalName?.trim();
     const linkField = actionLog?.sourceListLookupFieldInternalName?.trim();
-    if (!logList || !actionField || !linkField) {
-      setErr(
-        'Indique na configuração do gestor (aba «Lista de logs») a lista de registo, o campo multilinhas e o lookup de vínculo à lista principal. Ative o histórico na aba «Componentes».'
-      );
-      setRows([]);
-      setResolvedActionField('');
+    return !!(logList && actionField && linkField);
+  }, [actionLog?.listTitle, actionLog?.actionFieldInternalName, actionLog?.sourceListLookupFieldInternalName]);
+
+  const showVersionsBlock = useMemo(
+    () =>
+      itemVersioning?.showInHistoryPanel === true &&
+      !!(primaryListTitle ?? '').trim() &&
+      sourceItemId >= 1,
+    [itemVersioning?.showInHistoryPanel, primaryListTitle, sourceItemId]
+  );
+
+  useEffect(() => {
+    if (!isOpen || !showVersionsBlock || !primaryListTitle.trim()) {
+      setVersionSnapshotPrimaryMeta([]);
       return;
     }
+    const t = primaryListTitle.trim();
+    void fieldsService
+      .getVisibleFields(t, listWebServerRelativeUrl)
+      .then((m) => setVersionSnapshotPrimaryMeta(m))
+      .catch(() => setVersionSnapshotPrimaryMeta([]));
+  }, [isOpen, showVersionsBlock, primaryListTitle, listWebServerRelativeUrl, fieldsService]);
+
+  const versionSnapshotFieldInternalsResolved = useMemo(() => {
+    const cf = itemVersioning?.snapshotFieldsInternalNames;
+    if (cf && cf.length) {
+      return cf
+        .map((x) => String(x).trim())
+        .filter((x) => /^[A-Za-z0-9_]+$/.test(x))
+        .slice(0, 48);
+    }
+    return fieldInternalsForItemVersionODataSelect(versionSnapshotPrimaryMeta);
+  }, [itemVersioning?.snapshotFieldsInternalNames, versionSnapshotPrimaryMeta]);
+
+  const versionSnapshotResolvedKey = useMemo(
+    () => versionSnapshotFieldInternalsResolved.join('\u0001'),
+    [versionSnapshotFieldInternalsResolved]
+  );
+
+  useEffect(() => {
+    if (!isOpen || !sourceItemId || sourceItemId < 1) return;
+    if (!showAuditBlock) {
+      setErr(undefined);
+      setRows([]);
+      setResolvedActionField('');
+      setLoading(false);
+      return;
+    }
+    const logList = actionLog?.listTitle?.trim() as string;
+    const actionField = actionLog?.actionFieldInternalName?.trim() as string;
+    const linkField = actionLog?.sourceListLookupFieldInternalName?.trim() as string;
     setErr(undefined);
     setLoading(true);
     setResolvedActionField(actionField);
@@ -368,11 +489,82 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
   }, [
     isOpen,
     sourceItemId,
+    showAuditBlock,
     actionLog?.listTitle,
     actionLog?.actionFieldInternalName,
     actionLog?.sourceListLookupFieldInternalName,
     fieldsService,
     itemsService,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen || !sourceItemId || sourceItemId < 1 || !showVersionsBlock) {
+      setVersionRows([]);
+      setVersionErr(undefined);
+      setVersionLoading(false);
+      setExpandedVersionId(null);
+      setVerSnap(null);
+      setVerSnapErr(undefined);
+      return;
+    }
+    const lt = primaryListTitle.trim();
+    setVersionLoading(true);
+    setVersionErr(undefined);
+    void (async (): Promise<void> => {
+      try {
+        const data = await itemsService.getItemVersions(lt, sourceItemId, listWebServerRelativeUrl);
+        setVersionRows(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setVersionErr(e instanceof Error ? e.message : String(e));
+        setVersionRows([]);
+      } finally {
+        setVersionLoading(false);
+      }
+    })();
+  }, [
+    isOpen,
+    sourceItemId,
+    showVersionsBlock,
+    primaryListTitle,
+    listWebServerRelativeUrl,
+    itemsService,
+  ]);
+
+  useEffect(() => {
+    if (!expandedVersionId || !showVersionsBlock || !primaryListTitle.trim()) {
+      setVerSnap(null);
+      setVerSnapErr(undefined);
+      setVerSnapLoading(false);
+      return;
+    }
+    const lt = primaryListTitle.trim();
+    const fieldInternalNames = versionSnapshotFieldInternalsResolved;
+    setVerSnap(null);
+    setVerSnapLoading(true);
+    setVerSnapErr(undefined);
+    void (async (): Promise<void> => {
+      try {
+        const snap = await itemsService.getItemVersionSnapshot(lt, sourceItemId, expandedVersionId, {
+          webServerRelativeUrl: listWebServerRelativeUrl,
+          fieldInternalNames,
+        });
+        setVerSnap(snap);
+      } catch (e) {
+        setVerSnapErr(e instanceof Error ? e.message : String(e));
+        setVerSnap(null);
+      } finally {
+        setVerSnapLoading(false);
+      }
+    })();
+  }, [
+    expandedVersionId,
+    showVersionsBlock,
+    primaryListTitle,
+    sourceItemId,
+    listWebServerRelativeUrl,
+    versionSnapshotResolvedKey,
+    itemsService,
+    versionSnapshotFieldInternalsResolved,
   ]);
 
   const entries: IAuditEntry[] = useMemo(() => {
@@ -412,6 +604,8 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
     return out;
   }, [rows, resolvedActionField, logEntryPaletteContext, theme, colors.accent]);
 
+  const panelOrphan = isOpen && !showAuditBlock && !showVersionsBlock;
+
   const body = (
     <Stack tokens={{ childrenGap: 12 }}>
       {subtitle && (
@@ -419,19 +613,122 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
           {subtitle}
         </Text>
       )}
-      {err && <MessageBar messageBarType={MessageBarType.error}>{err}</MessageBar>}
-      {loading && (
-        <Spinner
-          label="A carregar registos de auditoria…"
-          styles={{ circle: { borderTopColor: colors.accent } }}
-        />
+      {panelOrphan && (
+        <MessageBar messageBarType={MessageBarType.warning}>
+          Não há fontes para este painel. Na aba «Auditoria e versões» configure a lista de logs completa ou ative o
+          versionamento do item no painel.
+        </MessageBar>
       )}
-      {!loading && !err && entries.length === 0 && (
-        <Text variant="small" styles={{ root: { color: colors.bodySubtext } }}>
-          Nenhum registo na lista de auditoria para este item (filtro pelo lookup configurado).
-        </Text>
+      {showAuditBlock && (
+        <FormManagerCollapseSection
+          title="Lista de logs"
+          isOpen={histSectionIsOpen(HISTORY_SECTION_IDS.audit)}
+          onToggle={() => toggleHistSection(HISTORY_SECTION_IDS.audit)}
+        >
+          {err && <MessageBar messageBarType={MessageBarType.error}>{err}</MessageBar>}
+          {loading && (
+            <Spinner
+              label="A carregar registos de auditoria…"
+              styles={{ circle: { borderTopColor: colors.accent } }}
+            />
+          )}
+          {!loading && !err && entries.length === 0 && (
+            <Text variant="small" styles={{ root: { color: colors.bodySubtext } }}>
+              Nenhum registo na lista de auditoria para este item (filtro pelo lookup configurado).
+            </Text>
+          )}
+          {!loading && !err && entries.length > 0 && renderAuditEntries(entries, layoutKind, colors)}
+        </FormManagerCollapseSection>
       )}
-      {!loading && !err && entries.length > 0 && renderAuditEntries(entries, layoutKind, colors)}
+      {showVersionsBlock && (
+        <FormManagerCollapseSection
+          title="Versionamento do item (SharePoint)"
+          isOpen={histSectionIsOpen(HISTORY_SECTION_IDS.versions)}
+          onToggle={() => toggleHistSection(HISTORY_SECTION_IDS.versions)}
+        >
+          {versionErr && <MessageBar messageBarType={MessageBarType.error}>{versionErr}</MessageBar>}
+          {versionLoading && (
+            <Spinner
+              label="A carregar versões do item…"
+              styles={{ circle: { borderTopColor: colors.accent } }}
+            />
+          )}
+          {!versionLoading && !versionErr && versionRows.length === 0 && (
+            <Text variant="small" styles={{ root: { color: colors.bodySubtext } }}>
+              Não existem versões (ou o versionamento está desativado na lista principal).
+            </Text>
+          )}
+          {!versionLoading &&
+            !versionErr &&
+            versionRows.map((v) => (
+              <div
+                key={v.versionId}
+                style={{
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 4,
+                  overflow: 'hidden',
+                  marginBottom: 8,
+                }}
+              >
+                <Stack
+                  horizontal
+                  verticalAlign="center"
+                  tokens={{ childrenGap: 4 }}
+                  styles={{
+                    root: {
+                      padding: '6px 8px',
+                      cursor: 'pointer',
+                      background: colors.listRowBg,
+                    },
+                  }}
+                  onClick={() =>
+                    setExpandedVersionId((cur) => (cur === v.versionId ? null : v.versionId))
+                  }
+                >
+                  <IconButton
+                    iconProps={{
+                      iconName: expandedVersionId === v.versionId ? 'ChevronDown' : 'ChevronRight',
+                    }}
+                    title={expandedVersionId === v.versionId ? 'Recolher' : 'Expandir'}
+                    aria-expanded={expandedVersionId === v.versionId}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedVersionId((cur) => (cur === v.versionId ? null : v.versionId));
+                    }}
+                  />
+                  <Stack grow styles={{ root: { minWidth: 0 } }}>
+                    <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
+                      <span style={{ fontWeight: 600 }}>Versão {v.versionLabel}</span>
+                      <span style={{ color: colors.bodySubtext, fontWeight: 400 }}>
+                        {' '}
+                        · {formatCreatedValue(v.created)}
+                        {v.isCurrentVersion ? ' · atual' : ''}
+                      </span>
+                    </Text>
+                  </Stack>
+                </Stack>
+                {expandedVersionId === v.versionId && (
+                  <div
+                    style={{
+                      padding: 12,
+                      borderTop: `1px solid ${colors.border}`,
+                      background: colors.cardBg,
+                    }}
+                  >
+                    {verSnapLoading && (
+                      <Spinner
+                        label="A carregar campos desta versão…"
+                        styles={{ circle: { borderTopColor: colors.accent } }}
+                      />
+                    )}
+                    {verSnapErr && <MessageBar messageBarType={MessageBarType.error}>{verSnapErr}</MessageBar>}
+                    {!verSnapLoading && !verSnapErr && verSnap && renderVersionSnapshotTable(verSnap, colors)}
+                  </div>
+                )}
+              </div>
+            ))}
+        </FormManagerCollapseSection>
+      )}
     </Stack>
   );
 

@@ -10,11 +10,17 @@ import {
   MessageBarType,
   Toggle,
   Separator,
+  Checkbox,
+  Link,
 } from '@fluentui/react';
 import { ListsService, FieldsService } from '../../../../services';
 import type { IListSummary, IFieldMetadata } from '../../../../services';
 import type { IFormCustomButtonConfig, TFormCustomButtonPaletteSlot } from '../../core/config/types/formManager';
 import { FORM_BUILTIN_HISTORY_BUTTON_ID } from '../../core/config/types/formManager';
+import {
+  fieldsForVersionSnapshotPicker,
+  fieldInternalsForItemVersionODataSelect,
+} from '../../core/formManager/itemVersionSnapshotFields';
 import { ListPageRichQuillEditor } from '../ListPage/ListPageRichQuillEditor';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { ThemePaletteSlotDropdown } from './ThemePaletteSlotDropdown';
@@ -33,8 +39,12 @@ function normListGuid(g: string | undefined): string {
 }
 
 const LOG_SECTION_IDS = {
+  logBundle: 'auditLogBundle',
   list: 'logList',
   texts: 'logTexts',
+  verBundle: 'spItemVersioning',
+  verPanel: 'spVerPanel',
+  verFields: 'spVerFields',
 } as const;
 
 export interface IFormManagerActionLogTabProps {
@@ -52,10 +62,17 @@ export interface IFormManagerActionLogTabProps {
   customButtons: IFormCustomButtonConfig[];
   /** Título da lista principal do formulário (origem dos dados). */
   primaryListTitle: string;
+  primaryListWebServerRelativeUrl?: string;
   sourceListLookupFieldInternalName: string;
   onSourceListLookupFieldInternalNameChange: (internalName: string) => void;
   automaticChangesOnUpdate: boolean;
   onAutomaticChangesOnUpdateChange: (enabled: boolean) => void;
+  itemVersionShowInHistoryPanel: boolean;
+  onItemVersionShowInHistoryPanelChange: (enabled: boolean) => void;
+  itemVersionSnapshotUseAllFields: boolean;
+  onItemVersionSnapshotUseAllFieldsChange: (enabled: boolean) => void;
+  itemVersionSnapshotFieldInternals: string[];
+  onItemVersionSnapshotFieldInternalsChange: (internalNames: string[]) => void;
 }
 
 export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabProps): JSX.Element {
@@ -73,10 +90,17 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
     onDescriptionPaletteSlotChange,
     customButtons,
     primaryListTitle,
+    primaryListWebServerRelativeUrl,
     sourceListLookupFieldInternalName,
     onSourceListLookupFieldInternalNameChange,
     automaticChangesOnUpdate,
     onAutomaticChangesOnUpdateChange,
+    itemVersionShowInHistoryPanel,
+    onItemVersionShowInHistoryPanelChange,
+    itemVersionSnapshotUseAllFields,
+    onItemVersionSnapshotUseAllFieldsChange,
+    itemVersionSnapshotFieldInternals,
+    onItemVersionSnapshotFieldInternalsChange,
   } = props;
   const [lists, setLists] = useState<IListSummary[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
@@ -87,6 +111,9 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
   const [primaryListId, setPrimaryListId] = useState<string | undefined>(undefined);
   const [primaryListLoading, setPrimaryListLoading] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [primarySnapshotMeta, setPrimarySnapshotMeta] = useState<IFieldMetadata[]>([]);
+  const [primarySnapshotLoading, setPrimarySnapshotLoading] = useState(false);
+  const [primarySnapshotErr, setPrimarySnapshotErr] = useState<string | undefined>(undefined);
 
   const toggleSection = (id: string): void => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -149,6 +176,29 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
         setPrimaryListLoading(false);
       });
   }, [primaryListTitle]);
+
+  useEffect(() => {
+    const t = primaryListTitle.trim();
+    if (!t) {
+      setPrimarySnapshotMeta([]);
+      setPrimarySnapshotErr(undefined);
+      setPrimarySnapshotLoading(false);
+      return;
+    }
+    setPrimarySnapshotErr(undefined);
+    setPrimarySnapshotLoading(true);
+    const fs = new FieldsService();
+    fs.getVisibleFields(t, primaryListWebServerRelativeUrl)
+      .then((fields) => {
+        setPrimarySnapshotMeta(fields);
+        setPrimarySnapshotLoading(false);
+      })
+      .catch((e) => {
+        setPrimarySnapshotMeta([]);
+        setPrimarySnapshotLoading(false);
+        setPrimarySnapshotErr(e instanceof Error ? e.message : String(e));
+      });
+  }, [primaryListTitle, primaryListWebServerRelativeUrl]);
 
   const multilineFields = useMemo(
     () => logListFields.filter((f) => f.MappedType === 'multiline' && !f.Hidden && !f.ReadOnlyField),
@@ -215,196 +265,350 @@ export function FormManagerActionLogTabContent(props: IFormManagerActionLogTabPr
 
   const logDescBlocks = captureEnabled && (customButtons.length > 0 || historyEnabled);
 
+  const pickerFields = useMemo(
+    () => fieldsForVersionSnapshotPicker(primarySnapshotMeta),
+    [primarySnapshotMeta]
+  );
+  const allPickerInternals = useMemo(
+    () => fieldInternalsForItemVersionODataSelect(primarySnapshotMeta),
+    [primarySnapshotMeta]
+  );
+
+  const handleSnapshotUseAllChange = (_: unknown, checked?: boolean): void => {
+    const c = !!checked;
+    if (c) {
+      onItemVersionSnapshotUseAllFieldsChange(true);
+      onItemVersionSnapshotFieldInternalsChange([]);
+    } else {
+      if (allPickerInternals.length === 0) {
+        return;
+      }
+      onItemVersionSnapshotFieldInternalsChange(allPickerInternals.slice());
+      onItemVersionSnapshotUseAllFieldsChange(false);
+    }
+  };
+
   return (
     <Stack tokens={{ childrenGap: 10 }} styles={{ root: { marginTop: 12 } }}>
-
-
       <FormManagerCollapseSection
-        title="Lista de registo e captação"
-        isOpen={isSectionOpen(LOG_SECTION_IDS.list)}
-        onToggle={() => toggleSection(LOG_SECTION_IDS.list)}
+        title="Lista de logs (registo por ações)"
+        isOpen={isSectionOpen(LOG_SECTION_IDS.logBundle)}
+        onToggle={() => toggleSection(LOG_SECTION_IDS.logBundle)}
       >
-   
-        {listsLoading && <Spinner label="A carregar listas…" />}
-        {listsErr && <MessageBar messageBarType={MessageBarType.error}>{listsErr}</MessageBar>}
-        <Dropdown
-          label="Lista para registos de log"
-          options={listOptions}
-          selectedKey={listTitle || ''}
-          onChange={(_, o) => {
-            const t = o ? String(o.key) : '';
-            onListTitleChange(t);
-          }}
-          styles={{ root: { maxWidth: 480 } }}
-          disabled={listsLoading}
-        />
-        {listTitle.trim() ? (
-          <>
-            {logFieldsLoading && <Spinner label="A carregar campos da lista…" />}
-            {logFieldsErr && <MessageBar messageBarType={MessageBarType.error}>{logFieldsErr}</MessageBar>}
-            {!logFieldsLoading && !logFieldsErr && multilineFields.length === 0 && (
-              <MessageBar messageBarType={MessageBarType.warning}>
-                Esta lista não tem colunas de texto multilinhas visíveis. Crie uma coluna «Várias linhas de texto» na
-                lista e volte a abrir o painel.
-              </MessageBar>
-            )}
-            <Dropdown
-              label="Campo para guardar a ação (só várias linhas)"
-              options={fieldOptions}
-              selectedKey={actionFieldInternalName || ''}
-              onChange={(_, o) => {
-                const k = o ? String(o.key) : '';
-                onActionFieldInternalNameChange(k);
-              }}
-              styles={{ root: { maxWidth: 480 } }}
-              disabled={logFieldsLoading || !!logFieldsErr}
-            />
-            {primaryListLoading && <Spinner label="A resolver a lista principal do formulário…" />}
-            {!primaryListTitle.trim() && (
-              <MessageBar messageBarType={MessageBarType.info}>
-                Indique o título da lista principal no separador «Geral» (origem dos dados) para escolher o lookup de
-                vínculo ao item.
-              </MessageBar>
-            )}
-            {!!primaryListTitle.trim() && !primaryListLoading && !primaryListId && (
-              <MessageBar messageBarType={MessageBarType.warning}>
-                Não foi possível obter a lista principal «{primaryListTitle}». Confira o título no separador «Geral».
-              </MessageBar>
-            )}
-            <Dropdown
-              label="Lookup para a lista principal (vínculo ao item)"
-              options={linkFieldOptions}
-              selectedKey={sourceListLookupFieldInternalName || ''}
-              onChange={(_, o) => {
-                const k = o ? String(o.key) : '';
-                onSourceListLookupFieldInternalNameChange(k);
-              }}
-              styles={{ root: { maxWidth: 480 } }}
-              disabled={
-                logFieldsLoading || !!logFieldsErr || primaryListLoading || !primaryListId
-              }
-            />
-            {!logFieldsLoading &&
-              !logFieldsErr &&
-              primaryListId &&
-              linkLookupFields.length === 0 && (
+        <FormManagerCollapseSection
+          title="Lista de registo e captação"
+          isOpen={isSectionOpen(LOG_SECTION_IDS.list)}
+          onToggle={() => toggleSection(LOG_SECTION_IDS.list)}
+        >
+          {listsLoading && <Spinner label="A carregar listas…" />}
+          {listsErr && <MessageBar messageBarType={MessageBarType.error}>{listsErr}</MessageBar>}
+          <Dropdown
+            label="Lista para registos de log"
+            options={listOptions}
+            selectedKey={listTitle || ''}
+            onChange={(_, o) => {
+              const t = o ? String(o.key) : '';
+              onListTitleChange(t);
+            }}
+            styles={{ root: { maxWidth: 480 } }}
+            disabled={listsLoading}
+          />
+          {listTitle.trim() ? (
+            <>
+              {logFieldsLoading && <Spinner label="A carregar campos da lista…" />}
+              {logFieldsErr && <MessageBar messageBarType={MessageBarType.error}>{logFieldsErr}</MessageBar>}
+              {!logFieldsLoading && !logFieldsErr && multilineFields.length === 0 && (
                 <MessageBar messageBarType={MessageBarType.warning}>
-                  Não há coluna de lookup nesta lista de registo que aponte para «{primaryListTitle}». Crie uma coluna
-                  lookup para essa lista.
+                  Esta lista não tem colunas de texto multilinhas visíveis. Crie uma coluna «Várias linhas de texto» na
+                  lista e volte a abrir o painel.
                 </MessageBar>
               )}
-          </>
-        ) : null}
-        <Separator />
-        <Toggle
-          label="Habilitar captação de logs"
-          checked={captureEnabled}
-          onChange={(_, c) => onCaptureEnabledChange(!!c)}
-          onText="Ativa"
-          offText="Inativa"
-          disabled={!canEnableCapture}
-        />
-        {!canEnableCapture && (
-          <Text variant="small" styles={{ root: { color: '#a19f9d', fontStyle: 'italic' } }}>
-            Defina a lista, o campo multilinhas e o lookup de vínculo à lista principal para desbloquear a captação.
+              <Dropdown
+                label="Campo para guardar a ação (só várias linhas)"
+                options={fieldOptions}
+                selectedKey={actionFieldInternalName || ''}
+                onChange={(_, o) => {
+                  const k = o ? String(o.key) : '';
+                  onActionFieldInternalNameChange(k);
+                }}
+                styles={{ root: { maxWidth: 480 } }}
+                disabled={logFieldsLoading || !!logFieldsErr}
+              />
+              {primaryListLoading && <Spinner label="A resolver a lista principal do formulário…" />}
+              {!primaryListTitle.trim() && (
+                <MessageBar messageBarType={MessageBarType.info}>
+                  Indique o título da lista principal no separador «Geral» (origem dos dados) para escolher o lookup de
+                  vínculo ao item.
+                </MessageBar>
+              )}
+              {!!primaryListTitle.trim() && !primaryListLoading && !primaryListId && (
+                <MessageBar messageBarType={MessageBarType.warning}>
+                  Não foi possível obter a lista principal «{primaryListTitle}». Confira o título no separador «Geral».
+                </MessageBar>
+              )}
+              <Dropdown
+                label="Lookup para a lista principal (vínculo ao item)"
+                options={linkFieldOptions}
+                selectedKey={sourceListLookupFieldInternalName || ''}
+                onChange={(_, o) => {
+                  const k = o ? String(o.key) : '';
+                  onSourceListLookupFieldInternalNameChange(k);
+                }}
+                styles={{ root: { maxWidth: 480 } }}
+                disabled={
+                  logFieldsLoading || !!logFieldsErr || primaryListLoading || !primaryListId
+                }
+              />
+              {!logFieldsLoading &&
+                !logFieldsErr &&
+                primaryListId &&
+                linkLookupFields.length === 0 && (
+                  <MessageBar messageBarType={MessageBarType.warning}>
+                    Não há coluna de lookup nesta lista de registo que aponte para «{primaryListTitle}». Crie uma coluna
+                    lookup para essa lista.
+                  </MessageBar>
+                )}
+            </>
+          ) : null}
+          <Separator />
+          <Toggle
+            label="Habilitar captação de logs"
+            checked={captureEnabled}
+            onChange={(_, c) => onCaptureEnabledChange(!!c)}
+            onText="Ativa"
+            offText="Inativa"
+            disabled={!canEnableCapture}
+          />
+          {!canEnableCapture && (
+            <Text variant="small" styles={{ root: { color: '#a19f9d', fontStyle: 'italic' } }}>
+              Defina a lista, o campo multilinhas e o lookup de vínculo à lista principal para desbloquear a captação.
+            </Text>
+          )}
+          <Toggle
+            label="Alterações automáticas (botões Atualizar)"
+            checked={automaticChangesOnUpdate}
+            onChange={(_, c) => onAutomaticChangesOnUpdateChange(!!c)}
+            onText="Ativas"
+            offText="Inativas"
+          />
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            Quando ativo, cada gravação com um botão «Atualizar» acrescenta ao texto do log as alterações efetivas dos
+            campos (valor ao abrir o item → valor gravado). Se o utilizador alterar e repor o mesmo valor, não surge
+            diferença.
           </Text>
-        )}
-        <Toggle
-          label="Alterações automáticas (botões Atualizar)"
-          checked={automaticChangesOnUpdate}
-          onChange={(_, c) => onAutomaticChangesOnUpdateChange(!!c)}
-          onText="Ativas"
-          offText="Inativas"
-        />
-        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-          Quando ativo, cada gravação com um botão «Atualizar» acrescenta ao texto do log as alterações efetivas dos
-          campos (valor ao abrir o item → valor gravado). Se o utilizador alterar e repor o mesmo valor, não surge
-          diferença.
-        </Text>
+        </FormManagerCollapseSection>
+
+        <FormManagerCollapseSection
+          title="Textos de registo por botão"
+          isOpen={isSectionOpen(LOG_SECTION_IDS.texts)}
+          onToggle={() => toggleSection(LOG_SECTION_IDS.texts)}
+        >
+          {!logDescBlocks ? (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              {captureEnabled
+                ? 'Ative o histórico na aba «Componentes» ou configure botões no separador «Botões» para editar textos aqui.'
+                : 'Ative a captação na secção anterior e tenha histórico ou botões configurados para editar os textos de registo.'}
+            </Text>
+          ) : (
+            <Stack
+              tokens={{ childrenGap: 16 }}
+              styles={{
+                root: captureEnabled ? undefined : { opacity: 0.55, pointerEvents: 'none' as const },
+              }}
+            >
+              {historyEnabled && (
+                <Stack
+                  tokens={{ childrenGap: 8 }}
+                  styles={{
+                    root: {
+                      padding: 12,
+                      border: '1px solid #edebe9',
+                      borderRadius: 4,
+                      background: '#faf9f8',
+                    },
+                  }}
+                >
+                  <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                    Botão de histórico (integrado){' '}
+                    <span style={{ color: '#605e5c', fontWeight: 400 }}>({FORM_BUILTIN_HISTORY_BUTTON_ID})</span>
+                  </Text>
+                  <ThemePaletteSlotDropdown
+                    label="Cor do registo (tema)"
+                    selectedKey={
+                      descriptionPaletteSlotByButtonId[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? 'themePrimary'
+                    }
+                    onChange={(slot) => onDescriptionPaletteSlotChange(FORM_BUILTIN_HISTORY_BUTTON_ID, slot)}
+                  />
+                  <ListPageRichQuillEditor
+                    value={descriptionsHtmlByButtonId[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? ''}
+                    onChange={(html) => onDescriptionChange(FORM_BUILTIN_HISTORY_BUTTON_ID, html)}
+                    placeholder="Texto gravado no registo de log ao abrir o histórico…"
+                    permissions={LOG_QUILL_PERMISSIONS}
+                  />
+                </Stack>
+              )}
+              {customButtons.map((btn) => (
+                <Stack
+                  key={btn.id}
+                  tokens={{ childrenGap: 8 }}
+                  styles={{
+                    root: {
+                      padding: 12,
+                      border: '1px solid #edebe9',
+                      borderRadius: 4,
+                      background: '#faf9f8',
+                    },
+                  }}
+                >
+                  <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                    {btn.label || btn.id}{' '}
+                    <span style={{ color: '#605e5c', fontWeight: 400 }}>({btn.id})</span>
+                  </Text>
+                  <ThemePaletteSlotDropdown
+                    label="Cor do registo (tema)"
+                    selectedKey={descriptionPaletteSlotByButtonId[btn.id] ?? 'themePrimary'}
+                    onChange={(slot) => onDescriptionPaletteSlotChange(btn.id, slot)}
+                  />
+                  <ListPageRichQuillEditor
+                    value={descriptionsHtmlByButtonId[btn.id] ?? ''}
+                    onChange={(html) => onDescriptionChange(btn.id, html)}
+                    placeholder="Descreva o que esta ação representa no registo de log…"
+                    permissions={LOG_QUILL_PERMISSIONS}
+                  />
+                </Stack>
+              ))}
+            </Stack>
+          )}
+        </FormManagerCollapseSection>
       </FormManagerCollapseSection>
 
       <FormManagerCollapseSection
-        title="Textos de registo por botão"
-        isOpen={isSectionOpen(LOG_SECTION_IDS.texts)}
-        onToggle={() => toggleSection(LOG_SECTION_IDS.texts)}
+        title="Versionamento do item (SharePoint)"
+        isOpen={isSectionOpen(LOG_SECTION_IDS.verBundle)}
+        onToggle={() => toggleSection(LOG_SECTION_IDS.verBundle)}
       >
- 
-        {!logDescBlocks ? (
+        <FormManagerCollapseSection
+          title="No painel de histórico"
+          isOpen={isSectionOpen(LOG_SECTION_IDS.verPanel)}
+          onToggle={() => toggleSection(LOG_SECTION_IDS.verPanel)}
+        >
+          <Toggle
+            label="Mostrar versões do item no painel de histórico"
+            checked={itemVersionShowInHistoryPanel}
+            onChange={(_, c) => onItemVersionShowInHistoryPanelChange(!!c)}
+            onText="Sim"
+            offText="Não"
+          />
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            {captureEnabled
-              ? 'Ative o histórico na aba «Componentes» ou configure botões no separador «Botões» para editar textos aqui.'
-              : 'Ative a captação na secção anterior e tenha histórico ou botões configurados para editar os textos de registo.'}
+            Usa o histórico de versões nativo da lista principal. Ative o versionamento na definição da lista
+            SharePoint (definições da lista → definições de versão).
           </Text>
-        ) : (
-          <Stack
-            tokens={{ childrenGap: 16 }}
-            styles={{
-              root: captureEnabled ? undefined : { opacity: 0.55, pointerEvents: 'none' as const },
-            }}
-          >
-            {historyEnabled && (
-              <Stack
-                tokens={{ childrenGap: 8 }}
-                styles={{
-                  root: {
-                    padding: 12,
-                    border: '1px solid #edebe9',
-                    borderRadius: 4,
-                    background: '#faf9f8',
-                  },
-                }}
-              >
-                <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                  Botão de histórico (integrado){' '}
-                  <span style={{ color: '#605e5c', fontWeight: 400 }}>({FORM_BUILTIN_HISTORY_BUTTON_ID})</span>
-                </Text>
-                <ThemePaletteSlotDropdown
-                  label="Cor do registo (tema)"
-                  selectedKey={
-                    descriptionPaletteSlotByButtonId[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? 'themePrimary'
+        </FormManagerCollapseSection>
+        <FormManagerCollapseSection
+          title="Campos ao expandir uma versão"
+          isOpen={isSectionOpen(LOG_SECTION_IDS.verFields)}
+          onToggle={() => toggleSection(LOG_SECTION_IDS.verFields)}
+        >
+          {!primaryListTitle.trim() ? (
+            <MessageBar messageBarType={MessageBarType.info}>
+              Indique a lista principal no separador «Geral» para listar os campos.
+            </MessageBar>
+          ) : null}
+          {primarySnapshotLoading && <Spinner label="A carregar campos da lista principal…" />}
+          {primarySnapshotErr && <MessageBar messageBarType={MessageBarType.error}>{primarySnapshotErr}</MessageBar>}
+          <Checkbox
+            label="Todos os campos compatíveis com o pedido REST das versões (predefinição)"
+            checked={itemVersionSnapshotUseAllFields}
+            onChange={handleSnapshotUseAllChange}
+            disabled={!itemVersionShowInHistoryPanel || !primaryListTitle.trim() || primarySnapshotLoading}
+          />
+          {!itemVersionSnapshotUseAllFields && (
+            <Stack tokens={{ childrenGap: 10 }}>
+              <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 16 }} wrap>
+                <Link
+                  styles={
+                    !itemVersionShowInHistoryPanel || pickerFields.length === 0
+                      ? { root: { pointerEvents: 'none', opacity: 0.45 } }
+                      : undefined
                   }
-                  onChange={(slot) => onDescriptionPaletteSlotChange(FORM_BUILTIN_HISTORY_BUTTON_ID, slot)}
-                />
-                <ListPageRichQuillEditor
-                  value={descriptionsHtmlByButtonId[FORM_BUILTIN_HISTORY_BUTTON_ID] ?? ''}
-                  onChange={(html) => onDescriptionChange(FORM_BUILTIN_HISTORY_BUTTON_ID, html)}
-                  placeholder="Texto gravado no registo de log ao abrir o histórico…"
-                  permissions={LOG_QUILL_PERMISSIONS}
-                />
+                  onClick={() => {
+                    if (!itemVersionShowInHistoryPanel || pickerFields.length === 0) return;
+                    onItemVersionSnapshotFieldInternalsChange(allPickerInternals.slice());
+                  }}
+                >
+                  Marcar todos
+                </Link>
+                <Link
+                  styles={!itemVersionShowInHistoryPanel ? { root: { pointerEvents: 'none', opacity: 0.45 } } : undefined}
+                  onClick={() => {
+                    if (!itemVersionShowInHistoryPanel) return;
+                    onItemVersionSnapshotFieldInternalsChange([]);
+                  }}
+                >
+                  Limpar
+                </Link>
               </Stack>
-            )}
-            {customButtons.map((btn) => (
-              <Stack
-                key={btn.id}
-                tokens={{ childrenGap: 8 }}
-                styles={{
-                  root: {
-                    padding: 12,
-                    border: '1px solid #edebe9',
-                    borderRadius: 4,
-                    background: '#faf9f8',
-                  },
+              <div
+                style={{
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  border: '1px solid #edebe9',
+                  borderRadius: 4,
+                  padding: 8,
+                  background: '#faf9f8',
+                  opacity: itemVersionShowInHistoryPanel ? 1 : 0.5,
+                  pointerEvents: itemVersionShowInHistoryPanel ? 'auto' : 'none',
                 }}
               >
-                <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                  {btn.label || btn.id}{' '}
-                  <span style={{ color: '#605e5c', fontWeight: 400 }}>({btn.id})</span>
-                </Text>
-                <ThemePaletteSlotDropdown
-                  label="Cor do registo (tema)"
-                  selectedKey={descriptionPaletteSlotByButtonId[btn.id] ?? 'themePrimary'}
-                  onChange={(slot) => onDescriptionPaletteSlotChange(btn.id, slot)}
-                />
-                <ListPageRichQuillEditor
-                  value={descriptionsHtmlByButtonId[btn.id] ?? ''}
-                  onChange={(html) => onDescriptionChange(btn.id, html)}
-                  placeholder="Descreva o que esta ação representa no registo de log…"
-                  permissions={LOG_QUILL_PERMISSIONS}
-                />
-              </Stack>
-            ))}
-          </Stack>
-        )}
+                {pickerFields.length === 0 && !primarySnapshotLoading && primaryListTitle.trim() ? (
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Nenhum campo elegível (excluídos look-ups, pessoas e taxonomias no pedido OData).
+                  </Text>
+                ) : null}
+                {pickerFields.map((f) => {
+                  const n = f.InternalName.trim();
+                  const checked = itemVersionSnapshotFieldInternals.includes(n);
+                  return (
+                    <Checkbox
+                      key={n}
+                      label={`${f.Title} (${n})`}
+                      checked={checked}
+                      disabled={
+                        itemVersionSnapshotUseAllFields ||
+                        !itemVersionShowInHistoryPanel ||
+                        primarySnapshotLoading
+                      }
+                      onChange={(_, isChecked) => {
+                        if (
+                          itemVersionSnapshotUseAllFields ||
+                          !itemVersionShowInHistoryPanel ||
+                          primarySnapshotLoading
+                        ) {
+                          return;
+                        }
+                        if (isChecked) {
+                          if (!itemVersionSnapshotFieldInternals.includes(n)) {
+                            onItemVersionSnapshotFieldInternalsChange(
+                              itemVersionSnapshotFieldInternals.concat(n).slice(0, 48)
+                            );
+                          }
+                        } else {
+                          onItemVersionSnapshotFieldInternalsChange(
+                            itemVersionSnapshotFieldInternals.filter((x) => x !== n)
+                          );
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </Stack>
+          )}
+          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+            Com a opção «todos», usam-se os campos visíveis adequados ao $select das versões (até limite). Desmarque
+            para escolher campos individuais (look-ups, pessoas e taxonomias não aparecem nesta lista).
+          </Text>
+        </FormManagerCollapseSection>
       </FormManagerCollapseSection>
     </Stack>
   );

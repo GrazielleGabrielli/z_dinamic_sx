@@ -2,6 +2,7 @@ import type {
   IFormManagerAttachmentLibraryConfig,
   IFormManagerConfig,
   IFormManagerActionLogConfig,
+  IFormManagerItemVersioningConfig,
   IFormLinkedChildFormConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
@@ -1206,6 +1207,27 @@ function sanitizeActionLog(raw: unknown): IFormManagerActionLogConfig | undefine
   };
 }
 
+const MAX_ITEM_VERSION_SNAPSHOT_FIELDS = 48;
+
+function sanitizeItemVersioning(raw: unknown): IFormManagerItemVersioningConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  if (o.showInHistoryPanel !== true) return undefined;
+  const snapRaw = o.snapshotFieldsInternalNames;
+  const snapshotFieldsInternalNames: string[] = [];
+  if (Array.isArray(snapRaw)) {
+    for (let i = 0; i < snapRaw.length && snapshotFieldsInternalNames.length < MAX_ITEM_VERSION_SNAPSHOT_FIELDS; i++) {
+      const s = String(snapRaw[i]).trim();
+      if (!s || !/^[A-Za-z0-9_]+$/.test(s)) continue;
+      snapshotFieldsInternalNames.push(s.slice(0, 256));
+    }
+  }
+  return {
+    showInHistoryPanel: true,
+    ...(snapshotFieldsInternalNames.length ? { snapshotFieldsInternalNames } : {}),
+  };
+}
+
 const MAX_PERMISSION_BREAK_ASSIGNMENTS = 40;
 
 function sanitizePermissionBreak(raw: unknown): IFormManagerPermissionBreakConfig | undefined {
@@ -1420,6 +1442,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? (attPreviewRaw as TFormAttachmentFilePreviewKind)
       : undefined;
   const actionLog = sanitizeActionLog(o.actionLog);
+  const itemVersioning = sanitizeItemVersioning(o.itemVersioning);
   const skRaw = o.attachmentStorageKind;
   let attachmentStorageKind: TFormAttachmentStorageKind | undefined;
   if (skRaw === 'documentLibrary') {
@@ -1536,6 +1559,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
           ? { attachmentLibrary }
           : {}),
     ...(actionLog ? { actionLog } : {}),
+    ...(itemVersioning ? { itemVersioning } : {}),
     ...(historyEnabled ? { historyEnabled: true } : {}),
     ...(historyPresentationKind && historyPresentationKind !== 'panel'
       ? { historyPresentationKind }

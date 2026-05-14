@@ -29,6 +29,7 @@ import type { FieldMappedType, IFieldMetadata, IGroupDetails } from '../../../..
 import type {
   IFormManagerConfig,
   IFormManagerActionLogConfig,
+  IFormManagerItemVersioningConfig,
   IFormLinkedChildFormConfig,
   IFormStepNavigationConfig,
   IFormFieldConfig,
@@ -789,7 +790,7 @@ function buildStepNavigationForSave(
  * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
  * | Anexos | `attachmentStorageKind` (`itemAttachments` \| `documentLibrary`), `attachmentLibrary` |
  * | Botões | `customButtons`, `customButtonsBarVertical`, `customButtonsBarHorizontal` |
- * | Lista de logs | `actionLog` (lista, captação, textos por botão) |
+ * | Auditoria e versões | `actionLog`, `itemVersioning` |
  * | Listas vinculadas | `linkedChildForms` |
  * | Quebra de permissões | `permissionBreak` |
  * | Regras dos campos | regras por campo (painel) + resto de `rules` no motor |
@@ -930,6 +931,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     Record<string, TFormCustomButtonPaletteSlot>
   >({});
   const [actionLogAutomaticChangesOnUpdate, setActionLogAutomaticChangesOnUpdate] = useState(false);
+  const [itemVersionShowInHistoryPanel, setItemVersionShowInHistoryPanel] = useState(false);
+  const [itemVersionSnapshotUseAllFields, setItemVersionSnapshotUseAllFields] = useState(true);
+  const [itemVersionSnapshotFieldInternals, setItemVersionSnapshotFieldInternals] = useState<string[]>([]);
   const [historyEnabled, setHistoryEnabled] = useState(() => value.historyEnabled === true);
   const [historyPresentationKind, setHistoryPresentationKind] = useState<TFormHistoryPresentationKind>(
     () => value.historyPresentationKind ?? 'panel'
@@ -1069,6 +1073,16 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}
     );
     setActionLogAutomaticChangesOnUpdate(cfg.actionLog?.automaticChangesOnUpdate === true);
+    const iv = cfg.itemVersioning;
+    setItemVersionShowInHistoryPanel(iv?.showInHistoryPanel === true);
+    const snap = iv?.snapshotFieldsInternalNames;
+    if (snap && snap.length) {
+      setItemVersionSnapshotUseAllFields(false);
+      setItemVersionSnapshotFieldInternals(snap.slice());
+    } else {
+      setItemVersionSnapshotUseAllFields(true);
+      setItemVersionSnapshotFieldInternals([]);
+    }
     setHistoryEnabled(cfg.historyEnabled === true);
     setHistoryPresentationKind(cfg.historyPresentationKind ?? 'panel');
     setHistoryLayoutKind(cfg.historyLayoutKind ?? 'list');
@@ -1197,7 +1211,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const buttonOperationDropdownOptions = useMemo((): IDropdownOption[] => {
     const opts = BUTTON_OPERATION_OPTIONS_BASE.slice();
     if (customButtons.some((b) => b.operation === 'history')) {
-      opts.push({ key: 'history', text: 'Histórico (legado — use Componentes + Lista de logs)' });
+      opts.push({ key: 'history', text: 'Histórico (legado — use Componentes + Auditoria e versões)' });
     }
     return opts;
   }, [customButtons]);
@@ -1662,6 +1676,19 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         return;
       }
     }
+    if (historyEnabled) {
+      const auditPanelReady =
+        !!actionLogListTitle.trim() &&
+        !!actionLogFieldInternalName.trim() &&
+        !!actionLogSourceListLookupFieldInternalName.trim();
+      const versionsPanelReady = itemVersionShowInHistoryPanel === true;
+      if (!auditPanelReady && !versionsPanelReady) {
+        setErr(
+          'Com o histórico ativo (aba Componentes), na aba «Auditoria e versões» configure a lista de logs completa ou ative «Versionamento do item» no painel.'
+        );
+        return;
+      }
+    }
     if (attachmentStorageKind === 'documentLibrary') {
       if (!attachmentLibLibraryTitle.trim() || !attachmentLibLookupField.trim()) {
         setErr(
@@ -1711,6 +1738,18 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogPayload.descriptionPaletteSlotByButtonId ||
       actionLogPayload.automaticChangesOnUpdate
     );
+    const itemVersioningPayload: IFormManagerItemVersioningConfig | undefined = itemVersionShowInHistoryPanel
+      ? {
+          showInHistoryPanel: true,
+          ...(!itemVersionSnapshotUseAllFields && itemVersionSnapshotFieldInternals.length
+            ? {
+                snapshotFieldsInternalNames: itemVersionSnapshotFieldInternals
+                  .filter((x) => /^[A-Za-z0-9_]+$/.test(x))
+                  .slice(0, 48),
+              }
+            : {}),
+        }
+      : undefined;
     const attachmentLibStashed = attachmentLibraryFromPanelState(
       attachmentLibLibraryTitle,
       attachmentLibLookupField,
@@ -1764,6 +1803,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             ...(attachmentLibStashed ? { attachmentLibrary: attachmentLibStashed } : {}),
           }),
       ...(hasActionLog ? { actionLog: actionLogPayload } : {}),
+      ...(itemVersioningPayload ? { itemVersioning: itemVersioningPayload } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
       ...(historyEnabled
         ? {
@@ -2106,6 +2146,18 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       actionLogPreview.descriptionPaletteSlotByButtonId ||
       actionLogPreview.automaticChangesOnUpdate
     );
+    const itemVersioningPreview: IFormManagerItemVersioningConfig | undefined = itemVersionShowInHistoryPanel
+      ? {
+          showInHistoryPanel: true,
+          ...(!itemVersionSnapshotUseAllFields && itemVersionSnapshotFieldInternals.length
+            ? {
+                snapshotFieldsInternalNames: itemVersionSnapshotFieldInternals
+                  .filter((x) => /^[A-Za-z0-9_]+$/.test(x))
+                  .slice(0, 48),
+              }
+            : {}),
+        }
+      : undefined;
     const attachmentLibStashedPreview = attachmentLibraryFromPanelState(
       attachmentLibLibraryTitle,
       attachmentLibLookupField,
@@ -2159,6 +2211,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             ...(attachmentLibStashedPreview ? { attachmentLibrary: attachmentLibStashedPreview } : {}),
           }),
       ...(hasActionLogPreview ? { actionLog: actionLogPreview } : {}),
+      ...(itemVersioningPreview ? { itemVersioning: itemVersioningPreview } : {}),
       ...(historyLayoutKind && historyLayoutKind !== 'list' ? { historyLayoutKind } : {}),
       ...(historyEnabled
         ? {
@@ -2213,6 +2266,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     actionLogSourceListLookupFieldInternalName,
     actionLogDescById,
     actionLogPaletteSlotById,
+    actionLogAutomaticChangesOnUpdate,
+    itemVersionShowInHistoryPanel,
+    itemVersionSnapshotUseAllFields,
+    itemVersionSnapshotFieldInternals,
     historyEnabled,
     historyPresentationKind,
     historyLayoutKind,
@@ -3714,7 +3771,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   {(btn.operation ?? 'legacy') === 'history' && (
                     <MessageBar messageBarType={MessageBarType.info}>
                       Preferível o botão integrado: ative-o na aba «Componentes» (secção Histórico de auditoria) e
-                      configure a lista de log na aba «Lista de logs». Pode remover este botão legado.
+                      configure a lista de log na aba «Auditoria e versões». Pode remover este botão legado.
                     </MessageBar>
                   )}
                   {(btn.operation ?? 'legacy') !== 'history' && (
@@ -4250,7 +4307,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             {!customButtons.length && <Text>Nenhum botão personalizado.</Text>}
           </Stack>
         </PivotItem>
-        <PivotItem headerText="Lista de logs">
+        <PivotItem headerText="Auditoria e versões">
           <FormManagerActionLogTabContent
             historyEnabled={historyEnabled}
             captureEnabled={actionLogCaptureEnabled}
@@ -4268,6 +4325,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               if (!name.trim() && actionLogCaptureEnabled) setActionLogCaptureEnabled(false);
             }}
             primaryListTitle={listTitle.trim()}
+            primaryListWebServerRelativeUrl={lw}
             sourceListLookupFieldInternalName={actionLogSourceListLookupFieldInternalName}
             onSourceListLookupFieldInternalNameChange={(name) => {
               setActionLogSourceListLookupFieldInternalName(name);
@@ -4275,6 +4333,15 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
             }}
             automaticChangesOnUpdate={actionLogAutomaticChangesOnUpdate}
             onAutomaticChangesOnUpdateChange={setActionLogAutomaticChangesOnUpdate}
+            itemVersionShowInHistoryPanel={itemVersionShowInHistoryPanel}
+            onItemVersionShowInHistoryPanelChange={setItemVersionShowInHistoryPanel}
+            itemVersionSnapshotUseAllFields={itemVersionSnapshotUseAllFields}
+            onItemVersionSnapshotUseAllFieldsChange={(v) => {
+              setItemVersionSnapshotUseAllFields(v);
+              if (v) setItemVersionSnapshotFieldInternals([]);
+            }}
+            itemVersionSnapshotFieldInternals={itemVersionSnapshotFieldInternals}
+            onItemVersionSnapshotFieldInternalsChange={setItemVersionSnapshotFieldInternals}
             descriptionsHtmlByButtonId={actionLogDescById}
             onDescriptionChange={(buttonId, html) =>
               setActionLogDescById((prev) => ({ ...prev, [buttonId]: html }))

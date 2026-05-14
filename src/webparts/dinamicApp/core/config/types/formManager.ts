@@ -277,7 +277,7 @@ export type TFixedChromePlacement = 'top' | 'bottom';
 /** Como o bloco se posiciona na zona fixa (Fixos ou banner top/bottom fixo). */
 export type TChromePositionMode = 'sticky' | 'absolute' | 'flow';
 
-/** Id sintético do botão de histórico integrado (ativar na aba Componentes; lista de log na aba Lista de logs). */
+/** Id sintético do botão de histórico integrado (ativar na aba Componentes; logs na aba «Auditoria e versões»). */
 export const FORM_BUILTIN_HISTORY_BUTTON_ID = '__builtin_history';
 
 /** Como apresentar o botão de histórico de versões no formulário. */
@@ -816,6 +816,14 @@ export interface IFormManagerActionLogConfig {
   automaticChangesOnUpdate?: boolean;
 }
 
+/** Versionamento nativo do item na lista principal (REST `versions`). */
+export interface IFormManagerItemVersioningConfig {
+  /** Incluir versões SharePoint no painel de histórico (junto à lista de log, se configurada). */
+  showInHistoryPanel?: boolean;
+  /** Nomes internos a pedir ao expandir uma versão (omitido ou vazio = todos os campos compatíveis com OData, até limite). */
+  snapshotFieldsInternalNames?: string[];
+}
+
 /** Corpo de formulário reutilizável (lista principal ou lista filha vinculada). */
 export interface IFormBodyConfig {
   sections: IFormSectionConfig[];
@@ -950,6 +958,8 @@ export interface IFormManagerConfig {
   customButtonsBarHorizontal?: TFormCustomButtonsBarHorizontal;
   /** Lista e textos para registo de auditoria por botão. */
   actionLog?: IFormManagerActionLogConfig;
+  /** Versões do item na lista principal no painel de histórico. */
+  itemVersioning?: IFormManagerItemVersioningConfig;
   /** Apresentação das etapas quando há mais de uma */
   stepLayout?: TFormStepLayoutKind;
   /** Cor de destaque do passador e botões de etapa (omitido = primária do tema). */
