@@ -19,7 +19,7 @@ export const PersistStatusBar: React.FC<IPersistStatusBarProps> = ({ status }) =
     return (
       <div style={CONTAINER_STYLE}>
         <MessageBar messageBarType={MessageBarType.warning} isMultiline={false}>
-          Alterações pendentes — salve a página para confirmar
+          Configuração aplicada à web part — edite a página no SharePoint e use Salvar/Republicar para persistir no servidor
         </MessageBar>
       </div>
     );
