@@ -59,6 +59,8 @@ import type {
   TFormAttachmentStorageKind,
   TFormCustomButtonsBarVertical,
   TFormCustomButtonsBarHorizontal,
+  TFormManagerBrowseLayoutKind,
+  TFormManagerBrowseLayoutControlKind,
   IAttachmentLibraryFolderTreeNode,
   IFormManagerAttachmentLibraryConfig,
   IFormManagerPermissionBreakConfig,
@@ -787,7 +789,7 @@ function buildStepNavigationForSave(
  * | Aba | Chaves principais em `IFormManagerConfig` |
  * | --- | --- |
  * | Estrutura | `steps`, `sections`, `fields`, `rules` (merge anexos), `stepNavigation` |
- * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
+ * | Componentes | `stepLayout`, `stepAccentPaletteSlot`, `stepNavButtons`, `formDataLoadingKind`, `defaultSubmitLoadingKind`, `formRootWidthMode`, `formRootWidthPercent`, `formRootHorizontalAlign`, `formRootPaddingPx`, `managerColumnFields`, `managerBrowseLayoutKind`, `managerBrowseLayoutControl`, `dynamicHelp`, `attachmentUploadLayout`, `attachmentFilePreview`, `historyEnabled`, `historyPresentationKind`, `historyLayoutKind`, `historyButtonKind`, `historyButtonLabel`, `historyButtonIcon`, `historyPanelSubtitle`, `historyGroupTitles` |
  * | Anexos | `attachmentStorageKind` (`itemAttachments` \| `documentLibrary`), `attachmentLibrary` |
  * | Botões | `customButtons`, `customButtonsBarVertical`, `customButtonsBarHorizontal` |
  * | Auditoria e versões | `actionLog`, `itemVersioning` |
@@ -819,6 +821,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [steps, setSteps] = useState<IFormStepConfig[]>(() => buildInitialFieldsAndSteps(value).steps);
   const [helpJson, setHelpJson] = useState(() => JSON.stringify(value.dynamicHelp ?? [], null, 2));
   const [managerColumnFields, setManagerColumnFields] = useState<string[]>(() => value.managerColumnFields ?? []);
+  const [managerBrowseLayoutKind, setManagerBrowseLayoutKind] = useState<TFormManagerBrowseLayoutKind>(() =>
+    value.managerBrowseLayoutKind === 'cards' ? 'cards' : 'table'
+  );
+  const [managerBrowseLayoutControl, setManagerBrowseLayoutControl] =
+    useState<TFormManagerBrowseLayoutControlKind>(() =>
+      value.managerBrowseLayoutControl === 'compactDropdown' ? 'compactDropdown' : 'segmented'
+    );
   const [customButtons, setCustomButtons] = useState<IFormCustomButtonConfig[]>(() =>
     (value.customButtons ?? []).map((b) => ({
       ...b,
@@ -1021,6 +1030,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setRules(cfg.rules ?? []);
     setHelpJson(JSON.stringify(cfg.dynamicHelp ?? [], null, 2));
     setManagerColumnFields(cfg.managerColumnFields ?? []);
+    setManagerBrowseLayoutKind(cfg.managerBrowseLayoutKind === 'cards' ? 'cards' : 'table');
+    setManagerBrowseLayoutControl(
+      cfg.managerBrowseLayoutControl === 'compactDropdown' ? 'compactDropdown' : 'segmented'
+    );
     setCustomButtons(
       (cfg.customButtons ?? []).map((b) => ({
         ...b,
@@ -1776,6 +1789,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}),
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
+      ...(managerBrowseLayoutKind === 'cards' ? { managerBrowseLayoutKind: 'cards' as const } : {}),
+      ...(managerBrowseLayoutControl === 'compactDropdown'
+        ? { managerBrowseLayoutControl: 'compactDropdown' as const }
+        : {}),
       ...(customButtons.length
         ? {
             customButtons: customButtons.map((b) => ({
@@ -2184,6 +2201,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         : {}),
       ...(dynamicHelp ? { dynamicHelp } : {}),
       ...(managerColumnFields.length ? { managerColumnFields } : {}),
+      ...(managerBrowseLayoutKind === 'cards' ? { managerBrowseLayoutKind: 'cards' as const } : {}),
+      ...(managerBrowseLayoutControl === 'compactDropdown'
+        ? { managerBrowseLayoutControl: 'compactDropdown' as const }
+        : {}),
       ...(customButtons.length
         ? {
             customButtons: customButtons.map((b) => ({
@@ -2234,6 +2255,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     steps,
     helpJson,
     managerColumnFields,
+    managerBrowseLayoutKind,
+    managerBrowseLayoutControl,
     customButtons,
     linkedChildForms,
     permissionBreak,
@@ -3608,6 +3631,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               onRetryLoadSiteGroups={loadSiteGroups}
               historyLayoutKind={historyLayoutKind}
               onHistoryLayoutKindChange={setHistoryLayoutKind}
+              managerBrowseLayoutKind={managerBrowseLayoutKind}
+              onManagerBrowseLayoutKindChange={setManagerBrowseLayoutKind}
+              managerBrowseLayoutControl={managerBrowseLayoutControl}
+              onManagerBrowseLayoutControlChange={setManagerBrowseLayoutControl}
             />
           </Stack>
         </PivotItem>

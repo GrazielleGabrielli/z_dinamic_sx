@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Stack, ActionButton } from '@fluentui/react';
+import { DisplayMode } from '@microsoft/sp-core-library';
 import type { IDinamicAppProps } from './IDinamicAppProps';
 import { coerceDashboardShape, parseConfig } from '../core/config/validators';
 import {
@@ -46,6 +46,7 @@ import { ListPageLayoutEditorPanel } from './ListPage/ListPageLayoutEditorPanel'
 import { ListPageBlockConfigPanel } from './ListPage/ListPageBlockConfigPanel';
 import { FormManagerView } from './FormManager/FormManagerView';
 import { FormManagerConfigPanel } from './FormManager/FormManagerConfigPanel';
+import { PageEditableComponentsModal, type TPageEditableComponentPick } from './PageEditableComponentsModal';
 import { PersistStatusBar } from './PersistStatusBar';
 import { UsersService } from '../../../services/users/UsersService';
 
@@ -60,6 +61,9 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   onSaveConfig,
   persistStatus,
   forcedMode,
+  displayMode,
+  onRegisterPropertyPaneCommands,
+  onCanManageListConfigChange,
 }) => {
   const [isEditingWebPart, setIsEditingWebPart] = useState(false);
   const [isEditingCards, setIsEditingCards] = useState(false);
@@ -67,12 +71,12 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   const [isEditingTableColumns, setIsEditingTableColumns] = useState(false);
   const [isEditingPageLayout, setIsEditingPageLayout] = useState(false);
   const [isEditingFormManager, setIsEditingFormManager] = useState(false);
+  const [isPageComponentsModalOpen, setIsPageComponentsModalOpen] = useState(false);
   const [listPageContentBlockId, setListPageContentBlockId] = useState<string | null>(null);
   const [editingDashboardBlockId, setEditingDashboardBlockId] = useState<string | null>(null);
   const [editingTableBlockId, setEditingTableBlockId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [canManageListConfig, setCanManageListConfig] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
   const [dashboardListSelection, setDashboardListSelection] =
     useState<TListPageDashboardListSelection | null>(null);
   const [clearTableFiltersSignal, setClearTableFiltersSignal] = useState(0);
@@ -200,6 +204,23 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    onCanManageListConfigChange(canManageListConfig);
+  }, [canManageListConfig, onCanManageListConfigChange]);
+
+  const openWizard = useCallback(() => setIsEditingWebPart(true), []);
+  const openPageComponentsPicker = useCallback(() => setIsPageComponentsModalOpen(true), []);
+
+  useEffect(() => {
+    onRegisterPropertyPaneCommands({
+      openWizard,
+      openPageComponentsPicker,
+    });
+    return () => {
+      onRegisterPropertyPaneCommands(undefined);
+    };
+  }, [onRegisterPropertyPaneCommands, openWizard, openPageComponentsPicker]);
+
   const handleDashboardCardClick = useCallback((card: IDashboardCardConfig, blockId: string) => {
     const filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];
     setDashboardListSelection((prev) =>
@@ -225,7 +246,8 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
   }, []);
 
   const dashboardAppliesListFilter = Boolean(dashboardListSelection?.filters.length);
-  const canShowListConfigButtons = canManageListConfig && isEditMode;
+  const isPageEditMode = displayMode === DisplayMode.Edit;
+  const canShowListConfigButtons = canManageListConfig && isPageEditMode;
   const triggerDashboardRefresh = useCallback(() => {
     setDashboardRefreshKey((prev) => prev + 1);
   }, []);
@@ -267,6 +289,45 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     };
     saveConfig(saveDashboardForListBlock(config, blockId, coerceDashboardShape(next)));
   }, [config, saveConfig]);
+
+  const handlePageComponentPick = useCallback(
+    (pick: TPageEditableComponentPick) => {
+      setIsPageComponentsModalOpen(false);
+      switch (pick.kind) {
+        case 'listLayout':
+          setIsEditingPageLayout(true);
+          break;
+        case 'formManager':
+          setIsEditingFormManager(true);
+          break;
+        case 'projectTable':
+          setEditingTableBlockId(null);
+          setIsEditingTableColumns(true);
+          break;
+        case 'listTable':
+          setEditingTableBlockId(pick.blockId);
+          setIsEditingTableColumns(true);
+          break;
+        case 'dashboardCards':
+          setEditingDashboardBlockId(pick.blockId);
+          setIsEditingCards(true);
+          break;
+        case 'dashboardSeries':
+          setEditingDashboardBlockId(pick.blockId);
+          setIsEditingSeries(true);
+          break;
+        case 'dashboardToCharts':
+          handleSwitchDashboardToCharts(pick.blockId);
+          break;
+        case 'contentBlock':
+          setListPageContentBlockId(pick.blockId);
+          break;
+        default:
+          break;
+      }
+    },
+    [handleSwitchDashboardToCharts]
+  );
 
   const handleSaveCards = (
     cards: IDashboardCardConfig[],
@@ -417,74 +478,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     <>
       <PersistStatusBar status={persistStatus} />
 
-      {/* Toolbar */}
-      {canManageListConfig && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 8,
-            padding: '6px 16px 0',
-            borderBottom: '1px solid #f3f2f1',
-          }}
-        >
-          {isEditMode && (
-            <ActionButton
-              iconProps={{ iconName: 'Settings' }}
-              onClick={() => setIsEditingWebPart(true)}
-              disabled={isSaving}
-              styles={{ root: { color: '#605e5c', fontSize: 12 } }}
-            >
-              Editar configuração
-            </ActionButton>
-          )}
-          <ActionButton
-            iconProps={{ iconName: isEditMode ? 'EditSolidMirrored12' : 'Edit' }}
-            onClick={() => setIsEditMode((prev) => !prev)}
-            styles={{
-              root: {
-                color: isEditMode ? '#0078d4' : '#605e5c',
-                fontWeight: isEditMode ? 600 : 400,
-                fontSize: 12,
-              },
-            }}
-          >
-            {isEditMode ? 'Sair de Edição' : 'Editar'}
-          </ActionButton>
-        </div>
-      )}
-
-      <Stack styles={{ root: { padding: '20px 24px 0' } }}>
-        <Stack
-          horizontal
-          horizontalAlign="end"
-          verticalAlign="center"
-          tokens={{ childrenGap: 8 }}
-          styles={{ root: { padding: '16px 0 8px' } }}
-        >
-          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
-            {config.mode === 'list' && canShowListConfigButtons && (
-              <ActionButton
-                iconProps={{ iconName: 'TripleColumn' }}
-                onClick={() => setIsEditingPageLayout(true)}
-                styles={{ root: { height: 28, color: '#0078d4' } }}
-              >
-                Layout da página
-              </ActionButton>
-            )}
-            {config.mode === 'formManager' && canShowListConfigButtons && (
-              <ActionButton
-                iconProps={{ iconName: 'FormLibrary' }}
-                onClick={() => setIsEditingFormManager(true)}
-                styles={{ root: { height: 28, color: '#0078d4' } }}
-              >
-                Configurar formulário
-              </ActionButton>
-            )}
-          </Stack>
-        </Stack>
-
+      <div style={{ padding: '20px 24px 0' }}>
         {config.mode === 'formManager' ? (
           <FormManagerView config={config} pageWebServerRelativeUrl={siteUrl} />
         ) : config.mode === 'projectManagement' ? (
@@ -504,7 +498,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
             pageWebServerRelativeUrl={siteUrl}
-            isListPageEditMode={isEditMode}
+            isListPageEditMode={isPageEditMode && canManageListConfig}
             activeViewModeByBlockId={activeViewModeByBlockId}
             onListViewModeChange={handleListViewModeChange}
             onDashboardLinkedTableChange={
@@ -549,7 +543,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             }
           />
         )}
-      </Stack>
+      </div>
 
       <CardEditorPanel
         isOpen={isEditingCards}
@@ -629,6 +623,14 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
           onDismiss={() => setIsEditingFormManager(false)}
         />
       )}
+
+      <PageEditableComponentsModal
+        isOpen={isPageComponentsModalOpen}
+        onDismiss={() => setIsPageComponentsModalOpen(false)}
+        config={config}
+        listSections={effectiveListPageSections}
+        onPick={handlePageComponentPick}
+      />
     </>
   );
 };

@@ -929,6 +929,10 @@ export interface IFormManagerPermissionBreakConfig {
   assignments?: IFormPermissionBreakAssignment[];
 }
 
+export type TFormManagerBrowseLayoutKind = 'table' | 'cards';
+
+export type TFormManagerBrowseLayoutControlKind = 'segmented' | 'compactDropdown';
+
 export interface IFormManagerConfig {
   sections: IFormSectionConfig[];
   fields: IFormFieldConfig[];
@@ -948,6 +952,13 @@ export interface IFormManagerConfig {
   stepNavigation?: IFormStepNavigationConfig;
   /** Colunas da grade gestor (usa mesma origem que listView se vazio) */
   managerColumnFields?: string[];
+  /** Vista inicial da listagem acima do formulário. Omitido = tabela. */
+  managerBrowseLayoutKind?: TFormManagerBrowseLayoutKind;
+  /**
+   * Como o utilizador alterna entre tabela e cartões na listagem.
+   * Omitido = botões segmentados (ícones).
+   */
+  managerBrowseLayoutControl?: TFormManagerBrowseLayoutControlKind;
   /** Ajuda dinâmica por campo quando condição */
   dynamicHelp?: { field: string; when: TFormConditionNode; helpText: string }[];
   /** Botões com ações ao clicar (mostrar/ocultar campos, valores, juntar campos) */

@@ -1,5 +1,10 @@
 define([], function() {
   return {
+    "PropertyPaneReadModeHint": "Edite a página para ver as opções de configuração desta parte Web.",
+    "PropertyPaneNoPermissionHint": "Apenas membros do grupo de proprietários do site podem alterar a configuração desta parte Web.",
+    "PropertyPaneEditingGroupName": "Edição Dinâmica",
+    "PropertyPaneButtonFlexViewWizard": "FlexView — Editar configuração",
+    "PropertyPaneButtonPageComponents": "Componentes desta página",
     "PropertyPaneDescription": "Description",
     "BasicGroupName": "Group Name",
     "DescriptionFieldLabel": "Description Field",

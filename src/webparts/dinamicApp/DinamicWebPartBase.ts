@@ -1,13 +1,17 @@
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
-import { Version } from '@microsoft/sp-core-library';
-import { type IPropertyPaneConfiguration } from '@microsoft/sp-property-pane';
+import { DisplayMode, Version } from '@microsoft/sp-core-library';
+import {
+  type IPropertyPaneConfiguration,
+  PropertyPaneButton,
+} from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
+import * as strings from 'DinamicAppWebPartStrings';
 
 import '../../assets/dist/tailwind.css';
 import DinamicApp from './components/DinamicApp';
-import { IDinamicAppProps } from './components/IDinamicAppProps';
+import { type IDinamicAppProps, type IDinamicPropertyPaneCommandHandlers } from './components/IDinamicAppProps';
 import { IDynamicViewConfig, IDynamicViewWebPartProps, TViewMode } from './core/config/types';
 import { parseConfig } from './core/config/validators';
 import { getDefaultConfig } from './core/config/utils';
@@ -107,7 +111,7 @@ const AccessGate = ({ children }: { children: React.ReactElement }): React.React
       };
     }
 
-   void checkGlobalAccess().then((allowed) => {
+    void checkGlobalAccess().then((allowed) => {
       if (!mounted) return;
       setIsAllowed(allowed);
     });
@@ -143,6 +147,24 @@ const AccessGate = ({ children }: { children: React.ReactElement }): React.React
 
 export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicViewWebPartProps> {
   private _persistStatus: TPersistStatus = 'idle';
+  private _canManageListConfig = false;
+  private _propertyPaneCommands: IDinamicPropertyPaneCommandHandlers | undefined;
+
+  public readonly registerPropertyPaneCommands = (
+    handlers: IDinamicPropertyPaneCommandHandlers | undefined
+  ): void => {
+    this._propertyPaneCommands = handlers;
+  };
+
+  public readonly notifyCanManageListConfig = (can: boolean): void => {
+    if (this._canManageListConfig === can) {
+      return;
+    }
+    this._canManageListConfig = can;
+    if (this.context.propertyPane.isPropertyPaneOpen()) {
+      this.context.propertyPane.refresh();
+    }
+  };
 
   protected abstract getForcedMode(): TViewMode | undefined;
 
@@ -150,6 +172,13 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
     getSP(this.context);
     getGraph(this.context);
     return super.onInit();
+  }
+
+  protected onDisplayModeChanged(oldDisplayMode: DisplayMode): void {
+    super.onDisplayModeChanged(oldDisplayMode);
+    if (this.context.propertyPane.isPropertyPaneOpen()) {
+      this.context.propertyPane.refresh();
+    }
   }
 
   public render(): void {
@@ -160,6 +189,9 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
       instanceScopeId: this.instanceId,
       onSaveConfig: (config: IDynamicViewConfig) => this.saveConfig(config),
       persistStatus: this._persistStatus,
+      displayMode: this.displayMode,
+      onRegisterPropertyPaneCommands: this.registerPropertyPaneCommands,
+      onCanManageListConfigChange: this.notifyCanManageListConfig,
       ...(forcedMode !== undefined ? { forcedMode } : {}),
     });
 
@@ -177,6 +209,9 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   private setStatus(status: TPersistStatus): void {
     this._persistStatus = status;
     this.render();
+    if (this.context.propertyPane.isPropertyPaneOpen()) {
+      this.context.propertyPane.refresh();
+    }
   }
 
   private saveConfig(config: IDynamicViewConfig): void {
@@ -219,6 +254,60 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
   }
 
   protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
-    return { pages: [] };
+    if (this.displayMode !== DisplayMode.Edit) {
+      return {
+        pages: [
+          {
+            header: { description: strings.PropertyPaneReadModeHint },
+            groups: [],
+          },
+        ],
+      };
+    }
+
+    const isSaving = this._persistStatus === 'saving' || this._persistStatus === 'persisting';
+
+    if (!this._canManageListConfig) {
+      return {
+        pages: [
+          {
+            header: { description: strings.PropertyPaneNoPermissionHint },
+            groups: [],
+          },
+        ],
+      };
+    }
+
+    const groupFields = [
+      PropertyPaneButton('dinamicFlexView', {
+        text: strings.PropertyPaneButtonFlexViewWizard,
+        disabled: isSaving,
+        onClick: () => {
+          this._propertyPaneCommands?.openWizard();
+          return undefined;
+        },
+      }),
+      PropertyPaneButton('dinamicPageComponents', {
+        text: strings.PropertyPaneButtonPageComponents,
+        disabled: isSaving,
+        onClick: () => {
+          this._propertyPaneCommands?.openPageComponentsPicker();
+          return undefined;
+        },
+      }),
+    ];
+
+    return {
+      pages: [
+        {
+          groups: [
+            {
+              groupName: strings.PropertyPaneEditingGroupName,
+              groupFields,
+            },
+          ],
+        },
+      ],
+    };
   }
 }

@@ -1374,6 +1374,11 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   const managerColumnFields = Array.isArray(o.managerColumnFields)
     ? (o.managerColumnFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const mblkRaw = o.managerBrowseLayoutKind;
+  const managerBrowseLayoutKind: 'cards' | undefined = mblkRaw === 'cards' ? 'cards' : undefined;
+  const mblcRaw = o.managerBrowseLayoutControl;
+  const managerBrowseLayoutControl: 'compactDropdown' | undefined =
+    mblcRaw === 'compactDropdown' ? 'compactDropdown' : undefined;
   const dynamicHelpRaw = Array.isArray(o.dynamicHelp) ? o.dynamicHelp : [];
   const dynamicHelp: { field: string; when: TFormConditionNode; helpText: string }[] = [];
   for (let i = 0; i < dynamicHelpRaw.length; i++) {
@@ -1520,6 +1525,10 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     rules,
     ...(steps.length ? { steps } : {}),
     ...(managerColumnFields?.length ? { managerColumnFields } : {}),
+    ...(managerBrowseLayoutKind === 'cards' ? { managerBrowseLayoutKind: 'cards' as const } : {}),
+    ...(managerBrowseLayoutControl === 'compactDropdown'
+      ? { managerBrowseLayoutControl: 'compactDropdown' as const }
+      : {}),
     ...(dynamicHelp.length ? { dynamicHelp } : {}),
     ...(customButtonsAdjusted.length ? { customButtons: customButtonsAdjusted } : {}),
     ...(customButtonsBarVertical === 'top' ? { customButtonsBarVertical: 'top' as const } : {}),

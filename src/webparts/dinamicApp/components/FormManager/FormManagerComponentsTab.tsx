@@ -32,6 +32,8 @@ import type {
   TFormHistoryPresentationKind,
   TFormHistoryButtonKind,
   TFormCustomButtonPaletteSlot,
+  TFormManagerBrowseLayoutKind,
+  TFormManagerBrowseLayoutControlKind,
 } from '../../core/config/types/formManager';
 import { resolveStepUiAccentColor } from '../../core/formManager/formCustomButtonTheme';
 import { FormStepLayoutPicker, FormStepNavButtonsPicker } from './FormStepLayoutUi';
@@ -299,6 +301,7 @@ const loadingCardStyles = (): { root: Record<string, string | number> } => ({
 });
 
 const SECTION_IDS = {
+  browseList: 'browseList',
   loadData: 'loadData',
   submitLoading: 'submitLoading',
   steps: 'steps',
@@ -472,6 +475,10 @@ export interface IFormManagerComponentsTabContentProps {
   onRetryLoadSiteGroups: () => void;
   historyLayoutKind: TFormHistoryLayoutKind;
   onHistoryLayoutKindChange: (v: TFormHistoryLayoutKind) => void;
+  managerBrowseLayoutKind: TFormManagerBrowseLayoutKind;
+  onManagerBrowseLayoutKindChange: (v: TFormManagerBrowseLayoutKind) => void;
+  managerBrowseLayoutControl: TFormManagerBrowseLayoutControlKind;
+  onManagerBrowseLayoutControlChange: (v: TFormManagerBrowseLayoutControlKind) => void;
 }
 
 export function FormManagerComponentsTabContent(props: IFormManagerComponentsTabContentProps): JSX.Element {
@@ -502,6 +509,45 @@ export function FormManagerComponentsTabContent(props: IFormManagerComponentsTab
   return (
     <Stack tokens={{ childrenGap: 10 }}>
   
+
+      <FormManagerCollapseSection
+        title="Visualização e listagem (gestor)"
+        isOpen={isOpen(SECTION_IDS.browseList)}
+        onToggle={() => toggleSection(SECTION_IDS.browseList)}
+      >
+        <Dropdown
+          label="Modo de visualização padrão"
+          selectedKey={props.managerBrowseLayoutKind}
+          onChange={(_, o) =>
+            o && props.onManagerBrowseLayoutKindChange(String(o.key) as TFormManagerBrowseLayoutKind)
+          }
+          options={[
+            { key: 'table', text: 'Tabela' },
+            { key: 'cards', text: 'Cartões' },
+          ]}
+        />
+        <Dropdown
+          label="Controlo no ecrã para alternar tabela / cartões"
+          selectedKey={props.managerBrowseLayoutControl}
+          onChange={(_, o) =>
+            o &&
+            props.onManagerBrowseLayoutControlChange(
+              String(o.key) as TFormManagerBrowseLayoutControlKind
+            )
+          }
+          options={[
+            {
+              key: 'segmented',
+              text: 'Botões segmentados (ícones — tabela | cartões)',
+            },
+            { key: 'compactDropdown', text: 'Lista suspensa compacta' },
+          ]}
+        />
+        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+          A listagem aparece acima do formulário. O utilizador pode mudar de vista conforme o controlo escolhido;
+          o padrão aplica-se ao abrir a página.
+        </Text>
+      </FormManagerCollapseSection>
 
       <FormManagerCollapseSection
         title="Carregar formulário / dados"

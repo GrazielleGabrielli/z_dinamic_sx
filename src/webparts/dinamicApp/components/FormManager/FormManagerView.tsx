@@ -9,6 +9,7 @@ import { FieldsService, ItemsService, UsersService, mergeSystemMetadataFields } 
 import type { IFieldMetadata } from '../../../../services';
 import { getSPForWeb } from '../../../../services/core/sp';
 import { DynamicListForm } from './DynamicListForm';
+import { FormManagerBrowseList } from './FormManagerBrowseList';
 import { FormDataLoadingView, resolveFormDataLoadingKind } from './FormLoadingUi';
 import {
   FORM_ATTACHMENTS_FIELD_INTERNAL,
@@ -135,6 +136,49 @@ function buildSelectExpandForFields(fieldNames: string[], fieldMeta: IFieldMetad
   return { select, expand };
 }
 
+const MANAGER_BROWSE_AUTO_COLUMNS_SKIP_INTERNALS = new Set<string>([
+  'Attachments',
+  'ContentType',
+  'ContentTypeId',
+  'FileLeafRef',
+  'FileDirRef',
+  'FileRef',
+  'UniqueId',
+  'GUID',
+  'AuthorId',
+  'EditorId',
+]);
+
+function resolveManagerBrowseColumns(fm: IFormManagerConfig, fieldMeta: IFieldMetadata[]): IFieldMetadata[] {
+  const by = new Map(fieldMeta.map((m) => [m.InternalName, m]));
+  const names = (fm.managerColumnFields ?? []).map((x) => String(x).trim()).filter(Boolean);
+  if (names.length) {
+    const out: IFieldMetadata[] = [];
+    for (let i = 0; i < names.length; i++) {
+      const m = by.get(names[i]);
+      if (m && !m.Hidden) out.push(m);
+    }
+    if (out.length) return out.slice(0, 12);
+  }
+  const auto = fieldMeta
+    .filter(
+      (f) =>
+        !f.Hidden &&
+        !MANAGER_BROWSE_AUTO_COLUMNS_SKIP_INTERNALS.has(f.InternalName) &&
+        f.InternalName !== 'Id'
+    )
+    .filter(
+      (f) =>
+        ['text', 'multiline', 'choice', 'datetime', 'number', 'boolean', 'currency', 'url'].indexOf(f.MappedType) !==
+        -1
+    )
+    .slice(0, 8);
+  if (auto.length) return auto;
+  const t = fieldMeta.find((f) => f.InternalName === 'Title' && !f.Hidden);
+  if (t) return [t];
+  return fieldMeta.filter((f) => !f.Hidden).slice(0, 1);
+}
+
 export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageWebServerRelativeUrl }) => {
   const fm = useMemo(() => {
     const raw = config.formManager ?? getDefaultFormManagerConfig();
@@ -154,11 +198,19 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
   const [formKey, setFormKey] = useState(0);
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [itemLoading, setItemLoading] = useState(false);
+  const [browseRefreshKey, setBrowseRefreshKey] = useState(0);
 
   const itemsService = useMemo(() => new ItemsService(), []);
   const fieldsService = useMemo(() => new FieldsService(), []);
 
   const fieldNames = useMemo(() => formFieldInternalNames(fm, fieldMeta), [fm, fieldMeta]);
+
+  const browseColumns = useMemo(() => resolveManagerBrowseColumns(fm, fieldMeta), [fm, fieldMeta]);
+  const browsePickNames = useMemo(() => browseColumns.map((c) => c.InternalName), [browseColumns]);
+  const browseSelectExpand = useMemo(
+    () => buildSelectExpandForFields(browsePickNames, fieldMeta),
+    [browsePickNames, fieldMeta]
+  );
 
   useEffect(() => {
     const usersService = new UsersService();
@@ -294,6 +346,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
         listWeb
       );
       resetToNew();
+      setBrowseRefreshKey((k) => k + 1);
       return id;
     }
     if (formMode === 'edit' && activeItem) {
@@ -309,6 +362,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
         listWeb
       );
       await loadItemById(id, 'edit');
+      setBrowseRefreshKey((k) => k + 1);
       return id;
     }
     return undefined;
@@ -341,6 +395,20 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
         }}
       >
         {loadError && <MessageBar messageBarType={MessageBarType.error}>{loadError}</MessageBar>}
+        <FormManagerBrowseList
+          listTitle={listTitle}
+          listWebServerRelativeUrl={listWeb}
+          columns={browseColumns}
+          select={browseSelectExpand.select}
+          expand={browseSelectExpand.expand}
+          fieldMetadata={fieldMeta}
+          itemsService={itemsService}
+          defaultLayoutKind={fm.managerBrowseLayoutKind === 'cards' ? 'cards' : 'table'}
+          layoutControl={fm.managerBrowseLayoutControl ?? 'segmented'}
+          refreshSignal={browseRefreshKey}
+          selectedItemId={activeItem ? Number(activeItem.Id) : undefined}
+          onSelectRow={(id: number) => void loadItemById(id, 'edit')}
+        />
         <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
           {formMode === 'create'
             ? 'Novo registro'
@@ -369,6 +437,7 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
               if (!activeItem) return;
               const q = dynamicContext?.query ?? {};
               await loadItemById(Number(activeItem.Id), resolveFormModeFromQuery(q, { itemLoaded: true }));
+              setBrowseRefreshKey((k) => k + 1);
             }}
           />
         )}
