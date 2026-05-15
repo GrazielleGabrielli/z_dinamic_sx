@@ -14,6 +14,7 @@ import {
   IListViewModeAccessConfig,
   IListViewModeDefaultRule,
   ITableFilterFieldConfig,
+  IListViewChromeButtonConfig,
   IPdfTemplateConfig,
   IPdfTemplateElement,
   TViewMode,
@@ -333,6 +334,56 @@ export function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
 
 const VALID_PAGINATION_LAYOUTS = new Set(['buttons', 'numbered', 'compact', 'paged']);
 
+const VALID_LIST_VIEW_CHROME_BUTTON_SLOTS = new Set<string>([
+  'toolbarAfterViewMode',
+  'toolbarAfterTableCardsToggle',
+  'toolbarAfterPdfExport',
+  'toolbarBeforeClearFilters',
+  'filtersAfterAdvancedToggle',
+  'filtersBelowControls',
+]);
+
+export function sanitizeListViewChromeButtons(raw: unknown): IListViewChromeButtonConfig[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: IListViewChromeButtonConfig[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i];
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id.trim() : '';
+    const label = typeof r.label === 'string' ? r.label.trim() : '';
+    const slot = typeof r.slot === 'string' ? r.slot.trim() : '';
+    if (!id || !label || !VALID_LIST_VIEW_CHROME_BUTTON_SLOTS.has(slot)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const actionKind = r.actionKind === 'reload' ? ('reload' as const) : ('redirect' as const);
+    const url = typeof r.url === 'string' ? r.url.trim() : '';
+    if (actionKind === 'redirect' && !url) continue;
+    const orderRaw = r.order;
+    const order =
+      typeof orderRaw === 'number' && isFinite(orderRaw) ? Math.round(orderRaw) : undefined;
+    const variant = r.variant === 'primary' ? ('primary' as const) : ('default' as const);
+    const iconName =
+      typeof r.iconName === 'string' && r.iconName.trim() ? r.iconName.trim() : undefined;
+    const css = typeof r.css === 'string' && r.css.trim() ? r.css.trim() : undefined;
+    const entry: IListViewChromeButtonConfig = {
+      id,
+      label,
+      actionKind,
+      ...(actionKind === 'redirect' ? { url } : {}),
+      ...(r.openInNewTab === true ? { openInNewTab: true } : {}),
+      variant,
+      ...(iconName ? { iconName } : {}),
+      ...(css ? { css } : {}),
+      slot: slot as IListViewChromeButtonConfig['slot'],
+      ...(order !== undefined && order !== 0 ? { order } : {}),
+    };
+    out.push(entry);
+  }
+  return out.length ? out : undefined;
+}
+
 function normalizeTableFilterFieldsOrder(fields: ITableFilterFieldConfig[]): ITableFilterFieldConfig[] {
   const fixed: ITableFilterFieldConfig[] = [];
   const advanced: ITableFilterFieldConfig[] = [];
@@ -370,6 +421,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
   const tableFilterFields = tableFilterFieldsRaw?.length
     ? normalizeTableFilterFieldsOrder(tableFilterFieldsRaw)
     : undefined;
+  const chromeButtons = sanitizeListViewChromeButtons(lvo.chromeButtons);
   const viewModeDefaultRules = sanitizeViewModeDefaultRules(lvo.viewModeDefaultRules);
   return {
     columns: lvo.columns ?? defaults.columns,
@@ -395,6 +447,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     ...(typeof lvo.tableAdvancedFiltersTitle === 'string' && lvo.tableAdvancedFiltersTitle.trim()
       ? { tableAdvancedFiltersTitle: lvo.tableAdvancedFiltersTitle.trim() }
       : {}),
+    ...(chromeButtons?.length ? { chromeButtons } : {}),
   };
 }
 

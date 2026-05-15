@@ -8,9 +8,18 @@ import {
   IDropdownStyles,
   ActionButton,
   DefaultButton,
+  PrimaryButton,
   TextField,
 } from '@fluentui/react';
-import { IDynamicViewConfig, IListViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
+import {
+  IDynamicViewConfig,
+  IListPageButtonItemConfig,
+  IListViewChromeButtonConfig,
+  IListViewConfig,
+  IListViewFilterConfig,
+  IListViewModeConfig,
+  TListViewChromeButtonSlot,
+} from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import { buildListFilter, buildTableTopFiltersOData, getActiveViewModeFilters } from '../../core/listView';
@@ -28,6 +37,10 @@ import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { TableCardsLayoutToggle } from './TableCardsLayoutToggle';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss, scopeCardCssByInstance } from './tableLayoutClasses';
 import { columnODataPath } from '../../core/table/utils/columnODataPath';
+import {
+  isSafeListRowNavigationUrl,
+  resolveListRowActionUrl,
+} from '../../core/table/utils/resolveListRowActionUrl';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 
 const TOP_FILTER_DROPDOWN_STYLES: Partial<IDropdownStyles> = {
@@ -44,6 +57,50 @@ const TOP_FILTER_DROPDOWN_STYLES: Partial<IDropdownStyles> = {
 };
 
 const EMPTY_VIEW_MODES: IListViewModeConfig[] = [];
+
+function navigateListChromeButton(
+  it: IListPageButtonItemConfig,
+  dynamicContext: IDynamicContext,
+  rowContext: Record<string, unknown>
+): void {
+  if (it.actionKind === 'reload') {
+    window.location.reload();
+    return;
+  }
+  const template = (it.url ?? '').trim();
+  if (!template) return;
+  const u = resolveListRowActionUrl(template, rowContext, dynamicContext).trim();
+  if (!u || !isSafeListRowNavigationUrl(u)) return;
+  if (it.openInNewTab === true) {
+    window.open(u, '_blank', 'noopener,noreferrer');
+  } else {
+    window.location.assign(u);
+  }
+}
+
+function parseListChromeCss(css: string | undefined): React.CSSProperties | undefined {
+  if (!css?.trim()) return undefined;
+  const style: Record<string, string> = {};
+  css.split(';').forEach((decl) => {
+    const idx = decl.indexOf(':');
+    if (idx < 0) return;
+    const prop = decl.slice(0, idx).trim();
+    const val = decl.slice(idx + 1).trim();
+    if (!prop || !val) return;
+    const camel = prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    style[camel] = val;
+  });
+  return Object.keys(style).length > 0 ? (style as React.CSSProperties) : undefined;
+}
+
+function sortChromeForSlot(items: IListViewChromeButtonConfig[]): IListViewChromeButtonConfig[] {
+  return [...items].sort((a, b) => {
+    const oa = a.order ?? 0;
+    const ob = b.order ?? 0;
+    if (oa !== ob) return oa - ob;
+    return a.label.localeCompare(b.label);
+  });
+}
 
 function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partial<ITableConfig> {
   const rawCols = listView.columns ?? [];
@@ -579,6 +636,41 @@ export const TableView: React.FC<ITableViewProps> = ({
   const hasTopFilters =
     tableFilterFieldsMetaSplit.fixed.length > 0 || tableFilterFieldsMetaSplit.advanced.length > 0;
 
+  const chromeBySlot = useMemo(() => {
+    const m = new Map<TListViewChromeButtonSlot, IListViewChromeButtonConfig[]>();
+    for (const b of listView?.chromeButtons ?? []) {
+      const arr = m.get(b.slot) ?? [];
+      arr.push(b);
+      m.set(b.slot, arr);
+    }
+    return m;
+  }, [listView?.chromeButtons]);
+
+  const hasChromeToolbarSlot = useMemo(() => {
+    const toolbarSlots: TListViewChromeButtonSlot[] = [
+      'toolbarAfterViewMode',
+      'toolbarAfterTableCardsToggle',
+      'toolbarAfterPdfExport',
+      'toolbarBeforeClearFilters',
+    ];
+    for (let i = 0; i < toolbarSlots.length; i++) {
+      if ((chromeBySlot.get(toolbarSlots[i])?.length ?? 0) > 0) return true;
+    }
+    return false;
+  }, [chromeBySlot]);
+
+  const chromeFiltersAfterToggle = useMemo(
+    () => sortChromeForSlot(chromeBySlot.get('filtersAfterAdvancedToggle') ?? []),
+    [chromeBySlot]
+  );
+  const chromeFiltersBelow = useMemo(
+    () => sortChromeForSlot(chromeBySlot.get('filtersBelowControls') ?? []),
+    [chromeBySlot]
+  );
+
+  const showFilterBar =
+    hasTopFilters || chromeFiltersAfterToggle.length > 0 || chromeFiltersBelow.length > 0;
+
   const advancedTableFiltersTitle =
     listView?.tableAdvancedFiltersTitle?.trim() || 'Filtros avançados';
 
@@ -705,6 +797,8 @@ export const TableView: React.FC<ITableViewProps> = ({
       : null;
 
   const actionContext = dynamicContext ?? { now: new Date() };
+  const chromeRowContext: Record<string, unknown> =
+    items.length > 0 ? (items[0] as Record<string, unknown>) : {};
   const listRowActions = listView?.listRowActions;
   const userGroupIds: Set<number> | undefined = membership?.groupByWeb?.get(membership.pageNorm) ?? (membership ? new Set<number>() : undefined);
 
@@ -739,6 +833,107 @@ export const TableView: React.FC<ITableViewProps> = ({
     await generateAndDownloadPdf(template, data, name);
   };
 
+  const renderToolbarChrome = (slot: TListViewChromeButtonSlot): React.ReactNode => {
+    const sorted = sortChromeForSlot(chromeBySlot.get(slot) ?? []);
+    if (!sorted.length) return null;
+    return (
+      <Stack horizontal verticalAlign="end" tokens={{ childrenGap: 8 }} styles={{ root: { flexWrap: 'wrap' } }}>
+        {sorted.map((it) => {
+          const btnStyle = parseListChromeCss(it.css);
+          const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
+          const btn =
+            it.variant === 'primary' ? (
+              <PrimaryButton
+                text={it.label}
+                iconProps={iconProps}
+                onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+                styles={{ root: { height: 32 } }}
+              />
+            ) : (
+              <DefaultButton
+                text={it.label}
+                iconProps={iconProps}
+                onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+                styles={{ root: { height: 32 } }}
+              />
+            );
+          return btnStyle ? (
+            <span key={it.id} style={btnStyle}>
+              {btn}
+            </span>
+          ) : (
+            <React.Fragment key={it.id}>{btn}</React.Fragment>
+          );
+        })}
+      </Stack>
+    );
+  };
+
+  const renderInlineFilterChrome = (): React.ReactNode =>
+    chromeFiltersAfterToggle.map((it) => {
+      const btnStyle = parseListChromeCss(it.css);
+      const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
+      const btn =
+        it.variant === 'primary' ? (
+          <PrimaryButton
+            text={it.label}
+            iconProps={iconProps}
+            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+            styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
+          />
+        ) : (
+          <DefaultButton
+            text={it.label}
+            iconProps={iconProps}
+            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+            styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
+          />
+        );
+      return btnStyle ? (
+        <span key={it.id} style={{ ...btnStyle, alignSelf: 'flex-end' }}>
+          {btn}
+        </span>
+      ) : (
+        <React.Fragment key={it.id}>{btn}</React.Fragment>
+      );
+    });
+
+  const renderBelowFilterChrome = (): React.ReactNode =>
+    chromeFiltersBelow.map((it) => {
+      const btnStyle = parseListChromeCss(it.css);
+      const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
+      const btn =
+        it.variant === 'primary' ? (
+          <PrimaryButton
+            text={it.label}
+            iconProps={iconProps}
+            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+            styles={{ root: { height: 32 } }}
+          />
+        ) : (
+          <DefaultButton
+            text={it.label}
+            iconProps={iconProps}
+            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+            styles={{ root: { height: 32 } }}
+          />
+        );
+      return btnStyle ? (
+        <span key={it.id} style={btnStyle}>
+          {btn}
+        </span>
+      ) : (
+        <React.Fragment key={it.id}>{btn}</React.Fragment>
+      );
+    });
+
+  const showToolbar =
+    viewModeOptions.length > 0 ||
+    showPdfButton ||
+    listCardViewEnabled ||
+    hasAnyActiveFilter ||
+    hasChromeToolbarSlot;
+
   return (
     <Stack
       className={`${instanceScopeClass} ${DINAMIC_SX_TABLE_CLASS.viewRoot}`}
@@ -746,7 +941,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       styles={{ root: { marginTop: 8 } }}
     >
       {tableCustomStyle}
-      {(viewModeOptions.length > 0 || showPdfButton || listCardViewEnabled || hasAnyActiveFilter) && (
+      {showToolbar && (
         <Stack
           className={DINAMIC_SX_TABLE_CLASS.toolbar}
           horizontal
@@ -797,8 +992,12 @@ export const TableView: React.FC<ITableViewProps> = ({
                 />
               </div>
             ))}
+          {renderToolbarChrome('toolbarAfterViewMode')}
           {listCardViewEnabled && (
-            <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
+            <>
+              <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
+              {renderToolbarChrome('toolbarAfterTableCardsToggle')}
+            </>
           )}
           {showPdfButton && (
             <ActionButton
@@ -808,6 +1007,8 @@ export const TableView: React.FC<ITableViewProps> = ({
               onClick={handleExportPdf}
             />
           )}
+          {renderToolbarChrome('toolbarAfterPdfExport')}
+          {renderToolbarChrome('toolbarBeforeClearFilters')}
           {hasAnyActiveFilter && (
             <ActionButton
               iconProps={{ iconName: 'ClearFilter' }}
@@ -819,54 +1020,72 @@ export const TableView: React.FC<ITableViewProps> = ({
           )}
         </Stack>
       )}
-      {hasTopFilters && (
+      {showFilterBar && (
         <Stack
           className="dinamicSxFilterBar"
           tokens={{ childrenGap: 8 }}
           styles={{ root: { borderStyle: 'none', borderWidth: 0, boxShadow: 'none' } }}
         >
-          <Stack horizontal verticalAlign="center" horizontalAlign="space-between">
-            <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-              Filtros{activeTopFiltersCount > 0 ? ` (${activeTopFiltersCount} ativo${activeTopFiltersCount > 1 ? 's' : ''})` : ''}
-            </Text>
-            {activeTopFiltersCount > 0 && (
-              <ActionButton
-                iconProps={{ iconName: 'ClearFilter' }}
-                text="Limpar"
-                styles={{ root: { height: 28, color: '#a4262c' } }}
-                onClick={() => setTopFilters({})}
-              />
-            )}
-          </Stack>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-            {tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f))}
-            {tableFilterFieldsMetaSplit.advanced.length > 0 ? (
-              <ActionButton
-                iconProps={{
-                  iconName: advancedTableFiltersExpanded ? 'ChevronDown' : 'ChevronRight',
-                }}
-                onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
-                aria-expanded={advancedTableFiltersExpanded}
-                styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
-              >
-                {advancedTableFiltersTitle}
-              </ActionButton>
-            ) : null}
-            {tableFilterFieldsMetaSplit.advanced.length > 0 && advancedTableFiltersExpanded ? (
-              <div
-                style={{
-                  flexBasis: '100%',
-                  width: '100%',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 12,
-                  alignItems: 'flex-start',
-                }}
-              >
-                {tableFilterFieldsMetaSplit.advanced.map((f) => renderTopFilterControl(f))}
-              </div>
-            ) : null}
-          </div>
+          {hasTopFilters ? (
+            <Stack horizontal verticalAlign="center" horizontalAlign="space-between">
+              <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                Filtros{activeTopFiltersCount > 0 ? ` (${activeTopFiltersCount} ativo${activeTopFiltersCount > 1 ? 's' : ''})` : ''}
+              </Text>
+              {activeTopFiltersCount > 0 && (
+                <ActionButton
+                  iconProps={{ iconName: 'ClearFilter' }}
+                  text="Limpar"
+                  styles={{ root: { height: 28, color: '#a4262c' } }}
+                  onClick={() => setTopFilters({})}
+                />
+              )}
+            </Stack>
+          ) : null}
+          {hasTopFilters || chromeFiltersAfterToggle.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+              {hasTopFilters ? tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f)) : null}
+              {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
+                <ActionButton
+                  iconProps={{
+                    iconName: advancedTableFiltersExpanded ? 'ChevronDown' : 'ChevronRight',
+                  }}
+                  onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
+                  aria-expanded={advancedTableFiltersExpanded}
+                  styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
+                >
+                  {advancedTableFiltersTitle}
+                </ActionButton>
+              ) : null}
+              {renderInlineFilterChrome()}
+              {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 && advancedTableFiltersExpanded ? (
+                <div
+                  style={{
+                    flexBasis: '100%',
+                    width: '100%',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  {tableFilterFieldsMetaSplit.advanced.map((f) => renderTopFilterControl(f))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {chromeFiltersBelow.length > 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
+              {renderBelowFilterChrome()}
+            </div>
+          ) : null}
         </Stack>
       )}
       {listDisplayMode === 'cards' && listCardViewEnabled ? (

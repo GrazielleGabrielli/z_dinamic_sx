@@ -40,6 +40,7 @@ import type {
   IListViewModeDefaultRule,
   IListViewFilterConfig,
   ITableFilterFieldConfig,
+  IListViewChromeButtonConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
   IListRowActionConfig,
@@ -54,6 +55,7 @@ import type {
   TViewMode,
   TListViewDisplayMode,
   TViewModePicker,
+  TListViewChromeButtonSlot,
 } from '../../core/config/types';
 import { PdfTemplateEditor } from './PdfTemplateEditor';
 import {
@@ -65,7 +67,10 @@ import {
 import { isNoteFieldMeta } from '../../core/listView';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
-import { sanitizeListTableEditorBundle } from '../../core/config/validators';
+import {
+  sanitizeListTableEditorBundle,
+  sanitizeListViewChromeButtons,
+} from '../../core/config/validators';
 import { ViewModeAccessSection, accessSummary } from '../shared/ViewModeAccessSection';
 
 interface ITableColumnsEditorPanelProps {
@@ -352,6 +357,30 @@ const VIEW_MODE_PICKER_OPTIONS: IChoiceGroupOption[] = [
 
 const DEFAULT_PROJECT_COLUMNS: IProjectManagementColumnConfig[] = [];
 
+const LIST_VIEW_CHROME_SLOT_OPTIONS: IDropdownOption[] = [
+  { key: 'toolbarAfterViewMode', text: 'Barra: após modo de visualização' },
+  { key: 'toolbarAfterTableCardsToggle', text: 'Barra: após alternância Tabela/Cards' },
+  { key: 'toolbarAfterPdfExport', text: 'Barra: após Exportar PDF' },
+  { key: 'toolbarBeforeClearFilters', text: 'Barra: antes de Remover filtros' },
+  { key: 'filtersAfterAdvancedToggle', text: 'Filtros: após botão dos filtros avançados' },
+  { key: 'filtersBelowControls', text: 'Filtros: linha abaixo dos controles' },
+];
+
+const LIST_CHROME_ACTION_OPTIONS: IDropdownOption[] = [
+  { key: 'redirect', text: 'Abrir URL' },
+  { key: 'reload', text: 'Recarregar página' },
+];
+
+function createDefaultListChromeButton(): IListViewChromeButtonConfig {
+  return {
+    id: `chrome_${Date.now()}`,
+    label: 'Novo botão',
+    actionKind: 'redirect',
+    url: 'https://',
+    variant: 'default',
+    slot: 'toolbarAfterViewMode',
+  };
+}
 function normalizeHexColor(input: string | undefined, fallback: string): string {
   const raw = (input ?? '').trim();
   return /^#([0-9a-fA-F]{6})$/.test(raw) ? raw : fallback;
@@ -362,7 +391,13 @@ function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
 }
 
-type TListTabListaSection = 'pagination' | 'listTableCards' | 'viewModes' | 'columns' | 'filterFields';
+type TListTabListaSection =
+  | 'pagination'
+  | 'listTableCards'
+  | 'viewModes'
+  | 'columns'
+  | 'filterFields'
+  | 'chromeButtons';
 
 function ListTabListaCollapse(props: {
   title: string;
@@ -508,6 +543,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [tableAdvancedFiltersTitle, setTableAdvancedFiltersTitle] = useState<string>(() =>
     listView.tableAdvancedFiltersTitle?.trim() ?? ''
   );
+  const [listChromeButtons, setListChromeButtons] = useState<IListViewChromeButtonConfig[]>(() =>
+    (listView.chromeButtons ?? []).map((b) => ({ ...b }))
+  );
   const [filterEditorFixedOpen, setFilterEditorFixedOpen] = useState(true);
   const [filterEditorAdvancedOpen, setFilterEditorAdvancedOpen] = useState(true);
   const [tableFilterZoneDropHighlight, setTableFilterZoneDropHighlight] = useState<TTableFilterDragZone | null>(null);
@@ -618,6 +656,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setRowActions([...(listView.listRowActions ?? [])]);
     setTableFilterFields(normalizeTableFilterFieldsOrderLocal(listView.tableFilterFields?.slice() ?? []));
     setTableAdvancedFiltersTitle(listView.tableAdvancedFiltersTitle?.trim() ?? '');
+    setListChromeButtons((listView.chromeButtons ?? []).map((b) => ({ ...b })));
     setFilterEditorFixedOpen(true);
     setFilterEditorAdvancedOpen(true);
     setRuleColorMap({});
@@ -1244,6 +1283,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         ...(f.placement === 'advanced' ? { placement: 'advanced' as const } : {}),
       }));
     const nextTableFilterFields: ITableFilterFieldConfig[] = normalizeTableFilterFieldsOrderLocal(mappedFilters);
+    const chromeButtonsSanitized = sanitizeListViewChromeButtons(listChromeButtons);
     const listViewOut: IListViewConfig = {
       ...carryRest,
       columns,
@@ -1269,6 +1309,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(viewModeDefaultRules.length > 0
         ? { viewModeDefaultRules: viewModeDefaultRules.map((r) => ({ ...r })) }
         : { viewModeDefaultRules: undefined }),
+      ...(chromeButtonsSanitized?.length ? { chromeButtons: chromeButtonsSanitized } : { chromeButtons: undefined }),
     };
     return {
       listView: listViewOut,
@@ -1303,6 +1344,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     listViewModePicker,
     viewModeDefaultRules,
     lookupListFields,
+    listChromeButtons,
   ]);
 
   const tableJsonPreviewRef = useRef(buildSavePayload());
@@ -1366,6 +1408,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
       setTableFilterFields(normalizeTableFilterFieldsOrderLocal(bundle.listView.tableFilterFields?.slice() ?? []));
       setTableAdvancedFiltersTitle(bundle.listView.tableAdvancedFiltersTitle?.trim() ?? '');
+      setListChromeButtons((bundle.listView.chromeButtons ?? []).map((b) => ({ ...b })));
       setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
       setListTabListaSectionOpen({});
       setJsonPanelText(JSON.stringify(bundle, null, 2));
@@ -1962,6 +2005,188 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       </Stack>
                     );
                   })}
+                </ListTabListaCollapse>
+                <ListTabListaCollapse
+                  title="Botões na barra da tabela"
+                  isOpen={listTabListaSectionOpen.chromeButtons === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      chromeButtons: p.chromeButtons === true ? false : true,
+                    }))
+                  }
+                >
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Botões na zona da lista (barra superior ou filtros). Não altera o bloco «Botões» do layout da página.
+                    Na URL pode usar <code>{'{{Campo}}'}</code>, <code>{'{Campo}'}</code> (ex.: <code>{'{{ID}}'}</code>) e tokens como{' '}
+                    <code>[Me]</code>, <code>[query:nome]</code>, como nas ações por linha; valores <code>{'{{…}}'}</code> vêm da{' '}
+                    primeira linha atualmente carregada na tabela.
+                  </Text>
+                  {listChromeButtons.map((b, idx) => (
+                    <Stack
+                      key={`${b.id}_${idx}`}
+                      tokens={{ childrenGap: 8 }}
+                      styles={{
+                        root: {
+                          padding: 12,
+                          border: '1px solid #edebe9',
+                          borderRadius: 8,
+                          background: '#faf9f8',
+                          width: '100%',
+                          minWidth: 0,
+                          boxSizing: 'border-box',
+                        },
+                      }}
+                    >
+                      <Stack horizontal wrap verticalAlign="end" tokens={{ childrenGap: 8 }}>
+                        <TextField
+                          label="Id"
+                          value={b.id}
+                          onChange={(_, v) => {
+                            const id = v ?? '';
+                            setListChromeButtons((prev) => prev.map((x, i) => (i === idx ? { ...x, id } : x)));
+                          }}
+                          styles={{ root: { flex: '1 1 140px', minWidth: 120, maxWidth: 220 } }}
+                        />
+                        <TextField
+                          label="Texto"
+                          value={b.label}
+                          onChange={(_, v) =>
+                            setListChromeButtons((prev) => prev.map((x, i) => (i === idx ? { ...x, label: v ?? '' } : x)))
+                          }
+                          styles={{ root: { flex: '2 1 180px', minWidth: 140 } }}
+                        />
+                        <Dropdown
+                          label="Posição"
+                          selectedKey={b.slot}
+                          options={LIST_VIEW_CHROME_SLOT_OPTIONS}
+                          onChange={(_, opt) => {
+                            const key = opt?.key as TListViewChromeButtonSlot | undefined;
+                            if (!key) return;
+                            setListChromeButtons((prev) => prev.map((x, i) => (i === idx ? { ...x, slot: key } : x)));
+                          }}
+                          styles={{ root: { flex: '1 1 260px', minWidth: 220 } }}
+                        />
+                        <Dropdown
+                          label="Ação"
+                          selectedKey={b.actionKind}
+                          options={LIST_CHROME_ACTION_OPTIONS}
+                          onChange={(_, opt) => {
+                            const ak = opt?.key === 'reload' ? 'reload' : 'redirect';
+                            setListChromeButtons((prev) =>
+                              prev.map((x, i) =>
+                                i === idx
+                                  ? {
+                                      ...x,
+                                      actionKind: ak,
+                                      ...(ak === 'reload' ? { url: undefined, openInNewTab: undefined } : {}),
+                                    }
+                                  : x
+                              )
+                            );
+                          }}
+                          styles={{ root: { flex: '0 0 auto', width: 180 } }}
+                        />
+                        <TextField
+                          label="Ordem"
+                          value={b.order !== undefined ? String(b.order) : ''}
+                          onChange={(_, v) => {
+                            const t = (v ?? '').trim();
+                            setListChromeButtons((prev) =>
+                              prev.map((x, i) =>
+                                i === idx
+                                  ? {
+                                      ...x,
+                                      ...(t === '' ? { order: undefined } : { order: Number.parseInt(t, 10) || 0 }),
+                                    }
+                                  : x
+                              )
+                            );
+                          }}
+                          styles={{ root: { width: 72 } }}
+                        />
+                        <IconButton
+                          iconProps={{ iconName: 'Delete' }}
+                          title="Remover"
+                          onClick={() => setListChromeButtons((prev) => prev.filter((_, i) => i !== idx))}
+                        />
+                      </Stack>
+                      {b.actionKind === 'redirect' ? (
+                        <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="center">
+                          <TextField
+                            label="URL"
+                            value={b.url ?? ''}
+                            onChange={(_, v) =>
+                              setListChromeButtons((prev) => prev.map((x, i) => (i === idx ? { ...x, url: v ?? '' } : x)))
+                            }
+                            styles={{ root: { flex: '1 1 280px', minWidth: 200 } }}
+                          />
+                          <Checkbox
+                            label="Nova aba"
+                            checked={b.openInNewTab === true}
+                            onChange={(_, v) =>
+                              setListChromeButtons((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx ? { ...x, openInNewTab: v === true ? true : undefined } : x
+                                )
+                              )
+                            }
+                          />
+                        </Stack>
+                      ) : null}
+                      <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                        <Dropdown
+                          label="Variante"
+                          selectedKey={b.variant === 'primary' ? 'primary' : 'default'}
+                          options={[
+                            { key: 'default', text: 'Padrão' },
+                            { key: 'primary', text: 'Primário' },
+                          ]}
+                          onChange={(_, opt) => {
+                            const vr = opt?.key === 'primary' ? 'primary' : 'default';
+                            setListChromeButtons((prev) => prev.map((x, i) => (i === idx ? { ...x, variant: vr } : x)));
+                          }}
+                          styles={{ root: { width: 140 } }}
+                        />
+                        <TextField
+                          label="Ícone Fluent (opcional)"
+                          value={b.iconName ?? ''}
+                          onChange={(_, v) =>
+                            setListChromeButtons((prev) =>
+                              prev.map((x, i) =>
+                                i === idx
+                                  ? {
+                                      ...x,
+                                      ...(v?.trim() ? { iconName: v.trim() } : { iconName: undefined }),
+                                    }
+                                  : x
+                              )
+                            )
+                          }
+                          styles={{ root: { flex: '1 1 160px', minWidth: 120 } }}
+                        />
+                        <TextField
+                          label="CSS extra (opcional)"
+                          value={b.css ?? ''}
+                          multiline
+                          rows={2}
+                          onChange={(_, v) =>
+                            setListChromeButtons((prev) =>
+                              prev.map((x, i) =>
+                                i === idx ? { ...x, ...(v?.trim() ? { css: v } : { css: undefined }) } : x
+                              )
+                            )
+                          }
+                          styles={{ root: { flex: '2 1 240px', minWidth: 160 } }}
+                        />
+                      </Stack>
+                    </Stack>
+                  ))}
+                  <DefaultButton
+                    text="Adicionar botão"
+                    iconProps={{ iconName: 'Add' }}
+                    onClick={() => setListChromeButtons((prev) => [...prev, createDefaultListChromeButton()])}
+                  />
                 </ListTabListaCollapse>
                 <ListTabListaCollapse
                   title="Colunas da tabela"

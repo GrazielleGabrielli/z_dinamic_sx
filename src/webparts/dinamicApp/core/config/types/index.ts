@@ -312,6 +312,8 @@ export interface IListViewConfig {
   tableRowStyleRules?: ITableRowStyleRule[];
   /** Ações por item (ícones e/ou clique na linha/card). Configurado na aba Ações do painel. */
   listRowActions?: IListRowActionConfig[];
+  /** Botões na barra da tabela/cards (posição por `slot`). Independente do bloco «Botões» do layout da página. */
+  chromeButtons?: IListViewChromeButtonConfig[];
 }
 
 // ─── Project management ─────────────────────────────────────────────────────
@@ -409,7 +411,7 @@ export interface IListPageButtonItemConfig {
   id: string;
   label: string;
   actionKind: TListPageButtonActionKind;
-  /** Obrigatório quando `actionKind` é `redirect`. */
+  /** Obrigatório quando `actionKind` é `redirect`. Mesmas fórmulas que nas ações por linha: `{{Campo}}`, `{Campo}` e `[me]`, `[query:x]`, etc.; nos botões da barra da tabela, `{{…}}` usa a primeira linha visível. */
   url?: string;
   openInNewTab?: boolean;
   /** Variante visual: primário (preenchido) ou padrão (outline). */
@@ -418,6 +420,21 @@ export interface IListPageButtonItemConfig {
   iconName?: string;
   /** CSS extra aplicado ao elemento do botão. */
   css?: string;
+}
+
+/** Onde desenhar botões extra na `TableView` (config da lista, não o bloco «Botões» da página). */
+export type TListViewChromeButtonSlot =
+  | 'toolbarAfterViewMode'
+  | 'toolbarAfterTableCardsToggle'
+  | 'toolbarAfterPdfExport'
+  | 'toolbarBeforeClearFilters'
+  | 'filtersAfterAdvancedToggle'
+  | 'filtersBelowControls';
+
+export interface IListViewChromeButtonConfig extends IListPageButtonItemConfig {
+  slot: TListViewChromeButtonSlot;
+  /** Ordem dentro do mesmo slot (menor primeiro). */
+  order?: number;
 }
 
 export interface IListPageButtonsBlockConfig {
