@@ -98,6 +98,8 @@ interface IFieldOption {
 
 const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
 
+const LIST_TABLE_COL_DND = 'dinamicSx:listTableCol:';
+
 const SIMPLE_FIELD_TYPES = ['text', 'multiline', 'number', 'currency', 'boolean', 'choice', 'multichoice', 'datetime', 'url'];
 
 const USER_EXPAND_FIELDS: IDropdownOption[] = [
@@ -594,6 +596,47 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       )
     );
   };
+
+  const [listColumnDragOverIndex, setListColumnDragOverIndex] = useState<number | null>(null);
+
+  const onListTableColumnDragStart =
+    (rowIndex: number, selected: boolean) =>
+    (e: React.DragEvent): void => {
+      if (!selected) {
+        e.preventDefault();
+        return;
+      }
+      e.dataTransfer.setData('text/plain', `${LIST_TABLE_COL_DND}${rowIndex}`);
+      e.dataTransfer.effectAllowed = 'move';
+    };
+
+  const onListTableColumnDragOver = (e: React.DragEvent, rowIndex: number): void => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setListColumnDragOverIndex(rowIndex);
+  };
+
+  const onListTableColumnDragLeave = (): void => {
+    setListColumnDragOverIndex(null);
+  };
+
+  const onListTableColumnDrop =
+    (dropIndex: number) =>
+    (e: React.DragEvent): void => {
+      e.preventDefault();
+      setListColumnDragOverIndex(null);
+      const raw = e.dataTransfer.getData('text/plain');
+      if (!raw.startsWith(LIST_TABLE_COL_DND)) return;
+      const from = parseInt(raw.slice(LIST_TABLE_COL_DND.length), 10);
+      if (Number.isNaN(from) || from === dropIndex) return;
+      setOptions((prev) => {
+        if (!prev[from]?.selected) return prev;
+        const next = prev.slice();
+        const [moved] = next.splice(from, 1);
+        next.splice(dropIndex, 0, moved);
+        return next;
+      });
+    };
 
   const getExpandFieldOptions = (meta: IFieldMetadata): IDropdownOption[] => {
     if (meta.MappedType === 'user' || meta.MappedType === 'usermulti') return USER_EXPAND_FIELDS;
@@ -1632,17 +1675,49 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                     Marque as colunas que deseja exibir. Em lookup ou utilizador, marque abaixo um ou mais campos da lista
-                    ligada (cada um vira coluna na tabela).
+                    ligada (cada um vira coluna na tabela). Com colunas selecionadas, arraste pelo ícone à esquerda para
+                    definir a ordem na tabela.
                   </Text>
-                  {options.map((o) => (
+                  {options.map((o, rowIndex) => (
                     <Stack
                       key={o.meta.InternalName}
                       horizontal
                       wrap
                       tokens={{ childrenGap: 12 }}
                       verticalAlign="start"
-                      styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
+                      onDragOver={(e) => onListTableColumnDragOver(e, rowIndex)}
+                      onDragLeave={onListTableColumnDragLeave}
+                      onDrop={onListTableColumnDrop(rowIndex)}
+                      onDragEnd={onListTableColumnDragLeave}
+                      styles={{
+                        root: {
+                          padding: '8px 0',
+                          borderBottom: '1px solid #f3f2f1',
+                          width: '100%',
+                          minWidth: 0,
+                          boxSizing: 'border-box',
+                          borderTop:
+                            listColumnDragOverIndex === rowIndex ? '2px solid #0078d4' : undefined,
+                          backgroundColor:
+                            listColumnDragOverIndex === rowIndex ? 'rgba(0, 120, 212, 0.04)' : undefined,
+                        },
+                      }}
                     >
+                      <span
+                        draggable={o.selected}
+                        onDragStart={onListTableColumnDragStart(rowIndex, o.selected)}
+                        title={o.selected ? 'Arrastar para reordenar' : undefined}
+                        style={{
+                          cursor: o.selected ? 'grab' : 'default',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          paddingTop: 6,
+                          opacity: o.selected ? 1 : 0.35,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon iconName="GripperBarVertical" styles={{ root: { fontSize: 16, color: '#605e5c' } }} />
+                      </span>
                       <Checkbox
                         checked={o.selected}
                         onChange={() => toggle(o.meta.InternalName)}
