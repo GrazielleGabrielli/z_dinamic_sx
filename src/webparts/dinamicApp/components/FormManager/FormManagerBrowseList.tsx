@@ -8,29 +8,26 @@ import {
   MessageBarType,
   DetailsList,
   SelectionMode,
-  Icon,
   Dropdown,
-  type IColumn,
 } from '@fluentui/react';
 import type { IFieldMetadata } from '../../../../services';
-import { ItemsService, normalizeItemsQuerySelectExpand } from '../../../../services/items/ItemsService';
+import { ItemsService } from '../../../../services';
+import { normalizeItemsQuerySelectExpand } from '../../../../services/items/ItemsService';
 import { readListItemId } from '../../../../services/items/listItemId';
-import type {
-  TFormManagerBrowseLayoutKind,
-  TFormManagerBrowseLayoutControlKind,
-} from '../../core/config/types/formManager';
+import type { TFormManagerBrowseLayoutControlKind } from '../../core/config/types/formManager';
+import { TableCardsLayoutToggle, type TTableCardsLayoutKind } from '../DataTable/TableCardsLayoutToggle';
 
 function formatCellValue(item: Record<string, unknown>, m: IFieldMetadata): string {
   const v = item[m.InternalName];
   if (v == null || v === '') return '';
   if (typeof v === 'object' && v !== null) {
-    if (!Array.isArray(v) && 'Title' in (v as object)) {
+    if (!Array.isArray(v) && 'Title' in (v as Record<string, unknown>)) {
       return String((v as { Title?: string }).Title ?? '').trim();
     }
     if (Array.isArray(v)) {
       return v
         .map((x) =>
-          x !== null && typeof x === 'object' && 'Title' in (x as object)
+          x !== null && typeof x === 'object' && 'Title' in (x as Record<string, unknown>)
             ? String((x as { Title?: string }).Title ?? '').trim()
             : String(x ?? '')
         )
@@ -45,57 +42,6 @@ function formatCellValue(item: Record<string, unknown>, m: IFieldMetadata): stri
   return s;
 }
 
-function BrowseLayoutSegmented(props: {
-  value: TFormManagerBrowseLayoutKind;
-  onChange: (v: TFormManagerBrowseLayoutKind) => void;
-}): JSX.Element {
-  const { value, onChange } = props;
-  const track: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    background: '#e8e8e8',
-    borderRadius: 9,
-    padding: 3,
-    gap: 2,
-  };
-  const btn = (active: boolean): React.CSSProperties => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 36,
-    height: 32,
-    border: 'none',
-    borderRadius: 7,
-    cursor: 'pointer',
-    background: active ? '#ffffff' : 'transparent',
-    boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : undefined,
-    lineHeight: 0,
-    color: '#323130',
-  });
-  return (
-    <div style={track} role="group" aria-label="Modo de visualização">
-      <button
-        type="button"
-        aria-pressed={value === 'table'}
-        title="Tabela"
-        style={btn(value === 'table')}
-        onClick={() => onChange('table')}
-      >
-        <Icon iconName="BulletedList" styles={{ root: { fontSize: 16 } }} />
-      </button>
-      <button
-        type="button"
-        aria-pressed={value === 'cards'}
-        title="Cartões"
-        style={btn(value === 'cards')}
-        onClick={() => onChange('cards')}
-      >
-        <Icon iconName="Tiles" styles={{ root: { fontSize: 16 } }} />
-      </button>
-    </div>
-  );
-}
-
 export interface IFormManagerBrowseListProps {
   listTitle: string;
   listWebServerRelativeUrl?: string;
@@ -104,9 +50,9 @@ export interface IFormManagerBrowseListProps {
   expand: string[];
   fieldMetadata: IFieldMetadata[];
   itemsService: ItemsService;
-  defaultLayoutKind: TFormManagerBrowseLayoutKind;
+  defaultLayoutKind: TTableCardsLayoutKind;
   layoutControl?: TFormManagerBrowseLayoutControlKind;
-  refreshSignal: number;
+  refreshSignal?: number;
   selectedItemId?: number;
   onSelectRow: (id: number) => void;
 }
@@ -125,7 +71,7 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
   selectedItemId,
   onSelectRow,
 }) => {
-  const [layoutKind, setLayoutKind] = useState<TFormManagerBrowseLayoutKind>(defaultLayoutKind);
+  const [layoutKind, setLayoutKind] = useState<TTableCardsLayoutKind>(defaultLayoutKind);
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | undefined>(undefined);
@@ -134,12 +80,12 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
     setLayoutKind(defaultLayoutKind);
   }, [defaultLayoutKind]);
 
-  const { normSelect, normExpand } = useMemo(() => {
-    const n = normalizeItemsQuerySelectExpand(select, expand, fieldMetadata);
-    return { normSelect: n.select, normExpand: n.expand };
-  }, [select, expand, fieldMetadata]);
+  const { select: normSelect, expand: normExpand } = useMemo(
+    () => normalizeItemsQuerySelectExpand(select, expand, fieldMetadata),
+    [select, expand, fieldMetadata]
+  );
 
-  const reload = useCallback((): void => {
+  const reload = useCallback(() => {
     const t = listTitle.trim();
     if (!t) {
       setItems([]);
@@ -150,7 +96,7 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
     setErr(undefined);
     void (async (): Promise<void> => {
       try {
-        const data = await itemsService.getItems<Record<string, unknown>>(t, {
+        const data = await itemsService.getItems(t, {
           select: normSelect,
           expand: normExpand.length ? normExpand : undefined,
           orderBy: { field: 'Id', ascending: false },
@@ -166,21 +112,14 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
         setLoading(false);
       }
     })();
-  }, [
-    listTitle,
-    normSelect,
-    normExpand,
-    fieldMetadata,
-    itemsService,
-    listWebServerRelativeUrl,
-  ]);
+  }, [listTitle, normSelect, normExpand, fieldMetadata, itemsService, listWebServerRelativeUrl]);
 
   useEffect(() => {
     reload();
   }, [reload, refreshSignal]);
 
-  const detailColumns: IColumn[] = useMemo(() => {
-    const idCol: IColumn = {
+  const detailColumns = useMemo(() => {
+    const idCol = {
       key: 'Id',
       name: 'ID',
       fieldName: 'Id',
@@ -193,15 +132,13 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
       name: m.Title,
       minWidth: 96,
       isResizable: true,
-      onRender: (row: Record<string, unknown>) => (
-        <span>{formatCellValue(row, m)}</span>
-      ),
+      onRender: (row: Record<string, unknown>) => <span>{formatCellValue(row, m)}</span>,
     }));
     return [idCol, ...rest];
   }, [columns]);
 
   const pickRow = useCallback(
-    (row: Record<string, unknown> | null): void => {
+    (row: Record<string, unknown> | undefined) => {
       if (!row) return;
       const id = readListItemId(row);
       if (id != null) onSelectRow(id);
@@ -213,7 +150,7 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
     layoutControl === 'compactDropdown' ? (
       <Dropdown
         selectedKey={layoutKind}
-        onChange={(_, o) => o && setLayoutKind(String(o.key) as TFormManagerBrowseLayoutKind)}
+        onChange={(_, o) => o && setLayoutKind(String(o.key) as TTableCardsLayoutKind)}
         options={[
           { key: 'table', text: 'Tabela' },
           { key: 'cards', text: 'Cartões' },
@@ -221,7 +158,7 @@ export const FormManagerBrowseList: React.FC<IFormManagerBrowseListProps> = ({
         styles={{ root: { width: 140 } }}
       />
     ) : (
-      <BrowseLayoutSegmented value={layoutKind} onChange={setLayoutKind} />
+      <TableCardsLayoutToggle value={layoutKind} onChange={setLayoutKind} />
     );
 
   return (

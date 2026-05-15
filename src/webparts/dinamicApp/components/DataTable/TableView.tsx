@@ -7,8 +7,6 @@ import {
   IDropdownOption,
   IDropdownStyles,
   ActionButton,
-  ChoiceGroup,
-  IChoiceGroupOption,
   DefaultButton,
   TextField,
 } from '@fluentui/react';
@@ -27,6 +25,7 @@ import { ItemsService, UsersService, FieldsService, SYSTEM_METADATA_FIELDS } fro
 import { readListItemId } from '../../../../services/items/listItemId';
 import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
+import { TableCardsLayoutToggle } from './TableCardsLayoutToggle';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss, scopeCardCssByInstance } from './tableLayoutClasses';
 import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
@@ -685,14 +684,6 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
   };
 
-  const listPresentationOptions: IChoiceGroupOption[] = useMemo(
-    () => [
-      { key: 'table', text: 'Tabela', iconProps: { iconName: 'Table' } },
-      { key: 'cards', text: 'Cards', iconProps: { iconName: 'Tiles' } },
-    ],
-    []
-  );
-
   const mergedTableCss = mergeCustomTableCss(listView?.customTableCssSlots, listView?.customTableCss);
   const rowRulesCss = mergeRowStyleRulesCss(listView?.tableRowStyleRules);
   const instanceScopeClass = `dinamicSxScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
@@ -800,13 +791,7 @@ export const TableView: React.FC<ITableViewProps> = ({
               </div>
             ))}
           {listCardViewEnabled && (
-            <ChoiceGroup
-              label="Apresentação"
-              selectedKey={listDisplayMode}
-              options={listPresentationOptions}
-              onChange={(_, opt) => opt && setListDisplayMode(opt.key as 'table' | 'cards')}
-              styles={{ flexContainer: { display: 'flex', flexWrap: 'wrap', columnGap: '12px', rowGap: '4px' } }}
-            />
+            <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
           )}
           {showPdfButton && (
             <ActionButton

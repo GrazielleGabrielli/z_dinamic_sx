@@ -29,6 +29,8 @@ import type {
   TFormStepNavButtonsKind,
   TFormDataLoadingUiKind,
   TFormSubmitLoadingUiKind,
+  TFormManagerBrowseLayoutKind,
+  TFormManagerBrowseLayoutControlKind,
   TFormAttachmentUploadLayoutKind,
   TFormAttachmentFilePreviewKind,
   TFormHistoryPresentationKind,
@@ -1374,11 +1376,6 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
   const managerColumnFields = Array.isArray(o.managerColumnFields)
     ? (o.managerColumnFields as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
-  const mblkRaw = o.managerBrowseLayoutKind;
-  const managerBrowseLayoutKind: 'cards' | undefined = mblkRaw === 'cards' ? 'cards' : undefined;
-  const mblcRaw = o.managerBrowseLayoutControl;
-  const managerBrowseLayoutControl: 'compactDropdown' | undefined =
-    mblcRaw === 'compactDropdown' ? 'compactDropdown' : undefined;
   const dynamicHelpRaw = Array.isArray(o.dynamicHelp) ? o.dynamicHelp : [];
   const dynamicHelp: { field: string; when: TFormConditionNode; helpText: string }[] = [];
   for (let i = 0; i < dynamicHelpRaw.length; i++) {
@@ -1502,6 +1499,12 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
     typeof hlRaw === 'string' && HISTORY_LAYOUT_SET.has(hlRaw)
       ? (hlRaw as TFormHistoryLayoutKind)
       : undefined;
+  const mblkRaw = o.managerBrowseLayoutKind;
+  const managerBrowseLayoutKind: TFormManagerBrowseLayoutKind | undefined =
+    mblkRaw === 'cards' ? 'cards' : undefined;
+  const mblcRaw = o.managerBrowseLayoutControl;
+  const managerBrowseLayoutControl: TFormManagerBrowseLayoutControlKind | undefined =
+    mblcRaw === 'compactDropdown' ? 'compactDropdown' : undefined;
   const cbvRaw = o.customButtonsBarVertical;
   const customButtonsBarVertical: TFormCustomButtonsBarVertical | undefined =
     cbvRaw === 'top' || cbvRaw === 'bottom' ? cbvRaw : undefined;

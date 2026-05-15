@@ -552,6 +552,12 @@ export type TFormSubmitLoadingUiKind =
   | 'belowButtons'
   | 'infoBar';
 
+/** Listagem acima do formulário no modo gestor. */
+export type TFormManagerBrowseLayoutKind = 'table' | 'cards';
+
+/** Controlo para alternar tabela / cartões nessa listagem. */
+export type TFormManagerBrowseLayoutControlKind = 'segmented' | 'compactDropdown';
+
 /** Onde gravar ficheiros escolhidos no controlo «Anexos ao item». */
 export type TFormAttachmentStorageKind = 'itemAttachments' | 'documentLibrary';
 
@@ -929,10 +935,6 @@ export interface IFormManagerPermissionBreakConfig {
   assignments?: IFormPermissionBreakAssignment[];
 }
 
-export type TFormManagerBrowseLayoutKind = 'table' | 'cards';
-
-export type TFormManagerBrowseLayoutControlKind = 'segmented' | 'compactDropdown';
-
 export interface IFormManagerConfig {
   sections: IFormSectionConfig[];
   fields: IFormFieldConfig[];
@@ -952,12 +954,9 @@ export interface IFormManagerConfig {
   stepNavigation?: IFormStepNavigationConfig;
   /** Colunas da grade gestor (usa mesma origem que listView se vazio) */
   managerColumnFields?: string[];
-  /** Vista inicial da listagem acima do formulário. Omitido = tabela. */
+  /** Vista padrão da listagem do gestor (omitido = tabela). */
   managerBrowseLayoutKind?: TFormManagerBrowseLayoutKind;
-  /**
-   * Como o utilizador alterna entre tabela e cartões na listagem.
-   * Omitido = botões segmentados (ícones).
-   */
+  /** Alternância tabela/cartões na listagem (omitido = segmentado minimal). */
   managerBrowseLayoutControl?: TFormManagerBrowseLayoutControlKind;
   /** Ajuda dinâmica por campo quando condição */
   dynamicHelp?: { field: string; when: TFormConditionNode; helpText: string }[];
