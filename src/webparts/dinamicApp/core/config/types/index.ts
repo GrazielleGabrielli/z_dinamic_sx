@@ -267,11 +267,16 @@ export interface IListRowActionConfig {
   visibility?: IListRowActionVisibility;
 }
 
+/** Zona do filtro na barra: fixo (sempre visível) ou avançado (dentro do collapse). */
+export type TTableFilterPlacement = 'fixed' | 'advanced';
+
 export interface ITableFilterFieldConfig {
   /** Nome interno do campo (ex.: Status, Author/Id). */
   field: string;
   /** Rótulo exibido no controle de filtro. Padrão: Title do campo. */
   label?: string;
+  /** Omitido ou `fixed`: sempre visível. `advanced`: só no painel recolhível. */
+  placement?: TTableFilterPlacement;
 }
 
 export interface IListViewConfig {
@@ -282,8 +287,10 @@ export interface IListViewConfig {
   activeViewModeId?: string;
   /** Regras ordenadas para o modo inicial por grupo/utilizador (ver `IListViewModeDefaultRule`). */
   viewModeDefaultRules?: IListViewModeDefaultRule[];
-  /** Campos expostos como controles de filtro na barra da tabela. */
+  /** Campos expostos como controles de filtro na barra da tabela. Ordem: fixos primeiro, depois avançados. */
   tableFilterFields?: ITableFilterFieldConfig[];
+  /** Rótulo do botão/painel que expande os filtros avançados (omitido = «Filtros avançados»). */
+  tableAdvancedFiltersTitle?: string;
   /** Omitido ou `dropdown`: lista suspensa. `tabs`: abas horizontais (Fluent Pivot). */
   viewModePicker?: TViewModePicker;
   pdfExportEnabled?: boolean;

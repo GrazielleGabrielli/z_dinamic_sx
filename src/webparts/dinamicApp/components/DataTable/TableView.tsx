@@ -10,7 +10,7 @@ import {
   DefaultButton,
   TextField,
 } from '@fluentui/react';
-import { IDynamicViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
+import { IDynamicViewConfig, IListViewConfig, IListViewFilterConfig, IListViewModeConfig } from '../../core/config/types';
 import { TableEngine } from '../../core/table/services/TableEngine';
 import type { ITableConfig, ISortConfig } from '../../core/table/types';
 import { buildListFilter, buildTableTopFiltersOData, getActiveViewModeFilters } from '../../core/listView';
@@ -141,6 +141,7 @@ export const TableView: React.FC<ITableViewProps> = ({
   const [hasNext, setHasNext] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [topFilters, setTopFilters] = useState<Record<string, string>>({});
+  const [advancedTableFiltersExpanded, setAdvancedTableFiltersExpanded] = useState(false);
   const [selectedViewModeId, setSelectedViewModeId] = useState<string>(
     () => listView?.activeViewModeId ?? listView?.viewModes?.[0]?.id ?? 'all'
   );
@@ -554,17 +555,32 @@ export const TableView: React.FC<ITableViewProps> = ({
   const viewModeOptions: IDropdownOption[] = visibleViewModes.map((m) => ({ key: m.id, text: m.label }));
   const viewModesAsTabs = listView?.viewModePicker === 'tabs';
 
-  const tableFilterFieldsMeta = useMemo(() => {
-    if (!listView?.tableFilterFields?.length || !fieldMetadata?.length) return [];
+  const tableFilterFieldsMetaSplit = useMemo(() => {
+    type Row = {
+      config: NonNullable<IListViewConfig['tableFilterFields']>[number];
+      meta: import('../../../../services/shared/types').IFieldMetadata | null;
+    };
+    const empty: { fixed: Row[]; advanced: Row[] } = { fixed: [], advanced: [] };
+    if (!listView?.tableFilterFields?.length || !fieldMetadata?.length) return empty;
     const metaByName = new Map((fieldMetadata as import('../../../../services/shared/types').IFieldMetadata[]).map((m) => [m.InternalName, m]));
-    return listView.tableFilterFields.map((f) => {
+    const fixed: Row[] = [];
+    const advanced: Row[] = [];
+    for (let i = 0; i < listView.tableFilterFields.length; i++) {
+      const f = listView.tableFilterFields[i];
       const baseName = f.field.indexOf('/') !== -1 ? f.field.split('/')[0] : f.field;
       const meta = metaByName.get(baseName) ?? null;
-      return { config: f, meta };
-    });
+      const row: Row = { config: f, meta };
+      if (f.placement === 'advanced') advanced.push(row);
+      else fixed.push(row);
+    }
+    return { fixed, advanced };
   }, [listView?.tableFilterFields, fieldMetadata]);
 
-  const hasTopFilters = tableFilterFieldsMeta.length > 0;
+  const hasTopFilters =
+    tableFilterFieldsMetaSplit.fixed.length > 0 || tableFilterFieldsMetaSplit.advanced.length > 0;
+
+  const advancedTableFiltersTitle =
+    listView?.tableAdvancedFiltersTitle?.trim() || 'Filtros avançados';
 
   const activeTopFiltersCount = Object.values(topFilters).filter((v) => v.trim()).length;
   const hasActiveColumnFilters = Object.values(columnFilters).some((v) => v.trim().length > 0);
@@ -823,7 +839,33 @@ export const TableView: React.FC<ITableViewProps> = ({
             )}
           </Stack>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-            {tableFilterFieldsMeta.map((f) => renderTopFilterControl(f))}
+            {tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f))}
+            {tableFilterFieldsMetaSplit.advanced.length > 0 ? (
+              <ActionButton
+                iconProps={{
+                  iconName: advancedTableFiltersExpanded ? 'ChevronDown' : 'ChevronRight',
+                }}
+                onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
+                aria-expanded={advancedTableFiltersExpanded}
+                styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
+              >
+                {advancedTableFiltersTitle}
+              </ActionButton>
+            ) : null}
+            {tableFilterFieldsMetaSplit.advanced.length > 0 && advancedTableFiltersExpanded ? (
+              <div
+                style={{
+                  flexBasis: '100%',
+                  width: '100%',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                }}
+              >
+                {tableFilterFieldsMetaSplit.advanced.map((f) => renderTopFilterControl(f))}
+              </div>
+            ) : null}
           </div>
         </Stack>
       )}

@@ -13,6 +13,7 @@ import {
   IListViewModeConfig,
   IListViewModeAccessConfig,
   IListViewModeDefaultRule,
+  ITableFilterFieldConfig,
   IPdfTemplateConfig,
   IPdfTemplateElement,
   TViewMode,
@@ -332,6 +333,17 @@ export function isValidPdfTemplate(t: unknown): t is IPdfTemplateConfig {
 
 const VALID_PAGINATION_LAYOUTS = new Set(['buttons', 'numbered', 'compact', 'paged']);
 
+function normalizeTableFilterFieldsOrder(fields: ITableFilterFieldConfig[]): ITableFilterFieldConfig[] {
+  const fixed: ITableFilterFieldConfig[] = [];
+  const advanced: ITableFilterFieldConfig[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const f = fields[i];
+    if (f.placement === 'advanced') advanced.push(f);
+    else fixed.push(f);
+  }
+  return [...fixed, ...advanced];
+}
+
 export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined {
   if (!lv || typeof lv !== 'object' || !isValidListView(lv)) return undefined;
   const defaults = getDefaultConfig().listView;
@@ -339,15 +351,24 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
   const cssSlots = sanitizeTableCssSlots(lvo.customTableCssSlots);
   const rowRules = sanitizeTableRowStyleRules(lvo.tableRowStyleRules);
   const listRowActions = sanitizeListRowActions(lvo.listRowActions);
-  const tableFilterFields = Array.isArray(lvo.tableFilterFields)
+  const tableFilterFieldsRaw = Array.isArray(lvo.tableFilterFields)
     ? (lvo.tableFilterFields as unknown[])
-        .filter((f): f is { field: string; label?: string } =>
-          typeof f === 'object' && f !== null && typeof (f as Record<string, unknown>).field === 'string' && (f as Record<string, unknown>).field !== ''
+        .filter((f): f is Record<string, unknown> =>
+          typeof f === 'object' && f !== null && typeof (f as Record<string, unknown>).field === 'string' && String((f as Record<string, unknown>).field).trim() !== ''
         )
-        .map((f) => ({
-          field: (f.field as string).trim(),
-          ...(typeof f.label === 'string' && f.label.trim() ? { label: f.label.trim() } : {}),
-        }))
+        .map((rec) => {
+          const placementRaw = rec.placement;
+          const placement = placementRaw === 'advanced' ? ('advanced' as const) : undefined;
+          const row: ITableFilterFieldConfig = {
+            field: String(rec.field).trim(),
+            ...(typeof rec.label === 'string' && rec.label.trim() ? { label: rec.label.trim() } : {}),
+            ...(placement ? { placement } : {}),
+          };
+          return row;
+        })
+    : undefined;
+  const tableFilterFields = tableFilterFieldsRaw?.length
+    ? normalizeTableFilterFieldsOrder(tableFilterFieldsRaw)
     : undefined;
   const viewModeDefaultRules = sanitizeViewModeDefaultRules(lvo.viewModeDefaultRules);
   return {
@@ -371,6 +392,9 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     ...(listRowActions ? { listRowActions } : {}),
     ...(lvo.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
     ...(tableFilterFields?.length ? { tableFilterFields } : {}),
+    ...(typeof lvo.tableAdvancedFiltersTitle === 'string' && lvo.tableAdvancedFiltersTitle.trim()
+      ? { tableAdvancedFiltersTitle: lvo.tableAdvancedFiltersTitle.trim() }
+      : {}),
   };
 }
 

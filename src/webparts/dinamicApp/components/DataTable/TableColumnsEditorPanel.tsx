@@ -98,9 +98,28 @@ interface IFieldOption {
 
 const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
 
+type TTableFilterDragZone = 'fixed' | 'advanced';
+
 const LIST_TABLE_COL_DND = 'dinamicSx:listTableCol:';
 
 const LIST_TABLE_FILTER_DND = 'dinamicSx:listTableFilter:';
+
+function parseTableFilterDragPayload(raw: string): {
+  fromZone: TTableFilterDragZone;
+  field: string;
+  fromIdx: number;
+} | null {
+  if (!raw.startsWith(LIST_TABLE_FILTER_DND)) return null;
+  const rest = raw.slice(LIST_TABLE_FILTER_DND.length);
+  const parts = rest.split('\t');
+  if (parts.length < 3) return null;
+  const zoneChar = parts[0];
+  const field = parts[1];
+  const fromIdx = parseInt(parts[2], 10);
+  if (!field || Number.isNaN(fromIdx)) return null;
+  const fromZone: TTableFilterDragZone = zoneChar === 'a' ? 'advanced' : 'fixed';
+  return { fromZone, field, fromIdx };
+}
 
 const SIMPLE_FIELD_TYPES = ['text', 'multiline', 'number', 'currency', 'boolean', 'choice', 'multichoice', 'datetime', 'url'];
 
@@ -117,6 +136,29 @@ function tableFilterEntryMatchesOption(entry: ITableFilterFieldConfig, o: IField
 
 function findOptionForTableFilterEntry(entry: ITableFilterFieldConfig, opts: IFieldOption[]): IFieldOption | undefined {
   return opts.find((o) => tableFilterEntryMatchesOption(entry, o));
+}
+
+function partitionTableFilterFields(fields: ITableFilterFieldConfig[]): {
+  fixed: ITableFilterFieldConfig[];
+  advanced: ITableFilterFieldConfig[];
+} {
+  const fixed: ITableFilterFieldConfig[] = [];
+  const advanced: ITableFilterFieldConfig[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const f = fields[i];
+    if (f.placement === 'advanced') advanced.push(f);
+    else fixed.push(f);
+  }
+  return { fixed, advanced };
+}
+
+function mergeTableFilterPartitions(fixed: ITableFilterFieldConfig[], advanced: ITableFilterFieldConfig[]): ITableFilterFieldConfig[] {
+  return [...fixed, ...advanced];
+}
+
+function normalizeTableFilterFieldsOrderLocal(fields: ITableFilterFieldConfig[]): ITableFilterFieldConfig[] {
+  const { fixed, advanced } = partitionTableFilterFields(fields);
+  return mergeTableFilterPartitions(fixed, advanced);
 }
 
 const USER_EXPAND_FIELDS: IDropdownOption[] = [
@@ -327,7 +369,16 @@ function ListTabListaCollapse(props: {
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;
+  zoneDrop?: {
+    highlight: boolean;
+    onDragOver: (e: React.DragEvent) => void;
+    onDragLeave?: (e: React.DragEvent) => void;
+    onDrop: (e: React.DragEvent) => void;
+  };
 }): JSX.Element {
+  const zd = props.zoneDrop;
+  const zoneBorder = zd?.highlight ? '2px solid #0078d4' : undefined;
+  const zoneBg = zd?.highlight ? 'rgba(0, 120, 212, 0.06)' : undefined;
   return (
     <Stack
       styles={{
@@ -348,12 +399,17 @@ function ListTabListaCollapse(props: {
         horizontal
         verticalAlign="center"
         tokens={{ childrenGap: 2 }}
+        onDragOver={zd?.onDragOver}
+        onDragLeave={zd?.onDragLeave}
+        onDrop={zd?.onDrop}
         styles={{
           root: {
             padding: '10px 12px',
-            background: props.isOpen ? '#faf9f8' : '#ffffff',
+            background: zoneBg ?? (props.isOpen ? '#faf9f8' : '#ffffff'),
             borderBottom: props.isOpen ? '1px solid #edebe9' : undefined,
             userSelect: 'none',
+            borderTop: !props.isOpen && zd?.highlight ? zoneBorder : undefined,
+            boxSizing: 'border-box',
           },
         }}
       >
@@ -377,6 +433,9 @@ function ListTabListaCollapse(props: {
       </Stack>
       {props.isOpen ? (
         <div
+          onDragOver={zd?.onDragOver}
+          onDragLeave={zd?.onDragLeave}
+          onDrop={zd?.onDrop}
           style={{
             padding: '14px 14px 16px 18px',
             maxWidth: '100%',
@@ -386,6 +445,8 @@ function ListTabListaCollapse(props: {
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
+            borderTop: props.isOpen && zd?.highlight ? zoneBorder : undefined,
+            backgroundColor: zoneBg ?? undefined,
           }}
         >
           {props.children}
@@ -441,9 +502,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   ]);
   const [rowActions, setRowActions] = useState<IListRowActionConfig[]>(() => [...(listView.listRowActions ?? [])]);
   const [visibilitySectionOpen, setVisibilitySectionOpen] = useState<Record<string, boolean>>({});
-  const [tableFilterFields, setTableFilterFields] = useState<ITableFilterFieldConfig[]>(
-    () => listView.tableFilterFields?.slice() ?? []
+  const [tableFilterFields, setTableFilterFields] = useState<ITableFilterFieldConfig[]>(() =>
+    normalizeTableFilterFieldsOrderLocal(listView.tableFilterFields?.slice() ?? [])
   );
+  const [tableAdvancedFiltersTitle, setTableAdvancedFiltersTitle] = useState<string>(() =>
+    listView.tableAdvancedFiltersTitle?.trim() ?? ''
+  );
+  const [filterEditorFixedOpen, setFilterEditorFixedOpen] = useState(true);
+  const [filterEditorAdvancedOpen, setFilterEditorAdvancedOpen] = useState(true);
+  const [tableFilterZoneDropHighlight, setTableFilterZoneDropHighlight] = useState<TTableFilterDragZone | null>(null);
   const layoutPreviewCss = useMemo(() => {
     const layout = layoutCssText.trim();
     const rules = mergeRowStyleRulesCss(rowStyleRules).trim();
@@ -549,7 +616,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setProjectColumns(projectManagement?.columns?.length ? projectManagement.columns : DEFAULT_PROJECT_COLUMNS);
     setRowStyleRules([...(listView.tableRowStyleRules ?? [])]);
     setRowActions([...(listView.listRowActions ?? [])]);
-    setTableFilterFields(listView.tableFilterFields?.slice() ?? []);
+    setTableFilterFields(normalizeTableFilterFieldsOrderLocal(listView.tableFilterFields?.slice() ?? []));
+    setTableAdvancedFiltersTitle(listView.tableAdvancedFiltersTitle?.trim() ?? '');
+    setFilterEditorFixedOpen(true);
+    setFilterEditorAdvancedOpen(true);
     setRuleColorMap({});
     setLayoutSectionOpen({});
     setListTabListaSectionOpen({});
@@ -655,38 +725,85 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       });
     };
 
-  const [tableFilterDragOverIndex, setTableFilterDragOverIndex] = useState<number | null>(null);
+  const [tableFilterDragOver, setTableFilterDragOver] = useState<{ zone: TTableFilterDragZone; index: number } | null>(null);
 
-  const onTableFilterDragStart = (filterIdx: number) => (e: React.DragEvent): void => {
-    e.dataTransfer.setData('text/plain', `${LIST_TABLE_FILTER_DND}${filterIdx}`);
-    e.dataTransfer.effectAllowed = 'move';
+  const clearTableFilterDnDUi = (): void => {
+    setTableFilterDragOver(null);
+    setTableFilterZoneDropHighlight(null);
   };
 
-  const onTableFilterDragOver = (e: React.DragEvent, filterIdx: number): void => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setTableFilterDragOverIndex(filterIdx);
+  const moveTableFilterToZone = (field: string, placement: TTableFilterDragZone): void => {
+    setTableFilterFields((prev) => {
+      const { fixed, advanced } = partitionTableFilterFields(prev);
+      const entry = fixed.find((f) => f.field === field) ?? advanced.find((f) => f.field === field);
+      if (!entry) return prev;
+      const restFixed = fixed.filter((f) => f.field !== field);
+      const restAdv = advanced.filter((f) => f.field !== field);
+      const labelPart = entry.label?.trim() ? { label: entry.label.trim() } : {};
+      if (placement === 'fixed') {
+        return mergeTableFilterPartitions([...restFixed, { field: entry.field, ...labelPart }], restAdv);
+      }
+      return mergeTableFilterPartitions(restFixed, [...restAdv, { field: entry.field, ...labelPart, placement: 'advanced' }]);
+    });
   };
 
-  const onTableFilterDragLeave = (): void => {
-    setTableFilterDragOverIndex(null);
-  };
-
-  const onTableFilterDrop =
-    (dropIndex: number) =>
+  const onTableFilterZoneDragOver =
+    (targetZone: TTableFilterDragZone) =>
     (e: React.DragEvent): void => {
       e.preventDefault();
-      setTableFilterDragOverIndex(null);
-      const raw = e.dataTransfer.getData('text/plain');
-      if (!raw.startsWith(LIST_TABLE_FILTER_DND)) return;
-      const from = parseInt(raw.slice(LIST_TABLE_FILTER_DND.length), 10);
-      if (Number.isNaN(from) || from === dropIndex) return;
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      setTableFilterDragOver(null);
+      setTableFilterZoneDropHighlight(targetZone);
+    };
+
+  const onTableFilterZoneDrop =
+    (targetZone: TTableFilterDragZone) =>
+    (e: React.DragEvent): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearTableFilterDnDUi();
+      const parsed = parseTableFilterDragPayload(e.dataTransfer.getData('text/plain'));
+      if (!parsed || parsed.fromZone === targetZone) return;
+      moveTableFilterToZone(parsed.field, targetZone);
+      if (targetZone === 'fixed') setFilterEditorFixedOpen(true);
+      else setFilterEditorAdvancedOpen(true);
+    };
+
+  const onTableFilterDragStart =
+    (zone: TTableFilterDragZone, entry: ITableFilterFieldConfig, localIdx: number) =>
+    (e: React.DragEvent): void => {
+      const z = zone === 'advanced' ? 'a' : 'f';
+      e.dataTransfer.setData('text/plain', `${LIST_TABLE_FILTER_DND}${z}\t${entry.field}\t${localIdx}`);
+      e.dataTransfer.effectAllowed = 'move';
+    };
+
+  const onTableFilterDragOverRow = (e: React.DragEvent, zone: TTableFilterDragZone, localIdx: number): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setTableFilterZoneDropHighlight(null);
+    setTableFilterDragOver({ zone, index: localIdx });
+  };
+
+  const onTableFilterDropRow =
+    (dropZone: TTableFilterDragZone, dropLocalIdx: number) =>
+    (e: React.DragEvent): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearTableFilterDnDUi();
+      const parsed = parseTableFilterDragPayload(e.dataTransfer.getData('text/plain'));
+      if (!parsed || parsed.fromZone !== dropZone) return;
+      const from = parsed.fromIdx;
+      if (from === dropLocalIdx) return;
       setTableFilterFields((prev) => {
-        if (from < 0 || from >= prev.length || dropIndex < 0 || dropIndex >= prev.length) return prev;
-        const next = prev.slice();
-        const [moved] = next.splice(from, 1);
-        next.splice(dropIndex, 0, moved);
-        return next;
+        const { fixed, advanced } = partitionTableFilterFields(prev);
+        const arr = dropZone === 'fixed' ? fixed.slice() : advanced.slice();
+        if (from < 0 || from >= arr.length || dropLocalIdx < 0 || dropLocalIdx >= arr.length) return prev;
+        const nextArr = arr.slice();
+        const [moved] = nextArr.splice(from, 1);
+        nextArr.splice(dropLocalIdx, 0, moved);
+        return dropZone === 'fixed' ? mergeTableFilterPartitions(nextArr, advanced) : mergeTableFilterPartitions(fixed, nextArr);
       });
     };
 
@@ -728,6 +845,93 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     () => options.filter((o) => !tableFilterFields.some((f) => tableFilterEntryMatchesOption(f, o))),
     [options, tableFilterFields]
   );
+
+  const tableFiltersPartitioned = useMemo(() => partitionTableFilterFields(tableFilterFields), [tableFilterFields]);
+
+  const renderConfiguredTableFilterRow = (
+    entry: ITableFilterFieldConfig,
+    zone: TTableFilterDragZone,
+    localIdx: number
+  ): React.ReactNode => {
+    const o = findOptionForTableFilterEntry(entry, options);
+    const defaultLabel = o?.meta.Title ?? entry.field;
+    const dragHighlight =
+      tableFilterDragOver?.zone === zone && tableFilterDragOver?.index === localIdx;
+    return (
+      <Stack
+        key={`tf_${zone}_${entry.field}_${localIdx}`}
+        horizontal
+        wrap
+        tokens={{ childrenGap: 12 }}
+        verticalAlign="center"
+        onDragOver={(e) => onTableFilterDragOverRow(e, zone, localIdx)}
+        onDrop={onTableFilterDropRow(zone, localIdx)}
+        onDragEnd={clearTableFilterDnDUi}
+        styles={{
+          root: {
+            padding: '8px 0',
+            borderBottom: '1px solid #f3f2f1',
+            width: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+            borderTop: dragHighlight ? '2px solid #0078d4' : undefined,
+            backgroundColor: dragHighlight ? 'rgba(0, 120, 212, 0.04)' : undefined,
+          },
+        }}
+      >
+        <span
+          draggable
+          onDragStart={onTableFilterDragStart(zone, entry, localIdx)}
+          onDragEnd={clearTableFilterDnDUi}
+          title="Arrastar para reordenar dentro deste grupo; largue no outro collapse para mudar de zona"
+          style={{
+            cursor: 'grab',
+            display: 'flex',
+            alignItems: 'center',
+            flexShrink: 0,
+            minWidth: 22,
+          }}
+        >
+          <Icon iconName="GripperBarVertical" styles={{ root: { fontSize: 16, color: '#605e5c' } }} />
+        </span>
+        <Checkbox
+          checked
+          onChange={(_, v) => {
+            if (!v) {
+              setTableFilterFields((prev) => prev.filter((f) => f.field !== entry.field));
+            }
+          }}
+          ariaLabel={defaultLabel}
+          styles={{ root: { flex: '0 0 auto' } }}
+        />
+        <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 200px', minWidth: 0 } }}>
+          <Stack horizontal tokens={{ childrenGap: 6 }} verticalAlign="center">
+            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>{defaultLabel}</Text>
+            {o ? (
+              <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>{o.meta.MappedType}</Text>
+            ) : (
+              <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>(campo não listado)</Text>
+            )}
+          </Stack>
+          <TextField
+            label="Rótulo do filtro"
+            value={entry.label ?? defaultLabel}
+            onChange={(_, v) =>
+              setTableFilterFields((prev) =>
+                prev.map((f) => (f.field === entry.field ? { ...f, label: v ?? '' } : f))
+              )
+            }
+            styles={{ root: { maxWidth: 280 } }}
+          />
+          {o && (o.meta.MappedType === 'choice' || o.meta.MappedType === 'multichoice') && o.meta.Choices && (
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Opções: {o.meta.Choices.join(' · ')}
+            </Text>
+          )}
+        </Stack>
+      </Stack>
+    );
+  };
 
   const rowRuleFieldOptions: IDropdownOption[] = useMemo(() => {
     const empty: IDropdownOption = { key: '', text: '— selecione o campo —' };
@@ -1032,9 +1236,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         : carryListView.listDefaultDisplayMode === 'cards'
           ? 'cards'
           : 'table';
-    const nextTableFilterFields: ITableFilterFieldConfig[] = tableFilterFields
+    const mappedFilters = tableFilterFields
       .filter((f) => f.field.trim())
-      .map((f) => ({ field: f.field.trim(), ...(f.label?.trim() ? { label: f.label.trim() } : {}) }));
+      .map((f) => ({
+        field: f.field.trim(),
+        ...(f.label?.trim() ? { label: f.label.trim() } : {}),
+        ...(f.placement === 'advanced' ? { placement: 'advanced' as const } : {}),
+      }));
+    const nextTableFilterFields: ITableFilterFieldConfig[] = normalizeTableFilterFieldsOrderLocal(mappedFilters);
     const listViewOut: IListViewConfig = {
       ...carryRest,
       columns,
@@ -1050,6 +1259,9 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(nextRowRules.length > 0 ? { tableRowStyleRules: nextRowRules } : { tableRowStyleRules: undefined }),
       ...(nextListRowActions.length > 0 ? { listRowActions: nextListRowActions } : { listRowActions: undefined }),
       ...(nextTableFilterFields.length > 0 ? { tableFilterFields: nextTableFilterFields } : { tableFilterFields: undefined }),
+      ...(tableAdvancedFiltersTitle.trim()
+        ? { tableAdvancedFiltersTitle: tableAdvancedFiltersTitle.trim() }
+        : { tableAdvancedFiltersTitle: undefined }),
       ...(effectiveListCardEnabled && effectiveListCardDefault === 'cards'
         ? { listDefaultDisplayMode: 'cards' as const }
         : {}),
@@ -1080,6 +1292,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     rowStyleRules,
     rowActions,
     tableFilterFields,
+    tableAdvancedFiltersTitle,
     carryListView,
     viewModes,
     activeViewModeId,
@@ -1151,7 +1364,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setListViewModePicker(bundle.listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
       setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
-      setTableFilterFields(bundle.listView.tableFilterFields?.slice() ?? []);
+      setTableFilterFields(normalizeTableFilterFieldsOrderLocal(bundle.listView.tableFilterFields?.slice() ?? []));
+      setTableAdvancedFiltersTitle(bundle.listView.tableAdvancedFiltersTitle?.trim() ?? '');
       setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
       setListTabListaSectionOpen({});
       setJsonPanelText(JSON.stringify(bundle, null, 2));
@@ -1658,89 +1872,56 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   }
                 >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Selecione os campos que aparecerão como controles de filtro acima da tabela. O tipo do campo determina o controle exibido (choice → lista, usuário → busca, texto → campo de texto, etc.). Nos filtros ativos, arraste pelo ícone à esquerda para definir a ordem na barra.
+                    Cada grupo é um collapse. Para mudar um filtro entre fixos e avançados, arraste-o e largue na área
+                    (cabeçalho ou conteúdo) do outro grupo. Para ordenar, largue sobre outra linha dentro do mesmo grupo.
                   </Text>
+                  <TextField
+                    label="Título do agrupamento de filtros avançados"
+                    description="Texto do controlo que expande ou recolhe os filtros avançados na barra da lista."
+                    placeholder="Filtros avançados"
+                    value={tableAdvancedFiltersTitle}
+                    onChange={(_, v) => setTableAdvancedFiltersTitle(v ?? '')}
+                    styles={{ root: { maxWidth: 400 } }}
+                  />
                   {options.length === 0 && <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>Carregando campos…</Text>}
-                  {tableFilterFields.map((entry, filterIdx) => {
-                    const o = findOptionForTableFilterEntry(entry, options);
-                    const defaultLabel = o?.meta.Title ?? entry.field;
-                    return (
-                      <Stack
-                        key={`tf_${entry.field}_${filterIdx}`}
-                        horizontal
-                        wrap
-                        tokens={{ childrenGap: 12 }}
-                        verticalAlign="center"
-                        onDragOver={(e) => onTableFilterDragOver(e, filterIdx)}
-                        onDragLeave={onTableFilterDragLeave}
-                        onDrop={onTableFilterDrop(filterIdx)}
-                        onDragEnd={onTableFilterDragLeave}
-                        styles={{
-                          root: {
-                            padding: '8px 0',
-                            borderBottom: '1px solid #f3f2f1',
-                            width: '100%',
-                            minWidth: 0,
-                            boxSizing: 'border-box',
-                            borderTop:
-                              tableFilterDragOverIndex === filterIdx ? '2px solid #0078d4' : undefined,
-                            backgroundColor:
-                              tableFilterDragOverIndex === filterIdx ? 'rgba(0, 120, 212, 0.04)' : undefined,
-                          },
-                        }}
-                      >
-                        <span
-                          draggable
-                          onDragStart={onTableFilterDragStart(filterIdx)}
-                          title="Arrastar para reordenar"
-                          style={{
-                            cursor: 'grab',
-                            display: 'flex',
-                            alignItems: 'center',
-                            flexShrink: 0,
-                            minWidth: 22,
-                          }}
-                        >
-                          <Icon iconName="GripperBarVertical" styles={{ root: { fontSize: 16, color: '#605e5c' } }} />
-                        </span>
-                        <Checkbox
-                          checked
-                          onChange={(_, v) => {
-                            if (!v) {
-                              setTableFilterFields((prev) => prev.filter((f) => f.field !== entry.field));
-                            }
-                          }}
-                          ariaLabel={defaultLabel}
-                          styles={{ root: { flex: '0 0 auto' } }}
-                        />
-                        <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 200px', minWidth: 0 } }}>
-                          <Stack horizontal tokens={{ childrenGap: 6 }} verticalAlign="center">
-                            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>{defaultLabel}</Text>
-                            {o ? (
-                              <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>{o.meta.MappedType}</Text>
-                            ) : (
-                              <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>(campo não listado)</Text>
-                            )}
-                          </Stack>
-                          <TextField
-                            label="Rótulo do filtro"
-                            value={entry.label ?? defaultLabel}
-                            onChange={(_, v) =>
-                              setTableFilterFields((prev) =>
-                                prev.map((f) => (f.field === entry.field ? { ...f, label: v ?? '' } : f))
-                              )
-                            }
-                            styles={{ root: { maxWidth: 280 } }}
-                          />
-                          {o && (o.meta.MappedType === 'choice' || o.meta.MappedType === 'multichoice') && o.meta.Choices && (
-                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                              Opções: {o.meta.Choices.join(' · ')}
-                            </Text>
-                          )}
-                        </Stack>
-                      </Stack>
-                    );
-                  })}
+                  <ListTabListaCollapse
+                    title="Filtros fixos (sempre visíveis na lista)"
+                    isOpen={filterEditorFixedOpen}
+                    onToggle={() => setFilterEditorFixedOpen((v) => !v)}
+                    zoneDrop={{
+                      highlight: tableFilterZoneDropHighlight === 'fixed',
+                      onDragOver: onTableFilterZoneDragOver('fixed'),
+                      onDrop: onTableFilterZoneDrop('fixed'),
+                    }}
+                  >
+                    {tableFiltersPartitioned.fixed.length === 0 ? (
+                      <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>Nenhum filtro fixo. Largue aqui um filtro arrastado ou adicione nos campos abaixo.</Text>
+                    ) : (
+                      tableFiltersPartitioned.fixed.map((entry, localIdx) =>
+                        renderConfiguredTableFilterRow(entry, 'fixed', localIdx)
+                      )
+                    )}
+                  </ListTabListaCollapse>
+                  <ListTabListaCollapse
+                    title="Filtros avançados (no collapse da lista)"
+                    isOpen={filterEditorAdvancedOpen}
+                    onToggle={() => setFilterEditorAdvancedOpen((v) => !v)}
+                    zoneDrop={{
+                      highlight: tableFilterZoneDropHighlight === 'advanced',
+                      onDragOver: onTableFilterZoneDragOver('advanced'),
+                      onDrop: onTableFilterZoneDrop('advanced'),
+                    }}
+                  >
+                    {tableFiltersPartitioned.advanced.length === 0 ? (
+                      <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>Nenhum filtro avançado. Largue aqui um filtro arrastado para o colocar neste grupo.</Text>
+                    ) : (
+                      tableFiltersPartitioned.advanced.map((entry, localIdx) =>
+                        renderConfiguredTableFilterRow(entry, 'advanced', localIdx)
+                      )
+                    )}
+                  </ListTabListaCollapse>
+                  <Separator styles={{ root: { marginTop: 4, marginBottom: 4 } }} />
+                  <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>Outros campos da lista</Text>
                   {filterFieldUnselectedOptions.map((o) => {
                     const fieldKey = getTableFilterFieldKey(o);
                     const defaultLabel = o.meta.Title;
@@ -1758,7 +1939,10 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                           checked={false}
                           onChange={(_, v) => {
                             if (v) {
-                              setTableFilterFields((prev) => [...prev, { field: fieldKey, label: defaultLabel }]);
+                              setTableFilterFields((prev) => {
+                                const { fixed, advanced } = partitionTableFilterFields(prev);
+                                return mergeTableFilterPartitions([...fixed, { field: fieldKey, label: defaultLabel }], advanced);
+                              });
                             }
                           }}
                           ariaLabel={o.meta.Title}
