@@ -41,6 +41,7 @@ import type {
   IListViewFilterConfig,
   ITableFilterFieldConfig,
   IListViewChromeButtonConfig,
+  IListViewSortConfig,
   IPaginationConfig,
   IPdfTemplateConfig,
   IListRowActionConfig,
@@ -371,6 +372,11 @@ const LIST_CHROME_ACTION_OPTIONS: IDropdownOption[] = [
   { key: 'reload', text: 'Recarregar página' },
 ];
 
+const LIST_SORT_DIRECTION_OPTIONS: IChoiceGroupOption[] = [
+  { key: 'asc', text: 'Ascendente (A–Z, mais antigo primeiro)' },
+  { key: 'desc', text: 'Descendente (Z–A, mais recente primeiro)' },
+];
+
 function createDefaultListChromeButton(): IListViewChromeButtonConfig {
   return {
     id: `chrome_${Date.now()}`,
@@ -393,6 +399,7 @@ function viewModeFilterSummary(filters: IListViewFilterConfig[]): string {
 
 type TListTabListaSection =
   | 'pagination'
+  | 'tableSort'
   | 'listTableCards'
   | 'viewModes'
   | 'columns'
@@ -546,6 +553,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [listChromeButtons, setListChromeButtons] = useState<IListViewChromeButtonConfig[]>(() =>
     (listView.chromeButtons ?? []).map((b) => ({ ...b }))
   );
+  const [listSortField, setListSortField] = useState<string>(() => listView.sort?.field?.trim() ?? '');
+  const [listSortAscending, setListSortAscending] = useState<boolean>(() => listView.sort?.ascending !== false);
   const [filterEditorFixedOpen, setFilterEditorFixedOpen] = useState(true);
   const [filterEditorAdvancedOpen, setFilterEditorAdvancedOpen] = useState(true);
   const [tableFilterZoneDropHighlight, setTableFilterZoneDropHighlight] = useState<TTableFilterDragZone | null>(null);
@@ -657,6 +666,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setTableFilterFields(normalizeTableFilterFieldsOrderLocal(listView.tableFilterFields?.slice() ?? []));
     setTableAdvancedFiltersTitle(listView.tableAdvancedFiltersTitle?.trim() ?? '');
     setListChromeButtons((listView.chromeButtons ?? []).map((b) => ({ ...b })));
+    setListSortField(listView.sort?.field?.trim() ?? '');
+    setListSortAscending(listView.sort?.ascending !== false);
     setFilterEditorFixedOpen(true);
     setFilterEditorAdvancedOpen(true);
     setRuleColorMap({});
@@ -886,6 +897,50 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   );
 
   const tableFiltersPartitioned = useMemo(() => partitionTableFilterFields(tableFilterFields), [tableFilterFields]);
+
+  const listSortFieldOptions = useMemo((): IDropdownOption[] => {
+    const rest: IDropdownOption[] = [];
+    for (let i = 0; i < options.length; i++) {
+      const o = options[i];
+      if (!o.selected) continue;
+      if (isNoteFieldMeta(o.meta)) continue;
+      if (o.meta.MappedType === 'lookupmulti' || o.meta.MappedType === 'usermulti') continue;
+      if (o.meta.MappedType === 'multichoice') continue;
+      if (EXPANDABLE.indexOf(o.meta.MappedType) !== -1) {
+        const keys =
+          o.meta.MappedType === 'lookup' || o.meta.MappedType === 'user'
+            ? o.expandFieldsSelected.length > 0
+              ? o.expandFieldsSelected
+              : [(o.expandField ?? 'Title').trim() || 'Title']
+            : [(o.expandField ?? 'Title').trim() || 'Title'];
+        const expandOpts = getExpandFieldOptions(o.meta);
+        const labelFor = (k: string): string => {
+          const hit = expandOpts.find((x) => String(x.key) === k);
+          return `${o.meta.Title} – ${hit?.text ?? k}`;
+        };
+        for (let j = 0; j < keys.length; j++) {
+          const ek = (keys[j] ?? 'Title').trim() || 'Title';
+          const path = `${o.meta.InternalName}/${ek}`;
+          rest.push({
+            key: path,
+            text: keys.length > 1 ? labelFor(ek) : o.label.trim() ? `${o.label} (${path})` : labelFor(ek),
+          });
+        }
+      } else {
+        rest.push({
+          key: o.meta.InternalName,
+          text: o.label.trim() ? `${o.label} (${o.meta.InternalName})` : `${o.meta.Title} (${o.meta.InternalName})`,
+        });
+      }
+    }
+    return rest;
+  }, [options, lookupListFields]);
+
+  useEffect(() => {
+    if (!listSortField.trim()) return;
+    const keys = new Set(listSortFieldOptions.map((opt) => String(opt.key)));
+    if (!keys.has(listSortField)) setListSortField('');
+  }, [listSortField, listSortFieldOptions]);
 
   const renderConfiguredTableFilterRow = (
     entry: ITableFilterFieldConfig,
@@ -1284,9 +1339,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       }));
     const nextTableFilterFields: ITableFilterFieldConfig[] = normalizeTableFilterFieldsOrderLocal(mappedFilters);
     const chromeButtonsSanitized = sanitizeListViewChromeButtons(listChromeButtons);
+    const nextSort: IListViewSortConfig | null =
+      listSortField.trim().length > 0 ? { field: listSortField.trim(), ascending: listSortAscending } : null;
     const listViewOut: IListViewConfig = {
       ...carryRest,
       columns,
+      sort: nextSort,
       viewModes,
       activeViewModeId,
       pdfExportEnabled,
@@ -1345,6 +1403,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     viewModeDefaultRules,
     lookupListFields,
     listChromeButtons,
+    listSortField,
+    listSortAscending,
   ]);
 
   const tableJsonPreviewRef = useRef(buildSavePayload());
@@ -1409,6 +1469,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setTableFilterFields(normalizeTableFilterFieldsOrderLocal(bundle.listView.tableFilterFields?.slice() ?? []));
       setTableAdvancedFiltersTitle(bundle.listView.tableAdvancedFiltersTitle?.trim() ?? '');
       setListChromeButtons((bundle.listView.chromeButtons ?? []).map((b) => ({ ...b })));
+      setListSortField(bundle.listView.sort?.field?.trim() ?? '');
+      setListSortAscending(bundle.listView.sort?.ascending !== false);
       setOptions((prev) => (prev.length ? applyColumnsToOptions(prev, bundle.listView.columns) : prev));
       setListTabListaSectionOpen({});
       setJsonPanelText(JSON.stringify(bundle, null, 2));
@@ -1681,6 +1743,36 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       />
                     </>
                   )}
+                </ListTabListaCollapse>
+                <ListTabListaCollapse
+                  title="Ordenação inicial da lista"
+                  isOpen={listTabListaSectionOpen.tableSort === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      tableSort: p.tableSort === true ? false : true,
+                    }))
+                  }
+                >
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Ordem aplicada ao carregar e ao pedido OData. Só aparecem colunas já selecionadas abaixo e ordenáveis
+                    (excluídos notas, escolha múltipla e lookups multi-valor).
+                  </Text>
+                  <Dropdown
+                    label="Ordenar por"
+                    selectedKey={listSortField || ''}
+                    options={[{ key: '', text: '— Nenhuma ordenação inicial —' }, ...listSortFieldOptions]}
+                    onChange={(_, opt) => setListSortField(opt?.key ? String(opt.key) : '')}
+                    disabled={listSortFieldOptions.length === 0}
+                    styles={{ root: { maxWidth: '100%', minWidth: 0 } }}
+                  />
+                  <ChoiceGroup
+                    label="Direção"
+                    options={LIST_SORT_DIRECTION_OPTIONS}
+                    selectedKey={listSortAscending ? 'asc' : 'desc'}
+                    onChange={(_, opt) => opt && setListSortAscending(opt.key === 'asc')}
+                    disabled={!listSortField.trim()}
+                  />
                 </ListTabListaCollapse>
                 {mode === 'list' && (
                   <ListTabListaCollapse

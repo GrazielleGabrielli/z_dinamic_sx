@@ -15,6 +15,7 @@ import {
   IListViewModeDefaultRule,
   ITableFilterFieldConfig,
   IListViewChromeButtonConfig,
+  IListViewSortConfig,
   IPdfTemplateConfig,
   IPdfTemplateElement,
   TViewMode,
@@ -132,7 +133,7 @@ function isValidListView(lv: unknown): lv is IListViewConfig {
   if (!lv || typeof lv !== 'object') return false;
   const l = lv as Record<string, unknown>;
   if (!Array.isArray(l.columns) || !Array.isArray(l.filters)) return false;
-  if (l.sort != null && (typeof l.sort !== 'object' || !('field' in (l.sort as object)) || !('ascending' in (l.sort as object)))) return false;
+  if (l.sort != null && (typeof l.sort !== 'object' || !('field' in (l.sort as object)))) return false;
   return true;
 }
 
@@ -395,6 +396,16 @@ function normalizeTableFilterFieldsOrder(fields: ITableFilterFieldConfig[]): ITa
   return [...fixed, ...advanced];
 }
 
+function sanitizeListViewSort(raw: unknown): IListViewSortConfig | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  const field = typeof s.field === 'string' ? s.field.trim() : '';
+  if (!field) return null;
+  const ascending = s.ascending === false ? false : true;
+  return { field, ascending };
+}
+
 export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined {
   if (!lv || typeof lv !== 'object' || !isValidListView(lv)) return undefined;
   const defaults = getDefaultConfig().listView;
@@ -426,7 +437,7 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
   return {
     columns: lvo.columns ?? defaults.columns,
     filters: lvo.filters ?? defaults.filters,
-    sort: lvo.sort ?? defaults.sort,
+    sort: sanitizeListViewSort(lvo.sort) ?? defaults.sort ?? null,
     viewModes: sanitizeViewModesList(lvo.viewModes, defaults.viewModes ?? []),
     activeViewModeId: lvo.activeViewModeId ?? defaults.activeViewModeId,
     ...(viewModeDefaultRules ? { viewModeDefaultRules } : {}),

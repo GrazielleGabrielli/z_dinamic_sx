@@ -260,6 +260,17 @@ export const TableView: React.FC<ITableViewProps> = ({
     setTopFilters({});
   }, [clearFiltersSignal]);
 
+  useEffect(() => {
+    if (listView.sort?.field != null && String(listView.sort.field).trim()) {
+      setSortConfig({
+        field: String(listView.sort.field).trim(),
+        direction: listView.sort.ascending === false ? 'desc' : 'asc',
+      });
+    } else {
+      setSortConfig(null);
+    }
+  }, [listTitle, listView.sort?.field, listView.sort?.ascending]);
+
   const onActiveViewModeChangeRef = useRef(onActiveViewModeChange);
   onActiveViewModeChangeRef.current = onActiveViewModeChange;
 

@@ -133,7 +133,9 @@ export interface IListViewFilterConfig {
 }
 
 export interface IListViewSortConfig {
+  /** Caminho OData da coluna (ex.: `Modified`, `Author/Title`). */
   field: string;
+  /** Quando true: ascendente; quando false: descendente. */
   ascending: boolean;
 }
 
