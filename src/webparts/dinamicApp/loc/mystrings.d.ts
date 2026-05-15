@@ -2,8 +2,10 @@ declare interface IDinamicAppWebPartStrings {
   PropertyPaneReadModeHint: string;
   PropertyPaneNoPermissionHint: string;
   PropertyPaneEditingGroupName: string;
+  PropertyPaneFlexViewGroupName: string;
   PropertyPaneButtonFlexViewWizard: string;
   PropertyPaneButtonPageComponents: string;
+  PropertyPaneButtonEditForm: string;
   PropertyPaneDescription: string;
   BasicGroupName: string;
   DescriptionFieldLabel: string;

@@ -5,6 +5,7 @@ import { TPersistStatus } from '../core/persist/types';
 export interface IDinamicPropertyPaneCommandHandlers {
   openWizard: () => void;
   openPageComponentsPicker: () => void;
+  openFormManager: () => void;
 }
 
 export interface IDinamicAppProps {

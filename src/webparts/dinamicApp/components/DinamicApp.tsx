@@ -210,16 +210,18 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
 
   const openWizard = useCallback(() => setIsEditingWebPart(true), []);
   const openPageComponentsPicker = useCallback(() => setIsPageComponentsModalOpen(true), []);
+  const openFormManager = useCallback(() => setIsEditingFormManager(true), []);
 
   useEffect(() => {
     onRegisterPropertyPaneCommands({
       openWizard,
       openPageComponentsPicker,
+      openFormManager,
     });
     return () => {
       onRegisterPropertyPaneCommands(undefined);
     };
-  }, [onRegisterPropertyPaneCommands, openWizard, openPageComponentsPicker]);
+  }, [onRegisterPropertyPaneCommands, openWizard, openPageComponentsPicker, openFormManager]);
 
   const handleDashboardCardClick = useCallback((card: IDashboardCardConfig, blockId: string) => {
     const filters = effectiveDashboardFilters(card) as IListViewFilterConfig[];

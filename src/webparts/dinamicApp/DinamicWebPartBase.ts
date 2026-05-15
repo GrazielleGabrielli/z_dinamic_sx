@@ -4,6 +4,7 @@ import { DisplayMode, Version } from '@microsoft/sp-core-library';
 import {
   type IPropertyPaneConfiguration,
   PropertyPaneButton,
+  PropertyPaneHorizontalRule,
 } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
@@ -278,20 +279,39 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
       };
     }
 
-    const groupFields = [
+    const parsed = parseConfig(this.properties.configJson) ?? getDefaultConfig();
+    const mode = this.getForcedMode() ?? parsed.mode;
+
+    const primaryFields =
+      mode === 'formManager'
+        ? [
+            PropertyPaneButton('dinamicEditForm', {
+              text: strings.PropertyPaneButtonEditForm,
+              disabled: isSaving,
+              onClick: () => {
+                this._propertyPaneCommands?.openFormManager();
+                return undefined;
+              },
+            }),
+          ]
+        : [
+            PropertyPaneButton('dinamicPageComponents', {
+              text: strings.PropertyPaneButtonPageComponents,
+              disabled: isSaving,
+              onClick: () => {
+                this._propertyPaneCommands?.openPageComponentsPicker();
+                return undefined;
+              },
+            }),
+          ];
+
+    const flexViewFields = [
+      PropertyPaneHorizontalRule(),
       PropertyPaneButton('dinamicFlexView', {
         text: strings.PropertyPaneButtonFlexViewWizard,
         disabled: isSaving,
         onClick: () => {
           this._propertyPaneCommands?.openWizard();
-          return undefined;
-        },
-      }),
-      PropertyPaneButton('dinamicPageComponents', {
-        text: strings.PropertyPaneButtonPageComponents,
-        disabled: isSaving,
-        onClick: () => {
-          this._propertyPaneCommands?.openPageComponentsPicker();
           return undefined;
         },
       }),
@@ -303,7 +323,11 @@ export abstract class DinamicWebPartBase extends BaseClientSideWebPart<IDynamicV
           groups: [
             {
               groupName: strings.PropertyPaneEditingGroupName,
-              groupFields,
+              groupFields: primaryFields,
+            },
+            {
+              groupName: strings.PropertyPaneFlexViewGroupName,
+              groupFields: flexViewFields,
             },
           ],
         },

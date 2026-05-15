@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Stack, MessageBar, MessageBarType, Text, type IStyle } from '@fluentui/react';
 import type { IDynamicViewConfig } from '../../core/config/types';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
@@ -272,7 +272,10 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
 
   const loadItemById = useCallback(
     async (itemId: number, modeAfterLoad: TFormManagerFormMode): Promise<void> => {
-      if (!listTitle.trim() || !fieldMeta.length) return;
+      if (!listTitle.trim() || !fieldMeta.length) {
+        setItemLoading(false);
+        return;
+      }
       setItemLoading(true);
       setLoadError(undefined);
       const { select, expand } = buildSelectExpandForFields(fieldNames, fieldMeta);
@@ -296,19 +299,34 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
     [listTitle, listWeb, fieldMeta, fieldNames, itemsService]
   );
 
+  useLayoutEffect(() => {
+    if (!fieldMeta.length || !listTitle.trim()) return;
+    const q = typeof window !== 'undefined' ? parseQueryString(window.location.search || '') : {};
+    if (isFormNewModeQuery(q)) return;
+    if (parseFormItemIdFromQuery(q) === undefined) return;
+    setItemLoading(true);
+  }, [fieldMeta.length, listTitle]);
+
   useEffect(() => {
-    if (!fieldMeta.length || !dynamicContext?.query) return;
-    const q = dynamicContext.query;
+    if (!fieldMeta.length || !listTitle.trim()) return;
+    const qCtx = dynamicContext?.query;
+    const q =
+      qCtx && Object.keys(qCtx).length > 0
+        ? qCtx
+        : typeof window !== 'undefined'
+          ? parseQueryString(window.location.search || '')
+          : {};
     if (isFormNewModeQuery(q)) {
       setActiveItem(null);
       setFormMode('create');
       setLoadError(undefined);
+      setItemLoading(false);
       return;
     }
     const id = parseFormItemIdFromQuery(q);
     if (id === undefined) return;
     void loadItemById(id, resolveFormModeFromQuery(q, { itemLoaded: true }));
-  }, [fieldMeta.length, dynamicContext?.query, loadItemById]);
+  }, [fieldMeta.length, listTitle, dynamicContext?.query, loadItemById]);
 
   const resetToNew = useCallback((): void => {
     setActiveItem(null);
@@ -395,20 +413,22 @@ export const FormManagerView: React.FC<IFormManagerViewProps> = ({ config, pageW
         }}
       >
         {loadError && <MessageBar messageBarType={MessageBarType.error}>{loadError}</MessageBar>}
-        <FormManagerBrowseList
-          listTitle={listTitle}
-          listWebServerRelativeUrl={listWeb}
-          columns={browseColumns}
-          select={browseSelectExpand.select}
-          expand={browseSelectExpand.expand}
-          fieldMetadata={fieldMeta}
-          itemsService={itemsService}
-          defaultLayoutKind={fm.managerBrowseLayoutKind === 'cards' ? 'cards' : 'table'}
-          layoutControl={fm.managerBrowseLayoutControl ?? 'segmented'}
-          refreshSignal={browseRefreshKey}
-          selectedItemId={activeItem ? Number(activeItem.Id) : undefined}
-          onSelectRow={(id: number) => void loadItemById(id, 'edit')}
-        />
+        {formMode === 'create' && !itemLoading && (
+          <FormManagerBrowseList
+            listTitle={listTitle}
+            listWebServerRelativeUrl={listWeb}
+            columns={browseColumns}
+            select={browseSelectExpand.select}
+            expand={browseSelectExpand.expand}
+            fieldMetadata={fieldMeta}
+            itemsService={itemsService}
+            defaultLayoutKind={fm.managerBrowseLayoutKind === 'cards' ? 'cards' : 'table'}
+            layoutControl={fm.managerBrowseLayoutControl ?? 'segmented'}
+            refreshSignal={browseRefreshKey}
+            selectedItemId={activeItem ? Number(activeItem.Id) : undefined}
+            onSelectRow={(id: number) => void loadItemById(id, 'edit')}
+          />
+        )}
         <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
           {formMode === 'create'
             ? 'Novo registro'
