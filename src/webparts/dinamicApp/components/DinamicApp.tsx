@@ -500,7 +500,6 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             dashboardListSelection={dashboardListSelection}
             contentPadding={config.listPageLayout?.contentPadding}
             pageWebServerRelativeUrl={siteUrl}
-            isListPageEditMode={isPageEditMode && canManageListConfig}
             hideInlineEditChrome={canShowListConfigButtons}
             activeViewModeByBlockId={activeViewModeByBlockId}
             onListViewModeChange={handleListViewModeChange}

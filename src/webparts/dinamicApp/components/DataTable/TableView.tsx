@@ -90,8 +90,6 @@ export interface ITableViewProps {
   clearFiltersSignal?: number;
   /** Limpar filtros do dashboard (seleção de card/série). */
   onClearFilters?: () => void;
-  /** Só em `true`: rótulos visíveis na barra de filtros (campos da lista). */
-  showFilterFieldLabels?: boolean;
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
@@ -117,9 +115,7 @@ export const TableView: React.FC<ITableViewProps> = ({
   onActiveViewModeChange,
   clearFiltersSignal,
   onClearFilters,
-  showFilterFieldLabels,
 }) => {
-  const filterFieldLabelsVisible = showFilterFieldLabels === true;
   const { dataSource, pagination, listView, tableConfig: tableConfigRaw } = config;
   const listTitle = dataSource.title;
   const listWeb = dataSource.webServerRelativeUrl?.trim() || undefined;
@@ -585,7 +581,7 @@ export const TableView: React.FC<ITableViewProps> = ({
 
   const renderTopFilterControl = (fieldCfg: { config: { field: string; label?: string }; meta: import('../../../../services/shared/types').IFieldMetadata | null }): React.ReactNode => {
     const { config: fc, meta } = fieldCfg;
-    const label = fc.label || meta?.Title || fc.field;
+    const label = (fc.label && fc.label.trim()) ? fc.label.trim() : meta?.Title || fc.field;
     const val = topFilters[fc.field] ?? '';
     const onChange = (v: string): void =>
       setTopFilters((prev) => {
@@ -612,8 +608,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       return (
         <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 160, maxWidth: 240 }}>
           <Dropdown
-            label={filterFieldLabelsVisible ? label : undefined}
-            ariaLabel={filterFieldLabelsVisible ? undefined : label}
+            label={label}
             selectedKey={val}
             options={choiceOptions}
             onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
@@ -631,8 +626,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       return (
         <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 120, maxWidth: 180 }}>
           <Dropdown
-            label={filterFieldLabelsVisible ? label : undefined}
-            ariaLabel={filterFieldLabelsVisible ? undefined : label}
+            label={label}
             selectedKey={val}
             options={boolOptions}
             onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
@@ -644,11 +638,9 @@ export const TableView: React.FC<ITableViewProps> = ({
     if (mtype === 'datetime') {
       return (
         <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 150, maxWidth: 220 }}>
-          {filterFieldLabelsVisible ? (
-            <label style={{ fontSize: 14, fontWeight: 600, color: '#323130', display: 'block', padding: '5px 0' }}>
-              {label}
-            </label>
-          ) : null}
+          <label style={{ fontSize: 14, fontWeight: 600, color: '#323130', display: 'block', padding: '5px 0' }}>
+            {label}
+          </label>
           <input
             type="date"
             value={val}
@@ -673,8 +665,7 @@ export const TableView: React.FC<ITableViewProps> = ({
     return (
       <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 140, maxWidth: 220 }}>
         <TextField
-          label={filterFieldLabelsVisible ? label : undefined}
-          ariaLabel={filterFieldLabelsVisible ? undefined : label}
+          label={label}
           value={val}
           onChange={(_, v) => onChange(v ?? '')}
           placeholder="Filtrar…"

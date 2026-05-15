@@ -100,7 +100,24 @@ const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
 
 const LIST_TABLE_COL_DND = 'dinamicSx:listTableCol:';
 
+const LIST_TABLE_FILTER_DND = 'dinamicSx:listTableFilter:';
+
 const SIMPLE_FIELD_TYPES = ['text', 'multiline', 'number', 'currency', 'boolean', 'choice', 'multichoice', 'datetime', 'url'];
+
+function getTableFilterFieldKey(o: IFieldOption): string {
+  return EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.meta.LookupField
+    ? `${o.meta.InternalName}/${o.meta.MappedType === 'user' || o.meta.MappedType === 'usermulti' ? 'Title' : o.meta.LookupField}`
+    : o.meta.InternalName;
+}
+
+function tableFilterEntryMatchesOption(entry: ITableFilterFieldConfig, o: IFieldOption): boolean {
+  const fk = getTableFilterFieldKey(o);
+  return entry.field === fk || entry.field === o.meta.InternalName;
+}
+
+function findOptionForTableFilterEntry(entry: ITableFilterFieldConfig, opts: IFieldOption[]): IFieldOption | undefined {
+  return opts.find((o) => tableFilterEntryMatchesOption(entry, o));
+}
 
 const USER_EXPAND_FIELDS: IDropdownOption[] = [
   { key: 'Id', text: 'Id' },
@@ -638,6 +655,41 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       });
     };
 
+  const [tableFilterDragOverIndex, setTableFilterDragOverIndex] = useState<number | null>(null);
+
+  const onTableFilterDragStart = (filterIdx: number) => (e: React.DragEvent): void => {
+    e.dataTransfer.setData('text/plain', `${LIST_TABLE_FILTER_DND}${filterIdx}`);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onTableFilterDragOver = (e: React.DragEvent, filterIdx: number): void => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setTableFilterDragOverIndex(filterIdx);
+  };
+
+  const onTableFilterDragLeave = (): void => {
+    setTableFilterDragOverIndex(null);
+  };
+
+  const onTableFilterDrop =
+    (dropIndex: number) =>
+    (e: React.DragEvent): void => {
+      e.preventDefault();
+      setTableFilterDragOverIndex(null);
+      const raw = e.dataTransfer.getData('text/plain');
+      if (!raw.startsWith(LIST_TABLE_FILTER_DND)) return;
+      const from = parseInt(raw.slice(LIST_TABLE_FILTER_DND.length), 10);
+      if (Number.isNaN(from) || from === dropIndex) return;
+      setTableFilterFields((prev) => {
+        if (from < 0 || from >= prev.length || dropIndex < 0 || dropIndex >= prev.length) return prev;
+        const next = prev.slice();
+        const [moved] = next.splice(from, 1);
+        next.splice(dropIndex, 0, moved);
+        return next;
+      });
+    };
+
   const getExpandFieldOptions = (meta: IFieldMetadata): IDropdownOption[] => {
     if (meta.MappedType === 'user' || meta.MappedType === 'usermulti') return USER_EXPAND_FIELDS;
     if (meta.LookupList && lookupListFields[meta.LookupList]) {
@@ -671,6 +723,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     }
     return [empty, ...rest];
   }, [options, lookupListFields]);
+
+  const filterFieldUnselectedOptions = useMemo(
+    () => options.filter((o) => !tableFilterFields.some((f) => tableFilterEntryMatchesOption(f, o))),
+    [options, tableFilterFields]
+  );
 
   const rowRuleFieldOptions: IDropdownOption[] = useMemo(() => {
     const empty: IDropdownOption = { key: '', text: '— selecione o campo —' };
@@ -1601,15 +1658,91 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   }
                 >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Selecione os campos que aparecerão como controles de filtro acima da tabela. O tipo do campo determina o controle exibido (choice → lista, usuário → busca, texto → campo de texto, etc.).
+                    Selecione os campos que aparecerão como controles de filtro acima da tabela. O tipo do campo determina o controle exibido (choice → lista, usuário → busca, texto → campo de texto, etc.). Nos filtros ativos, arraste pelo ícone à esquerda para definir a ordem na barra.
                   </Text>
                   {options.length === 0 && <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>Carregando campos…</Text>}
-                  {options.map((o) => {
-                    const fieldKey = EXPANDABLE.indexOf(o.meta.MappedType) !== -1 && o.meta.LookupField
-                      ? `${o.meta.InternalName}/${o.meta.MappedType === 'user' || o.meta.MappedType === 'usermulti' ? 'Title' : o.meta.LookupField}`
-                      : o.meta.InternalName;
-                    const isChecked = tableFilterFields.some((f) => f.field === fieldKey || f.field === o.meta.InternalName);
-                    const currentEntry = tableFilterFields.find((f) => f.field === fieldKey || f.field === o.meta.InternalName);
+                  {tableFilterFields.map((entry, filterIdx) => {
+                    const o = findOptionForTableFilterEntry(entry, options);
+                    const defaultLabel = o?.meta.Title ?? entry.field;
+                    return (
+                      <Stack
+                        key={`tf_${entry.field}_${filterIdx}`}
+                        horizontal
+                        wrap
+                        tokens={{ childrenGap: 12 }}
+                        verticalAlign="center"
+                        onDragOver={(e) => onTableFilterDragOver(e, filterIdx)}
+                        onDragLeave={onTableFilterDragLeave}
+                        onDrop={onTableFilterDrop(filterIdx)}
+                        onDragEnd={onTableFilterDragLeave}
+                        styles={{
+                          root: {
+                            padding: '8px 0',
+                            borderBottom: '1px solid #f3f2f1',
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
+                            borderTop:
+                              tableFilterDragOverIndex === filterIdx ? '2px solid #0078d4' : undefined,
+                            backgroundColor:
+                              tableFilterDragOverIndex === filterIdx ? 'rgba(0, 120, 212, 0.04)' : undefined,
+                          },
+                        }}
+                      >
+                        <span
+                          draggable
+                          onDragStart={onTableFilterDragStart(filterIdx)}
+                          title="Arrastar para reordenar"
+                          style={{
+                            cursor: 'grab',
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                            minWidth: 22,
+                          }}
+                        >
+                          <Icon iconName="GripperBarVertical" styles={{ root: { fontSize: 16, color: '#605e5c' } }} />
+                        </span>
+                        <Checkbox
+                          checked
+                          onChange={(_, v) => {
+                            if (!v) {
+                              setTableFilterFields((prev) => prev.filter((f) => f.field !== entry.field));
+                            }
+                          }}
+                          ariaLabel={defaultLabel}
+                          styles={{ root: { flex: '0 0 auto' } }}
+                        />
+                        <Stack tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 200px', minWidth: 0 } }}>
+                          <Stack horizontal tokens={{ childrenGap: 6 }} verticalAlign="center">
+                            <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>{defaultLabel}</Text>
+                            {o ? (
+                              <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>{o.meta.MappedType}</Text>
+                            ) : (
+                              <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>(campo não listado)</Text>
+                            )}
+                          </Stack>
+                          <TextField
+                            label="Rótulo do filtro"
+                            value={entry.label ?? defaultLabel}
+                            onChange={(_, v) =>
+                              setTableFilterFields((prev) =>
+                                prev.map((f) => (f.field === entry.field ? { ...f, label: v ?? '' } : f))
+                              )
+                            }
+                            styles={{ root: { maxWidth: 280 } }}
+                          />
+                          {o && (o.meta.MappedType === 'choice' || o.meta.MappedType === 'multichoice') && o.meta.Choices && (
+                            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                              Opções: {o.meta.Choices.join(' · ')}
+                            </Text>
+                          )}
+                        </Stack>
+                      </Stack>
+                    );
+                  })}
+                  {filterFieldUnselectedOptions.map((o) => {
+                    const fieldKey = getTableFilterFieldKey(o);
                     const defaultLabel = o.meta.Title;
                     return (
                       <Stack
@@ -1620,13 +1753,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                         verticalAlign="center"
                         styles={{ root: { padding: '8px 0', borderBottom: '1px solid #f3f2f1', width: '100%', minWidth: 0 } }}
                       >
+                        <span style={{ width: 22, flexShrink: 0 }} aria-hidden />
                         <Checkbox
-                          checked={isChecked}
+                          checked={false}
                           onChange={(_, v) => {
                             if (v) {
                               setTableFilterFields((prev) => [...prev, { field: fieldKey, label: defaultLabel }]);
-                            } else {
-                              setTableFilterFields((prev) => prev.filter((f) => f.field !== fieldKey && f.field !== o.meta.InternalName));
                             }
                           }}
                           ariaLabel={o.meta.Title}
@@ -1637,22 +1769,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                             <Text variant="smallPlus" styles={{ root: { fontWeight: 600 } }}>{o.meta.Title}</Text>
                             <Text variant="small" styles={{ root: { color: '#a19f9d', fontFamily: 'monospace' } }}>{o.meta.MappedType}</Text>
                           </Stack>
-                          {isChecked && (
-                            <TextField
-                              label="Rótulo do filtro"
-                              value={currentEntry?.label ?? defaultLabel}
-                              onChange={(_, v) =>
-                                setTableFilterFields((prev) =>
-                                  prev.map((f) =>
-                                    f.field === fieldKey || f.field === o.meta.InternalName
-                                      ? { ...f, label: v ?? '' }
-                                      : f
-                                  )
-                                )
-                              }
-                              styles={{ root: { maxWidth: 280 } }}
-                            />
-                          )}
                           {(o.meta.MappedType === 'choice' || o.meta.MappedType === 'multichoice') && o.meta.Choices && (
                             <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                               Opções: {o.meta.Choices.join(' · ')}
