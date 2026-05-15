@@ -202,47 +202,52 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
 
   if (results.length === 0) return null;
 
+  const showLinkRow = linkableTables.length > 0 && onLinkedTableChange !== undefined;
+  const showEditToolbar = showLinkRow || onSwitchToCharts !== undefined || onEditCards !== undefined;
+
   return (
     <div style={{ marginBottom: 24 }}>
-      <Stack
-        horizontal
-        horizontalAlign="end"
-        verticalAlign="center"
-        styles={{ root: { marginBottom: 12 } }}
-      >
-        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
-          {linkableTables.length > 0 && onLinkedTableChange !== undefined && (
-            <Dropdown
-              label="Combinar com modo da tabela"
-              options={linkDropdownOptions}
-              selectedKey={linkedResolved ?? '__none__'}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                const k = opt ? String(opt.key) : '__none__';
-                onLinkedTableChange(k === '__none__' ? undefined : k);
-              }}
-              styles={{ root: { minWidth: 260, maxWidth: 320 } }}
-            />
-          )}
-          {onSwitchToCharts !== undefined && (
-            <ActionButton
-              iconProps={{ iconName: 'BarChartVertical' }}
-              onClick={() => onSwitchToCharts(dashboardBlockId)}
-              styles={{ root: { height: 28, color: '#0078d4' } }}
-            >
-              Gráficos
-            </ActionButton>
-          )}
-          {onEditCards !== undefined && (
-            <ActionButton
-              iconProps={{ iconName: 'Edit' }}
-              onClick={() => onEditCards(dashboardBlockId)}
-              styles={{ root: { height: 28, color: '#0078d4' } }}
-            >
-              Editar cards
-            </ActionButton>
-          )}
+      {showEditToolbar ? (
+        <Stack
+          horizontal
+          horizontalAlign="end"
+          verticalAlign="center"
+          styles={{ root: { marginBottom: 12 } }}
+        >
+          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
+            {showLinkRow && (
+              <Dropdown
+                label="Combinar com modo da tabela"
+                options={linkDropdownOptions}
+                selectedKey={linkedResolved ?? '__none__'}
+                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                  const k = opt ? String(opt.key) : '__none__';
+                  onLinkedTableChange(k === '__none__' ? undefined : k);
+                }}
+                styles={{ root: { minWidth: 260, maxWidth: 320 } }}
+              />
+            )}
+            {onSwitchToCharts !== undefined && (
+              <ActionButton
+                iconProps={{ iconName: 'BarChartVertical' }}
+                onClick={() => onSwitchToCharts(dashboardBlockId)}
+                styles={{ root: { height: 28, color: '#0078d4' } }}
+              >
+                Gráficos
+              </ActionButton>
+            )}
+            {onEditCards !== undefined && (
+              <ActionButton
+                iconProps={{ iconName: 'Edit' }}
+                onClick={() => onEditCards(dashboardBlockId)}
+                styles={{ root: { height: 28, color: '#0078d4' } }}
+              >
+                Editar cards
+              </ActionButton>
+            )}
+          </Stack>
         </Stack>
-      </Stack>
+      ) : null}
 
       {globalError !== undefined && (
         <MessageBar

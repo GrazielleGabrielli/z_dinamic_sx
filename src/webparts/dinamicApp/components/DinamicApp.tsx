@@ -501,6 +501,7 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
             contentPadding={config.listPageLayout?.contentPadding}
             pageWebServerRelativeUrl={siteUrl}
             isListPageEditMode={isPageEditMode && canManageListConfig}
+            hideInlineEditChrome={canShowListConfigButtons}
             activeViewModeByBlockId={activeViewModeByBlockId}
             onListViewModeChange={handleListViewModeChange}
             onDashboardLinkedTableChange={
@@ -630,7 +631,6 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         isOpen={isPageComponentsModalOpen}
         onDismiss={() => setIsPageComponentsModalOpen(false)}
         config={config}
-        listSections={effectiveListPageSections}
         onPick={handlePageComponentPick}
       />
     </>

@@ -263,40 +263,45 @@ export const ChartView: React.FC<IChartViewProps> = ({
   const hasSeries = (config.chartSeries ?? []).length > 0;
   const showChart = hasSeries && !chartState.loading && chartState.results.length > 0;
 
+  const showLinkRow = linkableTables.length > 0 && onLinkedTableChange !== undefined;
+  const showTopToolbar = showLinkRow || onEditSeries !== undefined;
+
   return (
     <div style={{ marginBottom: 24 }}>
-      <Stack
-        horizontal
-        horizontalAlign="end"
-        verticalAlign="center"
-        wrap
-        tokens={{ childrenGap: 8 }}
-        styles={{ root: { marginBottom: 12 } }}
-      >
-        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
-          {linkableTables.length > 0 && onLinkedTableChange !== undefined && (
-            <Dropdown
-              label="Combinar com modo da tabela"
-              options={linkDropdownOptions}
-              selectedKey={linkedResolved ?? '__none__'}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                const k = opt ? String(opt.key) : '__none__';
-                onLinkedTableChange(k === '__none__' ? undefined : k);
-              }}
-              styles={{ root: { minWidth: 260, maxWidth: 320 } }}
-            />
-          )}
-          {onEditSeries !== undefined && (
-            <ActionButton
-              iconProps={{ iconName: 'Edit' }}
-              onClick={onEditSeries}
-              styles={{ root: { height: 28, color: '#0078d4' } }}
-            >
-              Editar séries
-            </ActionButton>
-          )}
+      {showTopToolbar ? (
+        <Stack
+          horizontal
+          horizontalAlign="end"
+          verticalAlign="center"
+          wrap
+          tokens={{ childrenGap: 8 }}
+          styles={{ root: { marginBottom: 12 } }}
+        >
+          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
+            {showLinkRow && (
+              <Dropdown
+                label="Combinar com modo da tabela"
+                options={linkDropdownOptions}
+                selectedKey={linkedResolved ?? '__none__'}
+                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                  const k = opt ? String(opt.key) : '__none__';
+                  onLinkedTableChange(k === '__none__' ? undefined : k);
+                }}
+                styles={{ root: { minWidth: 260, maxWidth: 320 } }}
+              />
+            )}
+            {onEditSeries !== undefined && (
+              <ActionButton
+                iconProps={{ iconName: 'Edit' }}
+                onClick={onEditSeries}
+                styles={{ root: { height: 28, color: '#0078d4' } }}
+              >
+                Editar séries
+              </ActionButton>
+            )}
+          </Stack>
         </Stack>
-      </Stack>
+      ) : null}
 
       {chartState.error !== undefined && (
         <MessageBar messageBarType={MessageBarType.error} isMultiline={false} styles={{ root: { marginBottom: 12 } }}>

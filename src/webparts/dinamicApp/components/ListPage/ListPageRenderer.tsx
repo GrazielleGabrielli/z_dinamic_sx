@@ -61,6 +61,8 @@ export interface IListPageRendererProps {
   clearTableFiltersSignal?: number;
   /** Rótulos dos filtros da tabela só quando o utilizador está em modo edição da página. */
   isListPageEditMode?: boolean;
+  /** Em modo lista + edição: esconde botões Configurar/Editar nos blocos (entradas só no modal «Componentes desta página»). */
+  hideInlineEditChrome?: boolean;
 }
 
 function columnFlexBasis(layout: TListPageSectionLayout, colIndex: number): string {
@@ -129,8 +131,10 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
   onClearAllFilters,
   clearTableFiltersSignal,
   isListPageEditMode,
+  hideInlineEditChrome = false,
 }) => {
   const rootDash = config.dashboard;
+  const showInlineConfig = !hideInlineEditChrome;
   const layoutPadding = React.useMemo(
     () => sanitizeListPageContentPadding(contentPadding ?? ''),
     [contentPadding]
@@ -152,9 +156,9 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           config={dashCfg}
           dataSource={eff.dataSource}
           refreshKey={dashboardRefreshKey}
-          onEditCards={onEditCards}
-          onEditSeries={onEditSeries}
-          onSwitchToCharts={dashCfg.dashboardType === 'cards' ? onSwitchToCharts : undefined}
+          onEditCards={showInlineConfig ? onEditCards : undefined}
+          onEditSeries={showInlineConfig ? onEditSeries : undefined}
+          onSwitchToCharts={showInlineConfig && dashCfg.dashboardType === 'cards' ? onSwitchToCharts : undefined}
           onCardClick={onCardClick}
           selectedCardId={selectedCardId}
           onSeriesClick={onSeriesClick}
@@ -184,7 +188,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           : undefined;
       return (
         <Stack key={block.id} tokens={{ childrenGap: 8 }}>
-          {onEditTableColumns !== undefined ? (
+          {showInlineConfig && onEditTableColumns !== undefined ? (
             <Stack horizontal horizontalAlign="end" styles={{ root: { width: '100%' } }}>
               <ActionButton
                 iconProps={{ iconName: 'ColumnOptions' }}
@@ -218,7 +222,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           key={block.id}
           banner={block.banner}
           onConfigure={
-            onConfigureListContentBlock !== undefined
+            showInlineConfig && onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)
               : undefined
           }
@@ -231,7 +235,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           key={block.id}
           editor={block.editor}
           onConfigure={
-            onConfigureListContentBlock !== undefined
+            showInlineConfig && onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)
               : undefined
           }
@@ -244,7 +248,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           key={block.id}
           sectionTitle={block.sectionTitle}
           onConfigure={
-            onConfigureListContentBlock !== undefined
+            showInlineConfig && onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)
               : undefined
           }
@@ -259,7 +263,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           alert={block.alert}
           listTitle={effAlert.dataSource.title ?? ''}
           onConfigure={
-            onConfigureListContentBlock !== undefined
+            showInlineConfig && onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)
               : undefined
           }
@@ -272,7 +276,7 @@ export const ListPageRenderer: React.FC<IListPageRendererProps> = ({
           key={block.id}
           buttons={block.buttons}
           onConfigure={
-            onConfigureListContentBlock !== undefined
+            showInlineConfig && onConfigureListContentBlock !== undefined
               ? () => onConfigureListContentBlock(block.id)
               : undefined
           }
