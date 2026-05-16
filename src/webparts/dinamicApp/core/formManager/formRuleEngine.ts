@@ -24,6 +24,7 @@ import {
   isFormBannerFieldConfig,
 } from '../config/types/formManager';
 import type { IFieldMetadata } from '../../../../services';
+import { fieldVisibleInFormMode } from './stepFormMode';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 import { applyFormFieldTextTransform } from './formTextValueTransform';
 import { ensureAbsoluteSharePointUrl } from './formUrlUtils';
@@ -1437,7 +1438,7 @@ export function buildFormDerivedState(
 
   for (let i = 0; i < fieldConfigs.length; i++) {
     const f = fieldConfigs[i];
-    fieldVisible[f.internalName] = f.visible !== false;
+    fieldVisible[f.internalName] = f.visible !== false && fieldVisibleInFormMode(f, formMode);
     fieldRequired[f.internalName] = f.required === true;
     fieldDisabled[f.internalName] = f.disabled === true;
     fieldReadOnly[f.internalName] = f.readOnly === true;

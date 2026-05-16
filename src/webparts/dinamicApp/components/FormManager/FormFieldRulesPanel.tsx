@@ -62,6 +62,7 @@ import {
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from '../../core/formManager/formTextInputMasks';
+import { ALL_FORM_MANAGER_MODES, toggleStepShowInFormMode } from '../../core/formManager/stepFormMode';
 import { isNoteFieldMeta } from '../../core/listView';
 import {
   DATE_DEFAULT_MENTION_SUFFIX_PRESETS,
@@ -1898,6 +1899,37 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
     onDismiss();
   };
 
+  const renderFieldShowInFormModes = (): React.ReactElement => (
+    <>
+      <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+        Mostrar em
+      </Text>
+      <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="center">
+        {ALL_FORM_MANAGER_MODES.map((m) => {
+          const sel = fc.showInFormModes;
+          const checked = !sel?.length || sel.indexOf(m) !== -1;
+          const label = m === 'create' ? 'Novo' : m === 'edit' ? 'Editar' : 'Ver';
+          return (
+            <Checkbox
+              key={m}
+              label={label}
+              checked={checked}
+              onChange={(_, c) =>
+                setFc((p) => ({
+                  ...p,
+                  showInFormModes: toggleStepShowInFormMode(p.showInFormModes, m, !!c),
+                }))
+              }
+            />
+          );
+        })}
+      </Stack>
+      <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+        Todas marcadas ou sem restrição = Novo, Editar e Ver.
+      </Text>
+    </>
+  );
+
   const renderCondicionaisSection = (): React.ReactElement => (
                 <FormManagerCollapseSection
                   title="Condicionais"
@@ -2426,6 +2458,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
+              {renderFieldShowInFormModes()}
               <TextField
                 label="Texto de ajuda (campo)"
                 multiline
@@ -2459,6 +2492,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
+              {renderFieldShowInFormModes()}
               <TextField
                 label="Placeholder"
                 value={fc.placeholder ?? ''}
@@ -2560,6 +2594,7 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 {internalName} · {mt}
                 {fc.sectionId ? ` · etapa ${fc.sectionId}` : ''}
               </Text>
+              {renderFieldShowInFormModes()}
               <TextField
                 label="Placeholder"
                 value={fc.placeholder ?? ''}

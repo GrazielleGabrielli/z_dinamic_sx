@@ -373,6 +373,8 @@ export interface IFormFieldConfig {
   /** Linhas visíveis do textarea (coluna Nota / multiline). */
   textareaRows?: number;
   sectionId?: string;
+  /** Modos em que o campo aparece no formulário. Omitido ou vazio = Novo, Editar e Ver. */
+  showInFormModes?: TFormManagerFormMode[];
   visible?: boolean;
   required?: boolean;
   disabled?: boolean;

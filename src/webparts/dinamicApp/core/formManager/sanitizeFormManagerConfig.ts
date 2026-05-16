@@ -572,6 +572,10 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(typeof f.placeholder === 'string' ? { placeholder: f.placeholder } : {}),
     ...(textareaRows !== undefined ? { textareaRows } : {}),
     ...(typeof f.sectionId === 'string' ? { sectionId: f.sectionId.trim() } : {}),
+    ...((): { showInFormModes?: TFormManagerFormMode[] } => {
+      const m = sanitizeShowInFormModes(f.showInFormModes);
+      return m?.length ? { showInFormModes: m } : {};
+    })(),
     ...(f.visible === false ? { visible: false } : {}),
     ...(f.required === true ? { required: true } : {}),
     ...(f.disabled === true ? { disabled: true } : {}),

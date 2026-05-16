@@ -1,9 +1,18 @@
-import type { IFormStepConfig, TFormManagerFormMode } from '../config/types/formManager';
+import type { IFormFieldConfig, IFormStepConfig, TFormManagerFormMode } from '../config/types/formManager';
 
 export const ALL_FORM_MANAGER_MODES: readonly TFormManagerFormMode[] = ['create', 'edit', 'view'];
 
 export function stepVisibleInFormMode(step: IFormStepConfig, mode: TFormManagerFormMode): boolean {
   const sel = step.showInFormModes;
+  if (!sel || sel.length === 0) return true;
+  return sel.indexOf(mode) !== -1;
+}
+
+export function fieldVisibleInFormMode(
+  fc: Pick<IFormFieldConfig, 'showInFormModes'>,
+  mode: TFormManagerFormMode
+): boolean {
+  const sel = fc.showInFormModes;
   if (!sel || sel.length === 0) return true;
   return sel.indexOf(mode) !== -1;
 }
