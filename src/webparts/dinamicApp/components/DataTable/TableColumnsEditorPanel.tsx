@@ -377,6 +377,13 @@ const LIST_SORT_DIRECTION_OPTIONS: IChoiceGroupOption[] = [
   { key: 'desc', text: 'Descendente (Z–A, mais recente primeiro)' },
 ];
 
+/** OData nos itens da lista; disponível sempre na ordenação, mesmo sem coluna visível. */
+const LIST_SORT_SYSTEM_COLUMN_OPTIONS: IDropdownOption[] = [
+  { key: 'Id', text: 'ID do item (Id)' },
+  { key: 'Created', text: 'Criado (Created)' },
+  { key: 'Modified', text: 'Modificado (Modified)' },
+];
+
 function createDefaultListChromeButton(): IListViewChromeButtonConfig {
   return {
     id: `chrome_${Date.now()}`,
@@ -899,7 +906,13 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const tableFiltersPartitioned = useMemo(() => partitionTableFilterFields(tableFilterFields), [tableFilterFields]);
 
   const listSortFieldOptions = useMemo((): IDropdownOption[] => {
-    const rest: IDropdownOption[] = [];
+    const seen = new Set<string>();
+    const out: IDropdownOption[] = [];
+    for (let s = 0; s < LIST_SORT_SYSTEM_COLUMN_OPTIONS.length; s++) {
+      const opt = LIST_SORT_SYSTEM_COLUMN_OPTIONS[s];
+      seen.add(String(opt.key));
+      out.push(opt);
+    }
     for (let i = 0; i < options.length; i++) {
       const o = options[i];
       if (!o.selected) continue;
@@ -921,19 +934,24 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         for (let j = 0; j < keys.length; j++) {
           const ek = (keys[j] ?? 'Title').trim() || 'Title';
           const path = `${o.meta.InternalName}/${ek}`;
-          rest.push({
+          if (seen.has(path)) continue;
+          seen.add(path);
+          out.push({
             key: path,
             text: keys.length > 1 ? labelFor(ek) : o.label.trim() ? `${o.label} (${path})` : labelFor(ek),
           });
         }
       } else {
-        rest.push({
-          key: o.meta.InternalName,
-          text: o.label.trim() ? `${o.label} (${o.meta.InternalName})` : `${o.meta.Title} (${o.meta.InternalName})`,
+        const key = o.meta.InternalName;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          key,
+          text: o.label.trim() ? `${o.label} (${key})` : `${o.meta.Title} (${key})`,
         });
       }
     }
-    return rest;
+    return out;
   }, [options, lookupListFields]);
 
   useEffect(() => {
@@ -1755,8 +1773,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   }
                 >
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Ordem aplicada ao carregar e ao pedido OData. Só aparecem colunas já selecionadas abaixo e ordenáveis
-                    (excluídos notas, escolha múltipla e lookups multi-valor).
+                    Ordem ao carregar e no OData. Id, Created e Modified estão sempre disponíveis; os outros campos
+                    seguem as colunas selecionadas (exc. notas, escolha múltipla e lookups multi-valor).
                   </Text>
                   <Dropdown
                     label="Ordenar por"
@@ -1785,9 +1803,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                       }))
                     }
                   >
-                    <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
-                      Aplica-se à vista em lista FlexView (não à listagem acima do formulário no modo gestor).
-                    </Text>
+               
                     <Stack tokens={{ childrenGap: 6 }}>
                       <Checkbox
                         label="Permitir alternar entre tabela e cartões na lista"
@@ -2006,10 +2022,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     }))
                   }
                 >
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Cada grupo é um collapse. Para mudar um filtro entre fixos e avançados, arraste-o e largue na área
-                    (cabeçalho ou conteúdo) do outro grupo. Para ordenar, largue sobre outra linha dentro do mesmo grupo.
-                  </Text>
+            
                   <TextField
                     label="Título do agrupamento de filtros avançados"
                     description="Texto do controlo que expande ou recolhe os filtros avançados na barra da lista."
@@ -2108,12 +2121,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     }))
                   }
                 >
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Botões na zona da lista (barra superior ou filtros). Não altera o bloco «Botões» do layout da página.
-                    Na URL pode usar <code>{'{{Campo}}'}</code>, <code>{'{Campo}'}</code> (ex.: <code>{'{{ID}}'}</code>) e tokens como{' '}
-                    <code>[Me]</code>, <code>[query:nome]</code>, como nas ações por linha; valores <code>{'{{…}}'}</code> vêm da{' '}
-                    primeira linha atualmente carregada na tabela.
-                  </Text>
+                 
                   {listChromeButtons.map((b, idx) => (
                     <Stack
                       key={`${b.id}_${idx}`}
@@ -2290,11 +2298,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     }))
                   }
                 >
-                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Marque as colunas que deseja exibir. Em lookup ou utilizador, marque abaixo um ou mais campos da lista
-                    ligada (cada um vira coluna na tabela). Com colunas selecionadas, arraste pelo ícone à esquerda para
-                    definir a ordem na tabela.
-                  </Text>
+                
                   {options.map((o, rowIndex) => (
                     <Stack
                       key={o.meta.InternalName}
