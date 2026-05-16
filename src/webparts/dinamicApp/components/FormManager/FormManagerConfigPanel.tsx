@@ -161,6 +161,14 @@ function fieldRulesTabMappedTypeOrderIndex(t: FieldMappedType | undefined): numb
   return i === -1 ? 999 : i;
 }
 
+function normalizeFieldRulesFilterText(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 const poolBulkMovePulse = keyframes({
   '0%, 100%': { transform: 'scale(1)', opacity: 1 },
   '50%': { transform: 'scale(1.12)', opacity: 0.82 },
@@ -1015,6 +1023,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [jsonPanelErr, setJsonPanelErr] = useState<string | undefined>(undefined);
   const [fieldPanelName, setFieldPanelName] = useState<string | null>(null);
   const [fieldRulesTabSort, setFieldRulesTabSort] = useState<'asc' | 'desc' | 'type'>('asc');
+  const [fieldRulesTabFilter, setFieldRulesTabFilter] = useState('');
   const [cloneRulesModalTarget, setCloneRulesModalTarget] = useState<string | null>(null);
   const [cloneRulesSourceKey, setCloneRulesSourceKey] = useState<string | undefined>(undefined);
   const [columnSpanModalField, setColumnSpanModalField] = useState<string | null>(null);
@@ -1385,9 +1394,16 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
 
   const fieldsForRulesTabDisplay = useMemo(() => {
     const byName = new Map(meta.map((x) => [x.InternalName, x]));
-    const list = fieldsListedForRulesTab.slice();
     const titleOf = (fc: IFormFieldConfig): string =>
       (byName.get(fc.internalName)?.Title ?? fc.internalName).trim();
+    const q = normalizeFieldRulesFilterText(fieldRulesTabFilter);
+    const list = q
+      ? fieldsListedForRulesTab.filter((fc) => {
+          const title = normalizeFieldRulesFilterText(titleOf(fc));
+          const internalName = normalizeFieldRulesFilterText(fc.internalName);
+          return title.indexOf(q) !== -1 || internalName.indexOf(q) !== -1;
+        })
+      : fieldsListedForRulesTab.slice();
     if (fieldRulesTabSort === 'asc') {
       list.sort((a, b) => titleOf(a).localeCompare(titleOf(b), 'pt'));
       return list;
@@ -1405,7 +1421,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       return titleOf(a).localeCompare(titleOf(b), 'pt');
     });
     return list;
-  }, [fieldsListedForRulesTab, meta, fieldRulesTabSort]);
+  }, [fieldsListedForRulesTab, meta, fieldRulesTabSort, fieldRulesTabFilter]);
 
   const cloneRulesSourceOptions = useMemo((): IDropdownOption[] => {
     if (!cloneRulesModalTarget) return [];
@@ -3634,6 +3650,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               <Text>Adicione campos ao formulário na aba Estrutura.</Text>
             ) : (
               <Stack tokens={{ childrenGap: 8 }}>
+                <TextField
+                  label="Filtrar campo"
+                  placeholder="Digite o nome do campo"
+                  value={fieldRulesTabFilter}
+                  onChange={(_, v) => setFieldRulesTabFilter(v ?? '')}
+                  styles={{ root: { maxWidth: 420 } }}
+                />
                 <Stack horizontal wrap verticalAlign="center" tokens={{ childrenGap: 8 }}>
                   {fieldRulesTabSort === 'asc' ? (
                     <PrimaryButton text="Crescente (A–Z)" onClick={() => setFieldRulesTabSort('asc')} />
@@ -3698,6 +3721,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     </Stack>
                   );
                 })}
+                {fieldRulesTabFilter.trim() && fieldsForRulesTabDisplay.length === 0 ? (
+                  <Text>Nenhum campo encontrado.</Text>
+                ) : null}
               </Stack>
             )}
           </Stack>

@@ -1281,3 +1281,111 @@ Uso recomendado:
 - Use banners fixos para comunicação visual, instruções gerais ou identificação do formulário.
 - Evite colocar muitos campos nessa etapa para não ocupar espaço excessivo da tela.
 
+### Regras dos campos
+
+A aba `Regras dos campos` é usada para acessar e organizar as configurações de comportamento de cada campo do formulário.
+
+Nessa área, o usuário encontra a lista de campos disponíveis para configurar regras de uso, como exibição, edição, obrigatoriedade e outros comportamentos específicos.
+
+Antes de abrir a configuração de um campo, é possível organizar a lista para facilitar a localização do campo desejado.
+
+#### Filtrar campo
+
+O campo `Filtrar campo` permite digitar parte do nome de um campo para localizar rapidamente o item desejado na lista.
+
+Esse filtro é útil quando o formulário possui muitos campos e o usuário não quer procurar manualmente pela lista completa.
+
+A busca não diferencia letras maiúsculas e minúsculas.
+
+Exemplo:
+
+Digitar `data`, `Data` ou `DATA` pode localizar campos como `Data de início`, `Data de término` ou `Data de retorno`.
+
+A busca também considera o nome interno do campo, quando aplicável.
+
+Exemplo:
+
+Se um campo aparece para o usuário como `Centro de custo`, mas possui um nome interno relacionado, a busca pode ajudar a localizá-lo por qualquer uma dessas referências.
+
+Além disso, a busca ignora acentos.
+
+Exemplo:
+
+Digitar `area` pode localizar o campo `Área`.
+
+Quando nenhum campo corresponde ao texto digitado, a lista informa que nenhum campo foi encontrado.
+
+Uso recomendado:
+
+- Use o filtro para localizar rapidamente um campo específico.
+- Digite apenas uma parte do nome quando não souber o nome completo.
+- Use sem se preocupar com maiúsculas, minúsculas ou acentos.
+- Limpe o filtro para voltar a visualizar todos os campos.
+
+#### Botão Crescente
+
+O botão `Crescente (A–Z)` ordena os campos em ordem alfabética crescente.
+
+Essa opção organiza a lista começando pelos campos com nomes mais próximos do início do alfabeto.
+
+Exemplo:
+
+- `Área`
+- `Centro de custo`
+- `Data de início`
+- `Nome do colaborador`
+
+Uso recomendado:
+
+- Use quando quiser localizar um campo pelo nome.
+- Use quando a lista tiver muitos campos e precisar de uma ordem mais simples.
+- Use como visualização padrão para facilitar a procura.
+
+#### Botão Decrescente
+
+O botão `Decrescente (Z–A)` ordena os campos em ordem alfabética decrescente.
+
+Essa opção organiza a lista começando pelos campos com nomes mais próximos do final do alfabeto.
+
+Exemplo:
+
+- `Status`
+- `Solicitante`
+- `Período`
+- `Centro de custo`
+
+Uso recomendado:
+
+- Use quando o campo procurado estiver mais próximo do final da lista alfabética.
+- Use para alternar rapidamente a forma de visualização.
+- Use quando a equipe preferir revisar os campos na ordem inversa.
+
+#### Botão Tipo de dado
+
+O botão `Tipo de dado (agrupa por tipo)` organiza os campos conforme o tipo de informação que cada campo armazena.
+
+Em vez de ordenar apenas pelo nome, essa opção agrupa campos semelhantes.
+
+Exemplos de tipos de dados:
+
+- Texto.
+- Número.
+- Data.
+- Sim ou não.
+- Pessoa.
+- Escolha.
+- Lookup.
+
+Exemplo prático:
+
+Campos de data, como `Data de início`, `Data de término` e `Data de retorno`, podem aparecer próximos entre si.
+
+Campos de texto, como `Nome`, `Descrição` e `Observações`, também podem ficar agrupados.
+
+Uso recomendado:
+
+- Use quando quiser configurar regras em campos do mesmo tipo.
+- Use para revisar todos os campos de data de uma vez.
+- Use para identificar rapidamente campos numéricos, campos de texto ou campos de escolha.
+- Use quando a regra que será aplicada depende do tipo de informação do campo.
+
