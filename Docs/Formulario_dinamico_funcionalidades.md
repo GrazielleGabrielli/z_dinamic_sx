@@ -1389,3 +1389,1071 @@ Uso recomendado:
 - Use para identificar rapidamente campos numéricos, campos de texto ou campos de escolha.
 - Use quando a regra que será aplicada depende do tipo de informação do campo.
 
+#### Botão Regras
+
+O botão `Regras` abre o painel lateral `Configurar regras` do campo selecionado.
+
+Esse painel é usado para configurar o comportamento individual de cada campo no formulário.
+
+As opções exibidas podem mudar conforme o tipo de dado do campo.
+
+Exemplo:
+
+Um campo de texto possui opções de validação, transformação e máscara.
+
+Um campo de data possui opções de limite de data, comparação com outros campos e mensagem de erro.
+
+Um campo de lookup possui opções para controlar o texto exibido, detalhes adicionais e filtros das opções.
+
+Uso recomendado:
+
+- Abra `Regras` quando precisar ajustar o comportamento de um campo específico.
+- Configure primeiro os campos mais importantes do processo.
+- Revise o comportamento em `Novo`, `Editar` e `Ver`.
+- Use regras apenas quando houver uma necessidade clara para o usuário final.
+
+#### Ações comuns do painel de regras
+
+Algumas ações aparecem no painel de regras independentemente do tipo de campo.
+
+##### Aplicar
+
+O botão `Aplicar` salva as regras configuradas para o campo atual.
+
+Use esse botão depois de concluir os ajustes do campo.
+
+##### Cancelar
+
+O botão `Cancelar` fecha o painel sem aplicar as alterações feitas naquele momento.
+
+Use essa opção quando abrir o painel apenas para consulta ou quando não quiser manter as mudanças realizadas.
+
+##### Pré-visualização
+
+A `Pré-visualização` informa quantas regras serão geradas para aquele campo com base nas configurações feitas.
+
+Ela ajuda a confirmar se as opções selecionadas realmente estão criando regras para o formulário.
+
+Exemplo:
+
+Se um campo foi marcado como obrigatório e também recebeu uma validação de tamanho mínimo, a pré-visualização pode indicar que mais de uma regra será gerada.
+
+### Regras por tipo de campo
+
+Cada tipo de campo pode abrir seções diferentes dentro do painel de regras.
+
+As seções abaixo explicam o que aparece para cada tipo de dado e como usar cada grupo de configuração.
+
+#### Text
+
+Campos do tipo `text` são usados para textos curtos, como nome, matrícula, código, e-mail ou telefone.
+
+Ao abrir `Regras` em um campo de texto, o painel pode exibir as seções abaixo.
+
+##### Exibição
+
+Controla como o campo aparece no formulário.
+
+Principais opções:
+
+- `Mostrar em`: define se o campo aparece em `Novo`, `Editar` e `Ver`.
+- `Placeholder`: texto exibido dentro do campo antes do preenchimento.
+- `Texto de ajuda`: orientação exibida para auxiliar o usuário.
+- `Valor padrão`: valor inicial preenchido automaticamente quando o campo estiver vazio.
+- `Expressão`: permite calcular ou montar um valor para o campo.
+- `Somente leitura`: mostra o campo sem permitir alteração.
+- `Ocultar no formulário`: esconde o campo da tela.
+
+Exemplo:
+
+Um campo `E-mail` pode ter placeholder `nome@empresa.com` e texto de ajuda `Informe o e-mail corporativo`.
+
+##### Validação
+
+Define regras para verificar se o valor digitado está correto.
+
+Principais opções:
+
+- `Modelo: data não no passado`: aplica um modelo de regra para impedir datas anteriores, quando fizer sentido para o campo.
+- `Modelo: validar e-mail`: aplica um modelo de validação para e-mail.
+- `Obrigatório`: exige o preenchimento do campo.
+- `Mín. caracteres`: define o tamanho mínimo do texto.
+- `Máx. caracteres`: define o tamanho máximo do texto.
+- `Regex`: define um padrão específico de preenchimento.
+- `Mensagem se falhar o padrão`: texto exibido quando o valor não atende ao padrão.
+
+Exemplo:
+
+Um campo `CPF` pode exigir uma quantidade específica de caracteres e uma mensagem orientando o formato correto.
+
+##### Transformação
+
+Define se o texto digitado será transformado automaticamente.
+
+Opções disponíveis:
+
+- `Maiúsculas`: transforma o texto em letras maiúsculas.
+- `Minúsculas`: transforma o texto em letras minúsculas.
+- `Capitalizar`: deixa as palavras com início em maiúscula.
+
+Exemplo:
+
+Um campo `Nome completo` pode usar `Capitalizar` para padronizar a apresentação do nome.
+
+##### Máscaras
+
+Define uma máscara de preenchimento para orientar a digitação.
+
+Opções disponíveis:
+
+- `Nenhuma`: não aplica máscara.
+- `CPF`: aplica formato de CPF.
+- `Telefone (BR)`: aplica formato de telefone brasileiro.
+- `CEP`: aplica formato de CEP.
+- `CNPJ`: aplica formato de CNPJ.
+- `Personalizada`: permite informar um padrão específico.
+
+Exemplo:
+
+Um campo `Telefone` pode usar a máscara `Telefone (BR)` para facilitar o preenchimento.
+
+##### Desativar / ativar o campo
+
+Controla quando o campo deve ficar bloqueado ou editável.
+
+Principais opções:
+
+- `Desativar este campo quando a condição for verdadeira`: bloqueia o campo conforme uma regra.
+- `Tornar editável quando a condição for verdadeira`: libera edição quando uma regra for atendida.
+- `Campo`: define qual campo será usado na condição.
+- `Operador`: define como a comparação será feita.
+- `Comparar`: define se a comparação será com texto fixo, outro campo, token ou grupo do SharePoint.
+- `Valor`: define o valor usado na comparação.
+- `Grupos do SharePoint`: permite escolher grupos para regras baseadas em permissão ou perfil.
+
+Exemplo:
+
+O campo `Justificativa` pode ficar desativado até que o usuário selecione `Sim` no campo `Precisa justificar`.
+
+##### Condicionais
+
+Permite criar grupos de regras para controlar o comportamento do campo conforme condições.
+
+Principais opções:
+
+- `Adicionar grupo de regra`: cria um novo grupo de condição.
+- `Aplicar esta regra apenas nos modos`: define se a regra vale para `Criar`, `Editar` ou `Ver`.
+- `Incluir grupos SharePoint`: aplica a regra somente para usuários de grupos selecionados.
+- `Excluir grupos SharePoint`: impede que a regra seja aplicada para usuários de grupos selecionados.
+- `Operador lógico entre condições`: define se todas as condições precisam ser atendidas ou se basta uma.
+- `Condições`: define campo, operador, comparação e valor.
+- `Ação quando as condições se verificam`: define o que acontece quando a regra é atendida.
+
+Exemplo:
+
+O campo `Motivo da urgência` pode aparecer somente quando `Prioridade` for igual a `Alta`.
+
+#### Multiline
+
+Campos do tipo `multiline` são usados para textos maiores, como descrição, observações, justificativas ou comentários.
+
+Eles possuem as mesmas seções principais do tipo `text`, com um ajuste adicional na exibição.
+
+##### Exibição
+
+Além das opções comuns de exibição, o campo `multiline` possui a opção `Linhas do textarea`.
+
+Essa opção define a altura inicial do campo de texto longo.
+
+Exemplo:
+
+Um campo `Observações` pode ter `5` linhas para dar mais espaço de digitação ao usuário.
+
+##### Validação
+
+Funciona como no campo `text`.
+
+Pode exigir preenchimento, tamanho mínimo, tamanho máximo, padrão e mensagem de erro.
+
+Exemplo:
+
+Um campo `Justificativa` pode ser obrigatório e exigir pelo menos `20` caracteres.
+
+##### Transformação
+
+Permite aplicar maiúsculas, minúsculas ou capitalização ao texto.
+
+Use com cuidado em textos longos, pois pode alterar a forma como o usuário escreveu a descrição.
+
+##### Máscaras
+
+Permite aplicar máscara, embora normalmente seja mais usada em campos de texto curto.
+
+Para textos longos, geralmente a opção `Nenhuma` é a mais indicada.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+O campo `Comentário do gestor` pode ficar editável apenas para usuários de um grupo específico.
+
+##### Condicionais
+
+Permite mostrar, ocultar ou ajustar o comportamento do campo conforme respostas de outros campos, modos do formulário ou grupos do SharePoint.
+
+#### Choice
+
+Campos do tipo `choice` são usados quando o usuário escolhe uma opção em uma lista de valores.
+
+Exemplos:
+
+- Status.
+- Prioridade.
+- Tipo de solicitação.
+- Categoria.
+
+##### Exibição
+
+Permite definir em quais modos o campo aparece, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Prioridade` pode aparecer em `Novo` e `Editar`, mas ficar apenas visível em `Ver`.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar a escolha conforme uma condição.
+
+Exemplo:
+
+O campo `Status` pode ficar bloqueado para usuários comuns e editável apenas para gestores.
+
+##### Observação sobre condições entre colunas
+
+Condições mais específicas entre colunas podem depender da configuração JSON do gestor.
+
+No painel de regras, o foco fica nas opções principais de exibição, valor padrão, bloqueio e validações aplicáveis.
+
+#### Multichoice
+
+Campos do tipo `multichoice` permitem selecionar mais de uma opção.
+
+Exemplos:
+
+- Benefícios desejados.
+- Áreas envolvidas.
+- Tipos de documento.
+
+##### Exibição
+
+Controla quando o campo aparece, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Áreas envolvidas` pode ter texto de ajuda informando que mais de uma opção pode ser selecionada.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme outro valor do formulário ou grupo do SharePoint.
+
+Exemplo:
+
+O campo `Benefícios adicionais` pode ficar editável somente quando `Tipo de contratação` for igual a `CLT`.
+
+##### Observação sobre condições entre colunas
+
+Assim como em `choice`, regras mais específicas entre colunas podem depender da configuração JSON do gestor.
+
+#### Number
+
+Campos do tipo `number` armazenam valores numéricos.
+
+Exemplos:
+
+- Quantidade.
+- Dias.
+- Percentual.
+- Pontuação.
+
+##### Exibição
+
+Controla modos de exibição, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Quantidade de dias` pode ter valor padrão `1` e texto de ajuda orientando o preenchimento.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+O campo `Quantidade` pode ficar bloqueado quando o status for `Finalizado`.
+
+##### Validação numérica
+
+Define limites mínimos e máximos para o valor.
+
+Principais opções:
+
+- `Mínimo`: menor valor permitido.
+- `Máximo`: maior valor permitido.
+
+Exemplo:
+
+O campo `Quantidade de dias` pode aceitar no mínimo `1` e no máximo `30`.
+
+#### Currency
+
+Campos do tipo `currency` armazenam valores monetários.
+
+Exemplos:
+
+- Valor da compra.
+- Orçamento.
+- Reembolso.
+- Custo estimado.
+
+##### Exibição
+
+Controla modos de exibição, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Valor solicitado` pode ter texto de ajuda informando que o valor deve ser preenchido em reais.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+O campo `Valor aprovado` pode ficar editável apenas para o grupo financeiro.
+
+##### Validação numérica
+
+Define valor mínimo e máximo aceito.
+
+Exemplo:
+
+Um campo `Reembolso` pode aceitar valores entre `0` e `5000`.
+
+#### Boolean
+
+Campos do tipo `boolean` representam respostas de sim ou não, verdadeiro ou falso.
+
+Exemplos:
+
+- Requer aprovação.
+- Possui anexo.
+- Solicitação urgente.
+
+##### Exibição
+
+Controla quando o campo aparece, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Para valor padrão, use valores como `true` ou `false`.
+
+Exemplo:
+
+O campo `Solicitação urgente` pode iniciar como `false`.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+O campo `Aprovado` pode ficar editável somente para usuários do grupo `Gestores`.
+
+##### Observação sobre visibilidade condicional
+
+Para campos booleanos, a visibilidade condicional pode ser configurada pelo painel ou por JSON do gestor, conforme a necessidade da regra.
+
+#### Datetime
+
+Campos do tipo `datetime` armazenam datas ou datas com horário.
+
+Exemplos:
+
+- Data de início.
+- Data de término.
+- Prazo.
+- Data de retorno.
+
+##### Exibição
+
+Controla modos de formulário, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Data de início` pode ter valor padrão baseado na data atual.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+O campo `Data de aprovação` pode ficar editável apenas quando o status for `Em análise`.
+
+##### Limites em relação a hoje
+
+Define limites de data com base na data atual.
+
+Principais opções:
+
+- `Mín. dias a partir de hoje`: menor data permitida em relação ao dia atual.
+- `Máx. dias a partir de hoje`: maior data permitida em relação ao dia atual.
+- `Bloquear fins de semana`: impede seleção de sábados e domingos.
+- Dias específicos da semana: permite bloquear segunda, terça, quarta, quinta, sexta, sábado ou domingo.
+
+Exemplo:
+
+Um formulário de férias pode exigir que a data de início seja pelo menos `30` dias depois da data atual.
+
+##### Comparação com outros campos
+
+Permite comparar a data com outro campo do formulário.
+
+Principais opções:
+
+- `Data >= campo`: exige que a data seja maior ou igual à data de outro campo.
+- `Data <= campo`: exige que a data seja menor ou igual à data de outro campo.
+
+Exemplo:
+
+`Data de término` pode precisar ser maior ou igual a `Data de início`.
+
+##### Mensagem de erro
+
+Define o texto exibido quando a data informada não atende às regras.
+
+Exemplo:
+
+`A data de término deve ser maior ou igual à data de início.`
+
+#### Url
+
+Campos do tipo `url` armazenam endereços de link.
+
+Exemplos:
+
+- Link do documento.
+- Site de referência.
+- Endereço de evidência.
+
+##### Exibição
+
+Controla modos de exibição, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Link do documento` pode ter placeholder `https://`.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+O link pode ficar obrigatório ou editável apenas quando o tipo da solicitação exigir evidência externa.
+
+##### Validação de texto
+
+Permite validar o conteúdo informado como texto.
+
+Principais opções:
+
+- `Mín. caracteres`.
+- `Máx. caracteres`.
+- `Regex`.
+- `Mensagem se falhar o padrão`.
+
+Exemplo:
+
+É possível usar um padrão para orientar que o link comece com `https://`.
+
+#### Lookup
+
+Campos do tipo `lookup` exibem opções vindas de outra lista.
+
+Exemplos:
+
+- Centro de custo.
+- Projeto.
+- Departamento.
+- Cliente.
+
+##### Exibição
+
+Controla modos de formulário, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Projeto` pode ter texto de ajuda orientando o usuário a selecionar o projeto correto.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o lookup conforme condições.
+
+Exemplo:
+
+O campo `Centro de custo` pode ficar bloqueado até que a área seja selecionada.
+
+##### Lista ligada (texto das opções)
+
+Define qual campo da lista ligada será usado como texto principal das opções.
+
+Principais opções:
+
+- `Campo para o texto das opções`: escolhe qual informação será exibida na lista.
+- `Propriedade a exibir`: define uma propriedade específica quando o campo escolhido também for usuário ou lookup.
+
+Exemplo:
+
+Em vez de exibir apenas o título padrão do item, o lookup pode exibir o nome do projeto ou outro campo mais claro para o usuário.
+
+##### Detalhe abaixo da seleção
+
+Permite mostrar informações complementares abaixo da opção selecionada.
+
+Exemplo:
+
+Ao selecionar um `Projeto`, o formulário pode exibir abaixo o `Código`, a `Área` ou o `Responsável`.
+
+##### Filtrar opções
+
+Permite filtrar as opções do lookup com base em outro campo do formulário.
+
+Principais opções:
+
+- `Campo pai`: campo do formulário usado como referência.
+- `Comparador`: regra usada para comparar os valores.
+- `Campo na lista filho`: campo da lista ligada que será comparado com o campo pai.
+
+Exemplo:
+
+Depois que o usuário seleciona uma `Área`, o campo `Projeto` pode mostrar apenas projetos daquela área.
+
+#### Lookupmulti
+
+Campos do tipo `lookupmulti` permitem selecionar vários itens de outra lista.
+
+Exemplos:
+
+- Projetos relacionados.
+- Documentos vinculados.
+- Áreas envolvidas.
+
+##### Exibição
+
+Controla modos de formulário, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar a seleção múltipla conforme condições.
+
+##### Lista ligada (texto das opções)
+
+Funciona como no campo `lookup`, definindo qual texto será exibido para cada opção.
+
+Quando o campo de origem possui múltiplos valores, os valores podem aparecer concatenados para formar o texto da opção.
+
+##### Detalhe abaixo da seleção
+
+Permite mostrar informações extras relacionadas aos itens selecionados.
+
+##### Filtrar opções
+
+Permite limitar as opções disponíveis com base em outro campo do formulário.
+
+Exemplo:
+
+O usuário seleciona uma unidade e o campo passa a listar apenas documentos vinculados àquela unidade.
+
+#### User
+
+Campos do tipo `user` são usados para selecionar uma pessoa ou grupo.
+
+Exemplos:
+
+- Solicitante.
+- Gestor responsável.
+- Aprovador.
+
+##### Exibição
+
+Controla modos de formulário, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Gestor responsável` pode ter texto de ajuda orientando a selecionar o gestor imediato.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar a seleção da pessoa conforme condições.
+
+Exemplo:
+
+O campo `Aprovador` pode ficar editável apenas para usuários do grupo `Administradores`.
+
+#### Usermulti
+
+Campos do tipo `usermulti` permitem selecionar mais de uma pessoa ou grupo.
+
+Exemplos:
+
+- Participantes.
+- Responsáveis.
+- Equipe envolvida.
+
+##### Exibição
+
+Controla modos de formulário, placeholder, texto de ajuda, valor padrão, expressão, somente leitura e ocultação.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar a seleção múltipla conforme condições.
+
+Exemplo:
+
+O campo `Equipe envolvida` pode ficar editável somente quando o tipo de solicitação for `Projeto`.
+
+#### Calculated
+
+Campos do tipo `calculated` são campos calculados pelo SharePoint.
+
+Normalmente, esses campos são usados para exibir valores derivados de outras informações.
+
+Exemplos:
+
+- Total calculado.
+- Prazo calculado.
+- Situação calculada.
+
+##### Exibição
+
+Controla em quais modos o campo aparece e permite incluir texto de ajuda.
+
+Como o valor é calculado, a edição direta costuma ser limitada.
+
+##### Desativar / ativar o campo
+
+Quando disponível, pode ser usada para controlar se o campo aparece bloqueado conforme condições.
+
+Uso recomendado:
+
+- Use campos calculados principalmente para consulta.
+- Evite tratá-los como campos de preenchimento manual.
+- Explique o significado do cálculo no texto de ajuda quando necessário.
+
+#### Taxonomy
+
+Campos do tipo `taxonomy` representam termos de metadados gerenciados.
+
+Exemplos:
+
+- Categoria corporativa.
+- Classificação documental.
+- Área de conhecimento.
+
+##### Exibição
+
+Controla modos de formulário, texto de ajuda, valor padrão quando aplicável, somente leitura e ocultação.
+
+Exemplo:
+
+O campo `Classificação documental` pode aparecer em `Novo` e `Editar`, mas ficar somente leitura em `Ver`.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+Exemplo:
+
+Uma classificação pode ficar bloqueada depois que o documento for aprovado.
+
+#### Taxonomymulti
+
+Campos do tipo `taxonomymulti` permitem selecionar mais de um termo de metadados gerenciados.
+
+Exemplos:
+
+- Palavras-chave.
+- Categorias múltiplas.
+- Temas relacionados.
+
+##### Exibição
+
+Controla modos de formulário, texto de ajuda, valor padrão quando aplicável, somente leitura e ocultação.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar a seleção dos termos conforme condições.
+
+Exemplo:
+
+O campo `Temas relacionados` pode ficar editável apenas durante a criação do registro.
+
+#### Unknown
+
+Campos do tipo `unknown` são campos cujo tipo não foi identificado de forma específica pela solução.
+
+Nesses casos, o painel apresenta opções mais genéricas.
+
+##### Exibição
+
+Controla modos de formulário, placeholder, texto de ajuda, valor padrão, somente leitura e ocultação.
+
+##### Desativar / ativar o campo
+
+Permite bloquear ou liberar o campo conforme condições.
+
+##### Validação de texto
+
+Permite aplicar validações básicas como tamanho mínimo, tamanho máximo, padrão e mensagem de erro.
+
+Uso recomendado:
+
+- Use regras simples em campos `unknown`.
+- Valide o comportamento no formulário antes de publicar.
+- Quando possível, confirme o tipo correto do campo na lista SharePoint.
+
+### Componentes
+
+A aba `Componentes` reúne configurações visuais e comportamentais do formulário.
+
+Ela não altera diretamente os campos da lista, mas define como algumas partes da experiência serão exibidas para o usuário.
+
+Nessa aba é possível configurar a forma de visualização da listagem, os indicadores de carregamento, o visual das etapas e o histórico de auditoria.
+
+#### Visualização e listagem (gestor)
+
+O collapse `Visualização e listagem (gestor)` controla como a listagem de registros aparece acima do formulário.
+
+Essa área é usada quando a página permite consultar registros existentes e alternar entre diferentes formas de visualização.
+
+##### Modo de visualização padrão
+
+Define qual visualização será aberta primeiro quando o usuário acessar a página.
+
+Opções disponíveis:
+
+- `Tabela`: exibe os registros em linhas e colunas.
+- `Cartões`: exibe os registros em formato visual de cards.
+
+Uso recomendado:
+
+- Use `Tabela` quando o usuário precisa comparar muitos dados ao mesmo tempo.
+- Use `Cartões` quando a leitura visual por item for mais importante que a comparação em colunas.
+- Use `Cartões` para experiências mais simples e com menos campos por registro.
+
+Exemplo:
+
+Uma lista de solicitações administrativas pode abrir em `Tabela`, pois o usuário normalmente precisa comparar status, datas e responsáveis.
+
+Um catálogo de itens pode abrir em `Cartões`, pois a apresentação visual de cada item pode ser mais importante.
+
+##### Controlo no ecrã para alternar tabela / cartões
+
+Define como o usuário poderá alternar entre os modos de visualização disponíveis.
+
+Opções disponíveis:
+
+- `Botões segmentados`: mostra botões com ícones para alternar entre tabela e cartões.
+- `Lista suspensa compacta`: mostra uma lista menor para escolher o modo de visualização.
+
+Uso recomendado:
+
+- Use `Botões segmentados` quando quiser deixar a troca de visualização mais visível.
+- Use `Lista suspensa compacta` quando quiser economizar espaço na tela.
+
+Exemplo:
+
+Em uma tela com bastante espaço, os botões segmentados facilitam a troca rápida entre tabela e cartões.
+
+Em uma tela mais compacta, a lista suspensa ocupa menos espaço e mantém a interface mais limpa.
+
+#### Carregar formulário / dados
+
+O collapse `Carregar formulário / dados` define o visual exibido enquanto o formulário ou os dados estão sendo carregados.
+
+Essa configuração melhora a percepção do usuário durante momentos de espera.
+
+Em vez de parecer que a tela travou, o formulário mostra um indicador visual informando que os dados ainda estão sendo carregados.
+
+##### Estilo de loading (dados)
+
+Define o tipo de indicador exibido durante o carregamento.
+
+Opções disponíveis:
+
+- `Spinner Fluent`: indicador padrão de carregamento.
+- `Spinner grande`: indicador maior, com mais destaque.
+- `Blocos shimmer`: mostra blocos simulando a estrutura da tela enquanto carrega.
+- `Barra de progresso indeterminada`: mostra uma barra animada de progresso.
+- `Cartão com avatar + linhas`: mostra uma prévia visual em formato de cartão.
+
+Uso recomendado:
+
+- Use `Spinner Fluent` para telas simples.
+- Use `Spinner grande` quando o carregamento precisa ficar mais evidente.
+- Use `Blocos shimmer` quando quiser indicar que a estrutura da tela está sendo montada.
+- Use `Barra de progresso indeterminada` quando o tempo de carregamento pode variar.
+- Use `Cartão com avatar + linhas` quando a experiência tiver aparência de cards ou registros individuais.
+
+Exemplo:
+
+Se o formulário carrega dados de uma lista com muitos campos, o `shimmer` pode deixar a espera mais agradável, pois indica que o conteúdo está sendo preparado.
+
+##### Pré-visualização do loading
+
+Dentro do collapse existe uma área de pré-visualização.
+
+Ela mostra como o estilo escolhido será exibido para o usuário.
+
+Use essa prévia para escolher o indicador mais adequado antes de salvar a configuração.
+
+#### Gravar — loading ao gravar (padrão)
+
+O collapse `Gravar — loading ao gravar (padrão)` define o comportamento visual exibido quando o usuário salva ou envia o formulário.
+
+Essa configuração é importante para indicar que a ação está em andamento e evitar que o usuário clique várias vezes no botão de gravação.
+
+##### Estilo de loading ao gravar
+
+Define como o formulário mostra que está salvando as informações.
+
+Opções disponíveis:
+
+- `Sobreposição + spinner`: mostra uma camada sobre o formulário com indicador de carregamento.
+- `Barra de progresso no topo`: mostra uma barra no topo da área.
+- `Shimmer sobre o formulário`: mostra uma animação de carregamento sobre a estrutura do formulário.
+- `Spinner por baixo dos botões`: mostra o indicador próximo aos botões de ação.
+- `Faixa informativa`: mostra uma mensagem em formato de faixa.
+
+Uso recomendado:
+
+- Use `Sobreposição + spinner` quando quiser deixar claro que o usuário deve aguardar.
+- Use `Barra de progresso no topo` quando quiser uma indicação mais discreta.
+- Use `Spinner por baixo dos botões` quando a ação estiver diretamente ligada aos botões finais.
+- Use `Faixa informativa` quando quiser informar o estado da gravação com uma mensagem mais visível.
+
+Exemplo:
+
+Em um formulário de solicitação, ao clicar em `Enviar`, a sobreposição com spinner evita que o usuário altere campos enquanto o envio está sendo processado.
+
+#### Etapas — layout e navegação
+
+O collapse `Etapas — layout e navegação` controla a aparência das etapas do formulário e dos botões usados para avançar ou voltar.
+
+Essa área é usada quando o formulário possui mais de uma etapa e precisa de uma apresentação visual clara para o usuário.
+
+##### Cor de destaque
+
+Define a cor usada no passador de etapas e nos botões de navegação.
+
+Essa cor ajuda a alinhar o formulário com a identidade visual da página ou da empresa.
+
+Uso recomendado:
+
+- Use a cor principal do tema quando quiser manter o padrão visual do site.
+- Use uma cor de destaque quando o formulário precisa se diferenciar.
+- Evite cores que dificultem a leitura ou reduzam o contraste.
+
+##### Layout das etapas no formulário
+
+Define o estilo visual usado para mostrar as etapas do formulário.
+
+Exemplos de estilos disponíveis:
+
+- `Trilho lateral`: mostra as etapas em coluna, indicado para formulários longos.
+- `Segmentos`: mostra etapas como pílulas horizontais.
+- `Linha do tempo`: mostra o progresso em formato de linha.
+- `Cartões`: exibe cada etapa com visual mais destacado.
+- `Migalhas`: mostra o caminho das etapas em formato de navegação.
+- `Separadores`: apresenta as etapas como abas.
+- `Contorno`: mostra etiquetas com borda.
+- `Compacto`: reduz o espaço ocupado pelas etapas.
+- `Passo numerado`: mostra etapas numeradas em sequência.
+- `Minimal`: usa uma apresentação mais leve e discreta.
+
+Uso recomendado:
+
+- Use `Trilho lateral` para formulários longos.
+- Use `Segmentos` para formulários empresariais com poucas ou médias etapas.
+- Use `Linha do tempo` quando o progresso do usuário for importante.
+- Use `Compacto` quando houver pouco espaço vertical.
+- Use `Minimal` para formulários simples.
+
+Exemplo:
+
+Um formulário com cinco etapas pode usar `Linha do tempo` para mostrar claramente em qual parte do processo o usuário está.
+
+##### Botões Etapa anterior / Próxima etapa
+
+Define o estilo dos botões usados para navegar entre as etapas.
+
+Exemplos de estilos disponíveis:
+
+- `Fluent padrão`: botões comuns do Fluent UI.
+- `Pílulas`: botões largos com formato arredondado.
+- `Bolinhas e setas`: navegação com indicadores e setas.
+- `Só ícones`: botões compactos com ícones.
+- `Ligações de texto`: navegação com aparência de link.
+- `Extremos`: botão anterior à esquerda e próximo à direita.
+- `Empilhado`: botões em coluna, útil em telas estreitas.
+- `Contorno`: botões com borda.
+- `Barra cinza`: botões agrupados em uma faixa.
+- `Compacto`: botões menores, com menos espaçamento.
+
+Uso recomendado:
+
+- Use `Fluent padrão` para manter o visual familiar.
+- Use `Extremos` quando quiser separar bem voltar e avançar.
+- Use `Empilhado` para formulários em telas estreitas.
+- Use `Só ícones` apenas quando o contexto estiver claro para o usuário.
+
+Exemplo:
+
+Em um formulário usado em celular, o estilo `Empilhado` pode facilitar o toque nos botões de navegação.
+
+#### Histórico de auditoria
+
+O collapse `Histórico de auditoria` configura o botão e a forma de apresentação do histórico do item.
+
+Essa funcionalidade permite que o usuário consulte registros de alterações, ações ou versões relacionadas ao formulário, conforme a configuração de auditoria existente.
+
+##### Ativar botão de histórico de auditoria
+
+Liga ou desliga o botão de histórico no formulário.
+
+Quando está inativo, o usuário não vê o botão de histórico.
+
+Quando está ativo, novas opções aparecem para configurar como o histórico será aberto e exibido.
+
+Uso recomendado:
+
+- Ative quando o cliente precisa acompanhar alterações ou registros de ação.
+- Deixe inativo em formulários simples que não exigem rastreabilidade.
+
+##### Abrir histórico como
+
+Define onde o histórico será exibido quando o usuário clicar no botão.
+
+Opções disponíveis:
+
+- `Painel lateral`: abre o histórico em um painel ao lado.
+- `Modal`: abre o histórico em uma janela central.
+- `Secção no formulário`: mostra o histórico dentro do próprio formulário, abaixo dos botões.
+
+Uso recomendado:
+
+- Use `Painel lateral` quando quiser manter o formulário visível enquanto consulta o histórico.
+- Use `Modal` quando o histórico precisa de mais foco.
+- Use `Secção no formulário` quando quiser manter tudo na mesma tela.
+
+##### Aspeto do botão no formulário
+
+Define como o botão de histórico será apresentado.
+
+Opções disponíveis:
+
+- `Só texto`: exibe apenas o texto do botão.
+- `Só ícone`: exibe apenas o ícone.
+- `Ícone e texto`: exibe ícone e texto juntos.
+
+Uso recomendado:
+
+- Use `Só texto` quando quiser máxima clareza.
+- Use `Só ícone` quando houver pouco espaço e o ícone for conhecido.
+- Use `Ícone e texto` quando quiser equilíbrio entre clareza e visual.
+
+##### Texto do botão
+
+Define o texto exibido no botão de histórico.
+
+Exemplo:
+
+`Histórico`
+
+Também pode ser alterado para algo mais específico, como:
+
+- `Ver alterações`
+- `Auditoria`
+- `Histórico do item`
+
+##### Nome acessível
+
+Quando o botão usa apenas ícone, o `Nome acessível` serve como identificação para tooltip e leitores de tela.
+
+Essa configuração ajuda na acessibilidade, pois permite que o usuário entenda a função do botão mesmo sem texto visível.
+
+##### Ícone Fluent
+
+Define o nome do ícone usado no botão de histórico.
+
+Exemplos:
+
+- `History`
+- `Clock`
+- `TimelineProgress`
+
+Uso recomendado:
+
+- Use ícones relacionados a tempo, histórico ou registros.
+- Mantenha o ícone simples e fácil de reconhecer.
+
+##### Subtítulo / ajuda
+
+Define uma mensagem de apoio exibida no painel de histórico ou como tooltip.
+
+Use esse campo para explicar o que o usuário encontrará ao abrir o histórico.
+
+Exemplo:
+
+`Consulte alterações e registros relacionados a este item.`
+
+##### Grupos do SharePoint
+
+Permite limitar o botão de histórico a usuários de grupos específicos do SharePoint.
+
+Também existe um filtro para localizar grupos pelo nome.
+
+Uso recomendado:
+
+- Use quando o histórico deve ser visível apenas para gestores, administradores ou equipes de auditoria.
+- Deixe sem grupos quando todos os usuários do formulário puderem consultar o histórico.
+
+Exemplo:
+
+O botão de histórico pode ser exibido apenas para os grupos `Gestores` e `Administradores`.
+
+##### Estilo da lista de registos
+
+Define como os registros do histórico serão apresentados.
+
+Opções disponíveis:
+
+- `Lista`: registros empilhados em blocos.
+- `Linha do tempo`: registros apresentados em sequência cronológica visual.
+- `Cartões`: registros em cards com destaque visual.
+- `Compacto`: apresentação mais densa, ocupando menos espaço.
+
+Uso recomendado:
+
+- Use `Lista` para uma apresentação simples e clara.
+- Use `Linha do tempo` quando a ordem dos eventos for importante.
+- Use `Cartões` quando quiser destacar cada registro.
+- Use `Compacto` quando houver muitos registros e pouco espaço.
+
+##### Pré-visualização do estilo
+
+O collapse mostra uma pré-visualização do estilo escolhido para os registros.
+
+Use essa prévia para validar se o formato está adequado antes de salvar.
+
