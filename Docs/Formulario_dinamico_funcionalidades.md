@@ -293,6 +293,91 @@ Uso recomendado:
 - Use etapas para separar assuntos diferentes dentro do mesmo formulário.
 - Evite criar etapas demais quando o formulário for simples, para não tornar o preenchimento mais longo do que o necessário.
 
+#### Aba Ocultos
+
+A aba `Ocultos` é usada para organizar campos que fazem parte do registro, mas que não devem aparecer visualmente no formulário para o usuário.
+
+Esses campos continuam existindo na estrutura do formulário e podem ser enviados junto com os metadados do item, mesmo sem serem exibidos na tela.
+
+Na prática, isso permite manter informações importantes no registro sem exigir que o usuário visualize ou preencha esses campos diretamente.
+
+Exemplos de uso:
+
+- Campo interno usado para controle do processo.
+- Status inicial definido automaticamente.
+- Identificador auxiliar usado em integrações.
+- Informação técnica que precisa ser gravada no item.
+- Campo usado como apoio para regras ou organização dos dados.
+
+Exemplo prático:
+
+Em um formulário de solicitação, o campo `Origem da solicitação` pode ficar em `Ocultos` com um valor padrão, como `Portal`, sem aparecer para quem está preenchendo.
+
+Uso recomendado:
+
+- Use `Ocultos` para campos que precisam ser enviados no registro, mas não precisam ser exibidos ao usuário.
+- Use essa área para metadados de apoio, controle interno ou informações preenchidas automaticamente.
+- Evite colocar em `Ocultos` campos que o usuário precisa revisar antes de enviar o formulário.
+
+#### Etapas criadas
+
+As etapas criadas pelo botão `Nova etapa` representam as partes visíveis do formulário.
+
+Cada etapa pode agrupar campos relacionados a um mesmo assunto, deixando o preenchimento mais organizado e fácil para o usuário.
+
+Exemplos:
+
+- Uma etapa para dados pessoais.
+- Uma etapa para informações da solicitação.
+- Uma etapa para dados financeiros.
+- Uma etapa para anexos.
+- Uma etapa para revisão final.
+
+As etapas podem ser arrastadas para alterar a ordem em que aparecem no formulário.
+
+Isso permite reorganizar o fluxo de preenchimento sem precisar recriar a estrutura do zero.
+
+Exemplo prático:
+
+Se a etapa `Anexos` foi criada antes da etapa `Dados da solicitação`, ela pode ser arrastada para depois, deixando o formulário em uma ordem mais natural para o usuário.
+
+Uso recomendado:
+
+- Coloque primeiro as etapas com informações básicas.
+- Deixe etapas de complemento, anexos ou revisão para o final.
+- Agrupe campos do mesmo assunto na mesma etapa.
+- Evite misturar campos de temas diferentes em uma única etapa.
+
+##### Campos dentro das etapas
+
+Dentro de cada etapa ficam os campos que serão exibidos ao usuário naquela parte do formulário.
+
+Esses campos podem ser organizados conforme a ordem desejada de preenchimento.
+
+A ordenação dos campos ajuda a conduzir o usuário de forma mais clara, começando pelas informações mais simples e avançando para dados mais específicos.
+
+Exemplo de organização:
+
+- `Nome do colaborador`
+- `Matrícula`
+- `Área`
+- `Gestor responsável`
+
+Nesse exemplo, os campos seguem uma ordem de identificação antes de avançar para dados mais específicos da solicitação.
+
+Os campos também podem ser movidos entre etapas quando fizer sentido reorganizar o formulário.
+
+Exemplo prático:
+
+Se o campo `Centro de custo` estiver na etapa `Dados do solicitante`, mas fizer mais sentido ficar em `Informações da solicitação`, ele pode ser reposicionado para deixar a etapa mais coerente.
+
+Uso recomendado:
+
+- Ordene os campos na mesma sequência em que o usuário deve preencher.
+- Mantenha juntos os campos que tratam do mesmo assunto.
+- Evite etapas com campos demais quando o formulário puder ser dividido em partes menores.
+- Revise a ordem das etapas e dos campos antes de publicar o formulário para o cliente final.
+
 #### Etapa Fixos
 
 A etapa `Fixos` é uma etapa especial usada para manter campos, alertas ou banners em uma posição fixa no formulário.
