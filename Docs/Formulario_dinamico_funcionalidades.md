@@ -378,6 +378,337 @@ Uso recomendado:
 - Evite etapas com campos demais quando o formulário puder ser dividido em partes menores.
 - Revise a ordem das etapas e dos campos antes de publicar o formulário para o cliente final.
 
+##### Botão Configurar da etapa
+
+O botão `Configurar` da etapa abre o painel `Visibilidade da etapa`.
+
+Esse painel define em quais situações a etapa deve aparecer no formulário.
+
+Ele é usado quando uma etapa não deve estar disponível para todos os momentos ou para todos os usuários.
+
+Exemplos de uso:
+
+- Mostrar uma etapa apenas durante a criação do item.
+- Mostrar uma etapa apenas quando o formulário estiver em edição.
+- Mostrar uma etapa apenas para consulta, no modo de visualização.
+- Mostrar uma etapa somente quando um campo tiver determinado valor.
+- Mostrar uma etapa somente para usuários de um grupo específico.
+
+Uso recomendado:
+
+- Use essa configuração quando a etapa precisa aparecer em situações específicas.
+- Mantenha a etapa visível em todos os modos quando ela fizer parte do fluxo principal.
+- Use condições para evitar que o usuário veja etapas que não se aplicam ao caso dele.
+
+##### Modos de formulário
+
+A área `Modos de formulário` define em quais modos a etapa será exibida.
+
+Os modos representam o momento em que o formulário está sendo usado.
+
+Opções disponíveis:
+
+- `Criar`: quando o usuário está preenchendo um novo registro.
+- `Editar`: quando o usuário está alterando um registro já existente.
+- `Ver`: quando o usuário está apenas consultando as informações do registro.
+
+Quando todos os modos estão marcados, a etapa aparece em todos os cenários.
+
+Quando apenas alguns modos estão marcados, a etapa aparece somente nos modos escolhidos.
+
+Exemplos:
+
+- Uma etapa de `Dados iniciais` pode aparecer em `Criar`, `Editar` e `Ver`.
+- Uma etapa de `Aprovação` pode aparecer apenas em `Editar` e `Ver`.
+- Uma etapa de `Instruções de preenchimento` pode aparecer apenas em `Criar`.
+
+Uso recomendado:
+
+- Use `Criar` para etapas importantes no cadastro inicial.
+- Use `Editar` para etapas que precisam ser ajustadas depois que o item já existe.
+- Use `Ver` para etapas que devem aparecer na consulta do registro.
+- Desmarque modos quando a etapa não fizer sentido naquele momento.
+
+##### Condições de exibição da etapa
+
+A opção `Só mostrar esta etapa quando as condições abaixo forem verdadeiras` permite controlar a exibição da etapa com base em regras.
+
+Quando essa opção está desativada, a etapa aparece conforme os modos de formulário configurados.
+
+Quando essa opção está ativada, a etapa só aparece se a condição definida for atendida.
+
+Exemplo:
+
+Uma etapa chamada `Dados do veículo` pode aparecer somente quando o campo `Tipo de solicitação` for igual a `Transporte`.
+
+Se o usuário escolher outro tipo de solicitação, essa etapa não será exibida.
+
+Uso recomendado:
+
+- Use condições quando a etapa depende de uma resposta anterior.
+- Use condições para simplificar o formulário e mostrar apenas o que é necessário.
+- Evite criar condições muito complexas quando uma divisão mais simples do formulário resolver o caso.
+
+##### Lógica entre condições
+
+A opção `Lógica entre condições` define como o formulário deve interpretar mais de uma condição.
+
+Opções disponíveis:
+
+- `Todas (E)`: a etapa só aparece se todas as condições forem verdadeiras.
+- `Pelo menos uma (OU)`: a etapa aparece se qualquer uma das condições for verdadeira.
+
+Exemplo com `Todas (E)`:
+
+A etapa `Aprovação financeira` pode aparecer somente quando:
+
+- `Tipo de solicitação` é igual a `Compra`.
+- `Valor` é maior que `10000`.
+
+Nesse caso, as duas condições precisam ser atendidas.
+
+Exemplo com `Pelo menos uma (OU)`:
+
+A etapa `Informações adicionais` pode aparecer quando:
+
+- `Tipo de solicitação` é igual a `Urgente`.
+- `Prioridade` é igual a `Alta`.
+
+Nesse caso, basta uma das condições ser atendida para a etapa aparecer.
+
+##### Campo
+
+O campo `Campo` define qual informação do formulário será analisada na condição.
+
+É a partir desse campo que o sistema decide se a etapa deve ou não ser exibida.
+
+Exemplo:
+
+Selecionar `Tipo de solicitação` para controlar se uma etapa específica deve aparecer.
+
+##### Operador
+
+O campo `Operador` define como o valor do campo será avaliado.
+
+Exemplos de operadores:
+
+- `é igual a`
+- `é diferente de`
+- `contém`
+- `não contém`
+- `maior que`
+- `menor que`
+- `está vazio`
+- `não está vazio`
+- `é verdadeiro`
+- `é falso`
+
+Exemplo:
+
+Para mostrar uma etapa quando o valor da solicitação for maior que `10000`, selecione o campo de valor, escolha o operador `maior que` e informe `10000` no valor.
+
+##### Comparar com
+
+O campo `Comparar com` define o tipo de comparação usada na condição.
+
+Opções disponíveis:
+
+- `Texto fixo`: compara o campo com um valor digitado manualmente.
+- `Outro campo`: compara o campo selecionado com outro campo do formulário.
+- `Token`: compara com uma informação dinâmica disponível no contexto.
+- `Membro do grupo`: exibe a etapa quando o usuário pertence ao grupo informado.
+- `Fora do grupo`: exibe a etapa quando o usuário não pertence ao grupo informado.
+
+Exemplos:
+
+- Use `Texto fixo` para comparar com valores como `Sim`, `Não`, `Urgente` ou `Aprovado`.
+- Use `Outro campo` quando uma etapa depender da comparação entre duas informações do formulário.
+- Use `Membro do grupo` para exibir uma etapa apenas para uma equipe específica.
+- Use `Fora do grupo` para esconder ou mostrar etapas conforme o usuário não pertença a determinado grupo.
+
+##### Valor ou grupo
+
+O campo `Valor` recebe o conteúdo usado na comparação.
+
+Quando a condição usa `Membro do grupo` ou `Fora do grupo`, esse campo passa a representar o nome do grupo.
+
+Exemplos:
+
+- `Urgente`
+- `Aprovado`
+- `10000`
+- `Gestores`
+- `Equipe Financeira`
+
+Para operadores como `está vazio`, `não está vazio`, `é verdadeiro` e `é falso`, o valor não precisa ser preenchido, pois a própria condição já define o comportamento.
+
+##### Adicionar condição
+
+O botão `Adicionar condição` permite incluir mais uma regra para controlar a exibição da etapa.
+
+Cada condição adicionada pode avaliar um campo, operador e valor diferente.
+
+Exemplo:
+
+A etapa `Aprovação do gestor` pode aparecer quando:
+
+- `Tipo de solicitação` é igual a `Férias`.
+- `Dias solicitados` é maior que `15`.
+
+Com isso, a etapa só aparece quando a solicitação for de férias e tiver mais de 15 dias, se a lógica estiver como `Todas (E)`.
+
+##### Remover condição
+
+O botão de remover condição permite excluir uma regra que não deve mais ser considerada.
+
+Essa opção é útil quando a etapa foi simplificada ou quando uma regra deixou de fazer sentido para o processo.
+
+##### Exemplo completo
+
+Cenário: exibir a etapa `Aprovação financeira` somente para compras acima de `10000`.
+
+Configuração:
+
+- Modos de formulário: `Criar`, `Editar` e `Ver`.
+- Ativar `Só mostrar esta etapa quando as condições abaixo forem verdadeiras`.
+- Lógica entre condições: `Todas (E)`.
+- Condição 1: campo `Tipo de solicitação`, operador `é igual a`, comparar com `Texto fixo`, valor `Compra`.
+- Condição 2: campo `Valor`, operador `maior que`, comparar com `Texto fixo`, valor `10000`.
+
+Resultado:
+
+A etapa só será exibida quando o usuário estiver tratando uma solicitação de compra com valor maior que `10000`.
+
+##### Botão Configurar Colunas
+
+O botão `Configurar Colunas` abre um modal para definir como os campos daquela etapa serão distribuídos na tela.
+
+Essa configuração controla o comportamento visual dos campos em linha, permitindo definir se um campo ocupará a linha inteira, metade da linha, um terço da linha ou outro tamanho disponível.
+
+Na prática, ela ajuda a organizar a etapa em colunas, deixando o formulário mais compacto, legível e adequado ao tipo de informação exibida.
+
+Exemplos de uso:
+
+- Colocar `Nome completo` ocupando a linha inteira.
+- Colocar `Data de início` e `Data de término` lado a lado.
+- Colocar `DDD`, `Telefone` e `Ramal` na mesma linha.
+- Fazer campos mais importantes ocuparem mais espaço.
+- Ajustar o layout de forma diferente para criação, edição e visualização.
+
+##### Modal Configurar Colunas
+
+O modal `Configurar Colunas` mostra a etapa selecionada e todos os campos que pertencem a ela.
+
+Cada campo aparece com opções de largura baseadas em uma grade de `12` colunas.
+
+Essa grade funciona como uma divisão da linha disponível.
+
+Exemplos:
+
+- `12`: o campo ocupa a linha inteira.
+- `6`: o campo ocupa metade da linha.
+- `4`: o campo ocupa um terço da linha.
+- `3`: o campo ocupa um quarto da linha.
+- `2`: o campo ocupa uma parte menor da linha.
+- `8`: o campo ocupa uma área maior que metade da linha.
+
+Exemplo prático:
+
+Se dois campos forem configurados com `6`, eles podem aparecer lado a lado na mesma linha.
+
+Se um campo for configurado com `12`, ele ocupa a linha inteira e o próximo campo começa em outra linha.
+
+##### Modos do modal
+
+O modal possui os modos `Novo`, `Editar` e `Ver`.
+
+Esses modos permitem configurar a disposição dos campos de forma diferente dependendo do momento de uso do formulário.
+
+Opções disponíveis:
+
+- `Novo`: layout usado quando o usuário está criando um novo registro.
+- `Editar`: layout usado quando o usuário está alterando um registro existente.
+- `Ver`: layout usado quando o usuário está apenas consultando o registro.
+
+Exemplos:
+
+- No modo `Novo`, os campos podem ocupar mais espaço para facilitar o preenchimento.
+- No modo `Editar`, os campos podem ser organizados de forma parecida com o cadastro original.
+- No modo `Ver`, os campos podem ficar mais compactos, facilitando a leitura das informações.
+
+Uso recomendado:
+
+- Configure primeiro o modo `Novo`, pensando no preenchimento.
+- Depois revise o modo `Editar`, pensando em manutenção dos dados.
+- Por fim, ajuste o modo `Ver`, pensando em leitura e consulta.
+
+##### Campos da etapa
+
+Dentro do modal, cada campo da etapa pode receber uma configuração própria de colunas.
+
+Isso permite que campos diferentes tenham larguras diferentes na mesma etapa.
+
+Exemplo:
+
+- `Descrição da solicitação`: `12`, ocupando a linha inteira.
+- `Data de início`: `6`, ocupando metade da linha.
+- `Data de término`: `6`, ocupando metade da linha.
+- `Quantidade de dias`: `3`, ocupando uma área menor.
+
+Resultado:
+
+O formulário fica mais organizado, com campos longos recebendo mais espaço e campos curtos ocupando menos largura.
+
+##### Faixas de largura da tela
+
+O modal permite configurar o comportamento dos campos por faixa de largura da tela.
+
+Isso ajuda o formulário a se adaptar melhor em telas menores ou maiores.
+
+Na prática, o mesmo campo pode se comportar de uma forma em telas grandes e de outra forma em telas menores.
+
+Exemplo:
+
+Em uma tela grande, `Data de início` e `Data de término` podem aparecer lado a lado.
+
+Em uma tela menor, esses campos podem ficar um abaixo do outro para facilitar a leitura.
+
+Uso recomendado:
+
+- Em telas menores, prefira campos mais largos para evitar que o conteúdo fique apertado.
+- Em telas maiores, use colunas para aproveitar melhor o espaço.
+- Revise campos com textos longos, observações e descrições para garantir boa leitura.
+
+##### Herança entre faixas
+
+Quando uma faixa de largura não recebe uma configuração específica, ela herda o comportamento da faixa menor.
+
+Isso significa que não é necessário configurar todas as faixas manualmente quando o mesmo comportamento visual já atende bem.
+
+Uso recomendado:
+
+- Configure apenas as diferenças necessárias.
+- Use a herança para manter o layout mais simples.
+- Ajuste faixas específicas apenas quando algum campo ficar desconfortável em determinado tamanho de tela.
+
+##### Exemplo completo
+
+Cenário: configurar a etapa `Período de férias`.
+
+Configuração no modo `Novo`:
+
+- `Tipo de solicitação`: `12`.
+- `Data de início`: `6`.
+- `Data de término`: `6`.
+- `Quantidade de dias`: `4`.
+- `Observações`: `12`.
+
+Resultado:
+
+O usuário vê o tipo da solicitação em uma linha completa, as datas lado a lado, a quantidade de dias em um espaço menor e as observações ocupando a linha inteira.
+
+Essa organização deixa a etapa mais clara e evita que campos curtos ocupem espaço desnecessário.
+
 #### Adicionar alerta
 
 A funcionalidade `Adicionar alerta` permite incluir uma mensagem de destaque dentro da estrutura do formulário.
