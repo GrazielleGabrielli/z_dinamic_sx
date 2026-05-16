@@ -264,3 +264,32 @@ Mantenha essa opção ativada quando quiser facilitar a revisão das etapas ante
 
 Desative somente quando o processo exigir controle rígido da ordem de preenchimento.
 
+#### Botão Nova etapa
+
+O botão `Nova etapa` é usado para adicionar uma nova etapa ao formulário.
+
+Uma etapa funciona como uma divisão do formulário em partes menores, facilitando o preenchimento quando existem muitos campos ou quando o processo precisa seguir uma sequência lógica.
+
+Ao criar uma nova etapa, o formulário passa a ter uma nova área de preenchimento, que pode receber campos específicos daquela parte do processo.
+
+Exemplos de etapas:
+
+- `Dados do solicitante`
+- `Informações da solicitação`
+- `Detalhes do pedido`
+- `Documentos e anexos`
+- `Revisão e envio`
+
+Essa funcionalidade é útil para transformar formulários longos em um fluxo mais organizado, evitando que o usuário veja todos os campos de uma vez.
+
+Exemplo de uso:
+
+Em um formulário de férias, é possível criar uma etapa para os dados do colaborador, outra para o período solicitado e outra para revisão final antes do envio.
+
+Uso recomendado:
+
+- Use etapas quando o formulário tiver muitos campos.
+- Use etapas quando o preenchimento precisar seguir uma ordem.
+- Use etapas para separar assuntos diferentes dentro do mesmo formulário.
+- Evite criar etapas demais quando o formulário for simples, para não tornar o preenchimento mais longo do que o necessário.
+
