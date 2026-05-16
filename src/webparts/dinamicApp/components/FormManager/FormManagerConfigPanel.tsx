@@ -595,6 +595,56 @@ const COLUMN_SPAN_BY_MODE_TABS: { mode: TFormManagerFormMode; headerText: string
   { mode: 'edit', headerText: 'Editar' },
 ];
 
+const columnSpanModalModeCardClass = mergeStyles({
+  borderRadius: 2,
+  border: '1px solid #edebe9',
+  background: '#faf9f8',
+  padding: '14px 16px',
+  boxSizing: 'border-box',
+});
+
+const columnSpanPillClass = mergeStyles({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 44,
+  height: 32,
+  padding: '0 12px',
+  borderRadius: 2,
+  border: '1px solid #c8c6c4',
+  background: '#ffffff',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#323130',
+  fontFamily: 'inherit',
+  selectors: {
+    ':hover': { background: '#f3f2f1', borderColor: '#a19f9d' },
+    ':focus-visible': { outline: '2px solid #0078d4', outlineOffset: '2px' },
+  },
+});
+
+const columnSpanPillSelectedClass = mergeStyles({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 44,
+  height: 32,
+  padding: '0 12px',
+  borderRadius: 2,
+  border: '1px solid #0078d4',
+  background: '#0078d4',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#ffffff',
+  fontFamily: 'inherit',
+  selectors: {
+    ':hover': { background: '#106ebe', borderColor: '#106ebe' },
+    ':focus-visible': { outline: '2px solid #0078d4', outlineOffset: '2px' },
+  },
+});
+
 function clampFormRootPercentInput(s: string): number {
   const n = Number(String(s).replace(',', '.').trim());
   if (!isFinite(n)) return 100;
@@ -4422,57 +4472,100 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           ))}
         </Stack>
       )}
-      <Modal isOpen={columnSpanModalField !== null} onDismiss={() => setColumnSpanModalField(null)} isBlocking>
+      <Modal
+        isOpen={columnSpanModalField !== null}
+        onDismiss={() => setColumnSpanModalField(null)}
+        isBlocking
+        styles={{
+          main: {
+            maxWidth: 480,
+            borderRadius: 2,
+            overflow: 'hidden',
+          },
+        }}
+      >
         <Stack
-          tokens={{ childrenGap: 16 }}
+          tokens={{ childrenGap: 20 }}
           styles={{
             root: {
               background: '#ffffff',
-              padding: 24,
-              maxWidth: 440,
-              margin: '48px auto',
-              borderRadius: 4,
-              boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
+              padding: '28px 28px 22px',
+              boxSizing: 'border-box',
             },
           }}
         >
-          <Text variant="large">Colunas na grelha</Text>
-          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-            Campo:{' '}
-            <strong>
-              {columnSpanModalField
-                ? meta.find((m) => m.InternalName === columnSpanModalField)?.Title ?? columnSpanModalField
-                : '—'}
-            </strong>{' '}
-            {columnSpanModalField ? (
-              <span style={{ fontFamily: 'monospace' }}>({columnSpanModalField})</span>
-            ) : null}
-          </Text>
-          <Pivot>
-            {COLUMN_SPAN_BY_MODE_TABS.map(({ mode, headerText }) => (
-              <PivotItem key={mode} headerText={headerText}>
-                <Dropdown
-                  label="Colunas ocupadas (de 12)"
-                  options={FIELD_COLUMN_SPAN_OPTIONS}
-                  selectedKey={String(
-                    resolveFieldColumnSpan(
-                      fields.find((f) => f.internalName === columnSpanModalField) ?? {
-                        internalName: columnSpanModalField ?? '',
-                      },
-                      mode
-                    )
-                  )}
-                  onChange={(_, o) => {
-                    if (!o || !columnSpanModalField) return;
-                    const span = Number(o.key);
-                    if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
-                    applyFieldColumnSpanForMode(columnSpanModalField, mode, span as TFormFieldColumnSpan);
-                  }}
-                />
-              </PivotItem>
-            ))}
-          </Pivot>
-          <DefaultButton text="Fechar" onClick={() => setColumnSpanModalField(null)} />
+          <Stack tokens={{ childrenGap: 8 }}>
+            <Text variant="large" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+              Colunas na grelha
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
+              Campo:{' '}
+              <strong>
+                {columnSpanModalField
+                  ? meta.find((m) => m.InternalName === columnSpanModalField)?.Title ?? columnSpanModalField
+                  : '—'}
+              </strong>{' '}
+              {columnSpanModalField ? (
+                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>({columnSpanModalField})</span>
+              ) : null}
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#8a8886' } }}>
+              Colunas ocupadas (de 12) por modo de formulário
+            </Text>
+          </Stack>
+          <Stack tokens={{ childrenGap: 12 }}>
+            {COLUMN_SPAN_BY_MODE_TABS.map(({ mode, headerText }) => {
+              const fc = columnSpanModalField
+                ? fields.find((f) => f.internalName === columnSpanModalField)
+                : undefined;
+              const selectedSpan = resolveFieldColumnSpan(
+                fc ?? { internalName: columnSpanModalField ?? '' },
+                mode
+              );
+              return (
+                <div key={mode} className={columnSpanModalModeCardClass}>
+                  <Stack tokens={{ childrenGap: 12 }}>
+                    <Text
+                      variant="small"
+                      styles={{ root: { fontWeight: 700, color: '#323130', textTransform: 'uppercase', fontSize: 11, letterSpacing: '0.06em' } }}
+                    >
+                      {headerText}
+                    </Text>
+                    <Stack horizontal wrap horizontalAlign="start" tokens={{ childrenGap: 8 }} verticalAlign="center">
+                      {FIELD_COLUMN_SPAN_OPTIONS.map((o) => {
+                        const span = Number(o.key) as TFormFieldColumnSpan;
+                        const selected = selectedSpan === span;
+                        return (
+                          <button
+                            key={String(o.key)}
+                            type="button"
+                            title={o.text}
+                            aria-label={o.text}
+                            className={selected ? columnSpanPillSelectedClass : columnSpanPillClass}
+                            onClick={() => {
+                              if (!columnSpanModalField) return;
+                              if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
+                              applyFieldColumnSpanForMode(columnSpanModalField, mode, span);
+                            }}
+                          >
+                            {String(o.key)}
+                          </button>
+                        );
+                      })}
+                    </Stack>
+                  </Stack>
+                </div>
+              );
+            })}
+          </Stack>
+          <DefaultButton
+            text="Fechar"
+            onClick={() => setColumnSpanModalField(null)}
+            styles={{
+              root: { borderRadius: 2, width: '100%' },
+              flexContainer: { justifyContent: 'center' },
+            }}
+          />
         </Stack>
       </Modal>
       <Modal isOpen={cloneRulesModalTarget !== null} onDismiss={dismissCloneRulesModal} isBlocking>

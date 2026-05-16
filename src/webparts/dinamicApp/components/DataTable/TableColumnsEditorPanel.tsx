@@ -22,8 +22,6 @@ import {
   TooltipHost,
   Icon,
   Toggle,
-  Pivot,
-  PivotItem,
   MessageBar,
   MessageBarType,
 } from '@fluentui/react';
@@ -411,7 +409,9 @@ type TListTabListaSection =
   | 'viewModes'
   | 'columns'
   | 'filterFields'
-  | 'chromeButtons';
+  | 'chromeButtons'
+  | 'rowActions'
+  | 'exportPdfExcel';
 
 function ListTabListaCollapse(props: {
   title: string;
@@ -432,10 +432,10 @@ function ListTabListaCollapse(props: {
     <Stack
       styles={{
         root: {
-          border: '1px solid #edebe9',
-          borderRadius: 10,
+          border: '1px solid #e8e6e4',
+          borderRadius: 12,
           background: '#ffffff',
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.04)',
           overflow: 'hidden',
           maxWidth: '100%',
           minWidth: 0,
@@ -453,8 +453,8 @@ function ListTabListaCollapse(props: {
         onDrop={zd?.onDrop}
         styles={{
           root: {
-            padding: '10px 12px',
-            background: zoneBg ?? (props.isOpen ? '#faf9f8' : '#ffffff'),
+            padding: '12px 14px',
+            background: zoneBg ?? (props.isOpen ? '#f8f7f6' : '#ffffff'),
             borderBottom: props.isOpen ? '1px solid #edebe9' : undefined,
             userSelect: 'none',
             borderTop: !props.isOpen && zd?.highlight ? zoneBorder : undefined,
@@ -519,7 +519,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   onDismiss,
 }) => {
   const lw = listWebServerRelativeUrl?.trim() || undefined;
-  const [activeTab, setActiveTab] = useState<string>('lista');
   const [layoutSectionOpen, setLayoutSectionOpen] = useState<Partial<Record<'tableCss' | 'rowRules' | 'cardCss' | 'filterCss' | 'viewModeCss', boolean>>>({});
   const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
   const [loading, setLoading] = useState(false);
@@ -683,11 +682,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   }, [isOpen, listView, pagination, pdfTemplate, projectManagement]);
 
   const showPdfExcelConfigTabs = mode !== 'list';
-
-  useEffect(() => {
-    if (mode !== 'list') return;
-    setActiveTab((tab) => (tab === 'pdf' || tab === 'excel' ? 'lista' : tab));
-  }, [mode]);
 
   const toggle = (internalName: string): void => {
     setOptions((prev) =>
@@ -1616,11 +1610,22 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       isOpen={isOpen}
       onDismiss={onDismiss}
       type={PanelType.custom}
-      customWidth="68vw"
+      customWidth="72vw"
       styles={{
-        main: { width: 'min(68vw, calc(100vw - 16px))', maxWidth: 'min(68vw, calc(100vw - 16px))' },
-        scrollableContent: { overflowX: 'hidden' },
-        content: { overflowX: 'hidden', minWidth: 0 },
+        main: {
+          width: 'min(72vw, calc(100vw - 16px))',
+          maxWidth: 'min(72vw, calc(100vw - 16px))',
+          borderRadius: '12px 0 0 12px',
+          boxShadow: '-8px 0 40px rgba(0, 0, 0, 0.12)',
+        },
+        scrollableContent: { overflowX: 'hidden', background: '#f5f4f2' },
+        content: { overflowX: 'hidden', minWidth: 0, background: '#f5f4f2' },
+        header: {
+          background: '#f8f7f6',
+          borderBottom: '1px solid #e8e6e4',
+          flexShrink: 0,
+        },
+        footer: { borderTop: '1px solid #e8e6e4', background: '#faf9f8', paddingTop: 12 },
       }}
       headerText={
         mode === 'projectManagement'
@@ -1638,7 +1643,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         </Stack>
       )}
     >
-      <div style={{ paddingTop: 16, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
+      <div style={{ padding: '8px 16px 24px', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
         {(mode === 'list' || mode === 'projectManagement') && (
           <Stack horizontal horizontalAlign="end" styles={{ root: { marginBottom: 8 } }}>
             <Link onClick={() => setJsonOpen(true)}>JSON (ver / colar)</Link>
@@ -1650,14 +1655,30 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
             <Text variant="small">Carregando campos...</Text>
           </Stack>
         ) : (
-          <Stack tokens={{ childrenGap: 16 }} styles={{ root: { minWidth: 0, maxWidth: '100%' } }}>
-            <Pivot
-              selectedKey={activeTab}
-              onLinkClick={(item) => item?.props?.itemKey !== undefined && item?.props?.itemKey !== null && setActiveTab(String(item.props.itemKey))}
-              styles={{ root: { marginBottom: 8, flexWrap: 'wrap', maxWidth: '100%' } }}
+          <Stack tokens={{ childrenGap: 18 }} styles={{ root: { minWidth: 0, maxWidth: '100%' } }}>
+            <Stack
+              tokens={{ childrenGap: 4 }}
+              styles={{
+                root: {
+                  padding: '12px 14px 14px',
+                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1px solid #e8e6e4',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                },
+              }}
             >
-              <PivotItem itemKey="lista" headerText="Lista">
-                <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
+              <Text variant="large" styles={{ root: { fontWeight: 700, color: '#242424', letterSpacing: '-0.02em' } }}>
+                {mode === 'projectManagement' ? 'Quadro e campos' : 'Lista, grelha e cartões'}
+              </Text>
+              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                {listTitle}
+              </Text>
+            </Stack>
+            <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 2, minWidth: 0, maxWidth: '100%' } }}>
             {mode === 'projectManagement' && (
               <>
                 <Stack tokens={{ childrenGap: 8 }}>
@@ -2493,10 +2514,18 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
               </>
             )}
                 </Stack>
-              </PivotItem>
               {mode !== 'projectManagement' ? (
-                <PivotItem itemKey="acoes" headerText="Ações">
-                  <Stack tokens={{ childrenGap: 14 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
+                <ListTabListaCollapse
+                  title="Ações na linha"
+                  isOpen={listTabListaSectionOpen.rowActions === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      rowActions: p.rowActions === true ? false : true,
+                    }))
+                  }
+                >
+                  <Stack tokens={{ childrenGap: 14 }} styles={{ root: { minWidth: 0, maxWidth: '100%' } }}>
                     <Stack
                       tokens={{ childrenGap: 10 }}
                       styles={{ root: { width: '100%', flexShrink: 0, minHeight: 0 } }}
@@ -2736,36 +2765,49 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     ))}
                     <DefaultButton text="Adicionar ação" iconProps={{ iconName: 'Add' }} onClick={addListRowAction} />
                   </Stack>
-                </PivotItem>
+                </ListTabListaCollapse>
               ) : null}
               {showPdfExcelConfigTabs ? (
-                <>
-                  <PivotItem itemKey="pdf" headerText="PDF">
-                    <Stack tokens={{ childrenGap: 12 }} styles={{ root: { paddingTop: 8, minWidth: 0, maxWidth: '100%' } }}>
-                      <Checkbox
-                        label="Exibir botão Exportar PDF ao lado do seletor de abas"
-                        checked={pdfExportEnabled}
-                        onChange={(_, v) => setPdfExportEnabled(!!v)}
-                      />
-                      <PdfTemplateEditor
-                        value={localPdfTemplate}
-                        onChange={setLocalPdfTemplate}
-                        fieldOptions={pdfFieldOptions}
-                      />
-                    </Stack>
-                  </PivotItem>
-                  <PivotItem itemKey="excel" headerText="Excel">
-                    <Stack tokens={{ childrenGap: 8 }} styles={{ root: { paddingTop: 16, minWidth: 0, maxWidth: '100%' } }}>
-                      <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
-                        Exportação para Excel em breve.
-                      </Text>
-                    </Stack>
-                  </PivotItem>
-                </>
+                <ListTabListaCollapse
+                  title="Exportar PDF e Excel"
+                  isOpen={listTabListaSectionOpen.exportPdfExcel === true}
+                  onToggle={() =>
+                    setListTabListaSectionOpen((p) => ({
+                      ...p,
+                      exportPdfExcel: p.exportPdfExcel === true ? false : true,
+                    }))
+                  }
+                >
+                  <Stack tokens={{ childrenGap: 16 }} styles={{ root: { minWidth: 0, maxWidth: '100%' } }}>
+                    <Checkbox
+                      label="Exibir botão Exportar PDF ao lado do seletor de abas"
+                      checked={pdfExportEnabled}
+                      onChange={(_, v) => setPdfExportEnabled(!!v)}
+                    />
+                    <PdfTemplateEditor
+                      value={localPdfTemplate}
+                      onChange={setLocalPdfTemplate}
+                      fieldOptions={pdfFieldOptions}
+                    />
+                    <Separator />
+                    <Text variant="medium" styles={{ root: { color: '#605e5c', fontWeight: 600 } }}>
+                      Excel
+                    </Text>
+                    <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                      Exportação para Excel em breve.
+                    </Text>
+                  </Stack>
+                </ListTabListaCollapse>
               ) : null}
-              <PivotItem itemKey="layout" headerText="Layout">
-                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { paddingTop: 8, paddingBottom: 24, minWidth: 0, maxWidth: '100%' } }}>
-                  {/* ── CSS Tabela ── */}
+              <Stack tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 4, minWidth: 0, maxWidth: '100%' } }}>
+                <Text variant="large" styles={{ root: { fontWeight: 700, color: '#242424', letterSpacing: '-0.02em' } }}>
+                  Layout e aparência
+                </Text>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  CSS da tabela, regras de linha, cartões, filtros e modos de visualização.
+                </Text>
+              </Stack>
+              <Stack tokens={{ childrenGap: 10 }} styles={{ root: { paddingBottom: 8, minWidth: 0, maxWidth: '100%' } }}>
                   <ListTabListaCollapse
                     title="CSS da tabela"
                     isOpen={layoutSectionOpen.tableCss === true}
@@ -3114,8 +3156,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     </Stack>
                   </ListTabListaCollapse>
                 </Stack>
-              </PivotItem>
-            </Pivot>
           </Stack>
         )}
         {formulasTarget && formulasFilterIndex !== null && (
