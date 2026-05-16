@@ -5,6 +5,7 @@ import type { IListRowActionConfig } from '../../core/config/types';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import type { ITableColumnConfig, ISortConfig } from '../../core/table/types';
 import type { TableEngine } from '../../core/table/services/TableEngine';
+import { listColumnHasResponsiveSpan } from '../../core/listView/listViewColumnBreakpoints';
 import { resolveListRowActionUrl, isSafeListRowNavigationUrl } from '../../core/table/utils/resolveListRowActionUrl';
 import { TableHeader } from './TableHeader';
 import { RowActionButtons } from './RowActionButtons';
@@ -15,6 +16,8 @@ import { DINAMIC_SX_TABLE_CLASS, DINAMIC_SX_CARD_CLASS } from './tableLayoutClas
 
 export interface IListItemsCardGridProps {
   columns: ITableColumnConfig[];
+  /** Cabeçalho: mesmas colunas com larguras resolvidas; por omissão usa `columns`. */
+  displayColumns?: ITableColumnConfig[];
   items: Record<string, unknown>[];
   loading?: boolean;
   error?: string;
@@ -33,6 +36,7 @@ export interface IListItemsCardGridProps {
 
 export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
   columns,
+  displayColumns,
   items,
   loading = false,
   error,
@@ -48,6 +52,9 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
   dynamicContext,
   userGroupIds,
 }) => {
+  const headerColumns = displayColumns ?? columns;
+  const useFixedLayout =
+    dense === true || headerColumns.some((c) => listColumnHasResponsiveSpan(c.columnSpanByBreakpoint));
   const actionContext: IDynamicContext = dynamicContext ?? { now: new Date() };
   const showActionsColumn = Boolean(rowActions && rowActions.length > 0);
   const [filterColumn, setFilterColumn] = useState<string | null>(null);
@@ -188,11 +195,11 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
         style={{
           width: '100%',
           borderCollapse: 'collapse',
-          tableLayout: dense ? 'fixed' : 'auto',
+          tableLayout: useFixedLayout ? 'fixed' : 'auto',
         }}
       >
         <TableHeader
-          columns={columns}
+          columns={headerColumns}
           sortConfig={sortConfig}
           onSort={onSort}
           tableSortable={tableSortable}

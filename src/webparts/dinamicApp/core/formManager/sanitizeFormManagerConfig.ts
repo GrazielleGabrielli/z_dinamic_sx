@@ -49,6 +49,7 @@ import type {
   TLookupFilterOperator,
   TFormFieldColumnSpan,
 } from '../config/types/formManager';
+import type { TListViewColumnBreakpoint } from '../config/types/listViewBreakpoints';
 import {
   FORM_BANNER_INTERNAL_PREFIX,
   FORM_FIXOS_STEP_ID,
@@ -599,6 +600,33 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
         if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) out[modes[mi]] = cs;
       }
       return Object.keys(out).length ? { columnSpanByMode: out } : {};
+    })(),
+    ...((): {
+      columnSpanByBreakpointByMode?: Partial<
+        Record<TListViewColumnBreakpoint, Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>>>
+      >;
+    } => {
+      const raw = (f as { columnSpanByBreakpointByMode?: unknown }).columnSpanByBreakpointByMode;
+      if (!raw || typeof raw !== 'object') return {};
+      const o = raw as Record<string, unknown>;
+      const bps: TListViewColumnBreakpoint[] = ['xs', 's', 'm', 'l', 'xl', 'xxl'];
+      const modes: TFormManagerFormMode[] = ['create', 'edit', 'view'];
+      const out: Partial<
+        Record<TListViewColumnBreakpoint, Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>>>
+      > = {};
+      for (let bi = 0; bi < bps.length; bi++) {
+        const bp = bps[bi];
+        const slice = o[bp];
+        if (!slice || typeof slice !== 'object') continue;
+        const mo = slice as Record<string, unknown>;
+        const byMode: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>> = {};
+        for (let mi = 0; mi < modes.length; mi++) {
+          const cs = mo[modes[mi]];
+          if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) byMode[modes[mi]] = cs;
+        }
+        if (Object.keys(byMode).length) out[bp] = byMode;
+      }
+      return Object.keys(out).length ? { columnSpanByBreakpointByMode: out } : {};
     })(),
     ...(typeof f.modalGroupId === 'string' ? { modalGroupId: f.modalGroupId.trim() } : {}),
     ...(typeof f.effectiveSectionId === 'string' ? { effectiveSectionId: f.effectiveSectionId.trim() } : {}),

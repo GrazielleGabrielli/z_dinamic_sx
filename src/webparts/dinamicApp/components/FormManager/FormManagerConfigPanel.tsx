@@ -83,10 +83,17 @@ import {
   resolveFixedPlacement,
   resolveChromePositionMode,
   resolveFieldColumnSpan,
+  resolveFieldColumnSpanForBreakpointMode,
   type TFixedChromePlacement,
   type TChromePositionMode,
   type TFormFieldColumnSpan,
 } from '../../core/config/types/formManager';
+import {
+  LIST_VIEW_COLUMN_BREAKPOINT_ORDER,
+  LIST_VIEW_COLUMN_BREAKPOINT_LABEL,
+  LIST_VIEW_COLUMN_BREAKPOINT_MIN_PX,
+} from '../../core/listView/listViewColumnBreakpoints';
+import type { TListViewColumnBreakpoint } from '../../core/config/types/listViewBreakpoints';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { resolveFormCustomButtonPaletteSlot } from '../../core/formManager/formCustomButtonTheme';
 import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
@@ -579,14 +586,20 @@ const FIELD_COLUMN_SPAN_OPTIONS: IDropdownOption[] = [
 ];
 
 function formatFieldColumnSpanConfigSummary(fc: IFormFieldConfig | undefined, fname: string): string {
-  const base: Pick<IFormFieldConfig, 'internalName' | 'columnSpan' | 'width' | 'columnSpanByMode'> = fc ?? {
+  const base: Pick<
+    IFormFieldConfig,
+    'internalName' | 'columnSpan' | 'width' | 'columnSpanByMode' | 'columnSpanByBreakpointByMode'
+  > = fc ?? {
     internalName: fname,
   };
-  const n = resolveFieldColumnSpan(base, 'create');
-  const v = resolveFieldColumnSpan(base, 'view');
-  const e = resolveFieldColumnSpan(base, 'edit');
-  if (n === v && v === e) return String(n);
-  return `N${n} · V${v} · E${e}`;
+  const refW = 1920;
+  const n = resolveFieldColumnSpan(base, 'create', refW);
+  const v = resolveFieldColumnSpan(base, 'view', refW);
+  const e = resolveFieldColumnSpan(base, 'edit', refW);
+  const core = n === v && v === e ? String(n) : `N${n} · V${v} · E${e}`;
+  const rb = fc?.columnSpanByBreakpointByMode;
+  if (rb && Object.keys(rb).length > 0) return `${core} · resp.`;
+  return core;
 }
 
 const COLUMN_SPAN_BY_MODE_TABS: { mode: TFormManagerFormMode; headerText: string }[] = [
@@ -1406,17 +1419,16 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setCloneRulesSourceKey(undefined);
   }, []);
 
-  const applyFieldColumnSpanForMode = useCallback(
-    (fname: string, mode: TFormManagerFormMode, span: TFormFieldColumnSpan) => {
+  const applyFieldColumnSpanForBreakpointAndMode = useCallback(
+    (fname: string, breakpoint: TListViewColumnBreakpoint, mode: TFormManagerFormMode, span: TFormFieldColumnSpan) => {
       setFields((prev) => {
         const ix = prev.findIndex((f) => f.internalName === fname);
         const applyOne = (base: IFormFieldConfig): IFormFieldConfig => {
           const next: IFormFieldConfig = { ...base };
-          const by: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>> = {
-            ...(next.columnSpanByMode ?? {}),
-          };
-          by[mode] = span;
-          next.columnSpanByMode = by;
+          const prevRb = next.columnSpanByBreakpointByMode ?? {};
+          const slice = { ...(prevRb[breakpoint] ?? {}) };
+          slice[mode] = span;
+          next.columnSpanByBreakpointByMode = { ...prevRb, [breakpoint]: slice };
           return next;
         };
         if (ix >= 0) return prev.map((f, j) => (j === ix ? applyOne(f) : f));
@@ -4478,7 +4490,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         isBlocking
         styles={{
           main: {
-            maxWidth: 480,
+            maxWidth: 560,
             borderRadius: 2,
             overflow: 'hidden',
           },
@@ -4510,54 +4522,68 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
               ) : null}
             </Text>
             <Text variant="small" styles={{ root: { color: '#8a8886' } }}>
-              Colunas ocupadas (de 12) por modo de formulário
+              Colunas (de 12) por faixa de largura e por modo. Sem valor na faixa: herda da faixa menor (mobile-first).
             </Text>
           </Stack>
-          <Stack tokens={{ childrenGap: 12 }}>
-            {COLUMN_SPAN_BY_MODE_TABS.map(({ mode, headerText }) => {
-              const fc = columnSpanModalField
-                ? fields.find((f) => f.internalName === columnSpanModalField)
-                : undefined;
-              const selectedSpan = resolveFieldColumnSpan(
-                fc ?? { internalName: columnSpanModalField ?? '' },
-                mode
-              );
-              return (
-                <div key={mode} className={columnSpanModalModeCardClass}>
-                  <Stack tokens={{ childrenGap: 12 }}>
-                    <Text
-                      variant="small"
-                      styles={{ root: { fontWeight: 700, color: '#323130', textTransform: 'uppercase', fontSize: 11, letterSpacing: '0.06em' } }}
-                    >
-                      {headerText}
-                    </Text>
-                    <Stack horizontal wrap horizontalAlign="start" tokens={{ childrenGap: 8 }} verticalAlign="center">
-                      {FIELD_COLUMN_SPAN_OPTIONS.map((o) => {
-                        const span = Number(o.key) as TFormFieldColumnSpan;
-                        const selected = selectedSpan === span;
-                        return (
-                          <button
-                            key={String(o.key)}
-                            type="button"
-                            title={o.text}
-                            aria-label={o.text}
-                            className={selected ? columnSpanPillSelectedClass : columnSpanPillClass}
-                            onClick={() => {
-                              if (!columnSpanModalField) return;
-                              if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
-                              applyFieldColumnSpanForMode(columnSpanModalField, mode, span);
-                            }}
+          <Pivot>
+            {LIST_VIEW_COLUMN_BREAKPOINT_ORDER.map((bp) => (
+              <PivotItem
+                key={bp}
+                headerText={LIST_VIEW_COLUMN_BREAKPOINT_LABEL[bp]}
+                headerButtonProps={{
+                  'aria-label': `${LIST_VIEW_COLUMN_BREAKPOINT_LABEL[bp]}, largura mínima ${LIST_VIEW_COLUMN_BREAKPOINT_MIN_PX[bp]}px`,
+                  title: `≥ ${LIST_VIEW_COLUMN_BREAKPOINT_MIN_PX[bp]}px`,
+                }}
+              >
+                <Stack tokens={{ childrenGap: 12 }} styles={{ root: { marginTop: 12 } }}>
+                  {COLUMN_SPAN_BY_MODE_TABS.map(({ mode, headerText }) => {
+                    const fc = columnSpanModalField
+                      ? fields.find((f) => f.internalName === columnSpanModalField)
+                      : undefined;
+                    const selectedSpan = resolveFieldColumnSpanForBreakpointMode(
+                      fc ?? { internalName: columnSpanModalField ?? '' },
+                      bp,
+                      mode
+                    );
+                    return (
+                      <div key={`${bp}-${mode}`} className={columnSpanModalModeCardClass}>
+                        <Stack tokens={{ childrenGap: 12 }}>
+                          <Text
+                            variant="small"
+                            styles={{ root: { fontWeight: 700, color: '#323130', textTransform: 'uppercase', fontSize: 11, letterSpacing: '0.06em' } }}
                           >
-                            {String(o.key)}
-                          </button>
-                        );
-                      })}
-                    </Stack>
-                  </Stack>
-                </div>
-              );
-            })}
-          </Stack>
+                            {headerText}
+                          </Text>
+                          <Stack horizontal wrap horizontalAlign="start" tokens={{ childrenGap: 8 }} verticalAlign="center">
+                            {FIELD_COLUMN_SPAN_OPTIONS.map((o) => {
+                              const span = Number(o.key) as TFormFieldColumnSpan;
+                              const selected = selectedSpan === span;
+                              return (
+                                <button
+                                  key={String(o.key)}
+                                  type="button"
+                                  title={o.text}
+                                  aria-label={o.text}
+                                  className={selected ? columnSpanPillSelectedClass : columnSpanPillClass}
+                                  onClick={() => {
+                                    if (!columnSpanModalField) return;
+                                    if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
+                                    applyFieldColumnSpanForBreakpointAndMode(columnSpanModalField, bp, mode, span);
+                                  }}
+                                >
+                                  {String(o.key)}
+                                </button>
+                              );
+                            })}
+                          </Stack>
+                        </Stack>
+                      </div>
+                    );
+                  })}
+                </Stack>
+              </PivotItem>
+            ))}
+          </Pivot>
           <DefaultButton
             text="Fechar"
             onClick={() => setColumnSpanModalField(null)}

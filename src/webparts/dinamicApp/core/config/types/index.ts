@@ -118,12 +118,17 @@ export interface IPaginationConfig {
 
 // ─── List view ───────────────────────────────────────────────────────────────
 
+import type { TListViewColumnBreakpoint } from './listViewBreakpoints';
+export { LIST_VIEW_COLUMN_BREAKPOINT_KEYS, type TListViewColumnBreakpoint } from './listViewBreakpoints';
+
 export interface IListViewColumnConfig {
   field: string;
   label?: string;
   width?: number;
   /** Para campo lookup: campo da lista de destino a exibir (ex: Title). Gera $expand e select campo/expandField */
   expandField?: string;
+  /** Proporção na grelha 12 colunas por mínimo de largura do ecrã (mobile-first). Omitir = 12 em todos. */
+  columnSpanByBreakpoint?: Partial<Record<TListViewColumnBreakpoint, number>>;
 }
 
 export interface IListViewFilterConfig {

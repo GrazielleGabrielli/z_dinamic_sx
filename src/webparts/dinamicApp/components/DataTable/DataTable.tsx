@@ -2,9 +2,10 @@ import * as React from 'react';
 import { useState } from 'react';
 import { Callout, Stack, TextField, PrimaryButton, DefaultButton } from '@fluentui/react';
 import { TableEngine } from '../../core/table/services/TableEngine';
-import type { ITableConfig, ISortConfig } from '../../core/table/types';
+import type { ITableConfig, ITableColumnConfig, ISortConfig } from '../../core/table/types';
 import type { IListRowActionConfig, ITableRowStyleRule } from '../../core/config/types';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
+import { listColumnHasResponsiveSpan } from '../../core/listView/listViewColumnBreakpoints';
 import { TableHeader } from './TableHeader';
 import { TableRow } from './TableRow';
 import { TableEmptyState } from './TableEmptyState';
@@ -14,6 +15,8 @@ import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
 export interface IDataTableProps {
   config: ITableConfig;
+  /** Quando definido (ex. após resolver larguras por breakpoint), substitui getVisibleColumns(config). */
+  displayColumns?: ITableColumnConfig[];
   items: Record<string, unknown>[];
   loading?: boolean;
   error?: string;
@@ -30,6 +33,7 @@ export interface IDataTableProps {
 
 export const DataTable: React.FC<IDataTableProps> = ({
   config,
+  displayColumns,
   items,
   loading = false,
   error,
@@ -43,7 +47,9 @@ export const DataTable: React.FC<IDataTableProps> = ({
   dynamicContext,
   userGroupIds,
 }) => {
-  const columns = engine.getVisibleColumns(config);
+  const columns = displayColumns ?? engine.getVisibleColumns(config);
+  const useFixedLayout =
+    config.dense === true || columns.some((c) => listColumnHasResponsiveSpan(c.columnSpanByBreakpoint));
   const actionContext: IDynamicContext = dynamicContext ?? { now: new Date() };
   const showActionsColumn = Boolean(rowActions && rowActions.length > 0);
   const [filterColumn, setFilterColumn] = useState<string | null>(null);
@@ -86,7 +92,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
         style={{
           width: '100%',
           borderCollapse: 'collapse',
-          tableLayout: config.dense ? 'fixed' : 'auto',
+          tableLayout: useFixedLayout ? 'fixed' : 'auto',
         }}
       >
         <TableHeader

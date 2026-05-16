@@ -44,6 +44,7 @@ export function normalizeColumnConfig(
     sortable,
     fieldType,
     width: column.width,
+    columnSpanByBreakpoint: column.columnSpanByBreakpoint,
     minWidth: column.minWidth,
     maxWidth: column.maxWidth,
     align: column.align ?? defaultAlign(fieldType),

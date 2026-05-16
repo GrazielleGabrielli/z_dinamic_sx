@@ -35,6 +35,7 @@ import { readListItemId } from '../../../../services/items/listItemId';
 import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { TableCardsLayoutToggle } from './TableCardsLayoutToggle';
+import { useResponsiveListTableColumns } from './useResponsiveListTableColumns';
 import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss, scopeCardCssByInstance } from './tableLayoutClasses';
 import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import {
@@ -114,6 +115,7 @@ function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partia
     const idSafe = expand ? `${c.field}__${expand}`.replace(/[^\w-]/g, '_') : c.field;
     const dupField = (countByField.get(c.field) ?? 0) > 1;
     const firstIdx = rawCols.findIndex((x) => x.field === c.field);
+    const spanMap = c.columnSpanByBreakpoint;
     return {
       id: idSafe,
       internalName: c.field,
@@ -121,6 +123,7 @@ function listViewToTableConfig(listView: IDynamicViewConfig['listView']): Partia
       visible: true,
       sortable: dupField ? idx === firstIdx : true,
       expandConfig: expand ? { displayField: expand } : undefined,
+      ...(spanMap && Object.keys(spanMap).length > 0 ? { columnSpanByBreakpoint: spanMap } : {}),
     };
   });
   return {
@@ -374,6 +377,13 @@ export const TableView: React.FC<ITableViewProps> = ({
     () => buildTableTopFiltersOData(topFilters, fieldMetadata ?? []),
     [topFilters, fieldMetadata]
   );
+
+  const visibleColumns = useMemo(() => {
+    if (!tableConfig) return [];
+    return engine.getVisibleColumns(tableConfig);
+  }, [engine, tableConfig]);
+
+  const displayColumns = useResponsiveListTableColumns(visibleColumns);
 
   const pagingResetKey = useMemo(() => {
     if (!tableConfig) return `pending|${listTitle}|${listWeb ?? ''}`;
@@ -819,6 +829,7 @@ export const TableView: React.FC<ITableViewProps> = ({
         {tableCustomStyle}
         <DataTable
           config={{ enabled: true, columns: [], sortable: false, emptyMessage: '' }}
+          displayColumns={displayColumns}
           items={[]}
           loading={true}
           sortConfig={null}
@@ -1102,6 +1113,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       {listDisplayMode === 'cards' && listCardViewEnabled ? (
         <ListItemsCardGrid
           columns={engine.getVisibleColumns(tableConfig)}
+          displayColumns={displayColumns}
           items={items}
           loading={loading}
           error={error}
@@ -1120,6 +1132,7 @@ export const TableView: React.FC<ITableViewProps> = ({
       ) : (
         <DataTable
           config={tableConfig}
+          displayColumns={displayColumns}
           items={items}
           loading={loading}
           error={error}

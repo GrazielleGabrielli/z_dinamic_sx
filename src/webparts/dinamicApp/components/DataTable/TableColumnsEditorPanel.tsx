@@ -24,6 +24,8 @@ import {
   Toggle,
   MessageBar,
   MessageBarType,
+  Pivot,
+  PivotItem,
 } from '@fluentui/react';
 import { FieldsService, SYSTEM_METADATA_FIELDS } from '../../../../services';
 import type { IFieldMetadata } from '../../../../services';
@@ -55,6 +57,7 @@ import type {
   TListViewDisplayMode,
   TViewModePicker,
   TListViewChromeButtonSlot,
+  TListViewColumnBreakpoint,
 } from '../../core/config/types';
 import { PdfTemplateEditor } from './PdfTemplateEditor';
 import {
@@ -71,6 +74,13 @@ import {
   sanitizeListViewChromeButtons,
 } from '../../core/config/validators';
 import { ViewModeAccessSection, accessSummary } from '../shared/ViewModeAccessSection';
+import {
+  LIST_VIEW_COLUMN_BREAKPOINT_LABEL,
+  LIST_VIEW_COLUMN_BREAKPOINT_MIN_PX,
+  LIST_VIEW_COLUMN_BREAKPOINT_ORDER,
+  clampListColumnSpan,
+  resolveListColumnSpanAtBreakpoint,
+} from '../../core/listView/listViewColumnBreakpoints';
 
 interface ITableColumnsEditorPanelProps {
   isOpen: boolean;
@@ -98,6 +108,7 @@ interface IFieldOption {
   label: string;
   expandField: string;
   expandFieldsSelected: string[];
+  columnSpanByBreakpoint: Partial<Record<TListViewColumnBreakpoint, number>>;
 }
 
 const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
@@ -172,6 +183,30 @@ const USER_EXPAND_FIELDS: IDropdownOption[] = [
   { key: 'LoginName', text: 'LoginName' },
 ];
 
+function sanitizeColumnSpanMap(
+  map: Partial<Record<TListViewColumnBreakpoint, number>> | undefined
+): Partial<Record<TListViewColumnBreakpoint, number>> | undefined {
+  if (!map) return undefined;
+  const out: Partial<Record<TListViewColumnBreakpoint, number>> = {};
+  for (let i = 0; i < LIST_VIEW_COLUMN_BREAKPOINT_ORDER.length; i++) {
+    const k = LIST_VIEW_COLUMN_BREAKPOINT_ORDER[i];
+    const v = map[k];
+    if (v !== undefined) out[k] = clampListColumnSpan(v);
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function mergeColumnSpanFromGroup(group: IListViewColumnConfig[]): Partial<Record<TListViewColumnBreakpoint, number>> {
+  for (let i = 0; i < group.length; i++) {
+    const m = group[i].columnSpanByBreakpoint;
+    if (m && Object.keys(m).length > 0) {
+      const s = sanitizeColumnSpanMap(m);
+      if (s) return s;
+    }
+  }
+  return {};
+}
+
 function toFieldOption(meta: IFieldMetadata, existing?: IListViewColumnConfig): IFieldOption {
   const selected = existing !== undefined;
   const needsExpand = EXPANDABLE.indexOf(meta.MappedType) !== -1;
@@ -183,6 +218,7 @@ function toFieldOption(meta: IFieldMetadata, existing?: IListViewColumnConfig): 
     label: existing?.label ?? meta.Title,
     expandField: needsExpand ? (existing ? ef : meta.LookupField ?? 'Title') : '',
     expandFieldsSelected,
+    columnSpanByBreakpoint: mergeColumnSpanFromGroup(existing ? [existing] : []),
   };
 }
 
@@ -198,6 +234,7 @@ function fieldOptionFromColumnGroup(meta: IFieldMetadata, group: IListViewColumn
     label: first?.label?.trim() ? first.label : meta.Title,
     expandField: keys[0] ?? 'Title',
     expandFieldsSelected: keys,
+    columnSpanByBreakpoint: mergeColumnSpanFromGroup(group),
   };
 }
 
@@ -226,6 +263,7 @@ function applyColumnsToOptions(opts: IFieldOption[], cols: IListViewColumnConfig
       ...o,
       selected: false,
       expandFieldsSelected: EXPANDABLE.indexOf(o.meta.MappedType) !== -1 ? [] : [],
+      columnSpanByBreakpoint: {},
     })
   );
   return ordered;
@@ -274,6 +312,11 @@ function buildExpandOptionsFromLookupList(fields: IFieldMetadata[]): IDropdownOp
 }
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
+
+const LIST_COLUMN_SPAN_OPTIONS: IDropdownOption[] = Array.from({ length: 12 }, (_, i) => ({
+  key: i + 1,
+  text: String(i + 1),
+}));
 
 const PAGINATION_LAYOUT_OPTIONS: IChoiceGroupOption[] = [
   { key: 'buttons', text: 'Botões (Anterior / Próxima)' },
@@ -1246,16 +1289,20 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         };
         for (let j = 0; j < keys.length; j++) {
           const ek = (keys[j] ?? 'Title').trim() || 'Title';
+          const spanPart = sanitizeColumnSpanMap(o.columnSpanByBreakpoint);
           columns.push({
             field: o.meta.InternalName,
             label: keys.length > 1 ? labelFor(ek) : o.label.trim() ? o.label : o.meta.Title,
             expandField: ek,
+            ...(spanPart ? { columnSpanByBreakpoint: spanPart } : {}),
           });
         }
       } else {
+        const spanPart = sanitizeColumnSpanMap(o.columnSpanByBreakpoint);
         columns.push({
           field: o.meta.InternalName,
           label: o.label.trim() ? o.label : o.meta.Title,
+          ...(spanPart ? { columnSpanByBreakpoint: spanPart } : {}),
         });
       }
     }
@@ -2418,6 +2465,52 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                             styles={{ root: { maxWidth: '100%' } }}
                           />
                         )}
+                        {mode === 'list' && o.selected ? (
+                          <Stack tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 10, maxWidth: '100%' } }}>
+                            <Text variant="small" styles={{ root: { fontWeight: 600, color: '#605e5c' } }}>
+                              Largura por ecrã (grelha 12; padrão 12)
+                            </Text>
+                            <Pivot>
+                              {LIST_VIEW_COLUMN_BREAKPOINT_ORDER.map((bp) => {
+                                const idx = LIST_VIEW_COLUMN_BREAKPOINT_ORDER.indexOf(bp);
+                                const inherited =
+                                  idx === 0
+                                    ? 12
+                                    : resolveListColumnSpanAtBreakpoint(idx - 1, o.columnSpanByBreakpoint);
+                                const resolved = resolveListColumnSpanAtBreakpoint(idx, o.columnSpanByBreakpoint);
+                                return (
+                                  <PivotItem
+                                    key={bp}
+                                    headerText={LIST_VIEW_COLUMN_BREAKPOINT_LABEL[bp]}
+                                    headerButtonProps={{
+                                      'aria-label': LIST_VIEW_COLUMN_BREAKPOINT_LABEL[bp],
+                                      title: `≥ ${LIST_VIEW_COLUMN_BREAKPOINT_MIN_PX[bp]}px`,
+                                    }}
+                                  >
+                                    <Dropdown
+                                      label="Em colunas de 12"
+                                      selectedKey={resolved}
+                                      options={LIST_COLUMN_SPAN_OPTIONS}
+                                      onChange={(_, opt) => {
+                                        const v = clampListColumnSpan(Number(opt?.key) || 12);
+                                        setOptions((prev) =>
+                                          prev.map((row) => {
+                                            if (row.meta.InternalName !== o.meta.InternalName) return row;
+                                            const map = { ...row.columnSpanByBreakpoint };
+                                            if (v === inherited) delete map[bp];
+                                            else map[bp] = v;
+                                            return { ...row, columnSpanByBreakpoint: map };
+                                          })
+                                        );
+                                      }}
+                                      styles={{ root: { maxWidth: 130 } }}
+                                    />
+                                  </PivotItem>
+                                );
+                              })}
+                            </Pivot>
+                          </Stack>
+                        ) : null}
                       </Stack>
                       <Text variant="small" styles={{ root: { color: '#a19f9d', flex: '0 0 auto', maxWidth: '100%', wordBreak: 'break-word' } }}>
                         {o.meta.MappedType}

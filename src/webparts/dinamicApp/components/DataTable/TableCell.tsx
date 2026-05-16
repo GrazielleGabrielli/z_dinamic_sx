@@ -30,6 +30,9 @@ export const TableCell: React.FC<ITableCellProps> = ({ item, column, engine, row
         padding: '8px 12px',
         borderBottom: '1px solid #f3f2f1',
         verticalAlign: 'middle',
+        width: column.width,
+        minWidth: column.minWidth,
+        maxWidth: column.maxWidth,
       }}
     >
       {content}

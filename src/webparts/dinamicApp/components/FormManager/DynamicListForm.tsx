@@ -73,15 +73,14 @@ import {
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { FormManagerAlertBlock } from './FormManagerAlertBlock';
 
-const FORM_FIELD_GRID_NARROW_MAX_PX = 768;
-
 function buildPackedGridColumnSpans(
   visibleFields: IFormFieldConfig[],
-  formMode: TFormManagerFormMode
+  formMode: TFormManagerFormMode,
+  viewportWidthPx: number
 ): Map<string, number> {
   const items = visibleFields.map((fc) => ({
     fc,
-    baseSpan: resolveFieldColumnSpan(fc, formMode),
+    baseSpan: resolveFieldColumnSpan(fc, formMode, viewportWidthPx),
   }));
   const out = new Map<string, number>();
   let i = 0;
@@ -1064,17 +1063,14 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 }) => {
   const listWeb = listWebServerRelativeUrl?.trim() || undefined;
   const theme = useTheme();
-  const [formFieldGridFullSpan, setFormFieldGridFullSpan] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(`(max-width: ${FORM_FIELD_GRID_NARROW_MAX_PX}px)`).matches
-      : false
+  const [formGridViewportWidth, setFormGridViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
   );
   useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${FORM_FIELD_GRID_NARROW_MAX_PX}px)`);
-    const onMq = (): void => setFormFieldGridFullSpan(mq.matches);
-    onMq();
-    mq.addEventListener('change', onMq);
-    return () => mq.removeEventListener('change', onMq);
+    const onResize = (): void => setFormGridViewportWidth(window.innerWidth);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
   const stepAccentHex = useMemo(
     () => resolveStepUiAccentColor(theme, formManager.stepAccentPaletteSlot),
@@ -4799,7 +4795,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       if (!fields?.length) continue;
       const visibleFields = fields.filter((fc) => derived.fieldVisible[fc.internalName] !== false);
       if (!visibleFields.length) continue;
-      const packedSpans = buildPackedGridColumnSpans(visibleFields, formMode);
+      const packedSpans = buildPackedGridColumnSpans(visibleFields, formMode, formGridViewportWidth);
       out.push(
         <Stack key={sec.id} tokens={{ childrenGap: 12 }} styles={{ root: { marginBottom: 16 } }}>
           {!hideStepHeading ? (
@@ -4816,9 +4812,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             }}
           >
             {visibleFields.map((fc) => {
-              const span = formFieldGridFullSpan
-                ? 12
-                : packedSpans.get(fc.internalName) ?? resolveFieldColumnSpan(fc, formMode);
+              const span =
+                packedSpans.get(fc.internalName) ??
+                resolveFieldColumnSpan(fc, formMode, formGridViewportWidth);
               return (
               <div
                 key={fc.internalName}

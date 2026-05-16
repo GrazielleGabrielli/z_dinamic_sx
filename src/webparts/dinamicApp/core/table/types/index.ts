@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { TListViewColumnBreakpoint } from '../../config/types';
 
 export type InternalFieldType =
   | 'text'
@@ -70,6 +71,7 @@ export interface ITableColumnConfig {
   sortable: boolean;
   fieldType?: InternalFieldType;
   width?: string;
+  columnSpanByBreakpoint?: Partial<Record<TListViewColumnBreakpoint, number>>;
   minWidth?: number;
   maxWidth?: number;
   align?: TTableColumnAlign;

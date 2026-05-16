@@ -1,3 +1,9 @@
+import type { TListViewColumnBreakpoint } from './listViewBreakpoints';
+import {
+  listViewBreakpointIndexForWidth,
+  LIST_VIEW_COLUMN_BREAKPOINT_ORDER,
+} from '../../listView/listViewColumnBreakpoints';
+
 export type TFormManagerFormMode = 'create' | 'edit' | 'view';
 
 /** Nomes internos de autoria e datas de sistema; só exibição e bloqueados no formulário. */
@@ -384,6 +390,10 @@ export interface IFormFieldConfig {
   columnSpan?: TFormFieldColumnSpan;
   /** Sobrepõe `columnSpan` por modo (Criar, Editar, Ver). */
   columnSpanByMode?: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>>;
+  /** Mobile-first: span por modo em cada faixa (viewport). Omitido = só `columnSpan` / `columnSpanByMode`. */
+  columnSpanByBreakpointByMode?: Partial<
+    Record<TListViewColumnBreakpoint, Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>>>
+  >;
   /** Campos neste grupo abrem em painel/modal */
   modalGroupId?: string;
   /** Seção efetiva quando condição (avaliada no motor com prefixo de regra dedicada) */
@@ -427,9 +437,27 @@ export function isFormAlertFieldConfig(fc: Pick<IFormFieldConfig, 'fieldKind'>):
 }
 
 export function resolveFieldColumnSpan(
-  fc: Pick<IFormFieldConfig, 'columnSpan' | 'width' | 'columnSpanByMode'>,
-  mode?: TFormManagerFormMode
+  fc: Pick<
+    IFormFieldConfig,
+    'columnSpan' | 'width' | 'columnSpanByMode' | 'columnSpanByBreakpointByMode'
+  >,
+  mode?: TFormManagerFormMode,
+  viewportWidthPx?: number
 ): TFormFieldColumnSpan {
+  if (
+    mode !== undefined &&
+    viewportWidthPx !== undefined &&
+    isFinite(viewportWidthPx) &&
+    fc.columnSpanByBreakpointByMode &&
+    Object.keys(fc.columnSpanByBreakpointByMode).length > 0
+  ) {
+    const idx = listViewBreakpointIndexForWidth(viewportWidthPx);
+    for (let i = idx; i >= 0; i--) {
+      const bp = LIST_VIEW_COLUMN_BREAKPOINT_ORDER[i];
+      const span = fc.columnSpanByBreakpointByMode[bp]?.[mode];
+      if (span === 3 || span === 4 || span === 6 || span === 8 || span === 12) return span;
+    }
+  }
   if (mode) {
     const bm = fc.columnSpanByMode?.[mode];
     if (bm === 3 || bm === 4 || bm === 6 || bm === 8 || bm === 12) return bm;
@@ -438,6 +466,26 @@ export function resolveFieldColumnSpan(
   if (c === 3 || c === 4 || c === 6 || c === 8 || c === 12) return c;
   if (fc.width === 'half') return 6;
   return 12;
+}
+
+export function resolveFieldColumnSpanForBreakpointMode(
+  fc: Pick<
+    IFormFieldConfig,
+    'columnSpan' | 'width' | 'columnSpanByMode' | 'columnSpanByBreakpointByMode'
+  >,
+  breakpoint: TListViewColumnBreakpoint,
+  mode: TFormManagerFormMode
+): TFormFieldColumnSpan {
+  const rb = fc.columnSpanByBreakpointByMode;
+  const idx = LIST_VIEW_COLUMN_BREAKPOINT_ORDER.indexOf(breakpoint);
+  if (rb && idx >= 0) {
+    for (let i = idx; i >= 0; i--) {
+      const bp = LIST_VIEW_COLUMN_BREAKPOINT_ORDER[i];
+      const span = rb[bp]?.[mode];
+      if (span === 3 || span === 4 || span === 6 || span === 8 || span === 12) return span;
+    }
+  }
+  return resolveFieldColumnSpan(fc, mode);
 }
 
 export function resolveBannerPlacement(fc: IFormFieldConfig): TFormBannerPlacement {
