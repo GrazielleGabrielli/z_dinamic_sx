@@ -378,6 +378,407 @@ Uso recomendado:
 - Evite etapas com campos demais quando o formulário puder ser dividido em partes menores.
 - Revise a ordem das etapas e dos campos antes de publicar o formulário para o cliente final.
 
+#### Adicionar alerta
+
+A funcionalidade `Adicionar alerta` permite incluir uma mensagem de destaque dentro da estrutura do formulário.
+
+O alerta serve para chamar a atenção do usuário sobre alguma informação importante durante o preenchimento.
+
+Ele pode ser usado dentro de uma etapa específica ou em uma área fixa, dependendo de onde a mensagem precisa aparecer.
+
+Exemplos de uso:
+
+- Avisar que determinados campos são obrigatórios.
+- Orientar o usuário antes de preencher uma etapa.
+- Informar uma regra importante do processo.
+- Destacar cuidados antes do envio do formulário.
+- Comunicar uma restrição, prazo ou condição especial.
+
+Exemplo prático:
+
+Em um formulário de solicitação de férias, pode ser incluído um alerta informando que o pedido deve ser enviado com antecedência mínima definida pela empresa.
+
+Uso recomendado:
+
+- Use alertas para mensagens curtas e objetivas.
+- Use alertas quando a informação impactar diretamente o preenchimento.
+- Posicione o alerta próximo dos campos relacionados à orientação.
+- Evite excesso de alertas para não deixar o formulário poluído visualmente.
+
+##### Título
+
+Campo usado para definir o título principal do alerta.
+
+O título deve resumir rapidamente o motivo do aviso, para que o usuário entenda a importância da mensagem antes de ler o conteúdo completo.
+
+Exemplos:
+
+- `Atenção`
+- `Prazo de solicitação`
+- `Informação importante`
+- `Dados obrigatórios`
+
+Uso recomendado:
+
+- Use títulos curtos.
+- Use títulos claros e objetivos.
+- Evite títulos muito longos, pois o detalhe deve ficar na mensagem.
+
+##### Mensagem
+
+Campo usado para escrever o conteúdo do alerta.
+
+Essa mensagem explica ao usuário o que ele precisa saber, conferir ou fazer durante o preenchimento do formulário.
+
+Exemplo:
+
+`Solicitações de férias devem ser enviadas com no mínimo 30 dias de antecedência.`
+
+Uso recomendado:
+
+- Escreva a mensagem em linguagem simples.
+- Informe exatamente o que o usuário precisa fazer.
+- Evite textos longos demais.
+- Use o alerta para orientar, não para substituir instruções completas do processo.
+
+##### Campos no alerta
+
+Campo usado para selecionar um ou mais campos que serão destacados dentro do alerta.
+
+Essa opção ajuda quando o aviso está relacionado a campos específicos do formulário.
+
+Exemplo:
+
+Em um alerta sobre período de férias, podem ser selecionados os campos `Data de início` e `Data de término`.
+
+Na prática, o usuário entende que aquele aviso está conectado diretamente aos campos indicados.
+
+Uso recomendado:
+
+- Selecione apenas os campos relacionados ao aviso.
+- Use essa opção quando o alerta precisar reforçar atenção sobre campos importantes.
+- Evite selecionar muitos campos para não perder o foco da mensagem.
+
+##### Tipo
+
+Campo usado para definir o estilo visual do alerta.
+
+O tipo ajuda o usuário a entender a natureza da mensagem.
+
+Opções disponíveis:
+
+- `Informação`: usado para orientações gerais.
+- `Sucesso`: usado para mensagens positivas ou confirmação.
+- `Aviso`: usado para chamar atenção sobre uma regra, prazo ou cuidado.
+- `Erro`: usado para indicar problema, bloqueio ou situação que exige correção.
+
+Exemplos:
+
+- Use `Informação` para orientar o preenchimento.
+- Use `Aviso` para destacar uma regra importante.
+- Use `Erro` quando a mensagem indicar que algo precisa ser corrigido.
+- Use `Sucesso` para indicar uma condição positiva ou confirmação.
+
+Uso recomendado:
+
+- Use o tipo de acordo com a gravidade da mensagem.
+- Evite usar `Erro` para mensagens apenas informativas.
+- Use `Aviso` quando o usuário precisa prestar atenção antes de continuar.
+
+##### Mostrar só quando a condição abaixo for verdadeira
+
+Opção usada para exibir o alerta somente em determinadas situações.
+
+Quando ativada, o alerta passa a depender de uma condição para aparecer no formulário.
+
+Quando desativada, o alerta fica visível normalmente, conforme a posição definida.
+
+Exemplo:
+
+Um alerta pode aparecer somente quando o campo `Tipo de solicitação` for igual a `Urgente`.
+
+Nesse caso, usuários que escolherem outro tipo de solicitação não verão o alerta.
+
+Uso recomendado:
+
+- Use essa opção quando o aviso não for necessário para todos os usuários.
+- Use condições para evitar excesso de mensagens na tela.
+- Mantenha alertas sempre visíveis quando a informação for geral e importante para todos.
+
+##### Campo
+
+Campo usado para escolher qual informação do formulário será avaliada na condição.
+
+É o campo que o sistema irá observar para decidir se o alerta deve aparecer ou não.
+
+Exemplo:
+
+Selecionar o campo `Tipo de solicitação` para mostrar um alerta apenas quando o tipo escolhido exigir uma orientação específica.
+
+##### Operador
+
+Campo usado para definir como o valor será comparado.
+
+O operador determina a regra da condição.
+
+Exemplos de operadores:
+
+- `é igual a`
+- `é diferente de`
+- `contém`
+- `não contém`
+- `maior que`
+- `menor que`
+- `está vazio`
+- `não está vazio`
+- `é verdadeiro`
+- `é falso`
+
+Exemplo prático:
+
+Para exibir um alerta quando o valor de uma compra for maior que `10000`, selecione o campo de valor, use o operador `maior que` e informe `10000` no valor.
+
+##### Comparar com
+
+Campo usado para definir com o que a condição será comparada.
+
+Opções disponíveis:
+
+- `Texto fixo`: compara o campo com um valor digitado manualmente.
+- `Outro campo`: compara o campo escolhido com outro campo do formulário.
+- `Token`: compara o campo com uma informação dinâmica disponível no contexto.
+
+Exemplos:
+
+- Use `Texto fixo` para comparar com uma palavra, número ou status definido.
+- Use `Outro campo` quando a regra depender da comparação entre dois campos.
+- Use `Token` quando a regra depender de uma informação dinâmica do ambiente.
+
+##### Valor
+
+Campo usado para informar o valor da comparação.
+
+Esse campo muda de importância conforme o operador escolhido.
+
+Exemplo:
+
+Se a condição for `Status é igual a Aprovado`, o valor informado será `Aprovado`.
+
+Para operadores como `está vazio`, `não está vazio`, `é verdadeiro` e `é falso`, o campo de valor não precisa ser preenchido, pois a própria condição já define o comportamento esperado.
+
+##### Ícone
+
+Campo opcional usado para informar o nome de um ícone visual para o alerta.
+
+O ícone ajuda a reforçar o tipo da mensagem e chamar atenção do usuário.
+
+Exemplos de uso:
+
+- Ícone de informação para orientações.
+- Ícone de aviso para regras importantes.
+- Ícone de erro para mensagens críticas.
+
+Uso recomendado:
+
+- Use ícones simples e coerentes com a mensagem.
+- Não use ícone quando ele não agregar clareza ao alerta.
+- Mantenha consistência visual entre alertas semelhantes.
+
+##### Destacar visualmente
+
+Opção usada para deixar o alerta com mais destaque na tela.
+
+Quando ativada, o alerta ganha mais presença visual e chama mais atenção do usuário.
+
+Quando desativada, o alerta aparece de forma mais discreta.
+
+Uso recomendado:
+
+- Ative para avisos importantes.
+- Use com moderação para não fazer todos os alertas parecerem urgentes.
+- Deixe desativado para mensagens simples de orientação.
+
+##### Fechável
+
+Opção usada para permitir que o usuário feche o alerta durante o uso do formulário.
+
+Quando ativada, o usuário pode dispensar a mensagem após ler.
+
+Quando desativada, o alerta permanece visível enquanto a condição de exibição for atendida ou enquanto estiver posicionado no formulário.
+
+Uso recomendado:
+
+- Ative quando o alerta for apenas informativo.
+- Desative quando a mensagem precisa permanecer visível durante o preenchimento.
+- Evite permitir fechamento em avisos críticos ou obrigatórios.
+
+##### Posição no formulário
+
+Campo usado para definir onde o alerta será exibido.
+
+Opções disponíveis:
+
+- `Na etapa (ordem com os campos)`: o alerta aparece junto com os campos, respeitando a ordem em que foi posicionado.
+- `Fixo no topo (sticky)`: o alerta fica no topo e pode acompanhar a rolagem da tela.
+- `Fixo em baixo (sticky)`: o alerta fica na parte inferior e pode acompanhar a rolagem da tela.
+
+Uso recomendado:
+
+- Use `Na etapa` quando o alerta estiver relacionado a campos daquela etapa.
+- Use `Fixo no topo` quando o aviso precisar ficar visível durante o preenchimento.
+- Use `Fixo em baixo` quando o alerta funcionar como lembrete próximo da navegação ou envio.
+
+##### Zona fixa
+
+Campo exibido quando o alerta está configurado para posição fixa.
+
+Ele define se o alerta ficará na parte superior ou inferior da área do formulário.
+
+Opções disponíveis:
+
+- `Fixo no topo`
+- `Fixo em baixo`
+
+Uso recomendado:
+
+- Use topo para instruções que precisam ser vistas antes do preenchimento.
+- Use embaixo para lembretes, reforços ou mensagens próximas das ações finais.
+
+##### Posicionamento
+
+Campo exibido quando o alerta está configurado como fixo.
+
+Ele define como o alerta se comporta visualmente em relação ao conteúdo.
+
+Opções disponíveis:
+
+- `Fixo (acompanha ao scroll)`: o alerta permanece visível enquanto o usuário rola a tela.
+- `Absoluto (sobre o conteúdo)`: o alerta fica sobreposto ao conteúdo.
+- `No espaço (fluxo normal)`: o alerta ocupa seu espaço normal na página, sem sobrepor os campos.
+
+Uso recomendado:
+
+- Use `Fixo (acompanha ao scroll)` quando o aviso precisa continuar visível.
+- Use `No espaço (fluxo normal)` quando quiser evitar sobreposição.
+- Use `Absoluto (sobre o conteúdo)` apenas quando houver necessidade visual específica, pois pode cobrir parte do formulário.
+
+#### Adicionar banner
+
+A funcionalidade `Adicionar banner` permite incluir uma área visual de destaque no formulário.
+
+O banner pode ser usado para apresentar uma mensagem institucional, orientação geral, identificação da etapa ou comunicação visual mais destacada.
+
+Diferente do alerta, que normalmente é usado para avisos pontuais, o banner pode ter um papel mais visual e informativo na experiência do formulário.
+
+Exemplos de uso:
+
+- Exibir uma mensagem de boas-vindas no início do formulário.
+- Identificar o objetivo do formulário.
+- Apresentar uma orientação geral antes do preenchimento.
+- Destacar uma campanha interna ou comunicado da empresa.
+- Separar visualmente uma parte importante do formulário.
+
+Exemplo prático:
+
+Em um formulário de férias, o banner pode apresentar a mensagem `Solicitação de Férias`, junto com uma orientação breve sobre como preencher corretamente as informações.
+
+Uso recomendado:
+
+- Use banners para informações gerais ou de apresentação.
+- Use banners no início do formulário ou de uma etapa importante.
+- Mantenha o texto claro e direto.
+- Evite usar muitos banners em sequência para não dificultar a leitura dos campos.
+
+##### URL da imagem
+
+Campo usado para informar o endereço da imagem que será exibida no banner.
+
+Essa imagem pode representar uma identificação visual do formulário, uma comunicação interna ou uma orientação para o usuário.
+
+Exemplo de uso:
+
+Em um formulário de benefícios, o banner pode usar uma imagem institucional relacionada à campanha ou ao tipo de solicitação.
+
+Uso recomendado:
+
+- Use imagens claras e alinhadas ao objetivo do formulário.
+- Prefira imagens com boa qualidade e tamanho adequado para web.
+- Evite imagens com textos muito pequenos, pois podem ficar difíceis de ler em telas menores.
+
+##### Largura
+
+O campo `Largura (%)` define quanto da largura disponível o banner deve ocupar.
+
+O valor é informado em porcentagem, de `1` a `100`.
+
+Exemplos:
+
+- `100`: o banner ocupa toda a largura disponível da etapa ou área onde foi inserido.
+- `80`: o banner ocupa 80% da largura disponível.
+- `50`: o banner ocupa metade da largura disponível.
+
+Uso recomendado:
+
+- Use `100` quando o banner for usado como cabeçalho visual da etapa ou do formulário.
+- Use valores menores quando o banner for apenas um apoio visual.
+- Evite larguras muito pequenas quando a imagem tiver texto ou detalhes importantes.
+
+##### Altura
+
+O campo `Altura (px)` define a altura do banner em pixels.
+
+Essa configuração ajuda a controlar o espaço vertical ocupado pela imagem no formulário.
+
+Exemplos:
+
+- `120`: banner mais baixo, útil para faixas simples.
+- `240`: banner médio, adequado para destaque visual.
+- `400`: banner maior, indicado apenas quando a imagem precisa ter mais presença.
+
+Uso recomendado:
+
+- Use alturas menores para banners informativos simples.
+- Use alturas médias quando o banner for parte importante da apresentação.
+- Evite alturas muito grandes para não empurrar os campos principais para baixo.
+
+##### Posição no formulário
+
+O campo `Posição no formulário` define onde o banner será exibido em relação à etapa e ao formulário.
+
+Opções disponíveis:
+
+- `Na etapa (ordem com os campos)`: o banner aparece junto com os campos, respeitando a ordem em que foi posicionado.
+- `Fixo no topo (sticky)`: o banner fica no topo e pode acompanhar a rolagem da tela.
+- `Fixo em baixo (sticky)`: o banner fica na parte inferior e pode acompanhar a rolagem da tela.
+
+Exemplo de uso:
+
+Um banner com instruções gerais pode ficar no topo da etapa. Já um banner com lembrete de envio pode ficar fixo embaixo, próximo da área final de ação.
+
+Uso recomendado:
+
+- Use `Na etapa` quando o banner fizer parte do conteúdo normal do formulário.
+- Use `Fixo no topo` quando a informação precisar continuar visível durante o preenchimento.
+- Use `Fixo em baixo` quando o banner servir como lembrete ou reforço durante a navegação.
+
+##### Posicionamento
+
+O campo `Posicionamento` aparece quando o banner é configurado como fixo.
+
+Ele define como o banner se comporta visualmente dentro da página.
+
+Opções disponíveis:
+
+- `Fixo (acompanha ao scroll)`: o banner permanece visível enquanto o usuário rola a tela.
+- `Absoluto (sobre o conteúdo)`: o banner fica sobreposto em relação ao conteúdo.
+- `No espaço (fluxo normal)`: o banner ocupa seu espaço normal na página, sem sobrepor o conteúdo.
+
+Uso recomendado:
+
+- Use `Fixo (acompanha ao scroll)` quando o usuário precisa ver a mensagem durante todo o preenchimento.
+- Use `No espaço (fluxo normal)` quando quiser evitar sobreposição com campos.
+- Use `Absoluto (sobre o conteúdo)` apenas quando houver necessidade visual específica, pois pode cobrir parte do formulário se não for bem ajustado.
+
 #### Etapa Fixos
 
 A etapa `Fixos` é uma etapa especial usada para manter campos, alertas ou banners em uma posição fixa no formulário.
