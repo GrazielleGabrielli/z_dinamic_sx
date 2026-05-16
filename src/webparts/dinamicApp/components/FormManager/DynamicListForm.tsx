@@ -73,6 +73,8 @@ import {
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import { FormManagerAlertBlock } from './FormManagerAlertBlock';
 
+const FORM_FIELD_GRID_NARROW_MAX_PX = 768;
+
 function buildPackedGridColumnSpans(
   visibleFields: IFormFieldConfig[],
   formMode: TFormManagerFormMode
@@ -1062,6 +1064,18 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
 }) => {
   const listWeb = listWebServerRelativeUrl?.trim() || undefined;
   const theme = useTheme();
+  const [formFieldGridFullSpan, setFormFieldGridFullSpan] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia(`(max-width: ${FORM_FIELD_GRID_NARROW_MAX_PX}px)`).matches
+      : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${FORM_FIELD_GRID_NARROW_MAX_PX}px)`);
+    const onMq = (): void => setFormFieldGridFullSpan(mq.matches);
+    onMq();
+    mq.addEventListener('change', onMq);
+    return () => mq.removeEventListener('change', onMq);
+  }, []);
   const stepAccentHex = useMemo(
     () => resolveStepUiAccentColor(theme, formManager.stepAccentPaletteSlot),
     [theme, formManager.stepAccentPaletteSlot]
@@ -4801,17 +4815,22 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               width: '100%',
             }}
           >
-            {visibleFields.map((fc) => (
+            {visibleFields.map((fc) => {
+              const span = formFieldGridFullSpan
+                ? 12
+                : packedSpans.get(fc.internalName) ?? resolveFieldColumnSpan(fc, formMode);
+              return (
               <div
                 key={fc.internalName}
                 style={{
-                  gridColumn: `span ${packedSpans.get(fc.internalName) ?? resolveFieldColumnSpan(fc, formMode)}`,
+                  gridColumn: `span ${span}`,
                   minWidth: 0,
                 }}
               >
                 {renderFieldControl(fc)}
               </div>
-            ))}
+              );
+            })}
           </div>
         </Stack>
       );
