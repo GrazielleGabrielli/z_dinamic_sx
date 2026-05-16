@@ -293,3 +293,65 @@ Uso recomendado:
 - Use etapas para separar assuntos diferentes dentro do mesmo formulário.
 - Evite criar etapas demais quando o formulário for simples, para não tornar o preenchimento mais longo do que o necessário.
 
+#### Etapa Fixos
+
+A etapa `Fixos` é uma etapa especial usada para manter campos, alertas ou banners em uma posição fixa no formulário.
+
+Ela aparece sempre logo após a etapa `Ocultos` e antes das etapas criadas pelo usuário.
+
+Essa etapa não entra como uma etapa comum do fluxo de navegação. Ela serve para exibir informações de apoio no topo ou no rodapé do formulário, mantendo esses elementos disponíveis durante o preenchimento.
+
+Exemplos de uso:
+
+- Exibir um alerta com instruções importantes antes dos campos principais.
+- Mostrar um banner institucional ou informativo no início do formulário.
+- Manter uma mensagem fixa no rodapé com orientações sobre o envio.
+- Destacar avisos que precisam continuar visíveis durante o preenchimento.
+
+##### Título da etapa
+
+O campo `Título da etapa (fixos)` permite alterar o nome exibido para a etapa.
+
+Esse título ajuda o administrador a identificar a função da etapa durante a configuração do formulário.
+
+##### Configurar
+
+O botão `Configurar` abre as opções de visibilidade da etapa.
+
+Nessa configuração é possível definir em quais modos a etapa será exibida, como criação, edição ou visualização.
+
+Também é possível aplicar uma condição para controlar quando os elementos da etapa devem aparecer.
+
+Exemplo de uso:
+
+Um aviso pode ser exibido somente no modo de criação, enquanto uma orientação de consulta pode aparecer apenas no modo de visualização.
+
+##### Configurar Colunas
+
+O botão `Configurar Colunas` permite ajustar a organização dos campos dentro da etapa.
+
+Essa opção é útil quando os campos fixos precisam ser exibidos em mais de uma coluna ou quando a disposição visual precisa ser alinhada com o restante do formulário.
+
+##### Incluir em Fixos
+
+A área `Incluir em Fixos` permite adicionar campos, alertas e banners à etapa.
+
+Os itens adicionados nessa área podem ser posicionados no topo ou no rodapé do formulário, dependendo da configuração de cada componente.
+
+Para alertas e banners, a configuração pode incluir a zona fixa e o tipo de posicionamento.
+
+Exemplos de posicionamento:
+
+- `Topo`: exibe o item acima do conteúdo principal do formulário.
+- `Rodapé`: exibe o item abaixo do conteúdo principal do formulário.
+- `Sticky`: mantém o item visível enquanto o usuário rola a tela.
+- `Absoluto`: posiciona o item em relação ao contêiner do formulário.
+- `Fluxo normal`: exibe o item seguindo a ordem natural do conteúdo.
+
+Uso recomendado:
+
+- Use `Fixos` para informações de apoio que não pertencem a uma etapa específica do fluxo.
+- Use alertas fixos quando o usuário precisar lembrar de uma regra durante todo o preenchimento.
+- Use banners fixos para comunicação visual, instruções gerais ou identificação do formulário.
+- Evite colocar muitos campos nessa etapa para não ocupar espaço excessivo da tela.
+
