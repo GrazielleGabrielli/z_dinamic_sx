@@ -584,7 +584,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
     ...(f.width === 'half' ? { width: 'half' } : {}),
     ...((): { columnSpan?: TFormFieldColumnSpan } => {
       const cs = (f as { columnSpan?: unknown }).columnSpan;
-      if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) return { columnSpan: cs };
+      if (cs === 2 || cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) return { columnSpan: cs };
       return {};
     })(),
     ...((): {
@@ -597,7 +597,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
       const modes: TFormManagerFormMode[] = ['create', 'edit', 'view'];
       for (let mi = 0; mi < modes.length; mi++) {
         const cs = o[modes[mi]];
-        if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) out[modes[mi]] = cs;
+        if (cs === 2 || cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) out[modes[mi]] = cs;
       }
       return Object.keys(out).length ? { columnSpanByMode: out } : {};
     })(),
@@ -622,7 +622,7 @@ function sanitizeField(raw: unknown): IFormFieldConfig | undefined {
         const byMode: Partial<Record<TFormManagerFormMode, TFormFieldColumnSpan>> = {};
         for (let mi = 0; mi < modes.length; mi++) {
           const cs = mo[modes[mi]];
-          if (cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) byMode[modes[mi]] = cs;
+          if (cs === 2 || cs === 3 || cs === 4 || cs === 6 || cs === 8 || cs === 12) byMode[modes[mi]] = cs;
         }
         if (Object.keys(byMode).length) out[bp] = byMode;
       }

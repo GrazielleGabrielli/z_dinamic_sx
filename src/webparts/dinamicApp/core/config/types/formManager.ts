@@ -331,7 +331,7 @@ export interface ITextFieldConditionalVisibility {
 }
 
 /** Colunas ocupadas numa grelha de 12 (estilo Bootstrap). */
-export type TFormFieldColumnSpan = 3 | 4 | 6 | 8 | 12;
+export type TFormFieldColumnSpan = 2 | 3 | 4 | 6 | 8 | 12;
 
 /** Transformação de valor de texto (maiúsculas / minúsculas / capitalizar por palavra). */
 export type TFormFieldTextValueTransform = 'uppercase' | 'lowercase' | 'capitalize';
@@ -455,15 +455,15 @@ export function resolveFieldColumnSpan(
     for (let i = idx; i >= 0; i--) {
       const bp = LIST_VIEW_COLUMN_BREAKPOINT_ORDER[i];
       const span = fc.columnSpanByBreakpointByMode[bp]?.[mode];
-      if (span === 3 || span === 4 || span === 6 || span === 8 || span === 12) return span;
+      if (span === 2 || span === 3 || span === 4 || span === 6 || span === 8 || span === 12) return span;
     }
   }
   if (mode) {
     const bm = fc.columnSpanByMode?.[mode];
-    if (bm === 3 || bm === 4 || bm === 6 || bm === 8 || bm === 12) return bm;
+    if (bm === 2 || bm === 3 || bm === 4 || bm === 6 || bm === 8 || bm === 12) return bm;
   }
   const c = fc.columnSpan;
-  if (c === 3 || c === 4 || c === 6 || c === 8 || c === 12) return c;
+  if (c === 2 || c === 3 || c === 4 || c === 6 || c === 8 || c === 12) return c;
   if (fc.width === 'half') return 6;
   return 12;
 }
@@ -482,7 +482,7 @@ export function resolveFieldColumnSpanForBreakpointMode(
     for (let i = idx; i >= 0; i--) {
       const bp = LIST_VIEW_COLUMN_BREAKPOINT_ORDER[i];
       const span = rb[bp]?.[mode];
-      if (span === 3 || span === 4 || span === 6 || span === 8 || span === 12) return span;
+      if (span === 2 || span === 3 || span === 4 || span === 6 || span === 8 || span === 12) return span;
     }
   }
   return resolveFieldColumnSpan(fc, mode);

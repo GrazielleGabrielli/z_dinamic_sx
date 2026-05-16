@@ -583,6 +583,7 @@ const FIELD_COLUMN_SPAN_OPTIONS: IDropdownOption[] = [
   { key: '6', text: '6 — ex.: 6+6' },
   { key: '4', text: '4 — ex.: 4+4+4' },
   { key: '3', text: '3 — ex.: 3+3+3+3' },
+  { key: '2', text: '2 — ex.: 2+2+2+2+2+2' },
 ];
 
 function formatFieldColumnSpanConfigSummary(fc: IFormFieldConfig | undefined, fname: string): string {
@@ -649,6 +650,48 @@ const columnSpanPillSelectedClass = mergeStyles({
   background: '#0078d4',
   cursor: 'pointer',
   fontSize: 13,
+  fontWeight: 600,
+  color: '#ffffff',
+  fontFamily: 'inherit',
+  selectors: {
+    ':hover': { background: '#106ebe', borderColor: '#106ebe' },
+    ':focus-visible': { outline: '2px solid #0078d4', outlineOffset: '2px' },
+  },
+});
+
+const bulkColPillClass = mergeStyles({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 28,
+  height: 24,
+  padding: '0 6px',
+  borderRadius: 2,
+  border: '1px solid #c8c6c4',
+  background: '#ffffff',
+  cursor: 'pointer',
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#323130',
+  fontFamily: 'inherit',
+  selectors: {
+    ':hover': { background: '#f3f2f1', borderColor: '#a19f9d' },
+    ':focus-visible': { outline: '2px solid #0078d4', outlineOffset: '2px' },
+  },
+});
+
+const bulkColPillSelectedClass = mergeStyles({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 28,
+  height: 24,
+  padding: '0 6px',
+  borderRadius: 2,
+  border: '1px solid #0078d4',
+  background: '#0078d4',
+  cursor: 'pointer',
+  fontSize: 11,
   fontWeight: 600,
   color: '#ffffff',
   fontFamily: 'inherit',
@@ -975,6 +1018,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [cloneRulesModalTarget, setCloneRulesModalTarget] = useState<string | null>(null);
   const [cloneRulesSourceKey, setCloneRulesSourceKey] = useState<string | undefined>(undefined);
   const [columnSpanModalField, setColumnSpanModalField] = useState<string | null>(null);
+  const [bulkColumnModalStepId, setBulkColumnModalStepId] = useState<string | null>(null);
+  const [bulkColumnModalMode, setBulkColumnModalMode] = useState<TFormManagerFormMode>('create');
   const [structurePoolSelected, setStructurePoolSelected] = useState<string[]>([]);
   const [structureFieldOpen, setStructureFieldOpen] = useState<Record<string, boolean>>({});
   const structurePoolSelectedRef = useRef<string[]>([]);
@@ -2658,6 +2703,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                         {st.showStepWhen ? ` · ${summarizeConditionTreePt(st.showStepWhen)}` : ''}
                       </Text>
                       <DefaultButton text="Configurar" onClick={() => setStepVisibilityPanelStepId(st.id)} />
+                      <DefaultButton text="Configurar Colunas" onClick={() => { setBulkColumnModalStepId(st.id); setBulkColumnModalMode('create'); }} />
                     </Stack>
                   )}
                   {st.id !== FORM_OCULTOS_STEP_ID && st.id !== FORM_FIXOS_STEP_ID && (
@@ -4508,7 +4554,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         >
           <Stack tokens={{ childrenGap: 8 }}>
             <Text variant="large" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-              Colunas na grelha
+              Colunas na Linha
             </Text>
             <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.45 } }}>
               Campo:{' '}
@@ -4517,13 +4563,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   ? meta.find((m) => m.InternalName === columnSpanModalField)?.Title ?? columnSpanModalField
                   : '—'}
               </strong>{' '}
-              {columnSpanModalField ? (
-                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>({columnSpanModalField})</span>
-              ) : null}
+             
             </Text>
-            <Text variant="small" styles={{ root: { color: '#8a8886' } }}>
-              Colunas (de 12) por faixa de largura e por modo. Sem valor na faixa: herda da faixa menor (mobile-first).
-            </Text>
+        
           </Stack>
           <Pivot>
             {LIST_VIEW_COLUMN_BREAKPOINT_ORDER.map((bp) => (
@@ -4567,7 +4609,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                                   className={selected ? columnSpanPillSelectedClass : columnSpanPillClass}
                                   onClick={() => {
                                     if (!columnSpanModalField) return;
-                                    if (span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
+                                    if (span !== 2 && span !== 3 && span !== 4 && span !== 6 && span !== 8 && span !== 12) return;
                                     applyFieldColumnSpanForBreakpointAndMode(columnSpanModalField, bp, mode, span);
                                   }}
                                 >
@@ -4864,6 +4906,188 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
         />
       )}
     </Panel>
+    {(() => {
+      const bStep = bulkColumnModalStepId ? steps.find((s) => s.id === bulkColumnModalStepId) : undefined;
+      if (!bStep) return null;
+      const bFieldNames = bStep.fieldNames;
+      const SPANS: TFormFieldColumnSpan[] = [2, 3, 4, 6, 8, 12];
+      const BULK_MODES: { key: TFormManagerFormMode; label: string }[] = [
+        { key: 'create', label: 'Novo' },
+        { key: 'edit', label: 'Editar' },
+        { key: 'view', label: 'Ver' },
+      ];
+      return (
+        <Modal
+          isOpen={bulkColumnModalStepId !== null}
+          onDismiss={() => setBulkColumnModalStepId(null)}
+          isBlocking={false}
+          styles={{
+            main: {
+              width: 'min(860px, 96vw)',
+              maxWidth: '96vw',
+              maxHeight: '90vh',
+              borderRadius: 2,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+            scrollableContent: {
+              flex: '1 1 auto',
+              overflowY: 'auto',
+            },
+          }}
+        >
+          <Stack
+            tokens={{ childrenGap: 16 }}
+            styles={{ root: { padding: '24px 24px 20px', boxSizing: 'border-box' } }}
+          >
+            <Stack horizontal horizontalAlign="space-between" verticalAlign="center" tokens={{ childrenGap: 8 }}>
+              <Stack tokens={{ childrenGap: 4 }}>
+                <Text variant="large" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
+                  Configurar Colunas
+                </Text>
+                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                  Etapa: <strong>{bStep.title}</strong> · colunas (de 12) por faixa de largura
+                </Text>
+              </Stack>
+              <IconButton
+                iconProps={{ iconName: 'Cancel' }}
+                title="Fechar"
+                onClick={() => setBulkColumnModalStepId(null)}
+              />
+            </Stack>
+
+            <Stack horizontal tokens={{ childrenGap: 4 }}>
+              {BULK_MODES.map(({ key: mk, label }) => (
+                <button
+                  key={mk}
+                  type="button"
+                  onClick={() => setBulkColumnModalMode(mk)}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: bulkColumnModalMode === mk ? '#0078d4' : '#c8c6c4',
+                    background: bulkColumnModalMode === mk ? '#0078d4' : '#ffffff',
+                    color: bulkColumnModalMode === mk ? '#ffffff' : '#323130',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </Stack>
+
+            <Stack tokens={{ childrenGap: 8 }}>
+              {bFieldNames.length === 0 && (
+                <Text variant="small" styles={{ root: { color: '#605e5c', padding: '8px 0' } }}>
+                  Nenhum campo nesta etapa.
+                </Text>
+              )}
+              {bFieldNames.map((fname) => {
+                const mm = meta.find((m) => m.InternalName === fname);
+                const fc = fields.find((f) => f.internalName === fname);
+                const displayName = mm?.Title ?? (fname === FORM_ATTACHMENTS_FIELD_INTERNAL ? 'Anexos ao item' : fname);
+                return (
+                  <div
+                    key={fname}
+                    style={{
+                      border: '1px solid #edebe9',
+                      borderRadius: 4,
+                      background: '#faf9f8',
+                      padding: '12px 14px',
+                    }}
+                  >
+                    <Stack tokens={{ childrenGap: 10 }}>
+                      <Stack tokens={{ childrenGap: 2 }}>
+                        <Text styles={{ root: { fontWeight: 600, fontSize: 13, color: '#323130' } }}>
+                          {displayName}
+                        </Text>
+                        <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#a19f9d' }}>{fname}</span>
+                      </Stack>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                        }}
+                      >
+                        {LIST_VIEW_COLUMN_BREAKPOINT_ORDER.map((bp) => {
+                          const selectedSpan = resolveFieldColumnSpanForBreakpointMode(
+                            fc ?? { internalName: fname },
+                            bp,
+                            bulkColumnModalMode
+                          );
+                          return (
+                            <div
+                              key={bp}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 4,
+                                alignItems: 'flex-start',
+                                minWidth: 90,
+                                flex: '1 1 90px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: '#605e5c',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em',
+                                }}
+                              >
+                                {LIST_VIEW_COLUMN_BREAKPOINT_LABEL[bp]}
+                                <span style={{ fontWeight: 400, marginLeft: 2, color: '#a19f9d' }}>
+                                  ≥{LIST_VIEW_COLUMN_BREAKPOINT_MIN_PX[bp]}px
+                                </span>
+                              </span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                {SPANS.map((span) => {
+                                  const sel = selectedSpan === span;
+                                  return (
+                                    <button
+                                      key={span}
+                                      type="button"
+                                      title={`${span} col.`}
+                                      className={sel ? bulkColPillSelectedClass : bulkColPillClass}
+                                      onClick={() =>
+                                        applyFieldColumnSpanForBreakpointAndMode(fname, bp, bulkColumnModalMode, span)
+                                      }
+                                    >
+                                      {span}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Stack>
+                  </div>
+                );
+              })}
+            </Stack>
+
+            <Text variant="small" styles={{ root: { color: '#8a8886' } }}>
+              Mobile-first: sem valor em uma faixa = herda da faixa menor.
+            </Text>
+
+            <DefaultButton
+              text="Fechar"
+              onClick={() => setBulkColumnModalStepId(null)}
+              styles={{ root: { borderRadius: 2, alignSelf: 'flex-start' } }}
+            />
+          </Stack>
+        </Modal>
+      );
+    })()}
     </>
   );
 };
