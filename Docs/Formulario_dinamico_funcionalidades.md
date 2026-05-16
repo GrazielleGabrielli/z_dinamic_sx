@@ -40,3 +40,67 @@ Ao clicar em `FlexView — Editar configuração`, o usuário abre o painel de c
 
 Use essa opção quando for necessário revisar ou alterar configurações gerais da visualização e do comportamento da WebPart na página.
 
+## Configurar formulário e regras
+
+O modal `Configurar formulário e regras` concentra as principais opções de configuração do formulário dinâmico.
+
+Ele é dividido em abas para organizar cada tipo de ajuste e facilitar a manutenção da configuração.
+
+### JSON
+
+A opção `JSON (ver / colar)` permite visualizar ou colar a configuração completa do formulário.
+
+Esse recurso é utilizado principalmente para copiar configurações entre ambientes, como homologação e produção.
+
+Com isso, uma configuração validada em homologação pode ser copiada e colada em produção, refletindo os mesmos campos, regras e comportamentos sem a necessidade de refazer os ajustes manualmente.
+
+### Abas disponíveis
+
+#### Estrutura
+
+Aba usada para configurar a estrutura principal do formulário.
+
+Nela são organizados os campos, seções e definições principais que compõem a tela do formulário.
+
+#### Regras dos campos
+
+Aba usada para configurar comportamentos dos campos.
+
+Ela permite definir regras relacionadas à exibição, obrigatoriedade, bloqueio e demais comportamentos condicionais dos campos.
+
+#### Componentes
+
+Aba usada para configurar componentes adicionais do formulário.
+
+Esses componentes complementam a experiência da tela e podem ser usados para organizar ou enriquecer a interface.
+
+#### Anexos
+
+Aba usada para configurar o comportamento de anexos no formulário.
+
+Ela centraliza os ajustes relacionados ao uso de arquivos vinculados ao registro.
+
+#### Botões
+
+Aba usada para configurar os botões disponíveis no formulário.
+
+Ela define quais ações estarão acessíveis para o usuário durante o uso do formulário.
+
+#### Auditoria e versões
+
+Aba usada para consultar ou configurar recursos relacionados ao histórico do formulário.
+
+Ela apoia o acompanhamento de alterações, versões e registros de auditoria quando disponíveis.
+
+#### Listas vinculadas
+
+Aba usada para configurar relações com listas vinculadas.
+
+Ela permite conectar o formulário a outras listas usadas como apoio ou complemento da informação principal.
+
+#### Quebra de permissões
+
+Aba usada para configurar regras relacionadas a permissões do item.
+
+Ela permite tratar cenários em que o registro precisa ter permissões específicas, diferentes da lista principal.
+
