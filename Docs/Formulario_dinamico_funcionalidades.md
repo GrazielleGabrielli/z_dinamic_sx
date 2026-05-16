@@ -709,6 +709,115 @@ O usuário vê o tipo da solicitação em uma linha completa, as datas lado a la
 
 Essa organização deixa a etapa mais clara e evita que campos curtos ocupem espaço desnecessário.
 
+##### Botão Colunas do campo
+
+O botão `Colunas` aparece em cada campo dentro da etapa.
+
+Ele abre o modal `Colunas na Linha`, usado para configurar o espaço que aquele campo específico ocupará dentro da linha do formulário.
+
+Essa opção é útil quando apenas um campo precisa de ajuste individual, sem alterar todos os campos da etapa.
+
+Exemplos de uso:
+
+- Fazer o campo `Descrição` ocupar a linha inteira.
+- Deixar `Data de início` ocupando metade da linha.
+- Fazer `Quantidade` ocupar menos espaço que campos de texto.
+- Ajustar um campo que ficou apertado em determinada largura de tela.
+
+No modal `Colunas na Linha`, o campo pode ser configurado por faixa de largura da tela e por modo de formulário.
+
+Modos disponíveis:
+
+- `Novo`: quando o registro está sendo criado.
+- `Ver`: quando o registro está sendo consultado.
+- `Editar`: quando o registro está sendo alterado.
+
+Valores de coluna disponíveis:
+
+- `12`: ocupa a linha inteira.
+- `8`: ocupa uma área maior que metade da linha.
+- `6`: ocupa metade da linha.
+- `4`: ocupa um terço da linha.
+- `3`: ocupa um quarto da linha.
+- `2`: ocupa uma área menor da linha.
+
+Exemplo prático:
+
+O campo `Observações` pode ser configurado com `12` no modo `Novo`, para facilitar a digitação, e também com `12` no modo `Ver`, para facilitar a leitura do texto completo.
+
+Já campos curtos, como `Quantidade de dias`, podem usar `3` ou `4`, ocupando menos espaço na linha.
+
+Uso recomendado:
+
+- Use `Colunas` quando precisar ajustar um campo específico.
+- Use `12` para campos longos, descrições e observações.
+- Use `6` para pares de campos relacionados, como datas inicial e final.
+- Use valores menores para campos curtos, como quantidade, código ou ramal.
+- Revise o comportamento em telas menores para garantir boa leitura.
+
+##### Botão Remover do campo
+
+O botão `Remover` retira o campo daquela estrutura do formulário.
+
+Ao remover um campo, ele deixa de aparecer naquela etapa e deixa de ser exibido para o usuário dentro do formulário.
+
+Essa ação não significa excluir a coluna da lista do SharePoint. Ela apenas remove o campo da organização visual do formulário dinâmico.
+
+Exemplos de uso:
+
+- Remover um campo que foi adicionado por engano.
+- Retirar da etapa um campo que não deve ser exibido ao usuário.
+- Limpar campos que não fazem mais parte do processo.
+- Reorganizar o formulário antes de adicionar o campo em outra etapa.
+
+Campos obrigatórios da lista podem ter a remoção bloqueada.
+
+Isso acontece porque campos obrigatórios precisam continuar presentes em alguma etapa do formulário para evitar problemas no preenchimento ou no salvamento do registro.
+
+Uso recomendado:
+
+- Antes de remover, confirme se o campo realmente não deve aparecer no formulário.
+- Se o campo ainda for necessário, mova-o para outra etapa em vez de remover.
+- Não remova campos obrigatórios sem revisar a regra de preenchimento do processo.
+- Após remover campos, revise a etapa para garantir que a sequência de preenchimento continue clara.
+
+Exemplo prático:
+
+Se o campo `Centro de custo` foi colocado na etapa `Dados do solicitante`, mas não deve aparecer nessa parte do formulário, ele pode ser removido dali e depois incluído na etapa correta, como `Informações da solicitação`.
+
+##### Botão Remover etapa
+
+O botão `Remover etapa` exclui a etapa criada da estrutura do formulário.
+
+Ele deve ser usado quando uma etapa não é mais necessária no fluxo de preenchimento.
+
+Ao remover uma etapa, ela deixa de aparecer para o usuário e deixa de fazer parte da navegação do formulário.
+
+Exemplos de uso:
+
+- Remover uma etapa criada por engano.
+- Excluir uma etapa que deixou de fazer parte do processo.
+- Simplificar um formulário que ficou dividido em partes demais.
+- Reorganizar o formulário após mover os campos para outras etapas.
+
+Antes de remover:
+
+- Verifique se a etapa ainda possui campos importantes.
+- Mova os campos que devem continuar no formulário para outra etapa.
+- Confirme se alertas ou banners daquela etapa ainda serão necessários.
+- Revise se a remoção não quebra a sequência de preenchimento esperada pelo usuário.
+
+Exemplo prático:
+
+Se a etapa `Dados complementares` deixou de ser necessária, os campos que ainda forem úteis podem ser movidos para `Informações da solicitação`. Depois disso, a etapa `Dados complementares` pode ser removida.
+
+Uso recomendado:
+
+- Remova etapas vazias ou sem função clara.
+- Evite remover etapas sem revisar os campos que estão dentro dela.
+- Use a remoção para manter o formulário simples e objetivo.
+- Após remover, revise a ordem das etapas restantes.
+
 #### Adicionar alerta
 
 A funcionalidade `Adicionar alerta` permite incluir uma mensagem de destaque dentro da estrutura do formulário.
