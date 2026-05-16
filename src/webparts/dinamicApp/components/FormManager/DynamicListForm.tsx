@@ -196,6 +196,19 @@ import {
   resolveStepUiAccentColor,
 } from '../../core/formManager/formCustomButtonTheme';
 import { applyFormManagerPermissionBreak } from '../../core/formManager/applyFormPermissionBreak';
+import {
+  FORM_FIELD_CURSOR_DISABLED,
+  getFormConfirmPromptDropdownStyles,
+  getFormConfirmPromptTextFieldStyles,
+  getFormControlBorderRadius,
+  getFormDropdownStyles,
+  getFormFieldDescriptionSlotStyles,
+  getFormFieldHelpTextRootStyle,
+  getFormTextFieldStyles,
+  getRequiredEmptyBorderColor,
+  mergeFormTextFieldStyles,
+  type TFluentTextFieldStyles,
+} from '../../core/formManager/formControlFluentStyles';
 
 function pickMainAuthorId(
   values: Record<string, unknown>,
@@ -707,10 +720,6 @@ function createRunTimelineController(
   };
 }
 
-const REQ_EMPTY_BORDER = '#a4262c';
-
-const FORM_FIELD_CURSOR_DISABLED = 'not-allowed';
-
 function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
   if (mappedType === 'boolean') {
     return v === undefined || v === null;
@@ -731,46 +740,6 @@ function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
     if (id === null || id === undefined || id === '') return true;
   }
   return false;
-}
-
-function stylesTextFieldRequiredEmpty(
-  active: boolean,
-  disabled?: boolean
-): { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } | undefined {
-  const fieldGroupMerge: Record<string, string | number> = {};
-  if (active) {
-    Object.assign(fieldGroupMerge, {
-      borderColor: REQ_EMPTY_BORDER,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      borderRadius: 2,
-    });
-  }
-  if (disabled) {
-    Object.assign(fieldGroupMerge, { cursor: FORM_FIELD_CURSOR_DISABLED });
-  }
-
-  const out: { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } = {};
-  if (Object.keys(fieldGroupMerge).length) {
-    out.fieldGroup = fieldGroupMerge as IStyle;
-  }
-  if (disabled) {
-    out.root = { cursor: FORM_FIELD_CURSOR_DISABLED };
-    out.icon = { cursor: FORM_FIELD_CURSOR_DISABLED };
-    out.field = {
-      color: '#201f1e',
-      WebkitTextFillColor: '#201f1e',
-      opacity: 1,
-      cursor: FORM_FIELD_CURSOR_DISABLED,
-      selectors: {
-        '::placeholder': {
-          color: '#605e5c',
-          opacity: 1,
-        },
-      },
-    };
-  }
-  return Object.keys(out).length ? out : undefined;
 }
 
 function lookupIdFromValue(v: unknown): number | undefined {
@@ -827,38 +796,6 @@ function userTitleFromValue(v: unknown): string {
     return String((v as Record<string, unknown>).Title ?? '');
   }
   return '';
-}
-
-function dropdownReqStyles(
-  showReq: boolean | undefined,
-  disabled?: boolean
-): { dropdown?: IStyle; title?: IStyle; caretDown?: IStyle; caretDownWrapper?: IStyle } | undefined {
-  const out: { dropdown?: IStyle; title?: IStyle; caretDown?: IStyle; caretDownWrapper?: IStyle } = {};
-  const dropdown: Record<string, string | number> = {};
-  if (showReq) {
-    Object.assign(dropdown, {
-      borderColor: REQ_EMPTY_BORDER,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      borderRadius: 2,
-    });
-  }
-  if (disabled) {
-    const text = '#201f1e';
-    out.title = {
-      color: text,
-      opacity: 1,
-      WebkitTextFillColor: text,
-      cursor: FORM_FIELD_CURSOR_DISABLED,
-    };
-    out.caretDownWrapper = { cursor: FORM_FIELD_CURSOR_DISABLED };
-    out.caretDown = { color: '#605e5c', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED };
-    Object.assign(dropdown, { color: text, opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
-  }
-  if (Object.keys(dropdown).length) {
-    out.dropdown = dropdown as IStyle;
-  }
-  return Object.keys(out).length ? out : undefined;
 }
 
 interface IFormChromeZoneProps {
@@ -977,47 +914,17 @@ function ConfirmPromptFieldEditor(props: {
   const { meta, editor, onChange, modalSurface, disabled } = props;
   const dis = disabled === true;
   const theme = useTheme();
-  const tfStyles = {
-    root: {
-      marginBottom: 0,
-      ...(modalSurface ? { width: '100%' } : {}),
-      ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
-    },
-    label: {
-      root: {
-        fontWeight: '600',
-        color: theme.palette.neutralPrimary,
-        marginBottom: 6,
-      },
-    },
-    fieldGroup: {
-      borderRadius: 10,
-      border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
-      backgroundColor: theme.palette.white,
-      ':hover': { borderColor: theme.palette.neutralTertiaryAlt },
-      selectors: {
-        '&.ms-TextField-fieldGroup': { borderRadius: 10 },
-      },
-      ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
-    },
-    field: { borderRadius: 10, ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}) },
-    ...(dis ? { icon: { cursor: FORM_FIELD_CURSOR_DISABLED } } : {}),
-    ...(modalSurface ? { wrapper: { width: '100%' } } : {}),
+  const confirmR = getFormControlBorderRadius(theme);
+  const tfStyles = getFormConfirmPromptTextFieldStyles(theme, { disabled: dis, modalSurface });
+  const tfParts = tfStyles as {
+    label?: { root?: IStyle };
+    fieldGroup?: IStyle;
+    field?: IStyle;
+    icon?: IStyle;
+    root?: IStyle;
+    wrapper?: { width?: string };
   };
-  const ddStyles = {
-    dropdown: {
-      borderRadius: 10,
-      border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
-      ...(dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
-    },
-    ...(dis
-      ? {
-          title: { cursor: FORM_FIELD_CURSOR_DISABLED },
-          caretDownWrapper: { cursor: FORM_FIELD_CURSOR_DISABLED },
-          caretDown: { cursor: FORM_FIELD_CURSOR_DISABLED },
-        }
-      : {}),
-  };
+  const ddStyles = getFormConfirmPromptDropdownStyles(theme, { disabled: dis });
   const wrapModal = (node: React.ReactElement): React.ReactElement =>
     modalSurface ? (
       <Stack styles={{ root: { width: '100%' } }} tokens={{ childrenGap: 10 }}>
@@ -1036,7 +943,7 @@ function ConfirmPromptFieldEditor(props: {
           styles={{
             root: {
               padding: '12px 14px',
-              borderRadius: 10,
+              borderRadius: confirmR,
               border: `1px solid ${theme.palette.neutralLight}`,
               backgroundColor: theme.palette.white,
               width: modalSurface ? '100%' : undefined,
@@ -1072,7 +979,7 @@ function ConfirmPromptFieldEditor(props: {
     case 'datetime':
       return wrapModal(
         <Stack tokens={{ childrenGap: 8 }} styles={{ root: { width: modalSurface ? '100%' : undefined } }}>
-          <Label styles={{ root: tfStyles.label.root }}>{meta.Title}</Label>
+          <Label styles={{ root: tfParts.label?.root }}>{meta.Title}</Label>
           <DatePicker
             {...FLUENT_DATE_PICKER_PT_BR}
             disabled={dis}
@@ -1082,8 +989,8 @@ function ConfirmPromptFieldEditor(props: {
               disabled: dis,
               styles: {
                 root: dis ? { cursor: FORM_FIELD_CURSOR_DISABLED } : undefined,
-                fieldGroup: tfStyles.fieldGroup,
-                field: tfStyles.field,
+                fieldGroup: tfParts.fieldGroup,
+                field: tfParts.field,
                 wrapper: { width: '100%' },
                 ...(dis ? { icon: { cursor: FORM_FIELD_CURSOR_DISABLED } } : {}),
               },
@@ -1102,8 +1009,8 @@ function ConfirmPromptFieldEditor(props: {
           disabled={dis}
           onChange={(_, o) => onChange({ ...editor, choiceKey: o ? String(o.key) : '' })}
           styles={{
-            ...ddStyles,
-            dropdown: { ...ddStyles.dropdown, width: '100%' },
+            ...(ddStyles as Record<string, unknown>),
+            dropdown: { ...(ddStyles.dropdown as object), width: '100%' },
           }}
         />
       );
@@ -1120,9 +1027,9 @@ function ConfirmPromptFieldEditor(props: {
           disabled={dis}
           onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
           styles={{
-            ...tfStyles,
-            fieldGroup: { ...tfStyles.fieldGroup, alignItems: 'stretch' },
-          }}
+            ...(tfParts as Record<string, unknown>),
+            fieldGroup: { ...(tfParts.fieldGroup as object), alignItems: 'stretch' },
+          } as TFluentTextFieldStyles}
         />
       );
     default:
@@ -4239,7 +4146,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         >
           <Label required={reqComp}>{labelComp}</Label>
           <Text styles={{ root: { color: '#323130' } }}>{compShown}</Text>
-          {helpComp && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{helpComp}</Text>}
+          {helpComp && <Text variant="small" styles={{ root: getFormFieldHelpTextRootStyle(theme) }}>{helpComp}</Text>}
         </Stack>
       );
     }
@@ -4265,6 +4172,15 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(mergedFieldValue, m.MappedType);
 
     const common = { disabled: readOnly, errorMessage: err };
+
+    const formHelpTextRoot = getFormFieldHelpTextRootStyle(theme);
+    const reqEmptyBarColor = getRequiredEmptyBorderColor(theme);
+    const formControlRadius = getFormControlBorderRadius(theme);
+    const fieldTextFieldStyles = (withHelpDescription: boolean): TFluentTextFieldStyles | undefined =>
+      mergeFormTextFieldStyles(
+        getFormTextFieldStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly }),
+        withHelpDescription && help ? getFormFieldDescriptionSlotStyles(theme) : undefined
+      );
 
     const renderLookupDetailsBelow = (fieldName: string, meta: IFieldMetadata): React.ReactNode => {
       const dfn = fc.lookupOptionDetailBelowFields ?? [];
@@ -4311,7 +4227,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               root: {
                 marginBottom: 12,
                 ...(showReqEmpty
-                  ? { borderLeft: `3px solid ${REQ_EMPTY_BORDER}`, paddingLeft: 8, paddingTop: 2, paddingBottom: 2 }
+                  ? { borderLeft: `3px solid ${reqEmptyBarColor}`, paddingLeft: 8, paddingTop: 2, paddingBottom: 2 }
                   : {}),
               },
             }}
@@ -4332,40 +4248,42 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       case 'currency': {
         const numBounds = validateValueNumberMergedByField[name];
         return (
-          <TextField
-            key={name}
-            label={label}
-            type="number"
-            placeholder={fc.placeholder}
-            value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
-            onChange={(_, v) => {
-              if (v === '') {
-                updateField(name, null);
-                return;
-              }
-              const parsed = Number(String(v).replace(',', '.'));
-              if (!isFinite(parsed)) return;
-              const maxN = numBounds?.maxNumber;
-              const next = maxN !== undefined && parsed > maxN ? maxN : parsed;
-              updateField(name, next);
-            }}
-            onBlur={() => {
-              if (readOnly) return;
-              if (mergedFieldValue === null || mergedFieldValue === undefined) return;
-              const t = String(mergedFieldValue).trim();
-              if (t === '') return;
-              const parsed = Number(t.replace(',', '.'));
-              if (!isFinite(parsed)) return;
-              const c = clampNumberToOptionalBounds(parsed, numBounds);
-              if (c !== parsed) updateField(name, c);
-            }}
-            required={isRequired}
-            {...common}
-            description={help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
-            min={numBounds?.minNumber}
-            max={numBounds?.maxNumber}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 8 } }}>
+            <Label required={isRequired}>{label}</Label>
+            <TextField
+              ariaLabel={label}
+              type="number"
+              placeholder={fc.placeholder}
+              value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
+              onChange={(_, v) => {
+                if (v === '') {
+                  updateField(name, null);
+                  return;
+                }
+                const parsed = Number(String(v).replace(',', '.'));
+                if (!isFinite(parsed)) return;
+                const maxN = numBounds?.maxNumber;
+                const next = maxN !== undefined && parsed > maxN ? maxN : parsed;
+                updateField(name, next);
+              }}
+              onBlur={() => {
+                if (readOnly) return;
+                if (mergedFieldValue === null || mergedFieldValue === undefined) return;
+                const t = String(mergedFieldValue).trim();
+                if (t === '') return;
+                const parsed = Number(t.replace(',', '.'));
+                if (!isFinite(parsed)) return;
+                const c = clampNumberToOptionalBounds(parsed, numBounds);
+                if (c !== parsed) updateField(name, c);
+              }}
+              required={isRequired}
+              {...common}
+              description={help}
+              styles={fieldTextFieldStyles(!!help)}
+              min={numBounds?.minNumber}
+              max={numBounds?.maxNumber}
+            />
+          </Stack>
         );
       }
       case 'datetime':
@@ -4383,32 +4301,34 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               textField={{
                 disabled: readOnly,
                 errorMessage: err,
-                styles: stylesTextFieldRequiredEmpty(showReqEmpty, readOnly),
+                description: help,
+                styles: fieldTextFieldStyles(!!help),
               }}
             />
-            {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
         );
       case 'choice': {
         const raw = (m.Choices ?? []).map((c) => ({ key: c, text: c }));
         const opts: IDropdownOption[] = !isRequired ? [{ key: '', text: '—' }, ...raw] : raw;
         return (
-          <Dropdown
-            key={name}
-            label={label}
-            placeholder={fc.placeholder}
-            options={opts}
-            selectedKey={
-              mergedFieldValue !== undefined && mergedFieldValue !== null && String(mergedFieldValue) !== ''
-                ? String(mergedFieldValue)
-                : ''
-            }
-            onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+            <Dropdown
+              label={label}
+              placeholder={fc.placeholder}
+              options={opts}
+              selectedKey={
+                mergedFieldValue !== undefined && mergedFieldValue !== null && String(mergedFieldValue) !== ''
+                  ? String(mergedFieldValue)
+                  : ''
+              }
+              onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              styles={getFormDropdownStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })}
+            />
+            {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'multichoice': {
@@ -4423,25 +4343,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           selected: selected.indexOf(c) !== -1,
         }));
         return (
-          <Dropdown
-            key={name}
-            label={label}
-            placeholder={fc.placeholder}
-            multiSelect
-            options={opts}
-            selectedKeys={selected}
-            onChange={(_, o) => {
-              if (!o) return;
-              const k = String(o.key);
-              const next = selected.indexOf(k) !== -1 ? selected.filter((x) => x !== k) : [...selected, k];
-              updateField(name, next);
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
-            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+            <Dropdown
+              label={label}
+              placeholder={fc.placeholder}
+              multiSelect
+              options={opts}
+              selectedKeys={selected}
+              onChange={(_, o) => {
+                if (!o) return;
+                const k = String(o.key);
+                const next = selected.indexOf(k) !== -1 ? selected.filter((x) => x !== k) : [...selected, k];
+                updateField(name, next);
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+              styles={multiSelectDropdownStyles(theme, showReqEmpty, readOnly)}
+            />
+            {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'lookup': {
@@ -4483,13 +4405,12 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               required={isRequired}
               errorMessage={err}
               disabled={readOnly || lookupBlockedByParent}
-              styles={dropdownReqStyles(showReqEmpty, readOnly || lookupBlockedByParent)}
+              styles={getFormDropdownStyles(theme, {
+                requiredEmpty: showReqEmpty,
+                disabled: readOnly || lookupBlockedByParent,
+              })}
             />
-            {help ? (
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {help}
-              </Text>
-            ) : null}
+            {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
             {renderLookupDetailsBelow(name, m)}
           </Stack>
         );
@@ -4541,13 +4462,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               onRenderTitle={(opts) =>
                 renderMultiSelectDropdownTitle(theme, opts, readOnly || lookupBlockedByParentMulti)
               }
-              styles={multiSelectDropdownStyles(showReqEmpty, readOnly || lookupBlockedByParentMulti)}
+              styles={multiSelectDropdownStyles(theme, showReqEmpty, readOnly || lookupBlockedByParentMulti)}
             />
-            {help ? (
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {help}
-              </Text>
-            ) : null}
+            {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
             {renderLookupDetailsBelow(name, m)}
           </Stack>
         );
@@ -4560,21 +4477,23 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
             ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(mergedFieldValue) }])
             : baseOpts;
         return (
-          <Dropdown
-            key={name}
-            label={label}
-            placeholder={fc.placeholder}
-            options={opts}
-            selectedKey={id !== undefined ? String(id) : ''}
-            onChange={(_, o) => {
-              if (!o || o.key === '') updateField(name, null);
-              else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+            <Dropdown
+              label={label}
+              placeholder={fc.placeholder}
+              options={opts}
+              selectedKey={id !== undefined ? String(id) : ''}
+              onChange={(_, o) => {
+                if (!o || o.key === '') updateField(name, null);
+                else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              styles={getFormDropdownStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })}
+            />
+            {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'usermulti': {
@@ -4584,29 +4503,31 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         const opts = mergeOptionsForIds(baseOpts, extra);
         const keys = selected.map((x) => String(x.Id));
         return (
-          <Dropdown
-            key={name}
-            label={label}
-            placeholder={fc.placeholder}
-            multiSelect
-            options={opts}
-            selectedKeys={keys}
-            onChange={(_, o) => {
-              if (!o || o.key === '') return;
-              const k = String(o.key);
-              const hit = selected.findIndex((x) => String(x.Id) === k);
-              const next =
-                hit === -1
-                  ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
-                  : selected.filter((_, i) => i !== hit);
-              updateField(name, next);
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
-            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: 12 } }}>
+            <Dropdown
+              label={label}
+              placeholder={fc.placeholder}
+              multiSelect
+              options={opts}
+              selectedKeys={keys}
+              onChange={(_, o) => {
+                if (!o || o.key === '') return;
+                const k = String(o.key);
+                const hit = selected.findIndex((x) => String(x.Id) === k);
+                const next =
+                  hit === -1
+                    ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                    : selected.filter((_, i) => i !== hit);
+                updateField(name, next);
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+              styles={multiSelectDropdownStyles(theme, showReqEmpty, readOnly)}
+            />
+            {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'url': {
@@ -4623,7 +4544,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               }
               disabled={readOnly}
               errorMessage={err}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+              styles={mergeFormTextFieldStyles(
+                getFormTextFieldStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })
+              )}
             />
             <TextField
               label="Descrição a apresentar"
@@ -4632,9 +4555,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                 updateField(name, { Url: uv.Url, Description: v ?? '' })
               }
               disabled={readOnly}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+              styles={mergeFormTextFieldStyles(
+                getFormTextFieldStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })
+              )}
             />
-            {help && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+            {help && <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text>}
           </Stack>
         );
       }
@@ -4683,7 +4608,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               {...common}
               {...(maxCapMl !== undefined ? { maxLength: maxCapMl } : {})}
               description={help}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+              styles={fieldTextFieldStyles(!!help)}
             />
             {charHintMl ? (
               <Text variant="small" styles={{ root: { color: charHintMl.color } }}>{charHintMl.text}</Text>
@@ -4723,7 +4648,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           borderWidth: 1,
           borderStyle: 'solid',
           borderColor: inputBorder,
-          borderRadius: 2,
+          borderRadius: formControlRadius,
           outline: 'none',
           ...(readOnly ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
         };
@@ -4737,7 +4662,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                   marginBottom: 12,
                   ...(showReqEmpty
                     ? {
-                        borderLeft: `3px solid ${REQ_EMPTY_BORDER}`,
+                        borderLeft: `3px solid ${reqEmptyBarColor}`,
                         paddingLeft: 8,
                         paddingTop: 2,
                         paddingBottom: 2,
@@ -4764,7 +4689,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               {err ? (
                 <Text variant="small" styles={{ root: { color: theme.semanticColors.errorText } }}>{err}</Text>
               ) : null}
-              {help ? <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text> : null}
+              {help ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
               {charHintTx ? (
                 <Text variant="small" styles={{ root: { color: charHintTx.color } }}>{charHintTx.text}</Text>
               ) : null}
@@ -4786,7 +4711,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               {...common}
               {...(maxCapTx !== undefined ? { maxLength: maxCapTx } : {})}
               description={help}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+              styles={fieldTextFieldStyles(!!help)}
             />
             {charHintTx ? (
               <Text variant="small" styles={{ root: { color: charHintTx.color } }}>{charHintTx.text}</Text>

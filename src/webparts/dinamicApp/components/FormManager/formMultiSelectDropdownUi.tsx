@@ -1,25 +1,29 @@
 import * as React from 'react';
 import type { IDropdownOption, IDropdownStyles, ITheme } from '@fluentui/react';
-
-const REQ_EMPTY_BORDER = '#a4262c';
-
-const FORM_FIELD_CURSOR_DISABLED = 'not-allowed';
+import {
+  FORM_FIELD_CURSOR_DISABLED,
+  getFormControlBorderRadius,
+  getRequiredEmptyBorderColor,
+} from '../../core/formManager/formControlFluentStyles';
 
 export function multiSelectDropdownStyles(
+  theme: ITheme,
   showReq: boolean | undefined,
   disabled?: boolean
 ): Partial<IDropdownStyles> {
   const dropdown: Record<string, string | number> = {};
+  const r = getFormControlBorderRadius(theme);
   if (showReq === true) {
     Object.assign(dropdown, {
-      borderColor: REQ_EMPTY_BORDER,
+      borderColor: getRequiredEmptyBorderColor(theme),
       borderWidth: 1,
       borderStyle: 'solid' as const,
-      borderRadius: 2,
+      borderRadius: r,
     });
   }
   if (disabled) {
-    Object.assign(dropdown, { color: '#201f1e', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
+    const text = theme.palette.neutralPrimary;
+    Object.assign(dropdown, { color: text, opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
   }
   const base: Partial<IDropdownStyles> = {
     title: {
@@ -36,9 +40,9 @@ export function multiSelectDropdownStyles(
       paddingRight: 32,
       ...(disabled
         ? {
-            color: '#201f1e',
+            color: theme.palette.neutralPrimary,
             opacity: 1,
-            WebkitTextFillColor: '#201f1e',
+            WebkitTextFillColor: theme.palette.neutralPrimary,
             cursor: FORM_FIELD_CURSOR_DISABLED,
           }
         : {}),
@@ -57,7 +61,11 @@ export function multiSelectDropdownStyles(
     base.dropdown = dropdown as IDropdownStyles['dropdown'];
   }
   if (disabled) {
-    base.caretDown = { color: '#605e5c', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED };
+    base.caretDown = {
+      color: theme.palette.neutralSecondary,
+      opacity: 1,
+      cursor: FORM_FIELD_CURSOR_DISABLED,
+    };
   }
   return base;
 }
@@ -73,9 +81,9 @@ export function renderMultiSelectDropdownTitle(
   const bg = disabled
     ? (theme.palette.neutralLighterAlt ?? theme.palette.white)
     : (theme.palette.themeLighterAlt ?? theme.palette.themeLighter);
-  const fg = disabled ? '#201f1e' : theme.palette.themePrimary;
+  const fg = disabled ? theme.palette.neutralPrimary : theme.palette.themePrimary;
   const border = disabled ? (theme.palette.neutralLight ?? '#edebe9') : theme.palette.themeLight;
-  const r = theme.effects?.roundedCorner2 ?? 2;
+  const r = getFormControlBorderRadius(theme);
   const fs = theme.fonts.small;
   return (
     <span

@@ -11,7 +11,6 @@ import {
   Label,
   useTheme,
 } from '@fluentui/react';
-import type { IStyle } from '@fluentui/react/lib/Styling';
 import type { IFieldMetadata } from '../../../../services';
 import type { IFormFieldConfig, IFormLinkedChildFormConfig } from '../../core/config/types/formManager';
 import {
@@ -54,10 +53,17 @@ import { ItemsService, UsersService, FieldsService } from '../../../../services'
 import { IMaskInput } from 'react-imask';
 import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
 import { parseUrlFieldValue } from '../../core/formManager/formUrlUtils';
-
-const REQ_EMPTY_BORDER = '#a4262c';
-
-const FORM_FIELD_CURSOR_DISABLED = 'not-allowed';
+import {
+  FORM_FIELD_CURSOR_DISABLED,
+  getFormControlBorderRadius,
+  getFormDropdownStyles,
+  getFormFieldDescriptionSlotStyles,
+  getFormFieldHelpTextRootStyle,
+  getFormTextFieldStyles,
+  getRequiredEmptyBorderColor,
+  mergeFormTextFieldStyles,
+  type TFluentTextFieldStyles,
+} from '../../core/formManager/formControlFluentStyles';
 
 function lookupIdFromValue(v: unknown): number | undefined {
   if (typeof v === 'number' && isFinite(v)) return v;
@@ -108,87 +114,6 @@ function userTitleFromValue(v: unknown): string {
     return String((v as Record<string, unknown>).Title ?? '');
   }
   return '';
-}
-
-function dropdownReqStyles(
-  showReq: boolean | undefined,
-  disabled?: boolean
-): {
-  dropdown?: IStyle;
-  title?: IStyle;
-  caretDown?: IStyle;
-  caretDownWrapper?: IStyle;
-} | undefined {
-  const out: {
-    dropdown?: IStyle;
-    title?: IStyle;
-    caretDown?: IStyle;
-    caretDownWrapper?: IStyle;
-  } = {};
-  const dropdown: Record<string, string | number> = {};
-  if (showReq) {
-    Object.assign(dropdown, {
-      borderColor: REQ_EMPTY_BORDER,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      borderRadius: 2,
-    });
-  }
-  if (disabled) {
-    const text = '#201f1e';
-    out.title = {
-      color: text,
-      opacity: 1,
-      WebkitTextFillColor: text,
-      cursor: FORM_FIELD_CURSOR_DISABLED,
-    };
-    out.caretDownWrapper = { cursor: FORM_FIELD_CURSOR_DISABLED };
-    out.caretDown = { color: '#605e5c', opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED };
-    Object.assign(dropdown, { color: text, opacity: 1, cursor: FORM_FIELD_CURSOR_DISABLED });
-  }
-  if (Object.keys(dropdown).length) {
-    out.dropdown = dropdown as IStyle;
-  }
-  return Object.keys(out).length ? out : undefined;
-}
-
-function stylesTextFieldRequiredEmpty(
-  active: boolean,
-  disabled?: boolean
-): { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } | undefined {
-  const fieldGroupMerge: Record<string, string | number> = {};
-  if (active) {
-    Object.assign(fieldGroupMerge, {
-      borderColor: REQ_EMPTY_BORDER,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      borderRadius: 2,
-    });
-  }
-  if (disabled) {
-    Object.assign(fieldGroupMerge, { cursor: FORM_FIELD_CURSOR_DISABLED });
-  }
-  const out: { root?: IStyle; fieldGroup?: IStyle; field?: IStyle; icon?: IStyle } = {};
-  if (Object.keys(fieldGroupMerge).length) {
-    out.fieldGroup = fieldGroupMerge as IStyle;
-  }
-  if (disabled) {
-    out.root = { cursor: FORM_FIELD_CURSOR_DISABLED };
-    out.icon = { cursor: FORM_FIELD_CURSOR_DISABLED };
-    out.field = {
-      color: '#201f1e',
-      WebkitTextFillColor: '#201f1e',
-      opacity: 1,
-      cursor: FORM_FIELD_CURSOR_DISABLED,
-      selectors: {
-        '::placeholder': {
-          color: '#605e5c',
-          opacity: 1,
-        },
-      },
-    };
-  }
-  return Object.keys(out).length ? out : undefined;
 }
 
 function isValueEmptyForRequired(v: unknown, mappedType: string): boolean {
@@ -720,7 +645,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           <Text styles={{ root: { color: '#323130' } }} title={cell ? label : undefined}>
             {compShown}
           </Text>
-          {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+          {help && !cell && <Text variant="small" styles={{ root: getFormFieldHelpTextRootStyle(theme) }}>{help}</Text>}
         </Stack>
       );
     }
@@ -747,6 +672,15 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
     const showReqEmpty = isRequired && canFill && isValueEmptyForRequired(mergedFieldValue, m.MappedType);
 
     const common = { disabled: readOnly, errorMessage: err };
+
+    const formHelpTextRoot = getFormFieldHelpTextRootStyle(theme);
+    const reqEmptyBarColor = getRequiredEmptyBorderColor(theme);
+    const formControlRadius = getFormControlBorderRadius(theme);
+    const fieldTextFieldStyles = (withHelpDescription: boolean): TFluentTextFieldStyles | undefined =>
+      mergeFormTextFieldStyles(
+        getFormTextFieldStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly }),
+        withHelpDescription && help && !cell ? getFormFieldDescriptionSlotStyles(theme) : undefined
+      );
 
     const renderLookupDetailsBelow = (fieldName: string, meta: IFieldMetadata): React.ReactNode => {
       if (cell) return null;
@@ -803,41 +737,80 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       case 'number':
       case 'currency': {
         const numBounds = validateValueNumberMergedByField[name];
+        if (cell) {
+          return (
+            <TextField
+              key={name}
+              ariaLabel={label}
+              type="number"
+              placeholder={fc.placeholder}
+              value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
+              onChange={(_, v) => {
+                if (v === '') {
+                  updateField(name, null);
+                  return;
+                }
+                const parsed = Number(String(v).replace(',', '.'));
+                if (!isFinite(parsed)) return;
+                const maxN = numBounds?.maxNumber;
+                const next = maxN !== undefined && parsed > maxN ? maxN : parsed;
+                updateField(name, next);
+              }}
+              onBlur={() => {
+                if (readOnly) return;
+                if (mergedFieldValue === null || mergedFieldValue === undefined) return;
+                const t = String(mergedFieldValue).trim();
+                if (t === '') return;
+                const parsed = Number(t.replace(',', '.'));
+                if (!isFinite(parsed)) return;
+                const c = clampNumberToOptionalBounds(parsed, numBounds);
+                if (c !== parsed) updateField(name, c);
+              }}
+              required={isRequired}
+              {...common}
+              styles={fieldTextFieldStyles(false)}
+              min={numBounds?.minNumber}
+              max={numBounds?.maxNumber}
+            />
+          );
+        }
         return (
-          <TextField
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            type="number"
-            placeholder={fc.placeholder}
-            value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
-            onChange={(_, v) => {
-              if (v === '') {
-                updateField(name, null);
-                return;
-              }
-              const parsed = Number(String(v).replace(',', '.'));
-              if (!isFinite(parsed)) return;
-              const maxN = numBounds?.maxNumber;
-              const next = maxN !== undefined && parsed > maxN ? maxN : parsed;
-              updateField(name, next);
-            }}
-            onBlur={() => {
-              if (readOnly) return;
-              if (mergedFieldValue === null || mergedFieldValue === undefined) return;
-              const t = String(mergedFieldValue).trim();
-              if (t === '') return;
-              const parsed = Number(t.replace(',', '.'));
-              if (!isFinite(parsed)) return;
-              const c = clampNumberToOptionalBounds(parsed, numBounds);
-              if (c !== parsed) updateField(name, c);
-            }}
-            required={isRequired}
-            {...common}
-            description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
-            min={numBounds?.minNumber}
-            max={numBounds?.maxNumber}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Label required={isRequired}>{label}</Label>
+            <TextField
+              ariaLabel={label}
+              type="number"
+              placeholder={fc.placeholder}
+              value={mergedFieldValue !== null && mergedFieldValue !== undefined ? String(mergedFieldValue) : ''}
+              onChange={(_, v) => {
+                if (v === '') {
+                  updateField(name, null);
+                  return;
+                }
+                const parsed = Number(String(v).replace(',', '.'));
+                if (!isFinite(parsed)) return;
+                const maxN = numBounds?.maxNumber;
+                const next = maxN !== undefined && parsed > maxN ? maxN : parsed;
+                updateField(name, next);
+              }}
+              onBlur={() => {
+                if (readOnly) return;
+                if (mergedFieldValue === null || mergedFieldValue === undefined) return;
+                const t = String(mergedFieldValue).trim();
+                if (t === '') return;
+                const parsed = Number(t.replace(',', '.'));
+                if (!isFinite(parsed)) return;
+                const c = clampNumberToOptionalBounds(parsed, numBounds);
+                if (c !== parsed) updateField(name, c);
+              }}
+              required={isRequired}
+              {...common}
+              description={help}
+              styles={fieldTextFieldStyles(!!help)}
+              min={numBounds?.minNumber}
+              max={numBounds?.maxNumber}
+            />
+          </Stack>
         );
       }
       case 'datetime':
@@ -856,32 +829,34 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
                 ...(cell ? { ariaLabel: label } : {}),
                 disabled: readOnly,
                 errorMessage: err,
-                styles: stylesTextFieldRequiredEmpty(showReqEmpty, readOnly),
+                description: cell ? undefined : help,
+                styles: fieldTextFieldStyles(!cell && !!help),
               }}
             />
-            {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
           </Stack>
         );
       case 'choice': {
         const raw = (m.Choices ?? []).map((c) => ({ key: c, text: c }));
         const opts: IDropdownOption[] = !isRequired ? [{ key: '', text: '—' }, ...raw] : raw;
         return (
-          <Dropdown
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            placeholder={fc.placeholder}
-            options={opts}
-            selectedKey={
-              mergedFieldValue !== undefined && mergedFieldValue !== null && String(mergedFieldValue) !== ''
-                ? String(mergedFieldValue)
-                : ''
-            }
-            onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Dropdown
+              {...(cell ? { ariaLabel: label } : { label })}
+              placeholder={fc.placeholder}
+              options={opts}
+              selectedKey={
+                mergedFieldValue !== undefined && mergedFieldValue !== null && String(mergedFieldValue) !== ''
+                  ? String(mergedFieldValue)
+                  : ''
+              }
+              onChange={(_, o) => o && updateField(name, o.key === '' ? null : o.key)}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              styles={getFormDropdownStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })}
+            />
+            {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'multichoice': {
@@ -896,25 +871,27 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           selected: selected.indexOf(c) !== -1,
         }));
         return (
-          <Dropdown
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            placeholder={fc.placeholder}
-            multiSelect
-            options={opts}
-            selectedKeys={selected}
-            onChange={(_, o) => {
-              if (!o) return;
-              const k = String(o.key);
-              const next = selected.indexOf(k) !== -1 ? selected.filter((x) => x !== k) : [...selected, k];
-              updateField(name, next);
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
-            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Dropdown
+              {...(cell ? { ariaLabel: label } : { label })}
+              placeholder={fc.placeholder}
+              multiSelect
+              options={opts}
+              selectedKeys={selected}
+              onChange={(_, o) => {
+                if (!o) return;
+                const k = String(o.key);
+                const next = selected.indexOf(k) !== -1 ? selected.filter((x) => x !== k) : [...selected, k];
+                updateField(name, next);
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+              styles={multiSelectDropdownStyles(theme, showReqEmpty, readOnly)}
+            />
+            {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'lookup': {
@@ -956,13 +933,12 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               required={isRequired}
               errorMessage={err}
               disabled={readOnly || lookupBlockedByParent}
-              styles={dropdownReqStyles(showReqEmpty, readOnly || lookupBlockedByParent)}
+              styles={getFormDropdownStyles(theme, {
+                requiredEmpty: showReqEmpty,
+                disabled: readOnly || lookupBlockedByParent,
+              })}
             />
-            {help && !cell ? (
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {help}
-              </Text>
-            ) : null}
+            {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
             {renderLookupDetailsBelow(name, m)}
           </Stack>
         );
@@ -1014,13 +990,9 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               onRenderTitle={(opts) =>
                 renderMultiSelectDropdownTitle(theme, opts, readOnly || lookupBlockedByParentMulti)
               }
-              styles={multiSelectDropdownStyles(showReqEmpty, readOnly || lookupBlockedByParentMulti)}
+              styles={multiSelectDropdownStyles(theme, showReqEmpty, readOnly || lookupBlockedByParentMulti)}
             />
-            {help && !cell ? (
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {help}
-              </Text>
-            ) : null}
+            {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
             {renderLookupDetailsBelow(name, m)}
           </Stack>
         );
@@ -1033,21 +1005,23 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             ? mergeOptionsForIds(baseOpts, [{ id, label: userTitleFromValue(mergedFieldValue) }])
             : baseOpts;
         return (
-          <Dropdown
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            placeholder={fc.placeholder}
-            options={opts}
-            selectedKey={id !== undefined ? String(id) : ''}
-            onChange={(_, o) => {
-              if (!o || o.key === '') updateField(name, null);
-              else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            styles={dropdownReqStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Dropdown
+              {...(cell ? { ariaLabel: label } : { label })}
+              placeholder={fc.placeholder}
+              options={opts}
+              selectedKey={id !== undefined ? String(id) : ''}
+              onChange={(_, o) => {
+                if (!o || o.key === '') updateField(name, null);
+                else updateField(name, { Id: Number(o.key), Title: String(o.text ?? '') });
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              styles={getFormDropdownStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })}
+            />
+            {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'usermulti': {
@@ -1057,29 +1031,31 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         const opts = mergeOptionsForIds(baseOpts, extra);
         const keys = selected.map((x) => String(x.Id));
         return (
-          <Dropdown
-            key={name}
-            {...(cell ? { ariaLabel: label } : { label })}
-            placeholder={fc.placeholder}
-            multiSelect
-            options={opts}
-            selectedKeys={keys}
-            onChange={(_, o) => {
-              if (!o || o.key === '') return;
-              const k = String(o.key);
-              const hit = selected.findIndex((x) => String(x.Id) === k);
-              const next =
-                hit === -1
-                  ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
-                  : selected.filter((_, i) => i !== hit);
-              updateField(name, next);
-            }}
-            required={isRequired}
-            errorMessage={err}
-            disabled={readOnly}
-            onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
-            styles={multiSelectDropdownStyles(showReqEmpty, readOnly)}
-          />
+          <Stack key={name} tokens={{ childrenGap: 4 }} styles={{ root: { marginBottom: mb } }}>
+            <Dropdown
+              {...(cell ? { ariaLabel: label } : { label })}
+              placeholder={fc.placeholder}
+              multiSelect
+              options={opts}
+              selectedKeys={keys}
+              onChange={(_, o) => {
+                if (!o || o.key === '') return;
+                const k = String(o.key);
+                const hit = selected.findIndex((x) => String(x.Id) === k);
+                const next =
+                  hit === -1
+                    ? [...selected, { Id: Number(o.key), Title: String(o.text ?? '') }]
+                    : selected.filter((_, i) => i !== hit);
+                updateField(name, next);
+              }}
+              required={isRequired}
+              errorMessage={err}
+              disabled={readOnly}
+              onRenderTitle={(opts) => renderMultiSelectDropdownTitle(theme, opts, readOnly)}
+              styles={multiSelectDropdownStyles(theme, showReqEmpty, readOnly)}
+            />
+            {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
+          </Stack>
         );
       }
       case 'url': {
@@ -1095,7 +1071,9 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               onChange={(_, v) => updateField(name, { Url: v ?? '', Description: uv.Description })}
               disabled={readOnly}
               errorMessage={err}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+              styles={mergeFormTextFieldStyles(
+                getFormTextFieldStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })
+              )}
             />
             <TextField
               label={cell ? undefined : 'Descrição a apresentar'}
@@ -1103,9 +1081,11 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               value={uv.Description}
               onChange={(_, v) => updateField(name, { Url: uv.Url, Description: v ?? '' })}
               disabled={readOnly}
-              styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+              styles={mergeFormTextFieldStyles(
+                getFormTextFieldStyles(theme, { requiredEmpty: showReqEmpty, disabled: readOnly })
+              )}
             />
-            {help && !cell && <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text>}
+            {help && !cell && <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text>}
           </Stack>
         );
       }
@@ -1125,7 +1105,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
           borderWidth: 1,
           borderStyle: 'solid',
           borderColor: inputBorder,
-          borderRadius: 2,
+          borderRadius: formControlRadius,
           outline: 'none',
           ...(readOnly ? { cursor: FORM_FIELD_CURSOR_DISABLED } : {}),
         };
@@ -1139,7 +1119,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
                   marginBottom: mb,
                   ...(showReqEmpty && !cell
                     ? {
-                        borderLeft: `3px solid ${REQ_EMPTY_BORDER}`,
+                        borderLeft: `3px solid ${reqEmptyBarColor}`,
                         paddingLeft: 8,
                         paddingTop: 2,
                         paddingBottom: 2,
@@ -1163,7 +1143,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               {err ? (
                 <Text variant="small" styles={{ root: { color: theme.semanticColors.errorText } }}>{err}</Text>
               ) : null}
-              {help && !cell ? <Text variant="small" styles={{ root: { color: '#605e5c' } }}>{help}</Text> : null}
+              {help && !cell ? <Text variant="small" styles={{ root: formHelpTextRoot }}>{help}</Text> : null}
             </Stack>
           );
         }
@@ -1177,7 +1157,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+            styles={fieldTextFieldStyles(!cell && !!help)}
           />
         );
       }
@@ -1209,7 +1189,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+            styles={fieldTextFieldStyles(!cell && !!help)}
           />
         );
       }
@@ -1224,7 +1204,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
             required={isRequired}
             {...common}
             description={cell ? undefined : help}
-            styles={stylesTextFieldRequiredEmpty(showReqEmpty, readOnly)}
+            styles={fieldTextFieldStyles(!cell && !!help)}
           />
         );
     }
