@@ -5,6 +5,7 @@ import {
   Text,
   Dropdown,
   DefaultButton,
+  PrimaryButton,
   IconButton,
   TextField,
   Checkbox,
@@ -28,6 +29,7 @@ import {
   type IWhenUi,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
+import { parseCurlForHttpImport } from '../../core/formManager/parseCurlForHttpImport';
 
 const HTTP_METHOD_OPTIONS: IDropdownOption[] = [
   { key: 'GET', text: 'GET' },
@@ -188,6 +190,8 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
   } = props;
 
   const [actionOpen, setActionOpen] = useState<Record<number, boolean>>({});
+  const [curlDraftByAi, setCurlDraftByAi] = useState<Record<number, string>>({});
+  const [curlErrorByAi, setCurlErrorByAi] = useState<Record<number, string>>({});
   const prevActionLenRef = useRef(actions.length);
   useEffect(() => {
     if (actions.length < prevActionLenRef.current) {
@@ -483,6 +487,77 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                 Execução no browser: o endpoint tem de autorizar CORS. Identificador único nesta sequência — na resposta
                 JSON use placeholders como {'{{http1.token}}'} (substitua http1 pelo identificador).
               </MessageBar>
+              <TextField
+                label="Colar cURL (Chrome / Postman / terminal)"
+                multiline
+                rows={5}
+                value={curlDraftByAi[ai] ?? ''}
+                onChange={(_, v) => {
+                  const s = v ?? '';
+                  setCurlDraftByAi((prev) => ({ ...prev, [ai]: s }));
+                  setCurlErrorByAi((prev) => {
+                    if (!prev[ai]) return prev;
+                    const next = { ...prev };
+                    delete next[ai];
+                    return next;
+                  });
+                }}
+                placeholder={'curl \'https://api.exemplo.com/\' -X POST -H \'Content-Type: application/json\' --data-raw \'{"a":1}\''}
+              />
+              {curlErrorByAi[ai] ? (
+                <MessageBar
+                  messageBarType={MessageBarType.error}
+                  onDismiss={() =>
+                    setCurlErrorByAi((prev) => {
+                      const next = { ...prev };
+                      delete next[ai];
+                      return next;
+                    })
+                  }
+                >
+                  {curlErrorByAi[ai]}
+                </MessageBar>
+              ) : null}
+              <Stack horizontal wrap tokens={{ childrenGap: 8 }} verticalAlign="end">
+                <PrimaryButton
+                  text="Aplicar cURL aos campos"
+                  onClick={() => {
+                    const parsed = parseCurlForHttpImport(curlDraftByAi[ai] ?? '');
+                    if (!parsed.ok) {
+                      setCurlErrorByAi((prev) => ({ ...prev, [ai]: parsed.message }));
+                      return;
+                    }
+                    setCurlErrorByAi((prev) => {
+                      const next = { ...prev };
+                      delete next[ai];
+                      return next;
+                    });
+                    patchAction(ai, {
+                      ...act,
+                      method: parsed.method,
+                      url: parsed.url,
+                      headers: parsed.headers,
+                      query: parsed.query,
+                      body: parsed.body,
+                    });
+                  }}
+                />
+                <DefaultButton
+                  text="Limpar área cURL"
+                  onClick={() => {
+                    setCurlDraftByAi((prev) => {
+                      const next = { ...prev };
+                      delete next[ai];
+                      return next;
+                    });
+                    setCurlErrorByAi((prev) => {
+                      const next = { ...prev };
+                      delete next[ai];
+                      return next;
+                    });
+                  }}
+                />
+              </Stack>
               <TextField
                 label="Identificador deste passo"
                 value={act.stepId}
