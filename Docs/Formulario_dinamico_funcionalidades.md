@@ -3029,3 +3029,243 @@ Exemplos:
 
 Essas mensagens ajudam a identificar se a configuração está pronta ou se ainda falta algum ajuste no SharePoint.
 
+#### Aspeto e pré-visualização do controlo
+
+O collapse `Aspeto e pré-visualização do controlo` define como o campo de anexos será exibido para o usuário no formulário.
+
+Essa configuração não altera o destino dos arquivos. Ela controla apenas a aparência do controle de upload e a forma como os arquivos selecionados aparecem na tela.
+
+Use essa área para escolher uma experiência visual mais simples, mais destacada ou mais compacta, conforme o tipo de formulário.
+
+##### Tipo de layout do input de anexos
+
+Define o formato visual usado para o usuário selecionar ou arrastar arquivos.
+
+Opções disponíveis:
+
+- `Clássico`: exibe o controle de anexo no formato mais tradicional.
+- `Zona destacada`: cria uma área de destaque para clicar ou arrastar arquivos.
+- `Cartão com ícone e sombra`: apresenta o controle em formato de cartão visual.
+- `Faixa azul + área de largar`: exibe uma faixa visual com área para soltar arquivos.
+- `Compacto`: mostra um botão mais simples e arquivos em formato de chips.
+
+Uso recomendado:
+
+- Use `Clássico` quando quiser uma experiência simples e familiar.
+- Use `Zona destacada` quando o envio de arquivos for uma parte importante do formulário.
+- Use `Cartão com ícone e sombra` quando quiser dar mais destaque visual ao anexo.
+- Use `Faixa azul + área de largar` para orientar claramente que o usuário pode arrastar arquivos.
+- Use `Compacto` quando o formulário tiver pouco espaço ou quando anexos forem opcionais.
+
+Exemplo:
+
+Em um formulário de envio de documentos, a `Zona destacada` pode facilitar o entendimento de que o usuário deve anexar arquivos.
+
+Em um formulário simples, onde o anexo é opcional, o layout `Compacto` pode deixar a tela mais limpa.
+
+##### Pré-visualização dos ficheiros selecionados
+
+Define como os arquivos selecionados serão exibidos depois que o usuário adiciona os anexos.
+
+Opções disponíveis:
+
+- `Só nome do ficheiro`: mostra apenas o nome do arquivo.
+- `Nome e tamanho`: mostra o nome e o tamanho do arquivo.
+- `Ícone por tipo + nome`: mostra um ícone conforme o tipo do arquivo, junto com o nome.
+- `Miniatura ou ícone + nome`: mostra miniatura para imagens ou ícone para outros arquivos.
+- `Pré-visualização grande`: mostra os arquivos em cartões maiores.
+
+Uso recomendado:
+
+- Use `Só nome do ficheiro` quando quiser a visualização mais simples.
+- Use `Nome e tamanho` quando o usuário precisa conferir também o peso do arquivo.
+- Use `Ícone por tipo + nome` para facilitar a identificação visual do tipo de arquivo.
+- Use `Miniatura ou ícone + nome` quando imagens forem comuns no formulário.
+- Use `Pré-visualização grande` quando os anexos forem parte central da análise.
+
+Exemplo:
+
+Em um formulário de evidências com imagens, a opção `Miniatura ou ícone + nome` ajuda o usuário a conferir rapidamente se anexou a imagem correta.
+
+Em um formulário administrativo com PDFs e documentos, `Nome e tamanho` costuma ser suficiente.
+
+##### Pré-visualização com arquivos de teste
+
+A área de pré-visualização permite testar como o controle ficará antes de salvar a configuração.
+
+Nessa área, é possível adicionar arquivos de teste para visualizar o comportamento do layout escolhido e da forma de apresentação dos arquivos.
+
+Essa pré-visualização serve apenas para apoiar a configuração visual.
+
+Uso recomendado:
+
+- Teste o layout antes de liberar o formulário para o cliente.
+- Adicione arquivos de tipos diferentes para validar a apresentação.
+- Confira se o controle fica claro para o usuário final.
+- Use a pré-visualização para escolher entre uma experiência mais compacta ou mais destacada.
+
+Exemplo:
+
+Ao selecionar `Cartão com ícone e sombra` e `Ícone por tipo + nome`, a pré-visualização mostra como o usuário verá os arquivos após selecioná-los.
+
+#### Extensões permitidas
+
+O collapse `Extensões permitidas` define quais tipos de arquivos o usuário poderá anexar no formulário.
+
+Essa configuração serve para restringir o upload a formatos específicos, de acordo com a necessidade do processo.
+
+Quando nenhuma extensão é marcada, o formulário aceita qualquer tipo de anexo.
+
+##### Nenhuma extensão selecionada
+
+Se nenhuma opção for marcada, não haverá restrição por extensão.
+
+Nesse caso, o usuário poderá anexar arquivos de qualquer tipo, desde que o SharePoint e as permissões do ambiente permitam.
+
+Uso recomendado:
+
+- Use quando o processo aceita vários tipos de arquivo.
+- Use quando não há regra específica sobre formato.
+- Use em formulários mais genéricos, onde o usuário pode precisar enviar documentos variados.
+
+Exemplo:
+
+Um formulário de atendimento pode aceitar imagens, PDFs, planilhas, documentos e arquivos compactados. Nesse caso, pode ser melhor deixar nenhuma extensão selecionada.
+
+##### Quando marcar extensões
+
+Ao marcar uma ou mais extensões, o formulário passa a aceitar somente os tipos selecionados.
+
+Isso ajuda a controlar melhor o conteúdo recebido e evita arquivos fora do padrão esperado.
+
+Exemplo:
+
+Se forem marcadas apenas as opções `PDF`, `Word .doc` e `Word .docx`, o usuário só poderá enviar arquivos desses formatos.
+
+Uso recomendado:
+
+- Marque extensões quando o processo exige um formato específico.
+- Marque apenas os tipos realmente aceitos pelo cliente.
+- Use restrição para reduzir envio de arquivos incorretos.
+- Revise as extensões antes de publicar o formulário.
+
+##### PDF e documentos Word
+
+Grupo usado para permitir documentos de texto e arquivos formais.
+
+Extensões disponíveis:
+
+- `PDF`
+- `Word .doc`
+- `Word .docx`
+
+Uso recomendado:
+
+- Use para contratos, declarações, comprovantes e documentos oficiais.
+- Use `PDF` quando o documento não deve ser facilmente alterado.
+- Use Word quando o usuário pode enviar documentos editáveis.
+
+##### Excel
+
+Grupo usado para permitir planilhas.
+
+Extensões disponíveis:
+
+- `.xls`
+- `.xlsx`
+
+Uso recomendado:
+
+- Use para formulários que recebem planilhas de controle.
+- Use para importação de dados, relatórios ou levantamentos.
+- Evite liberar Excel quando o processo não precisa de planilhas.
+
+##### PowerPoint
+
+Grupo usado para permitir apresentações.
+
+Extensões disponíveis:
+
+- `.ppt`
+- `.pptx`
+
+Uso recomendado:
+
+- Use quando o processo recebe apresentações institucionais, comerciais ou materiais de apoio.
+- Evite liberar se o formulário for voltado apenas para documentos administrativos simples.
+
+##### Imagens
+
+Grupo usado para permitir arquivos de imagem.
+
+Extensões disponíveis:
+
+- `PNG`
+- `JPEG .jpg`
+- `JPEG .jpeg`
+- `GIF`
+- `WebP`
+- `SVG`
+
+Uso recomendado:
+
+- Use para evidências visuais.
+- Use para fotos, prints, imagens de comprovantes ou anexos gráficos.
+- Use junto com pré-visualização por miniatura quando imagens forem comuns.
+
+Exemplo:
+
+Um formulário de vistoria pode permitir `PNG`, `JPG` e `JPEG` para envio de fotos.
+
+##### Texto e tabelas
+
+Grupo usado para permitir arquivos simples de texto e dados tabulares.
+
+Extensões disponíveis:
+
+- `Texto .txt`
+- `CSV`
+
+Uso recomendado:
+
+- Use `TXT` para arquivos simples de texto.
+- Use `CSV` quando o processo aceita dados exportados de sistemas ou planilhas.
+- Use com cuidado quando os dados precisarem seguir um padrão específico.
+
+##### Arquivos e correio
+
+Grupo usado para permitir arquivos compactados ou mensagens de e-mail.
+
+Extensões disponíveis:
+
+- `ZIP`
+- `Outlook .msg`
+
+Uso recomendado:
+
+- Use `ZIP` quando o usuário precisa enviar vários arquivos juntos.
+- Use `.msg` quando o processo exige anexar mensagens de e-mail.
+- Evite liberar `ZIP` quando o processo precisa analisar cada arquivo separadamente.
+
+##### Vídeo
+
+Grupo usado para permitir arquivos de vídeo.
+
+Extensão disponível:
+
+- `MP4`
+
+Uso recomendado:
+
+- Use quando o processo precisa receber evidências em vídeo.
+- Use para registros visuais, demonstrações ou comprovações.
+- Considere o tamanho dos arquivos antes de liberar vídeo para todos os usuários.
+
+##### Boas práticas
+
+- Libere apenas as extensões necessárias para o processo.
+- Se o formulário for genérico, deixe sem seleção para aceitar qualquer tipo.
+- Se o formulário for específico, marque somente os formatos esperados.
+- Combine a restrição de extensão com instruções claras no texto de ajuda do campo.
+- Teste o envio com arquivos reais antes de publicar para o cliente.
+
