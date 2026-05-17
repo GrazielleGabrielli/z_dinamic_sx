@@ -1,5 +1,112 @@
 # Form
 
+## Sumário
+
+1. Edição nativa
+   1.1. Input Título
+   1.2. Edição Dinâmica
+   1.3. Configuração geral
+2. Configurar formulário e regras
+   2.1. JSON
+   2.2. Abas disponíveis
+3. Funcionalidades
+   3.1. Estrutura
+      3.1.1. Layout do formulário
+      3.1.2. Navegação entre etapas
+      3.1.3. Botão Nova etapa
+      3.1.4. Aba Ocultos
+      3.1.5. Etapas criadas
+      3.1.6. Adicionar alerta
+      3.1.7. Adicionar banner
+      3.1.8. Etapa Fixos
+   3.2. Regras dos campos
+      3.2.1. Filtrar campo
+      3.2.2. Botão Crescente
+      3.2.3. Botão Decrescente
+      3.2.4. Botão Tipo de dado
+      3.2.5. Botão Regras
+      3.2.6. Ações comuns do painel de regras
+   3.3. Regras por tipo de campo
+      3.3.1. Text
+      3.3.2. Multiline
+      3.3.3. Choice
+      3.3.4. Multichoice
+      3.3.5. Number
+      3.3.6. Currency
+      3.3.7. Boolean
+      3.3.8. Datetime
+      3.3.9. Url
+      3.3.10. Lookup
+      3.3.11. Lookupmulti
+      3.3.12. User
+      3.3.13. Usermulti
+      3.3.14. Calculated
+      3.3.15. Taxonomy
+      3.3.16. Taxonomymulti
+      3.3.17. Unknown
+   3.4. Expressões nas regras dos campos
+      3.4.1. Onde as expressões podem ser usadas
+      3.4.2. Diferença entre Valor padrão e Expressão
+      3.4.3. Sempre expressão ao vivo
+      3.4.4. Referência a outros campos
+      3.4.5. Expressões numéricas
+      3.4.6. Expressões de texto
+      3.4.7. Tokens de usuário
+      3.4.8. Tokens de data
+      3.4.9. Diferença em dias entre datas
+      3.4.10. Tokens literais
+      3.4.11. Token de parâmetro da URL
+      3.4.12. Referências a campos lookup e pessoa
+      3.4.13. Expressões para campos lookup, lookupmulti, user e usermulti
+      3.4.14. Expressões para campos de data
+      3.4.15. Expressões para campos texto, escolha, URL e taxonomia
+      3.4.16. Expressões para número e moeda
+      3.4.17. Expressões para booleano
+      3.4.18. Expressões para pastas de anexos
+      3.4.19. Sugestões com @
+      3.4.20. Boas práticas para expressões
+   3.5. Componentes
+      3.5.1. Visualização e listagem
+      3.5.2. Carregar formulário / dados
+      3.5.3. Gravar — loading ao gravar
+      3.5.4. Etapas — layout e navegação
+      3.5.5. Histórico de auditoria
+   3.6. Anexos
+      3.6.1. Destino do upload
+      3.6.2. Aspeto e pré-visualização do controlo
+      3.6.3. Extensões permitidas
+   3.7. Botões
+      3.7.1. Onde mostrar a barra de botões
+      3.7.2. Adicionar botão
+      3.7.3. Clonar botão
+      3.7.4. Remover botão
+      3.7.5. Configurações de um botão adicionado
+      3.7.6. Ações por ordem
+   3.8. Auditoria e versões
+      3.8.1. Lista de logs
+      3.8.2. Lista de registo e captação
+      3.8.3. Textos de registo por botão
+      3.8.4. Versionamento do item
+   3.9. Listas vinculadas
+      3.9.1. Antes de configurar
+      3.9.2. Avisos da aba
+      3.9.3. Botão Adicionar lista vinculada
+      3.9.4. Bloco de lista vinculada
+      3.9.5. Lista e ligação ao principal
+      3.9.6. Apresentação no formulário
+      3.9.7. Anexos e biblioteca por linha
+      3.9.8. Campos na etapa Geral
+      3.9.9. Regras condicionais
+   3.10. Quebra de permissões
+      3.10.1. Quando a quebra é aplicada
+      3.10.2. Ativar
+      3.10.3. Copiar permissões herdadas ao quebrar
+      3.10.4. Manter autor
+      3.10.5. Nível do autor
+      3.10.6. Alvos
+      3.10.7. Principais e níveis
+      3.10.8. Exemplos e boas práticas
+
 ## Edição nativa
 
 Ao editar a página do SharePoint, o painel lateral exibe as configurações principais da página e da WebPart.
