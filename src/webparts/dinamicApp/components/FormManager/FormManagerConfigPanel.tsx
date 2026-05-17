@@ -1003,6 +1003,24 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({});
   const [stepVisibilityPanelStepId, setStepVisibilityPanelStepId] = useState<string | null>(null);
   const [buttonSectionOpen, setButtonSectionOpen] = useState<Record<string, boolean>>({});
+  const [buttonPanelSectionOpen, setButtonPanelSectionOpen] = useState<
+    Record<string, Partial<Record<string, boolean>>>
+  >({});
+
+  const getBtnPanelSecOpen = (btnId: string, section: string): boolean => {
+    const v = buttonPanelSectionOpen[btnId]?.[section];
+    if (v !== undefined) return v;
+    return section === 'identidade';
+  };
+
+  const toggleBtnPanelSecOpen = (btnId: string, section: string): void => {
+    setButtonPanelSectionOpen((prev) => {
+      const prevRow = { ...(prev[btnId] ?? {}) };
+      const cur =
+        prevRow[section] !== undefined ? prevRow[section] === true : section === 'identidade';
+      return { ...prev, [btnId]: { ...prevRow, [section]: !cur } };
+    });
+  };
   const [customButtonsBarVertical, setCustomButtonsBarVertical] = useState<TFormCustomButtonsBarVertical>(
     () => value.customButtonsBarVertical ?? 'bottom'
   );
@@ -3887,7 +3905,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     </Stack>
                   </Stack>
                   {panelOpen && (
-                  <>
+                  <Stack tokens={{ childrenGap: 8 }}>
+                    <FormManagerCollapseSection
+                      title="Texto, operação e aparência"
+                      isOpen={getBtnPanelSecOpen(btn.id, 'identidade')}
+                      onToggle={() => toggleBtnPanelSecOpen(btn.id, 'identidade')}
+                    >
                   <TextField
                     label="Texto do botão"
                     value={btn.label}
@@ -4103,9 +4126,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     checked={btn.enabled !== false}
                     onChange={(_, c) => patchCustomButton(bi, { enabled: c ? undefined : false })}
                   />
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                    Modal de confirmação
-                  </Text>
+                    </FormManagerCollapseSection>
+                    <FormManagerCollapseSection
+                      title="Confirmação antes de executar"
+                      isOpen={getBtnPanelSecOpen(btn.id, 'confirmacao')}
+                      onToggle={() => toggleBtnPanelSecOpen(btn.id, 'confirmacao')}
+                    >
                   <Toggle
                     label="Pedir confirmação antes de executar (primeiro passo; cancelar não executa ações nem o resto do botão)"
                     checked={btn.confirmBeforeRun?.enabled === true}
@@ -4196,10 +4222,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       />
                     </Stack>
                   )}
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                    Último passo (após tudo concluir com sucesso)
-                  </Text>
-                  
+                    </FormManagerCollapseSection>
+                    <FormManagerCollapseSection
+                      title="Quando o fluxo terminar sem erro"
+                      isOpen={getBtnPanelSecOpen(btn.id, 'fluxoFinal')}
+                      onToggle={() => toggleBtnPanelSecOpen(btn.id, 'fluxoFinal')}
+                    >
                   <Dropdown
                     label="Quando o fluxo do botão terminar sem erro"
                     options={BUTTON_FINISH_AFTER_OPTIONS}
@@ -4246,6 +4274,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       rows={2}
                     />
                   )}
+                    </FormManagerCollapseSection>
+                    <FormManagerCollapseSection
+                      title="Visibilidade e condições"
+                      isOpen={getBtnPanelSecOpen(btn.id, 'visibilidade')}
+                      onToggle={() => toggleBtnPanelSecOpen(btn.id, 'visibilidade')}
+                    >
                   <Checkbox
                     label="Só mostrar se todos os campos obrigatórios estiverem preenchidos"
                     checked={btn.showOnlyWhenAllRequiredFilled === true}
@@ -4444,7 +4478,13 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       <DefaultButton text="Adicionar condição" onClick={() => addButtonWhenRow(bi)} />
                     </Stack>
                   )}
+                    </FormManagerCollapseSection>
                   {(btn.operation ?? 'legacy') !== 'redirect' && (btn.operation ?? 'legacy') !== 'history' && (
+                    <FormManagerCollapseSection
+                      title="Ações em cadeia"
+                      isOpen={getBtnPanelSecOpen(btn.id, 'acoes')}
+                      onToggle={() => toggleBtnPanelSecOpen(btn.id, 'acoes')}
+                    >
                     <FormManagerChainedActionsBlock
                       actions={btn.actions}
                       patchAction={(ai, next) => patchButtonAction(bi, ai, next)}
@@ -4459,8 +4499,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       loading={loading}
                       getDefaultWhenUi={() => defaultWhenUi(meta)}
                     />
+                    </FormManagerCollapseSection>
                   )}
-                  </>
+                  </Stack>
                   )}
                 </Stack>
               );
