@@ -2123,6 +2123,471 @@ Uso recomendado:
 - Valide o comportamento no formulário antes de publicar.
 - Quando possível, confirme o tipo correto do campo na lista SharePoint.
 
+### Expressões nas regras dos campos
+
+As expressões são usadas para preencher, calcular ou montar valores automaticamente dentro do formulário.
+
+Elas aparecem principalmente nas configurações de `Valor padrão` e `Expressão` dentro da seção `Exibição` das regras de um campo.
+
+#### Onde as expressões podem ser usadas
+
+As expressões podem ser usadas em diferentes situações:
+
+- Definir um valor inicial para um campo.
+- Preencher um campo com informações do usuário atual.
+- Preencher uma data automaticamente.
+- Calcular valores numéricos.
+- Montar textos usando valores de outros campos.
+- Buscar informações de campos lookup ou pessoa.
+- Definir uma pasta de anexos quando a configuração de anexos usa biblioteca.
+
+#### Diferença entre Valor padrão e Expressão
+
+##### Valor padrão
+
+O `Valor padrão` é aplicado quando o campo ainda está vazio.
+
+Ele serve para sugerir ou preencher automaticamente um valor inicial, mas o usuário ainda pode alterar o campo se ele estiver editável.
+
+Exemplo:
+
+Um campo `Solicitante` pode iniciar com o usuário atual.
+
+Um campo `Data da solicitação` pode iniciar com a data de hoje.
+
+Uso recomendado:
+
+- Use para facilitar o preenchimento.
+- Use para reduzir digitação manual.
+- Use quando o valor inicial pode ser alterado pelo usuário.
+
+##### Expressão
+
+A `Expressão` é usada para calcular ou montar o valor do campo.
+
+Ela é indicada quando o valor depende de outro campo, de uma regra ou de informações do contexto.
+
+Exemplo:
+
+Um campo `Total` pode ser calculado com base em `Quantidade` e `Valor unitário`.
+
+Um campo `Resumo` pode montar um texto juntando o nome do solicitante, o tipo da solicitação e a data.
+
+Uso recomendado:
+
+- Use quando o campo deve ser preenchido por regra.
+- Use quando o valor depende de outros campos.
+- Use quando a informação precisa seguir um padrão.
+
+#### Sempre expressão ao vivo
+
+A opção `Sempre expressão ao vivo` faz a expressão ser recalculada mesmo em edição e visualização.
+
+Quando essa opção está ativa, o campo pode ignorar o valor gravado anteriormente e exibir o resultado atualizado da expressão.
+
+Exemplo:
+
+Um campo `Dias restantes` pode ser recalculado sempre que o formulário for aberto, considerando a data atual.
+
+Uso recomendado:
+
+- Use quando o valor precisa refletir o momento atual.
+- Use para cálculos que dependem de datas, contexto ou outros campos atualizados.
+- Evite usar quando o valor precisa preservar exatamente o que foi gravado no momento do envio.
+
+#### Referência a outros campos
+
+Para usar o valor de outro campo, informe o nome interno entre chaves duplas.
+
+Formato:
+
+`{{NomeInternoDoCampo}}`
+
+Exemplo:
+
+`{{Quantidade}}`
+
+`{{ValorUnitario}}`
+
+Uso em uma expressão numérica:
+
+`{{Quantidade}} * {{ValorUnitario}}`
+
+Resultado esperado:
+
+Se `Quantidade` for `3` e `ValorUnitario` for `100`, o resultado será `300`.
+
+Uso recomendado:
+
+- Use nomes internos dos campos.
+- Use campos compatíveis com o tipo de cálculo.
+- Confirme o nome interno quando o campo tiver acentos ou espaços no nome exibido.
+
+#### Expressões numéricas
+
+Expressões numéricas são usadas em campos de número ou moeda.
+
+Elas permitem usar operações matemáticas simples.
+
+Operadores comuns:
+
+- `+`: soma.
+- `-`: subtração.
+- `*`: multiplicação.
+- `/`: divisão.
+- `(` e `)`: agrupamento.
+
+Exemplos:
+
+`{{Quantidade}} * {{ValorUnitario}}`
+
+`{{ValorTotal}} / 2`
+
+`({{ValorA}} + {{ValorB}}) / 2`
+
+Uso recomendado:
+
+- Use em campos de número ou moeda.
+- Use para totais, médias, diferenças e cálculos simples.
+- Evite fórmulas muito longas quando a regra puder ser dividida em campos auxiliares.
+
+#### Expressões de texto
+
+Para montar texto usando campos, use o prefixo `str:`.
+
+Formato:
+
+`str: texto {{Campo}}`
+
+Exemplo:
+
+`str: Solicitação de {{Solicitante}} para {{Departamento}}`
+
+Resultado esperado:
+
+O formulário monta um texto combinando partes fixas com valores preenchidos em outros campos.
+
+Uso recomendado:
+
+- Use para gerar descrições automáticas.
+- Use para montar títulos padronizados.
+- Use para criar resumos de solicitação.
+
+Exemplo prático:
+
+`str: Férias de {{Colaborador}} - {{DataInicio}} até {{DataFim}}`
+
+#### Tokens de usuário
+
+Tokens de usuário usam informações do usuário atual.
+
+Tokens disponíveis:
+
+- `[me]`: ID numérico do usuário atual.
+- `[myId]`: igual a `[me]`.
+- `[myName]`: nome do usuário atual.
+- `[myEmail]`: e-mail do usuário atual.
+- `[myLogin]`: login do usuário atual.
+- `[myDepartment]`: departamento do usuário, quando disponível.
+- `[myJobTitle]`: cargo do usuário, quando disponível.
+
+Exemplos:
+
+`[myName]`
+
+`[myEmail]`
+
+`str: Solicitação aberta por [myName]`
+
+Uso recomendado:
+
+- Use `[myName]` para preencher nome do solicitante.
+- Use `[myEmail]` para registrar o e-mail do usuário.
+- Use `[me]` ou `[myId]` em campos de pessoa ou lookup que esperam identificador numérico.
+
+#### Tokens de data
+
+Tokens de data usam datas relativas ao momento atual.
+
+Tokens disponíveis:
+
+- `[today]`: data de hoje.
+- `[now]`: data e hora atuais.
+- `[tomorrow]`: dia seguinte.
+- `[yesterday]`: dia anterior.
+- `[startOfMonth]`: primeiro dia do mês atual.
+- `[endOfMonth]`: último dia do mês atual.
+- `[startOfYear]`: primeiro dia do ano atual.
+- `[endOfYear]`: último dia do ano atual.
+
+Exemplos:
+
+`[today]`
+
+`[today] + 7`
+
+`{{DataInicio}} + 30`
+
+Uso recomendado:
+
+- Use `[today]` para campos de data da solicitação.
+- Use `[now]` quando precisar de data e hora.
+- Use sufixos como `+ 7`, `+ 14` ou `+ 30` para prazos futuros.
+
+Exemplo prático:
+
+Um campo `Prazo final` pode usar:
+
+`[today] + 7`
+
+Assim, o prazo será preenchido com sete dias após a data atual.
+
+#### Diferença em dias entre datas
+
+Para calcular diferença entre duas datas, use:
+
+`{{DAYS:CampoDataA:CampoDataB}}`
+
+Exemplo:
+
+`{{DAYS:DataInicio:DataFim}}`
+
+Resultado esperado:
+
+O formulário calcula a quantidade de dias entre as duas datas.
+
+Uso recomendado:
+
+- Use para calcular duração de férias.
+- Use para calcular prazo de atendimento.
+- Use para calcular tempo entre abertura e conclusão.
+
+#### Tokens literais
+
+Tokens literais representam valores simples.
+
+Tokens disponíveis:
+
+- `[empty]`: texto vazio.
+- `[null]`: valor nulo.
+- `[true]`: verdadeiro.
+- `[false]`: falso.
+
+Exemplos:
+
+`[true]`
+
+`[false]`
+
+Uso recomendado:
+
+- Use `[true]` ou `[false]` em campos sim/não.
+- Use `[empty]` quando o campo precisa iniciar vazio por regra.
+- Use `[null]` quando o valor precisa ser tratado como nulo.
+
+#### Token de parâmetro da URL
+
+O token `[query:nome]` permite buscar um valor informado na URL da página.
+
+Formato:
+
+`[query:nome]`
+
+Exemplo:
+
+Se a página for aberta com:
+
+`?origem=portal`
+
+O campo pode usar:
+
+`[query:origem]`
+
+Resultado esperado:
+
+O formulário preenche o campo com o valor `portal`.
+
+Uso recomendado:
+
+- Use quando a página recebe parâmetros externos.
+- Use para identificar origem da solicitação.
+- Use para pré-preencher campos conforme links enviados ao usuário.
+
+#### Referências a campos lookup e pessoa
+
+Campos lookup e pessoa podem expor propriedades específicas.
+
+Formato:
+
+`{{Campo/Propriedade}}`
+
+Exemplos:
+
+`{{Projeto/Title}}`
+
+`{{Projeto/Id}}`
+
+`{{Responsavel/EMail}}`
+
+`{{Responsavel/LoginName}}`
+
+Uso recomendado:
+
+- Use `/Title` para exibir o nome ou título relacionado.
+- Use `/Id` quando precisar do identificador.
+- Use `/EMail` para campos de pessoa.
+- Use `/LoginName` quando o login for necessário para integração ou controle.
+
+Exemplo prático:
+
+`str: Projeto selecionado: {{Projeto/Title}}`
+
+#### Expressões para campos lookup, lookupmulti, user e usermulti
+
+Campos de lookup e pessoa geralmente esperam identificadores.
+
+Por isso, em muitos cenários, as expressões mais comuns são:
+
+- `[me]`
+- `[myId]`
+- Referências a outros campos lookup ou pessoa.
+
+Exemplo:
+
+Um campo `Solicitante` do tipo pessoa pode usar:
+
+`[me]`
+
+Assim, o formulário identifica o usuário atual.
+
+Uso recomendado:
+
+- Use `[me]` para preencher pessoa atual.
+- Use referências de lookup quando o valor deve vir de outro campo relacionado.
+- Evite usar texto livre em campos que esperam identificador.
+
+#### Expressões para campos de data
+
+Campos de data aceitam tokens de data, referências a outros campos de data e acréscimos de dias.
+
+Exemplos:
+
+`[today]`
+
+`[tomorrow]`
+
+`{{DataInicio}} + 7`
+
+`[today] + {{QuantidadeDias}}`
+
+Uso recomendado:
+
+- Use `[today]` para data inicial automática.
+- Use `{{OutraData}} + N` para calcular prazos.
+- Use campos numéricos quando o prazo varia conforme uma informação preenchida pelo usuário.
+
+#### Expressões para campos texto, escolha, URL e taxonomia
+
+Campos de texto, escolha, URL e taxonomia podem usar textos montados com `str:`, tokens e referências a outros campos.
+
+Exemplos:
+
+`str: Aberto por [myName]`
+
+`str: {{TipoSolicitacao}} - {{Departamento}}`
+
+`str: https://empresa.com/processo?id={{ID}}`
+
+Uso recomendado:
+
+- Use para padronizar títulos, descrições e links.
+- Use para preencher classificações conforme regras.
+- Valide o resultado antes de publicar, principalmente em campos de escolha ou taxonomia.
+
+#### Expressões para número e moeda
+
+Campos numéricos e de moeda devem usar expressões numéricas.
+
+Exemplos:
+
+`{{Quantidade}} * {{ValorUnitario}}`
+
+`{{ValorTotal}} - {{Desconto}}`
+
+`({{ValorA}} + {{ValorB}}) / 2`
+
+Uso recomendado:
+
+- Use apenas campos numéricos ou de moeda nas contas.
+- Evite misturar texto com cálculo numérico.
+- Use parênteses quando precisar controlar a ordem do cálculo.
+
+#### Expressões para booleano
+
+Campos booleanos representam verdadeiro ou falso.
+
+Exemplos:
+
+`[true]`
+
+`[false]`
+
+Uso recomendado:
+
+- Use `[true]` para marcar uma opção automaticamente.
+- Use `[false]` para deixar uma opção desmarcada por padrão.
+- Use condições de ativação, desativação ou visibilidade quando o valor depender de outras respostas.
+
+#### Expressões para pastas de anexos
+
+Quando os anexos usam biblioteca de documentos com árvore de pastas configurada, a expressão pode apontar para uma pasta específica.
+
+Formato:
+
+`attfolder:idDaPasta`
+
+Uso esperado:
+
+Essa expressão gera o caminho da pasta ligada ao item, conforme a estrutura configurada na aba `Anexos`.
+
+Uso recomendado:
+
+- Use quando o formulário precisa salvar ou referenciar arquivos em uma pasta específica.
+- Use em conjunto com a configuração de biblioteca de documentos.
+- Valide a árvore de pastas antes de usar em produção.
+
+#### Sugestões com @
+
+Nos campos que aceitam expressão, digitar `@` abre sugestões disponíveis.
+
+As sugestões ajudam o usuário a inserir tokens, campos e referências sem precisar decorar todos os formatos.
+
+Exemplos de sugestões:
+
+- Tokens de usuário.
+- Tokens de data.
+- Campos do formulário.
+- Campos numéricos.
+- Campos lookup.
+- Pastas de anexos, quando disponíveis.
+
+Uso recomendado:
+
+- Digite `@` para procurar o token ou campo desejado.
+- Prefira selecionar a sugestão em vez de digitar manualmente.
+- Use as sugestões para evitar erro no nome interno do campo.
+
+#### Boas práticas para expressões
+
+- Comece com expressões simples.
+- Teste o resultado em homologação antes de copiar para produção.
+- Use nomes internos corretos dos campos.
+- Use `str:` quando quiser montar texto.
+- Use operadores matemáticos apenas em campos numéricos.
+- Use tokens de data apenas em campos compatíveis com data ou texto.
+- Evite expressões muito longas quando a regra puder ser quebrada em partes menores.
+- Documente a finalidade da expressão no texto de ajuda do campo quando o comportamento não for óbvio para o usuário.
+
 ### Componentes
 
 A aba `Componentes` reúne configurações visuais e comportamentais do formulário.
@@ -2456,4 +2921,111 @@ Uso recomendado:
 O collapse mostra uma pré-visualização do estilo escolhido para os registros.
 
 Use essa prévia para validar se o formato está adequado antes de salvar.
+
+### Anexos
+
+A aba `Anexos` reúne as configurações relacionadas ao envio de arquivos pelo formulário.
+
+Nessa aba é possível definir onde os arquivos serão armazenados e, quando aplicável, como eles serão vinculados ao item principal do formulário.
+
+#### Destino do upload
+
+O collapse `Destino do upload` define onde os arquivos enviados pelo usuário serão gravados.
+
+Essa configuração é importante porque determina se os arquivos ficarão como anexos do próprio item da lista ou se serão enviados para uma biblioteca de documentos.
+
+##### Anexos ao item
+
+A opção `Anexos ao item (lista principal)` grava os arquivos diretamente no item da lista principal.
+
+Esse é o comportamento mais simples e direto.
+
+Quando o usuário envia arquivos pelo formulário, eles ficam anexados ao próprio registro criado ou editado.
+
+Exemplo:
+
+Em um formulário de solicitação de férias, o usuário pode anexar um comprovante ou documento de apoio diretamente ao item da solicitação.
+
+Uso recomendado:
+
+- Use quando os arquivos pertencem diretamente ao registro.
+- Use quando não há necessidade de organizar os arquivos em pastas.
+- Use quando o cliente quer uma configuração mais simples.
+- Use para formulários com poucos arquivos por item.
+
+Ponto de atenção:
+
+Como os arquivos ficam anexados ao item da lista, a organização segue o próprio registro do SharePoint.
+
+##### Biblioteca de documentos
+
+A opção `Biblioteca de documentos` envia os arquivos para uma biblioteca do SharePoint.
+
+Esse modo é indicado quando os arquivos precisam ficar organizados em uma biblioteca, com possibilidade de estrutura de pastas e metadados próprios.
+
+Ao selecionar essa opção, o formulário exibe configurações adicionais para escolher a biblioteca e informar como os arquivos serão ligados ao item principal.
+
+Exemplo:
+
+Em um formulário de gestão documental, os arquivos enviados podem ser armazenados em uma biblioteca chamada `Documentos`, em vez de ficarem apenas como anexos do item.
+
+Uso recomendado:
+
+- Use quando os arquivos precisam ser organizados em biblioteca.
+- Use quando os documentos precisam ter controle, visualização ou gestão própria.
+- Use quando o cliente já trabalha com bibliotecas documentais.
+- Use quando há necessidade de estruturar pastas por item ou processo.
+
+##### Biblioteca de documentos
+
+Campo usado para escolher em qual biblioteca os arquivos serão salvos.
+
+A lista mostra as bibliotecas disponíveis no site.
+
+Exemplo:
+
+Selecionar a biblioteca `Documentos de Solicitações` para armazenar todos os arquivos enviados pelo formulário.
+
+Uso recomendado:
+
+- Escolha uma biblioteca criada para esse tipo de processo.
+- Evite misturar documentos de processos diferentes na mesma biblioteca sem necessidade.
+- Confirme se os usuários possuem permissão para gravar arquivos na biblioteca escolhida.
+
+##### Lookup para a lista principal
+
+O campo `Lookup para a lista principal (vínculo ao item)` define qual coluna da biblioteca liga o arquivo ao item principal do formulário.
+
+Esse vínculo permite identificar a qual registro cada arquivo pertence.
+
+Na prática, a biblioteca precisa ter uma coluna de lookup apontando para a lista principal usada pelo formulário.
+
+Exemplo:
+
+A biblioteca `Documentos de Solicitações` pode ter uma coluna `Solicitação` que aponta para a lista principal `Solicitações`.
+
+Quando um arquivo é enviado, ele fica salvo na biblioteca e vinculado ao item correto da lista.
+
+Uso recomendado:
+
+- Configure esse campo quando usar `Biblioteca de documentos`.
+- Garanta que a biblioteca tenha uma coluna de lookup para a lista principal.
+- Use nomes claros para o lookup, como `Solicitação`, `Item relacionado` ou `Registro principal`.
+
+Ponto de atenção:
+
+Se não existir uma coluna de lookup na biblioteca apontando para a lista principal, será necessário criá-la antes de concluir essa configuração.
+
+##### Mensagens de carregamento e validação
+
+Durante a configuração, o painel pode exibir mensagens de carregamento ou aviso.
+
+Exemplos:
+
+- Carregando bibliotecas disponíveis.
+- Carregando campos da biblioteca selecionada.
+- Resolvendo a lista principal do formulário.
+- Avisando que não existe lookup válido para vincular os arquivos ao item.
+
+Essas mensagens ajudam a identificar se a configuração está pronta ou se ainda falta algum ajuste no SharePoint.
 
