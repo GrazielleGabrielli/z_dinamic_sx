@@ -3581,7 +3581,7 @@ O campo `Tipo de operação` define qual será o comportamento principal do bot�
 
 Opções disponíveis:
 
-- `Ações em cadeia`: executa uma sequência de ações configuradas no próprio botão.
+- `Ações em cadeia`: executa uma sequência de ações configuradas no próprio botão (mostrar/ocultar campos, definir valores, juntar texto, **pedidos HTTP** a APIs, etc.).
 - `Redirecionar`: envia o usuário para uma URL configurada.
 - `Adicionar`: cria um novo item na lista.
 - `Atualizar`: grava alterações no item atual.
@@ -4310,6 +4310,7 @@ Um botão `Enviar para análise` pode executar:
 - Ação 1: mostrar o campo `Comentário`.
 - Ação 2: definir o campo `Status` como `Em análise`.
 - Ação 3: juntar campos em um resumo.
+- Ação 4 (opcional): pedido HTTP a uma API para registrar o envio e guardar um token devolvido para usar num pedido seguinte.
 
 Uso recomendado:
 
@@ -4356,6 +4357,7 @@ Tipos disponíveis:
 - `Ocultar campos`
 - `Definir valor de um campo`
 - `Juntar vários campos num campo`
+- `Pedido HTTP`
 
 Cada tipo exibe configurações próprias.
 
@@ -4675,6 +4677,71 @@ O separador é usado apenas quando o `Modelo de texto` está vazio.
 
 Se houver um modelo preenchido, o modelo tem prioridade.
 
+#### Tipo Pedido HTTP
+
+O tipo `Pedido HTTP` envia um pedido web a partir do **browser do utilizador**, no momento em que o botão é executado (na sequência de **Ações por ordem**). É o análogo, em termos de configuração, a uma ação «HTTP» em ferramentas como o Power Automate: define-se método, URL, cabeçalhos, parâmetros de consulta e corpo.
+
+**Para que serve**
+
+- Chamar APIs externas ou internas (REST) no clique do botão.
+- Obter tokens ou dados de uma resposta JSON e reutilizá-los **nas ações seguintes** (por exemplo, colocar `{{http1.token}}` num cabeçalho de um segundo pedido HTTP na mesma cadeia).
+- Combinar com `Juntar vários campos` ou outros tipos de ação: valores dos campos do formulário podem entrar no URL, nos cabeçalhos ou no corpo.
+
+**Execução e CORS**
+
+O pedido corre no contexto da página SharePoint. O servidor de destino tem de permitir **CORS** (Cross-Origin Resource Sharing) para o domínio onde a WebPart está, caso o URL seja noutro domínio. Se a API não permitir CORS, o browser bloqueia a resposta; isso não é contornável só pela configuração do formulário.
+
+**Identificador deste passo**
+
+Cada ação `Pedido HTTP` precisa de um **identificador único** dentro da sequência de ações HTTP daquele botão (por exemplo `http1`, `auth`, `zapi`). Esse identificador:
+
+- Serve para montar expressões do tipo `{{identificador.caminho}}`.
+- Associa a **resposta** do pedido a esse nome. Se a resposta for JSON, `caminho` pode usar notação por pontos para propriedades aninhadas (ex.: `{{http1.data.access_token}}`).
+
+Regras práticas: use apenas letras, números e sublinhado; não repita o mesmo identificador em dois pedidos HTTP do mesmo botão.
+
+**Método, URL, cabeçalhos, consulta e corpo**
+
+- **Método**: `GET`, `POST`, `PUT`, `PATCH` ou `DELETE`.
+- **URL**: endereço absoluto (`https://…`) ou relativo ao site. Aceita placeholders `{{NomeInternoDoCampo}}` nos mesmos moldes das outras ações.
+- **Cabeçalhos**: lista de pares chave / valor; valores podem incluir placeholders de campos e de respostas de pedidos anteriores (`{{http1.token}}`, etc.).
+- **Consulta (query string)**: parâmetros que o sistema junta ao URL na execução (útil quando o URL base é fixo e os parâmetros variam).
+- **Corpo**: texto livre (em geral JSON). Em `GET` ou `DELETE`, se o corpo estiver vazio, não é enviado. Placeholders funcionam como no URL e nos cabeçalhos.
+
+**Resposta e erros**
+
+- Se a resposta tiver corpo e for JSON válido, é interpretada como objeto para efeitos de `{{identificador.propriedade}}`.
+- Se não for JSON, o resultado tratado como valor único ainda pode ser referenciado de forma coerente com o que a interface de placeholders permite.
+- Códigos HTTP de erro (4xx, 5xx) interrompem a sequência e são mostrados ao utilizador; as ações seguintes não correm.
+
+**Ordem na cadeia**
+
+Os pedidos HTTP são **assíncronos** e respeitam a ordem das ações: o pedido da «Ação 2» só corre depois de o da «Ação 1» concluir com sucesso. Isto permite encadear, por exemplo: (1) obter token; (2) chamar outro endpoint com `Authorization: Bearer {{http1.token}}`.
+
+**Importar a partir de cURL**
+
+Na configuração da ação há uma área para **colar um comando cURL** (por exemplo exportado do Chrome, Postman ou terminal) e um botão para **aplicar** esse comando aos campos.
+
+Comportamento esperado:
+
+- Lê continuações de linha com `\` seguido de nova linha (como em comandos multilinha).
+- Interpreta argumentos entre aspas simples ou duplas.
+- Suporta de forma comum: `-X` / `--request`, `-H` / `--header` / `--header=…`, `-b` / `--cookie`, `-d` / `--data` / `--data-raw` / `--data-binary` (e formas `--data=…`), `--url`, e o URL como argumento posicional.
+- Separa automaticamente **URL base** e **parâmetros de consulta** quando o URL traz `?key=value&…`. Se o URL contiver placeholders `{{…}}`, a divisão automática da query pode não ser aplicada (mantém-se o URL completo no campo URL).
+- **Não suporta** corpo a partir de ficheiro (`-d @arquivo`); nesse caso é necessário colar o corpo em texto.
+
+O identificador do passo **não** é alterado pela importação de cURL (mantém-se o valor que já estava configurado, por exemplo `http1`).
+
+**Segurança e boas práticas**
+
+- Cabeçalhos com segredos (API keys, tokens fixos) ficam gravados na configuração do formulário; restrinja quem pode editar o gestor de formulário.
+- Prefira tokens obtidos por um primeiro pedido HTTP e referenciados com `{{passo.campo}}` a credenciais fixas sempre que possível.
+- Teste em ambiente de homologação e confirme CORS e contratos da API antes de produção.
+
+**Interface e linha do tempo**
+
+Quando o botão usa confirmação modal antes de executar, a linha do tempo de execução pode listar **um passo por ação**; para `Pedido HTTP`, o texto indica o método e o identificador do passo.
+
 #### Condição por ação
 
 Cada ação pode ter uma condição própria.
@@ -4751,6 +4818,7 @@ Ao clicar no botão, o formulário altera o status, registra a data de envio e m
 - Cuidado ao usar `Ocultar campos` para não esconder informações importantes.
 - Em `Definir valor de um campo`, confirme se o valor informado é compatível com o tipo do campo.
 - Em `Juntar vários campos`, prefira placeholders selecionados pela interface para evitar erro no nome interno.
+- Em `Pedido HTTP`, valide CORS, identificadores únicos e ordem dos pedidos; use importação cURL para reduzir erros de cópia.
 
 ### Auditoria e versões
 
