@@ -5379,4 +5379,1826 @@ No painel de histórico, o usuário consegue consultar logs funcionais e também
 - Combine com `Textos de registo por botão` para ter histórico funcional claro.
 - Teste a expansão de versões em homologação antes de liberar para o cliente.
 
+### Listas vinculadas
+
+A aba `Listas vinculadas` permite configurar listas secundárias dentro do formulário principal.
+
+Essas listas secundárias funcionam como blocos de registros relacionados ao item principal.
+
+Exemplos de uso:
+
+- Uma solicitação principal com várias despesas vinculadas.
+- Um pedido principal com vários itens de produto.
+- Um cadastro principal com várias linhas de dependentes.
+- Um processo principal com várias tarefas associadas.
+
+Na prática, o formulário principal grava o item principal e também permite trabalhar com linhas de outra lista SharePoint que estejam ligadas a esse item.
+
+#### Antes de configurar
+
+Para usar listas vinculadas, é necessário ter:
+
+- Uma lista principal configurada no formulário.
+- Uma lista filha no SharePoint.
+- Um campo Lookup na lista filha apontando para a lista principal.
+
+Esse campo Lookup é o que cria a ligação entre o item principal e os itens filhos.
+
+Exemplo:
+
+Lista principal: `Solicitações`
+
+Lista filha: `Itens da solicitação`
+
+Campo Lookup na lista filha: `Solicitação`
+
+Resultado:
+
+Cada item da lista `Itens da solicitação` fica associado a uma solicitação específica.
+
+#### Avisos da aba
+
+Se a lista principal ainda não estiver definida na configuração da origem de dados, a aba mostra um aviso pedindo para configurar primeiro a lista principal.
+
+Isso acontece porque a ligação da lista filha depende da lista principal.
+
+Também pode aparecer um aviso quando a lista principal informada não é encontrada no site.
+
+Nesse caso, os campos Lookup podem não ser filtrados corretamente, porque o sistema não consegue confirmar qual lista deve ser usada como referência.
+
+Uso recomendado:
+
+- Configure primeiro a origem de dados do formulário principal.
+- Confirme se o nome da lista principal está correto.
+- Confirme se a lista principal existe no mesmo contexto esperado.
+- Só depois configure as listas vinculadas.
+
+#### Botão Adicionar lista vinculada
+
+O botão `Adicionar lista vinculada` cria um novo bloco de lista filha.
+
+Cada bloco representa uma lista secundária que poderá aparecer dentro do formulário principal.
+
+Ao adicionar, o sistema cria um bloco inicialmente sem lista selecionada.
+
+Depois disso, é necessário abrir o bloco e configurar a lista filha e o campo Lookup de ligação.
+
+Uso recomendado:
+
+- Adicione uma lista vinculada para cada conjunto de registros filhos.
+- Use quando a informação precisa ter várias linhas relacionadas ao mesmo item principal.
+- Evite usar lista vinculada para informações simples que poderiam ser apenas campos do formulário principal.
+
+Exemplo:
+
+Em um formulário de pedido, os dados gerais ficam na lista principal.
+
+Os produtos do pedido ficam em uma lista vinculada, porque um mesmo pedido pode ter vários produtos.
+
+#### Bloco de lista vinculada
+
+Cada lista vinculada aparece como um bloco com o título:
+
+`Lista vinculada 1: (sem título)`
+
+Depois que uma lista filha é escolhida, o título passa a mostrar o nome da lista.
+
+Exemplo:
+
+`Lista vinculada 1: Itens da solicitação`
+
+O bloco pode ser aberto para mostrar suas configurações.
+
+Também existem ações no topo do bloco:
+
+- `Mover bloco para cima`.
+- `Mover bloco para baixo`.
+- `Remover bloco`.
+
+Essas ações controlam a ordem dos blocos de listas vinculadas dentro da configuração.
+
+##### Mover bloco para cima
+
+O botão `Mover bloco para cima` sobe o bloco da lista vinculada uma posição na lista de blocos configurados.
+
+Use quando aquela lista vinculada deve aparecer antes de outra.
+
+Exemplo:
+
+Se o formulário possui os blocos `Despesas` e `Participantes`, mas o cliente precisa preencher primeiro os participantes, use `Mover bloco para cima` no bloco `Participantes`.
+
+Quando o bloco já está na primeira posição, o botão fica indisponível, porque não há posição acima para mover.
+
+##### Mover bloco para baixo
+
+O botão `Mover bloco para baixo` desce o bloco da lista vinculada uma posição na lista de blocos configurados.
+
+Use quando aquela lista vinculada deve aparecer depois de outra.
+
+Exemplo:
+
+Se o bloco `Análises` deve ser preenchido somente depois de `Itens da solicitação`, use `Mover bloco para baixo` até chegar na posição desejada.
+
+Quando o bloco já está na última posição, o botão fica indisponível, porque não há posição abaixo para mover.
+
+##### Como a movimentação se comporta
+
+A movimentação altera apenas a ordem dos blocos de listas vinculadas na configuração.
+
+Ela não altera:
+
+- A lista SharePoint vinculada.
+- O campo Lookup de ligação.
+- Os campos configurados dentro do bloco.
+- As regras condicionais da lista vinculada.
+- Os itens já cadastrados na lista filha.
+
+Uso recomendado:
+
+- Organize os blocos na ordem em que o usuário deve preencher as informações.
+- Coloque primeiro as listas mais importantes para o processo.
+- Deixe listas complementares ou opcionais mais abaixo.
+- Revise a ordem depois de adicionar novas listas vinculadas.
+
+##### Exemplo de ordem dos blocos
+
+Cenário: formulário de solicitação de compra.
+
+Ordem recomendada:
+
+- `Itens da compra`.
+- `Cotações`.
+- `Aprovações complementares`.
+
+Resultado:
+
+O usuário primeiro informa os itens, depois adiciona cotações e, por último, consulta ou preenche informações complementares de aprovação.
+
+##### Remover bloco
+
+O botão `Remover bloco` exclui a configuração daquela lista vinculada do formulário.
+
+Use quando a lista filha não deve mais aparecer no formulário principal.
+
+Ao remover o bloco, o formulário deixa de exibir aquela lista vinculada e suas configurações deixam de fazer parte da configuração do formulário.
+
+Isso inclui:
+
+- A lista filha selecionada no bloco.
+- O campo Lookup configurado para ligação ao principal.
+- A apresentação configurada para aquele bloco.
+- Os campos adicionados na etapa geral.
+- As regras dos campos da lista vinculada.
+- As regras condicionais daquele bloco.
+- As configurações de anexos por linha daquele bloco.
+
+Ponto de atenção:
+
+Remover o bloco remove a configuração da lista vinculada no formulário, mas não significa apagar automaticamente a lista SharePoint nem os itens já existentes nela.
+
+Ou seja, a lista SharePoint continua existindo e os dados já gravados nela também continuam existindo.
+
+O que muda é que o formulário deixa de usar aquele bloco.
+
+Uso recomendado:
+
+- Remova o bloco apenas quando tiver certeza de que aquela lista vinculada não será mais usada no formulário.
+- Antes de remover, confirme se os dados existentes na lista filha não precisam mais ser exibidos nesse formulário.
+- Se a remoção for feita por engano, será necessário configurar novamente a lista vinculada.
+- Revise essa alteração em homologação antes de aplicar em produção.
+
+Exemplo:
+
+Um formulário tinha a lista vinculada `Cotações`, mas o processo mudou e as cotações passaram a ser registradas em outro sistema.
+
+Nesse caso, o botão `Remover bloco` pode ser usado para retirar essa lista vinculada do formulário.
+
+#### Lista e ligação ao principal
+
+O collapse `Lista e ligação ao principal` é a primeira configuração essencial de uma lista vinculada.
+
+Ele define qual lista SharePoint será usada como lista filha e qual campo cria a relação com a lista principal.
+
+Sem essa ligação, o formulário não sabe quais linhas pertencem ao item principal.
+
+##### Lista filha (SharePoint)
+
+O campo `Lista filha (SharePoint)` permite escolher a lista secundária que será vinculada ao formulário principal.
+
+Essa lista será usada para armazenar os registros filhos.
+
+Exemplos:
+
+- `Itens da solicitação`
+- `Despesas`
+- `Participantes`
+- `Tarefas do processo`
+
+Quando a lista filha é selecionada, o sistema carrega os campos dessa lista.
+
+Esse carregamento é necessário para encontrar os campos disponíveis e permitir escolher o Lookup que aponta para a lista principal.
+
+Ponto de atenção:
+
+Ao trocar a lista filha, o campo Lookup de ligação é limpo.
+
+Isso acontece porque cada lista pode ter campos diferentes, então a ligação precisa ser escolhida novamente.
+
+Uso recomendado:
+
+- Escolha uma lista criada especificamente para guardar os registros filhos daquele processo.
+- Confirme se a lista filha tem um campo Lookup para a lista principal.
+- Evite reutilizar listas que tenham dados de processos diferentes sem uma separação clara.
+
+##### Carregamento dos campos da lista
+
+Depois de escolher a lista filha, pode aparecer a mensagem:
+
+`A carregar campos da lista...`
+
+Enquanto essa mensagem aparece, o sistema está buscando os campos da lista filha.
+
+Após o carregamento, o campo de Lookup fica disponível para seleção.
+
+Se a lista ainda não foi escolhida, o sistema indica que é necessário escolher primeiro a lista filha.
+
+##### Campo Lookup para a lista principal
+
+O campo `Campo Lookup para a lista principal` define qual campo da lista filha aponta para o item da lista principal.
+
+Esse é o campo mais importante da ligação.
+
+Ele garante que cada linha filha fique associada ao item principal correto.
+
+Exemplo:
+
+Lista principal: `Solicitações`
+
+Lista filha: `Itens da solicitação`
+
+Campo Lookup na lista filha: `Solicitação`
+
+Quando o usuário abre a solicitação número 25, o formulário consegue carregar apenas os itens da lista filha cujo campo `Solicitação` aponta para essa solicitação.
+
+##### Quando não aparece nenhum Lookup
+
+Se a lista filha não tiver um campo Lookup apontando para a lista principal, o sistema pode mostrar a indicação de que não existe campo Lookup para a lista principal.
+
+Nesse caso, a lista filha precisa ser ajustada no SharePoint.
+
+Uso recomendado:
+
+- Crie na lista filha um campo Lookup para a lista principal.
+- Confirme se o Lookup aponta para a lista correta.
+- Depois volte ao configurador e selecione novamente a lista filha.
+
+##### Campo Lookup salvo na configuração
+
+Quando uma configuração antiga ou importada por JSON possui um campo Lookup salvo, o sistema tenta manter esse campo mesmo que ele não apareça imediatamente na lista filtrada.
+
+Isso ajuda em cenários de migração entre ambientes.
+
+Exemplo:
+
+Uma configuração feita em homologação é copiada para produção via JSON.
+
+Se o campo Lookup tiver o mesmo nome interno, a configuração pode ser preservada.
+
+Ponto de atenção:
+
+Mesmo quando o campo aparece como salvo na configuração, é recomendado revisar a ligação no ambiente final.
+
+##### Rótulo JSON legado
+
+Em configurações antigas, pode existir um rótulo salvo para a lista vinculada.
+
+Quando isso acontece, o painel mostra:
+
+`Rótulo JSON legado`
+
+Também aparece a opção `Usar só o nome da lista`.
+
+Essa opção remove o rótulo antigo e passa a usar apenas o nome da lista como identificação do bloco.
+
+Uso recomendado:
+
+- Use o nome da lista quando ele já for claro para o usuário.
+- Remova rótulos antigos quando eles não fizerem mais sentido.
+- Revise essa informação depois de importar configurações por JSON.
+
+#### Apresentação no formulário
+
+O collapse `Apresentação no formulário` define como a lista vinculada aparece para o usuário dentro do formulário principal.
+
+Essa configuração não muda a ligação entre as listas.
+
+Ela controla a ordem do bloco, a quantidade permitida de linhas e o formato visual usado para mostrar os registros filhos.
+
+Exemplos de uso:
+
+- Mostrar despesas em formato de tabela.
+- Mostrar participantes em blocos.
+- Mostrar tarefas em cartões.
+- Limitar a quantidade de itens que podem ser cadastrados.
+
+##### Ordem de exibição
+
+O campo `Ordem de exibição` define a posição da lista vinculada em relação a outras listas vinculadas.
+
+Quando está em `Automático (0)`, o sistema usa a ordem padrão dos blocos.
+
+Também é possível escolher um número para controlar a ordem manualmente.
+
+Quanto menor o número, mais cedo o bloco tende a aparecer.
+
+Exemplo:
+
+- `0`: dados complementares.
+- `1`: itens da solicitação.
+- `2`: anexos ou despesas relacionadas.
+
+Uso recomendado:
+
+- Use `Automático (0)` quando houver apenas uma lista vinculada.
+- Use números quando houver várias listas vinculadas e a ordem for importante para o processo.
+- Mantenha uma sequência simples para facilitar manutenção.
+
+##### Mínimo de linhas
+
+O campo `Mínimo de linhas` define a quantidade mínima de registros filhos que o usuário deve ter naquele bloco.
+
+Quando está em `0 (sem mínimo obrigatório)`, o usuário não é obrigado a cadastrar linhas nessa lista vinculada.
+
+Quando recebe outro valor, o formulário passa a exigir pelo menos essa quantidade de linhas.
+
+Exemplo:
+
+Se `Mínimo de linhas` for `1`, o usuário precisa cadastrar pelo menos uma linha filha.
+
+Uso recomendado:
+
+- Use `0` quando a lista vinculada for opcional.
+- Use `1` quando o processo sempre precisa de pelo menos um item.
+- Use valores maiores apenas quando houver uma regra de negócio clara.
+
+Exemplo prático:
+
+Em uma solicitação de compra, pode ser obrigatório cadastrar pelo menos um item da compra.
+
+Nesse caso, configure `Mínimo de linhas` como `1`.
+
+##### Máximo de linhas
+
+O campo `Máximo de linhas` define a quantidade máxima de registros filhos permitidos naquele bloco.
+
+Quando está em `Sem limite`, o usuário pode adicionar quantas linhas forem necessárias.
+
+Quando recebe um número, o formulário limita a quantidade de linhas daquela lista vinculada.
+
+Exemplo:
+
+Se `Máximo de linhas` for `5`, o usuário poderá cadastrar até cinco registros filhos.
+
+Uso recomendado:
+
+- Use `Sem limite` quando não houver restrição de quantidade.
+- Defina um limite quando o processo tiver uma regra clara.
+- Use limite para evitar cadastros excessivos quando o bloco deve ter poucas linhas.
+
+Exemplo prático:
+
+Em um cadastro de dependentes, a empresa pode permitir no máximo `4` dependentes.
+
+Nesse caso, configure `Máximo de linhas` como `4`.
+
+##### Apresentação das linhas
+
+O campo `Apresentação das linhas` define o formato visual dos registros filhos no formulário.
+
+Opções disponíveis:
+
+- `Blocos (em coluna)`.
+- `Tabela`.
+- `Compacto`.
+- `Cartões`.
+
+Cada formato atende melhor a um tipo de uso.
+
+##### Blocos em coluna
+
+A opção `Blocos (em coluna)` mostra cada linha filha como um bloco separado, um abaixo do outro.
+
+É uma apresentação boa quando cada registro tem vários campos ou precisa de mais espaço para leitura.
+
+Uso recomendado:
+
+- Use quando os registros filhos têm muitos campos.
+- Use quando o usuário precisa preencher cada linha com atenção.
+- Use quando o formulário deve ficar mais parecido com um mini-formulário por item.
+
+Exemplo:
+
+Cadastro de participantes, onde cada participante possui nome, documento, telefone e observações.
+
+##### Tabela
+
+A opção `Tabela` mostra os registros filhos em formato de linhas e colunas.
+
+É útil quando os dados são mais objetivos e precisam ser comparados rapidamente.
+
+Uso recomendado:
+
+- Use para itens de pedido.
+- Use para despesas.
+- Use quando os campos principais cabem bem em colunas.
+- Use quando o usuário precisa visualizar várias linhas ao mesmo tempo.
+
+Exemplo:
+
+Lista de produtos com `Produto`, `Quantidade`, `Valor unitário` e `Total`.
+
+##### Compacto
+
+A opção `Compacto` mostra as linhas de forma mais reduzida.
+
+Ela ajuda quando o bloco precisa ocupar menos espaço na tela.
+
+Uso recomendado:
+
+- Use quando os registros filhos têm poucos campos.
+- Use quando o usuário precisa apenas de uma visão resumida.
+- Use quando o formulário principal já tem muitas informações.
+
+Exemplo:
+
+Lista simples de contatos adicionais com nome e e-mail.
+
+##### Cartões
+
+A opção `Cartões` mostra cada registro filho com aparência de cartão.
+
+É útil quando cada linha representa uma unidade visual importante, como uma tarefa, etapa ou item de análise.
+
+Uso recomendado:
+
+- Use quando a leitura individual de cada item é importante.
+- Use quando deseja uma visualização mais destacada.
+- Use para listas com poucos ou médios registros.
+
+Exemplo:
+
+Tarefas de um processo, onde cada cartão mostra título, responsável, status e prazo.
+
+##### Pré-visualização
+
+Abaixo da seleção de apresentação, o painel mostra uma pré-visualização do formato escolhido.
+
+Essa pré-visualização ajuda a entender como as linhas vinculadas ficarão no formulário antes de salvar a configuração.
+
+Uso recomendado:
+
+- Troque entre os formatos e observe a pré-visualização.
+- Escolha o formato mais fácil para o cliente preencher e consultar.
+- Valide a apresentação com campos reais da lista filha.
+
+#### Exemplo de apresentação
+
+Cenário: pedido de compra com itens vinculados.
+
+Configuração recomendada:
+
+- `Ordem de exibição`: `1`.
+- `Mínimo de linhas`: `1`.
+- `Máximo de linhas`: `Sem limite`.
+- `Apresentação das linhas`: `Tabela`.
+
+Resultado:
+
+O formulário exige pelo menos um item de compra e mostra os itens em tabela, facilitando a comparação entre produto, quantidade e valor.
+
+#### Boas práticas para apresentação
+
+- Use tabela para listas com dados curtos e comparáveis.
+- Use blocos quando cada linha tem muitos campos.
+- Use compacto para economizar espaço.
+- Use cartões quando cada registro precisa de destaque visual.
+- Defina mínimo e máximo apenas quando houver regra de negócio.
+- Teste a apresentação em tela pequena e tela grande antes de liberar.
+
+#### Anexos e biblioteca por linha
+
+O collapse `Anexos e biblioteca (por linha)` define se cada registro da lista vinculada poderá ter arquivos próprios.
+
+Essa configuração é independente dos anexos do item principal.
+
+Ela serve para cenários em que cada linha filha precisa ter seus próprios documentos.
+
+Exemplos de uso:
+
+- Cada despesa possui seu próprio comprovante.
+- Cada item de compra possui sua própria cotação.
+- Cada tarefa possui seus próprios arquivos de evidência.
+- Cada participante possui documentos específicos.
+
+##### Modo
+
+O campo `Modo` define como os anexos da linha filha serão tratados.
+
+Opções disponíveis:
+
+- `Sem anexos neste bloco`.
+- `Anexos nativos (lista filha)`.
+- `Biblioteca da aba Anexos (pastas herdadas; Lookup à lista filha)`.
+- `Outra biblioteca (estrutura própria)`.
+
+##### Sem anexos neste bloco
+
+A opção `Sem anexos neste bloco` desativa anexos para as linhas da lista vinculada.
+
+Use quando os registros filhos não precisam receber arquivos.
+
+Exemplo:
+
+Uma lista vinculada de participantes pode ter apenas nome, cargo e e-mail, sem necessidade de anexos.
+
+Uso recomendado:
+
+- Use quando os arquivos ficam apenas no item principal.
+- Use quando a lista filha armazena somente dados simples.
+- Use para manter o formulário mais limpo.
+
+##### Anexos nativos da lista filha
+
+A opção `Anexos nativos (lista filha)` usa o recurso padrão de anexos do SharePoint na própria lista filha.
+
+Nesse modo, cada item filho pode ter seus arquivos anexados diretamente nele.
+
+Exemplo:
+
+Na lista filha `Despesas`, cada despesa pode ter um comprovante anexado ao próprio item da despesa.
+
+Uso recomendado:
+
+- Use quando a lista filha precisa guardar arquivos simples por linha.
+- Use quando não há necessidade de organizar arquivos em biblioteca com pastas.
+- Use quando o processo aceita o comportamento padrão de anexos do SharePoint.
+
+Ponto de atenção:
+
+Esse modo grava os arquivos como anexos do item da lista filha, não como documentos em uma biblioteca.
+
+##### Biblioteca da aba Anexos
+
+A opção `Biblioteca da aba Anexos (pastas herdadas; Lookup à lista filha)` usa a mesma biblioteca configurada na aba `Anexos` do formulário principal.
+
+Ela permite reaproveitar a biblioteca e a estrutura de pastas já configuradas para o formulário.
+
+Nesse modo, os arquivos das linhas filhas ficam na biblioteca de documentos, mas precisam de um campo Lookup que aponte para a lista filha.
+
+Exemplo:
+
+A aba `Anexos` principal usa a biblioteca `Documentos do processo`.
+
+A lista vinculada `Itens da compra` também pode gravar arquivos nessa mesma biblioteca, desde que exista um Lookup na biblioteca apontando para `Itens da compra`.
+
+##### Quando essa opção aparece
+
+A opção de herdar a biblioteca da aba `Anexos` só fica disponível quando a aba `Anexos` do formulário principal está configurada com:
+
+- Destino em `Biblioteca de documentos`.
+- Título da biblioteca preenchido.
+- Campo Lookup para a lista principal configurado.
+
+Se isso não estiver configurado, o painel mostra um aviso informando que é necessário configurar a biblioteca na aba `Anexos`.
+
+Uso recomendado:
+
+- Use quando o projeto quer centralizar arquivos em uma única biblioteca.
+- Use quando os anexos do item principal e das linhas filhas devem seguir uma organização parecida.
+- Use quando a estrutura de pastas da aba `Anexos` também faz sentido para as listas vinculadas.
+
+##### Campo Lookup na biblioteca de Anexos
+
+Quando o modo herdado é usado, aparece o campo `Campo Lookup na biblioteca de Anexos (referência à lista filha)`.
+
+Esse campo define qual coluna da biblioteca de documentos aponta para a lista filha.
+
+Ele é necessário para que cada arquivo seja ligado à linha filha correta.
+
+Exemplo:
+
+Biblioteca: `Documentos do processo`
+
+Lista filha: `Itens da compra`
+
+Campo Lookup na biblioteca: `Item da compra`
+
+Resultado:
+
+O arquivo enviado em uma linha específica da lista vinculada fica relacionado àquela linha, e não apenas ao item principal.
+
+Ponto de atenção:
+
+O Lookup da biblioteca para a lista principal não substitui o Lookup para a lista filha.
+
+Para anexos por linha, a biblioteca precisa conseguir identificar a linha filha.
+
+##### Outra biblioteca
+
+A opção `Outra biblioteca (estrutura própria)` permite usar uma biblioteca diferente para os anexos daquela lista vinculada.
+
+Esse modo é útil quando os arquivos da lista filha precisam ficar separados dos arquivos do item principal.
+
+Exemplo:
+
+Os anexos principais ficam na biblioteca `Documentos do processo`.
+
+Os comprovantes das despesas ficam na biblioteca `Comprovantes de despesas`.
+
+Uso recomendado:
+
+- Use quando os arquivos da lista filha têm regra de organização diferente.
+- Use quando precisam ficar em uma biblioteca separada.
+- Use quando a lista vinculada tem uma estrutura própria de pastas.
+
+##### Biblioteca de documentos
+
+Quando o modo `Outra biblioteca` é escolhido, aparece o campo `Biblioteca de documentos`.
+
+Esse campo define em qual biblioteca os arquivos da lista vinculada serão guardados.
+
+Ao trocar a biblioteca, o campo Lookup da biblioteca é limpo, porque cada biblioteca pode ter colunas diferentes.
+
+Uso recomendado:
+
+- Escolha a biblioteca correta antes de configurar o Lookup.
+- Confirme se a biblioteca existe no site.
+- Evite trocar a biblioteca depois que a configuração já estiver em uso.
+
+##### Campo Lookup na biblioteca
+
+No modo `Outra biblioteca`, aparece o campo `Campo Lookup na biblioteca (referência à lista filha)`.
+
+Esse campo define qual coluna da biblioteca aponta para a lista filha.
+
+Sem esse campo, o sistema não consegue saber a qual linha filha o arquivo pertence.
+
+Exemplo:
+
+Biblioteca: `Comprovantes de despesas`
+
+Lista filha: `Despesas`
+
+Campo Lookup na biblioteca: `Despesa`
+
+Resultado:
+
+Cada comprovante enviado fica ligado à despesa correspondente.
+
+##### Pastas
+
+No modo `Outra biblioteca`, também é possível configurar a estrutura de pastas da biblioteca.
+
+Essa estrutura define onde os arquivos serão organizados dentro da biblioteca.
+
+Quando a lista vinculada tem mais de uma etapa configurada, pode aparecer a escolha de etapa para a pasta.
+
+Isso permite organizar arquivos de acordo com partes específicas do formulário da lista filha.
+
+Uso recomendado:
+
+- Use pastas quando houver muitos arquivos.
+- Use nomes claros para facilitar localização.
+- Evite criar estruturas profundas demais.
+- Configure pastas conforme a forma como o cliente procura os documentos.
+
+##### Exemplo com anexos nativos
+
+Cenário: lista vinculada de despesas.
+
+Configuração:
+
+- `Modo`: `Anexos nativos (lista filha)`.
+
+Resultado:
+
+Cada despesa pode receber um comprovante diretamente como anexo do item da lista filha.
+
+##### Exemplo com biblioteca herdada
+
+Cenário: processo com biblioteca central de documentos.
+
+Configuração:
+
+- Aba `Anexos` principal usando biblioteca de documentos.
+- Lista vinculada usando `Biblioteca da aba Anexos`.
+- Campo Lookup na biblioteca apontando para a lista filha.
+
+Resultado:
+
+Os arquivos do item principal e os arquivos das linhas filhas ficam na mesma biblioteca, mantendo uma organização centralizada.
+
+##### Exemplo com outra biblioteca
+
+Cenário: despesas com comprovantes separados.
+
+Configuração:
+
+- `Modo`: `Outra biblioteca (estrutura própria)`.
+- `Biblioteca de documentos`: `Comprovantes de despesas`.
+- `Campo Lookup na biblioteca`: `Despesa`.
+
+Resultado:
+
+Os comprovantes ficam separados em uma biblioteca própria, ligados diretamente à despesa correspondente.
+
+#### Boas práticas para anexos em listas vinculadas
+
+- Use `Sem anexos neste bloco` quando não houver necessidade real de arquivos por linha.
+- Use anexos nativos para cenários simples.
+- Use biblioteca quando precisar organizar documentos com pastas.
+- Garanta que a biblioteca tenha Lookup para a lista filha.
+- Não confunda o Lookup para a lista principal com o Lookup para a lista filha.
+- Teste o envio de arquivos em uma linha filha antes de publicar.
+- Revise essa configuração ao copiar JSON entre ambientes.
+
+#### Campos na etapa Geral
+
+O collapse `Campos na etapa «Geral» (ordem)` define quais campos da lista filha aparecem no bloco da lista vinculada e em qual ordem.
+
+Essa configuração funciona como a montagem do mini-formulário da lista filha.
+
+Ela permite escolher os campos que o usuário irá preencher ou visualizar em cada linha vinculada.
+
+Exemplos de uso:
+
+- Em `Itens da compra`, mostrar produto, quantidade, valor e observação.
+- Em `Despesas`, mostrar tipo, data, valor e comprovante.
+- Em `Participantes`, mostrar nome, e-mail, cargo e telefone.
+
+##### Nenhum campo
+
+Quando ainda não há campos configurados, o painel mostra a mensagem:
+
+`Nenhum campo. Adicione abaixo.`
+
+Isso indica que a lista vinculada já existe, mas ainda não possui campos visíveis configurados para a etapa geral.
+
+Uso recomendado:
+
+- Depois de escolher a lista filha, adicione os campos que o usuário precisa preencher.
+- Evite deixar a lista vinculada sem campos, porque o bloco não terá utilidade prática no formulário.
+
+##### Lista de campos adicionados
+
+Cada campo adicionado aparece em uma linha dentro do collapse.
+
+A linha mostra:
+
+- O nome amigável do campo.
+- O nome interno do campo.
+- Botões para ordenar, remover e configurar regras.
+
+Exemplo:
+
+`Produto (Produto)`
+
+`Quantidade (Quantidade)`
+
+`Valor unitário (ValorUnitario)`
+
+O nome interno ajuda a identificar o campo correto, principalmente quando existem campos com nomes parecidos.
+
+##### Subir
+
+O botão `Subir` move o campo uma posição para cima.
+
+Use quando o campo deve aparecer antes dos demais no formulário da lista vinculada.
+
+Exemplo:
+
+Se `Quantidade` deve aparecer antes de `Valor unitário`, use `Subir` até chegar na posição desejada.
+
+##### Descer
+
+O botão `Descer` move o campo uma posição para baixo.
+
+Use quando o campo deve aparecer depois dos demais.
+
+Exemplo:
+
+O campo `Observações` normalmente pode ficar no final do bloco, depois dos campos principais.
+
+##### Remover
+
+O botão `Remover` tira o campo da etapa geral da lista vinculada.
+
+Isso remove o campo da configuração visual do formulário, mas não apaga a coluna da lista SharePoint.
+
+Uso recomendado:
+
+- Remova campos que não precisam aparecer para o usuário.
+- Remova campos técnicos ou preenchidos automaticamente.
+- Tenha cuidado para não remover campos importantes para o processo.
+
+Ponto de atenção:
+
+Ao remover um campo, as configurações específicas dele dentro daquela lista vinculada também podem deixar de ser usadas.
+
+##### Regras
+
+O botão `Regras...` abre o painel de regras daquele campo da lista vinculada.
+
+Esse painel permite configurar comportamentos do campo, como exibição, validação, valor padrão, transformação e outras regras conforme o tipo de campo.
+
+Ele funciona de forma parecida com as regras dos campos do formulário principal, mas aplicado ao campo da lista filha.
+
+Exemplos:
+
+- Tornar `Quantidade` obrigatória.
+- Definir valor padrão para `Status`.
+- Ocultar um campo conforme uma condição.
+- Aplicar regra de validação em um campo de data.
+
+Uso recomendado:
+
+- Configure regras apenas quando houver uma necessidade clara.
+- Use regras para facilitar o preenchimento da linha filha.
+- Evite excesso de regras para não dificultar a manutenção.
+
+##### Adicionar campo à etapa Geral
+
+O seletor `Adicionar campo à etapa Geral...` permite incluir novos campos da lista filha no bloco.
+
+Ao selecionar um campo, ele é adicionado ao final da lista de campos configurados.
+
+Depois disso, é possível reorganizar usando `Subir` e `Descer`.
+
+Campos que já foram adicionados não aparecem novamente para seleção.
+
+Também não são oferecidos campos internos ou campos que não devem ser configurados diretamente, como campos técnicos do SharePoint e o campo usado para ligar a lista filha à lista principal.
+
+Uso recomendado:
+
+- Adicione somente campos necessários para o usuário.
+- Organize os campos na mesma ordem em que devem ser preenchidos.
+- Coloque campos principais no início.
+- Deixe observações e campos complementares no final.
+
+##### Sem campos disponíveis
+
+Quando não há campos disponíveis para adicionar, o seletor mostra:
+
+`— sem campos disponíveis —`
+
+Isso pode acontecer quando todos os campos elegíveis já foram adicionados ou quando a lista filha não possui campos configuráveis disponíveis.
+
+Uso recomendado:
+
+- Verifique se a lista filha correta foi selecionada.
+- Verifique se a lista filha possui colunas além dos campos técnicos.
+- Confirme se o campo Lookup de ligação não está sendo esperado como campo visual.
+
+#### Exemplo de campos na etapa
+
+Cenário: lista vinculada `Itens da compra`.
+
+Campos adicionados:
+
+- `Produto`.
+- `Quantidade`.
+- `Valor unitário`.
+- `Total`.
+- `Observações`.
+
+Ordem recomendada:
+
+- Primeiro os campos que identificam o item.
+- Depois quantidade e valores.
+- Por último observações.
+
+Resultado:
+
+Cada linha da lista vinculada apresenta apenas os campos necessários para o usuário preencher os itens da compra.
+
+#### Boas práticas para campos na etapa
+
+- Adicione apenas campos úteis para o processo.
+- Ordene os campos conforme a sequência natural de preenchimento.
+- Remova campos técnicos da visualização.
+- Use `Regras...` para validar campos importantes.
+- Revise os campos após trocar a lista filha.
+- Teste a criação e edição de linhas vinculadas em homologação.
+
+#### Regras condicionais
+
+O collapse `Regras condicionais` permite criar regras aplicadas somente aos campos da lista filha.
+
+Essas regras controlam o comportamento dos campos dentro das linhas da lista vinculada.
+
+Elas são úteis para mostrar, ocultar, obrigar, desativar ou exibir mensagens conforme o valor preenchido em outro campo da própria lista filha.
+
+Exemplos de uso:
+
+- Mostrar `Justificativa` quando `Status` for `Reprovado`.
+- Tornar `Comprovante` obrigatório quando `Tipo de despesa` for `Reembolso`.
+- Desativar `Valor aprovado` para usuários que não pertencem ao grupo de aprovadores.
+- Exibir uma mensagem de aviso quando `Valor` for maior que um limite.
+
+##### Regras condicionais só da lista filha
+
+As regras desse collapse trabalham apenas com campos da lista filha configurada naquele bloco.
+
+Elas não são regras gerais do formulário principal.
+
+Isso significa que uma regra criada na lista vinculada `Despesas` afeta os campos das despesas, não os campos da solicitação principal.
+
+Uso recomendado:
+
+- Use para regras específicas das linhas filhas.
+- Use quando o comportamento muda dentro de cada item vinculado.
+- Não use para controlar campos do formulário principal.
+
+##### Nova regra
+
+O botão `Nova regra` cria uma regra condicional em branco.
+
+Uma regra é formada por duas partes:
+
+- `Quando`: define a condição.
+- `Então`: define o que acontece quando a condição for verdadeira.
+
+Exemplo:
+
+Quando `Status` for igual a `Reprovado`, então mostrar o campo `Justificativa`.
+
+##### Modelos prontos
+
+O painel oferece modelos para criar regras comuns mais rapidamente.
+
+Modelos disponíveis:
+
+- `Modelo: mostrar B quando A = valor`.
+- `Modelo: mostrar B quando A contém texto`.
+- `Modelo: mostrar B quando A ≠ valor`.
+- `Modelo: mostrar B quando A > número`.
+- `Modelo: obrigar B quando A = valor`.
+
+Esses modelos já criam uma estrutura inicial de regra.
+
+Depois de aplicar o modelo, o usuário deve ajustar os campos e valores conforme o processo.
+
+Uso recomendado:
+
+- Use modelos para acelerar configurações simples.
+- Revise sempre os campos `A`, `B` e o valor comparado.
+- Ajuste o efeito se o modelo não representar exatamente a regra desejada.
+
+##### Cartão da regra
+
+Cada regra aparece como um cartão.
+
+No topo do cartão, o painel mostra um resumo da condição configurada.
+
+Também aparecem os botões:
+
+- `Duplicar`.
+- `Excluir`.
+
+##### Duplicar
+
+O botão `Duplicar` cria uma cópia da regra.
+
+Use quando precisar criar uma regra parecida, mudando apenas o campo, valor ou efeito.
+
+Exemplo:
+
+Uma regra mostra `Justificativa` quando `Status` for `Reprovado`.
+
+Você pode duplicar e ajustar para mostrar outro campo quando `Status` for `Cancelado`.
+
+##### Excluir
+
+O botão `Excluir` remove a regra condicional.
+
+Use quando a regra não deve mais ser aplicada.
+
+Ponto de atenção:
+
+Excluir a regra remove o comportamento configurado, mas não apaga os campos da lista filha.
+
+##### Quando
+
+A seção `Quando` define a condição que precisa ser verdadeira para a regra ser aplicada.
+
+Ela possui os campos:
+
+- `Campo`.
+- `Operador`.
+- `Comparar com`.
+- `Valor`.
+
+##### Campo
+
+O campo `Campo` define qual campo da lista filha será analisado.
+
+Exemplo:
+
+`Status`
+
+`Tipo de despesa`
+
+`Valor`
+
+##### Operador
+
+O campo `Operador` define como a comparação será feita.
+
+Opções disponíveis:
+
+- `é igual a`.
+- `é diferente de`.
+- `contém`.
+- `não contém`.
+- `começa com`.
+- `termina com`.
+- `maior que`.
+- `maior ou igual a`.
+- `menor que`.
+- `menor ou igual a`.
+- `está vazio`.
+- `não está vazio`.
+- `é verdadeiro`.
+- `é falso`.
+
+Uso recomendado:
+
+- Use `é igual a` para status, escolhas e valores exatos.
+- Use `contém` para textos livres.
+- Use `maior que` ou `menor que` para números e valores.
+- Use `está vazio` ou `não está vazio` para validar preenchimento.
+
+##### Comparar com
+
+O campo `Comparar com` define de onde vem o valor usado na comparação.
+
+Opções disponíveis:
+
+- `Texto fixo`.
+- `Outro campo`.
+- `Token`.
+
+##### Texto fixo
+
+Use `Texto fixo` quando a comparação será feita com um valor digitado diretamente.
+
+Exemplo:
+
+Campo `Status` é igual a `Reprovado`.
+
+##### Outro campo
+
+Use `Outro campo` quando o valor de um campo deve ser comparado com o valor de outro campo da mesma lista filha.
+
+Exemplo:
+
+Campo `Data final` menor que `Data inicial`.
+
+##### Token
+
+Use `Token` quando a comparação precisa usar um valor dinâmico.
+
+Exemplo:
+
+Comparar uma data com um token de data atual, quando aplicável ao comportamento configurado.
+
+##### Valor
+
+O campo `Valor` recebe o valor usado na comparação.
+
+Ele pode ficar desativado em operadores que não precisam de valor, como:
+
+- `está vazio`.
+- `não está vazio`.
+- `é verdadeiro`.
+- `é falso`.
+
+Nesses casos, a própria condição já é suficiente.
+
+##### Incluir grupos SharePoint
+
+O campo `Incluir: grupos SharePoint (títulos, vírgula)` limita a aplicação da regra a usuários de determinados grupos.
+
+Quando fica vazio, a regra pode ser aplicada para qualquer usuário.
+
+Quando preenchido, a regra só vale para usuários que pertencem a pelo menos um dos grupos informados.
+
+Exemplo:
+
+`Aprovadores, Gestores`
+
+Uso recomendado:
+
+- Use quando uma regra deve valer apenas para aprovadores, gestores ou equipes específicas.
+- Separe os grupos por vírgula.
+- Use exatamente o título do grupo no SharePoint.
+
+##### Excluir grupos SharePoint
+
+O campo `Excluir: grupos SharePoint (títulos, vírgula)` impede que a regra seja aplicada para usuários de determinados grupos.
+
+Quando fica vazio, nenhum grupo é excluído.
+
+Quando preenchido, usuários pertencentes aos grupos informados não recebem a regra.
+
+Exemplo:
+
+`Administradores`
+
+Uso recomendado:
+
+- Use para liberar exceções.
+- Use quando administradores ou responsáveis não devem sofrer a mesma limitação dos demais usuários.
+
+##### Então
+
+A seção `Então` define o que acontece quando a condição for verdadeira.
+
+Cada regra pode ter um ou mais efeitos.
+
+O painel mostra uma linha por combinação de efeito e campo.
+
+##### Efeito
+
+O campo `Efeito` define a ação aplicada pela regra.
+
+Opções disponíveis:
+
+- `Mostrar campo`.
+- `Ocultar campo`.
+- `Tornar obrigatório`.
+- `Tornar opcional`.
+- `Desativar campo`.
+- `Ativar campo`.
+- `Somente leitura`.
+- `Permitir edição`.
+- `Exibir mensagem`.
+
+##### Campo alvo
+
+Quando o efeito atua sobre um campo, aparece o campo `Campo alvo`.
+
+Ele define qual campo da lista filha será afetado.
+
+Exemplo:
+
+Quando `Status` for `Reprovado`, o campo alvo pode ser `Justificativa`.
+
+##### Mostrar campo
+
+O efeito `Mostrar campo` exibe o campo alvo quando a condição for verdadeira.
+
+Use quando um campo só deve aparecer em determinadas situações.
+
+##### Ocultar campo
+
+O efeito `Ocultar campo` esconde o campo alvo quando a condição for verdadeira.
+
+Use para simplificar o formulário e esconder campos que não fazem sentido naquele caso.
+
+##### Tornar obrigatório
+
+O efeito `Tornar obrigatório` exige o preenchimento do campo alvo quando a condição for verdadeira.
+
+Exemplo:
+
+Se `Tipo de despesa` for `Reembolso`, tornar `Comprovante` obrigatório.
+
+##### Tornar opcional
+
+O efeito `Tornar opcional` remove a obrigatoriedade do campo alvo quando a condição for verdadeira.
+
+Use quando um campo só deve ser obrigatório em alguns cenários.
+
+##### Desativar campo
+
+O efeito `Desativar campo` impede a edição do campo alvo.
+
+Use quando o usuário deve ver o campo, mas não deve alterá-lo.
+
+##### Ativar campo
+
+O efeito `Ativar campo` libera a edição do campo alvo.
+
+Use quando um campo começa bloqueado e só deve ser editado em determinada condição.
+
+##### Somente leitura
+
+O efeito `Somente leitura` deixa o campo visível, mas sem permitir alteração.
+
+Use quando a informação precisa ser consultada sem ser modificada.
+
+##### Permitir edição
+
+O efeito `Permitir edição` libera o campo para edição.
+
+Use em conjunto com regras que bloqueiam campos em alguns cenários.
+
+##### Exibir mensagem
+
+O efeito `Exibir mensagem` mostra uma mensagem ao usuário quando a condição for verdadeira.
+
+Nesse caso, em vez de `Campo alvo`, aparecem:
+
+- `Tipo`.
+- `Texto`.
+
+##### Tipo da mensagem
+
+O campo `Tipo` define o estilo da mensagem.
+
+Opções disponíveis:
+
+- `Info`.
+- `Aviso`.
+- `Erro`.
+
+Uso recomendado:
+
+- Use `Info` para orientação.
+- Use `Aviso` para atenção.
+- Use `Erro` para situações que impedem ou indicam preenchimento incorreto.
+
+##### Texto da mensagem
+
+O campo `Texto` define a mensagem exibida ao usuário.
+
+Exemplo:
+
+`Informe a justificativa para continuar.`
+
+Uso recomendado:
+
+- Escreva mensagens curtas.
+- Explique o que o usuário precisa fazer.
+- Evite textos técnicos.
+
+##### Adicionar efeito
+
+O botão `Adicionar efeito` adiciona mais uma ação à mesma condição.
+
+Isso permite que uma única regra execute mais de um comportamento.
+
+Exemplo:
+
+Quando `Status` for `Reprovado`:
+
+- Mostrar `Justificativa`.
+- Tornar `Justificativa` obrigatório.
+- Exibir mensagem de aviso.
+
+##### Remover efeito
+
+O botão `Remover efeito` remove uma ação da regra.
+
+Use quando uma regra deve continuar existindo, mas um dos comportamentos não é mais necessário.
+
+##### Prévia
+
+A linha `Prévia` mostra quantas regras internas serão geradas a partir da configuração visual.
+
+Essa informação ajuda a entender se a regra está gerando um ou mais comportamentos no motor do formulário.
+
+##### Nenhuma regra condicional
+
+Quando não existe nenhuma regra criada, o painel mostra:
+
+`Nenhuma regra condicional nesta lista vinculada.`
+
+Isso significa que os campos da lista filha seguirão o comportamento padrão, sem condições adicionais nesse bloco.
+
+##### Regras só no motor
+
+Pode aparecer a seção `Regras só no motor (não editadas por esta UI)`.
+
+Ela mostra regras que existem na configuração, mas que não são editadas por essa interface visual.
+
+Uso recomendado:
+
+- Revise essas regras ao importar JSON de outro ambiente.
+- Tenha cuidado antes de alterar manualmente configurações avançadas.
+- Se a regra não for compreendida pela interface, valide o comportamento em homologação.
+
+#### Exemplo de regras condicionais
+
+Cenário: lista vinculada `Despesas`.
+
+Regra:
+
+- Quando `Tipo de despesa` for igual a `Reembolso`.
+- Então mostrar `Comprovante`.
+- Então tornar `Comprovante` obrigatório.
+
+Resultado:
+
+O campo de comprovante só ganha destaque quando a despesa exige comprovação.
+
+#### Boas práticas para regras condicionais
+
+- Use regras simples e fáceis de entender.
+- Prefira uma condição clara por regra.
+- Use modelos prontos quando possível.
+- Teste regras com diferentes valores preenchidos.
+- Valide regras com usuários de grupos SharePoint diferentes.
+- Evite criar muitas regras sobre o mesmo campo sem necessidade.
+
+#### Exemplo completo
+
+Cenário: solicitação de compra com vários itens.
+
+Configuração:
+
+- Lista principal: `Solicitações de compra`.
+- Lista filha: `Itens da compra`.
+- Campo Lookup para a lista principal: `Solicitação de compra`.
+
+Resultado:
+
+Ao criar ou editar uma solicitação de compra, o formulário pode exibir um bloco para cadastrar os itens daquela compra.
+
+Cada item cadastrado na lista filha fica ligado à solicitação principal pelo campo Lookup.
+
+#### Boas práticas
+
+- Sempre crie o Lookup na lista filha antes de configurar a lista vinculada.
+- Use nomes claros para listas e campos.
+- Valide a ligação em homologação criando um item principal com linhas filhas.
+- Evite configurar listas vinculadas sem uma relação real de pai e filho.
+- Revise a ligação depois de copiar JSON entre ambientes.
+
+### Quebra de permissões
+
+A aba `Quebra de permissões` permite configurar permissões específicas para os itens criados ou atualizados pelo formulário.
+
+No SharePoint, normalmente um item herda as permissões da lista onde está armazenado.
+
+Com essa funcionalidade, o formulário pode quebrar essa herança e aplicar permissões próprias no item.
+
+Exemplos de uso:
+
+- Permitir que somente o autor e os aprovadores vejam uma solicitação.
+- Dar leitura para um grupo e edição para outro.
+- Aplicar permissões também em itens de listas vinculadas.
+- Aplicar permissões em arquivos enviados para bibliotecas.
+- Dar acesso automaticamente para pessoas escolhidas em campos do formulário.
+
+Ponto de atenção:
+
+Essa é uma configuração sensível.
+
+Quando usada incorretamente, pode impedir usuários de acessar itens ou arquivos.
+
+Use sempre primeiro em homologação.
+
+#### Quando a quebra é aplicada
+
+A quebra de permissões é aplicada depois que o formulário grava o item.
+
+Em fluxos de criação ou atualização, ela entra depois da gravação dos dados, sincronização de anexos e listas vinculadas, conforme o que estiver configurado no formulário.
+
+Na prática, o sistema precisa primeiro ter o item criado ou atualizado para depois aplicar permissões nele.
+
+Uso recomendado:
+
+- Configure e teste com itens reais em homologação.
+- Valide com usuários de perfis diferentes.
+- Confirme se os usuários corretos conseguem acessar o item depois da gravação.
+
+#### Ativar
+
+O botão `Ativar` liga ou desliga toda a configuração de quebra de permissões.
+
+Quando está desligado, a aba mostra apenas uma mensagem informando que é necessário ativar para configurar alvos e principais.
+
+Quando está ligado, aparecem as configurações de:
+
+- Comportamento da quebra.
+- Alvos.
+- Principais e níveis.
+
+Uso recomendado:
+
+- Ative somente quando o processo realmente precisa de permissões específicas.
+- Deixe desativado quando a herança normal da lista SharePoint for suficiente.
+
+#### Copiar permissões herdadas ao quebrar
+
+A opção `Copiar permissões herdadas ao quebrar (primeira vez)` controla como o SharePoint inicia a quebra de herança quando o item ainda herda permissões.
+
+Quando ativada, o SharePoint inicia a quebra copiando permissões herdadas.
+
+Quando desativada, a quebra começa sem depender das permissões herdadas.
+
+Mesmo assim, o objetivo final da configuração é aplicar os principais definidos na aba.
+
+Uso recomendado:
+
+- Mantenha desativada na maioria dos casos.
+- Ative apenas se houver orientação clara de manter o comportamento inicial do SharePoint ao quebrar.
+- Teste sempre, porque permissões herdadas podem trazer acessos além do esperado.
+
+#### Manter autor
+
+A opção `Manter autor (Created By) com nível abaixo` define se o autor do item continuará recebendo uma permissão explícita após a quebra.
+
+Quando ativada, o usuário que criou o item recebe o nível definido em `Nível do autor`.
+
+Quando desativada, o autor não recebe permissão automaticamente por essa opção.
+
+Uso recomendado:
+
+- Mantenha ativada quando o autor precisa acompanhar ou editar sua solicitação.
+- Desative apenas quando o processo exige que o autor perca acesso após enviar.
+- Valide esse comportamento com o cliente antes de publicar.
+
+#### Nível do autor
+
+O campo `Nível do autor` define qual permissão será dada ao autor quando a opção `Manter autor` estiver ativa.
+
+Opções disponíveis:
+
+- `Leitura`.
+- `Contribuir`.
+- `Editar`.
+- `Controlo total`.
+
+Uso recomendado:
+
+- Use `Leitura` quando o autor só precisa acompanhar.
+- Use `Contribuir` quando o autor precisa editar ou complementar informações.
+- Use `Editar` apenas quando o processo permitir alterações mais amplas.
+- Evite `Controlo total`, salvo quando houver necessidade administrativa.
+
+#### Alvos
+
+A seção `Alvos` define onde a quebra de permissões será aplicada.
+
+Os alvos podem incluir:
+
+- Item da lista principal.
+- Itens filhos das listas vinculadas.
+- Ficheiros na biblioteca de anexos do item principal.
+- Ficheiros em bibliotecas usadas por listas vinculadas.
+
+#### Item na lista principal
+
+A opção `Item na lista principal` aplica a quebra de permissões no item principal do formulário.
+
+Esse é o alvo mais comum.
+
+Exemplo:
+
+Em uma lista `Solicitações`, a permissão será aplicada diretamente na solicitação criada ou atualizada.
+
+Uso recomendado:
+
+- Mantenha ativado quando o objetivo é proteger o item principal.
+- Desative apenas se a quebra deve ser aplicada somente em itens filhos ou arquivos.
+
+Ponto de atenção:
+
+Quando os anexos do item principal usam anexos nativos da lista, eles acompanham a aplicação ligada ao item principal.
+
+#### Listas vinculadas
+
+Quando existem listas vinculadas configuradas, aparece a seção `Listas vinculadas (itens filhos)`.
+
+Ela permite escolher em quais listas filhas a quebra será aplicada.
+
+Se todas estiverem marcadas, a quebra pode ser aplicada nos itens filhos dessas listas.
+
+Se uma lista vinculada for desmarcada, os itens daquela lista não recebem a quebra por essa configuração.
+
+Uso recomendado:
+
+- Marque listas vinculadas que contêm dados sensíveis.
+- Desmarque listas vinculadas que não precisam de controle específico.
+- Revise essa seção sempre que adicionar ou remover listas vinculadas.
+
+Exemplo:
+
+O item principal tem duas listas vinculadas:
+
+- `Itens da compra`.
+- `Cotações`.
+
+Se apenas `Cotações` tiver documentos sensíveis, é possível aplicar quebra somente nessa lista vinculada.
+
+#### Ficheiros na biblioteca de anexos
+
+A opção `Ficheiros na biblioteca de anexos (lookup ao item principal)` aparece quando os anexos do formulário principal estão configurados para uma biblioteca de documentos.
+
+Quando marcada, a quebra também é aplicada nos arquivos da biblioteca relacionados ao item principal.
+
+Exemplo:
+
+O item principal está na lista `Solicitações`.
+
+Os anexos estão na biblioteca `Documentos do processo`, ligados ao item pelo campo Lookup.
+
+Ao marcar essa opção, os arquivos ligados à solicitação também recebem permissões específicas.
+
+Uso recomendado:
+
+- Marque quando os arquivos precisam ter a mesma proteção do item principal.
+- Use quando anexos contêm informações sensíveis.
+- Teste se os arquivos continuam acessíveis para os usuários corretos.
+
+#### Ficheiros na biblioteca por lista vinculada
+
+Quando uma lista vinculada usa anexos em biblioteca de documentos, aparece a seção `Ficheiros na biblioteca por lista vinculada (lookup à linha filha)`.
+
+Ela permite aplicar quebra nos arquivos ligados a cada linha filha.
+
+Exemplo:
+
+A lista vinculada `Despesas` usa a biblioteca `Comprovantes de despesas`.
+
+Cada comprovante fica ligado a uma despesa por Lookup.
+
+Ao marcar essa lista vinculada nessa seção, os comprovantes também recebem permissões específicas.
+
+Uso recomendado:
+
+- Marque quando os anexos da linha filha também precisam ser protegidos.
+- Confirme se a biblioteca possui Lookup correto para a lista filha.
+- Revise após configurar `Anexos e biblioteca (por linha)`.
+
+#### Principais e níveis
+
+A seção `Principais e níveis` define quem receberá permissão e qual nível será aplicado.
+
+Cada linha representa uma concessão de permissão.
+
+Uma configuração pode ter várias linhas.
+
+Exemplos:
+
+- Grupo `Aprovadores` com nível `Editar`.
+- Grupo `Solicitantes` com nível `Leitura`.
+- Pessoa específica com nível `Controlo total`.
+- Pessoas selecionadas em um campo do formulário com nível `Contribuir`.
+
+#### Filtrar grupos por nome
+
+O campo `Filtrar grupos por nome (dropdown «Grupo»)` ajuda a localizar grupos do site.
+
+Ao digitar parte do nome, a lista do campo `Grupo` fica filtrada.
+
+Uso recomendado:
+
+- Use quando o site possui muitos grupos.
+- Digite parte do nome do grupo.
+- Confira se o grupo selecionado é o grupo correto do SharePoint.
+
+#### Adicionar principal
+
+O botão `Adicionar principal` cria uma nova linha de permissão.
+
+Por padrão, a nova linha começa como `Grupo do site` com nível `Leitura`, quando houver grupo disponível.
+
+Depois de adicionar, é possível alterar:
+
+- Tipo.
+- Nível.
+- Grupo, pessoa ou campo.
+
+Uso recomendado:
+
+- Adicione uma linha para cada grupo, pessoa ou campo que deve receber acesso.
+- Evite adicionar permissões duplicadas sem necessidade.
+- Revise todas as linhas antes de salvar a configuração.
+
+#### Tipo
+
+O campo `Tipo` define de onde virá o principal que receberá a permissão.
+
+Opções disponíveis:
+
+- `Grupo do site`.
+- `Pessoa do Site`.
+- `Campo (Pessoa / Vários)`.
+
+#### Grupo do site
+
+O tipo `Grupo do site` permite escolher um grupo SharePoint do site.
+
+Quando selecionado, aparece o campo `Grupo`.
+
+Esse grupo receberá o nível de permissão escolhido na linha.
+
+Exemplo:
+
+Grupo `Aprovadores de Compras` com nível `Editar`.
+
+Uso recomendado:
+
+- Use grupos sempre que possível.
+- Prefira grupos a pessoas individuais para facilitar manutenção.
+- Garanta que o grupo tenha os membros corretos no SharePoint.
+
+#### Pessoa do Site
+
+O tipo `Pessoa do Site` permite escolher uma pessoa específica.
+
+Quando selecionado, aparece o campo `Pessoa do Site (pesquisar)`.
+
+A pesquisa começa quando o texto digitado tem pelo menos dois caracteres.
+
+Depois de selecionar uma pessoa, o painel mostra quem foi selecionado.
+
+Uso recomendado:
+
+- Use para exceções pontuais.
+- Evite usar muitas pessoas individuais quando um grupo atender melhor.
+- Revise se a pessoa selecionada é a correta antes de salvar.
+
+#### Campo Pessoa ou Vários
+
+O tipo `Campo (Pessoa / Vários)` usa o valor de um campo Pessoa do formulário para definir quem receberá acesso.
+
+Esse campo pode estar:
+
+- Na lista principal.
+- Em uma lista vinculada.
+
+O sistema usa os usuários preenchidos nesse campo para conceder permissão.
+
+Exemplo:
+
+Campo `Responsável` com nível `Contribuir`.
+
+Quando o item for salvo, o usuário informado em `Responsável` recebe permissão no alvo configurado.
+
+Uso recomendado:
+
+- Use quando a permissão depende de quem foi selecionado no formulário.
+- Use para responsáveis, aprovadores, gestores ou participantes.
+- Garanta que o campo esteja preenchido antes da gravação.
+
+#### Lista
+
+Quando o tipo é `Campo (Pessoa / Vários)`, aparece o campo `Lista`.
+
+Ele define onde está o campo Pessoa que será usado.
+
+Opções possíveis:
+
+- `Lista principal`.
+- Uma das listas vinculadas configuradas.
+
+Se `Lista principal` for selecionada, o campo Pessoa será buscado na lista principal.
+
+Se uma lista vinculada for selecionada, o campo Pessoa será buscado naquela lista filha.
+
+Uso recomendado:
+
+- Use `Lista principal` para responsáveis gerais do item.
+- Use listas vinculadas quando cada linha filha possui seu próprio responsável.
+
+#### Campo
+
+O campo `Campo` aparece quando o tipo é `Campo (Pessoa / Vários)`.
+
+Ele permite escolher um campo de pessoa ou pessoa múltipla.
+
+Somente campos compatíveis aparecem nessa lista.
+
+Exemplos:
+
+- `Responsável`.
+- `Aprovadores`.
+- `Participantes`.
+
+Ponto de atenção:
+
+Se a lista vinculada ainda estiver carregando os campos, pode aparecer um carregamento antes da lista ficar disponível.
+
+#### Nível
+
+O campo `Nível` define qual permissão será concedida para aquela linha.
+
+Opções disponíveis:
+
+- `Leitura`.
+- `Contribuir`.
+- `Editar`.
+- `Controlo total`.
+
+Uso recomendado:
+
+- `Leitura`: consultar o item ou arquivo.
+- `Contribuir`: colaborar com o item, conforme permissões SharePoint.
+- `Editar`: editar com mais liberdade.
+- `Controlo total`: administrar permissões e configurações, usar com muita cautela.
+
+#### Remover linha de permissão
+
+O botão com ícone de lixeira remove uma linha de permissão da seção `Principais e níveis`.
+
+Use quando aquele grupo, pessoa ou campo não deve mais receber permissão.
+
+Ponto de atenção:
+
+Remover a linha não apaga o grupo, usuário ou campo no SharePoint.
+
+Remove apenas aquela concessão da configuração da quebra de permissões.
+
+#### Como a permissão final é formada
+
+Ao aplicar a quebra, o sistema monta a permissão final com base em:
+
+- Autor do item, se `Manter autor` estiver ativo.
+- Linhas configuradas em `Principais e níveis`.
+- Alvos selecionados na seção `Alvos`.
+
+Depois, aplica permissões únicas nos itens e arquivos selecionados.
+
+Uso recomendado:
+
+- Sempre configure pelo menos um grupo ou pessoa com acesso suficiente.
+- Evite deixar apenas o autor com acesso se outras pessoas precisam atuar no processo.
+- Garanta que administradores ou equipe de suporte mantenham acesso quando necessário.
+
+#### Exemplo com item principal
+
+Cenário: solicitação sigilosa.
+
+Configuração:
+
+- `Ativar`: ligado.
+- `Item na lista principal`: marcado.
+- `Manter autor`: ligado.
+- `Nível do autor`: `Leitura`.
+- Grupo `Aprovadores` com nível `Editar`.
+
+Resultado:
+
+O autor consegue consultar a solicitação e os aprovadores conseguem trabalhar nela.
+
+#### Exemplo com campo Pessoa
+
+Cenário: cada solicitação possui um responsável.
+
+Configuração:
+
+- Tipo: `Campo (Pessoa / Vários)`.
+- Lista: `Lista principal`.
+- Campo: `Responsável`.
+- Nível: `Contribuir`.
+
+Resultado:
+
+A pessoa preenchida no campo `Responsável` recebe permissão automaticamente no item.
+
+#### Exemplo com listas vinculadas
+
+Cenário: uma solicitação possui despesas vinculadas.
+
+Configuração:
+
+- Alvo `Listas vinculadas`: marcar `Despesas`.
+- Tipo: `Grupo do site`.
+- Grupo: `Financeiro`.
+- Nível: `Editar`.
+
+Resultado:
+
+Os itens da lista vinculada `Despesas` recebem permissões específicas para o grupo financeiro.
+
+#### Exemplo com arquivos em biblioteca
+
+Cenário: anexos do processo ficam em biblioteca de documentos.
+
+Configuração:
+
+- `Ficheiros na biblioteca de anexos`: marcado.
+- Grupo `Aprovadores` com nível `Leitura`.
+- Grupo `Gestores` com nível `Editar`.
+
+Resultado:
+
+Os arquivos relacionados ao item principal também passam a respeitar permissões específicas.
+
+#### Boas práticas para quebra de permissões
+
+- Teste sempre em homologação antes de usar em produção.
+- Comece com poucos alvos e poucas linhas de permissão.
+- Prefira grupos SharePoint em vez de pessoas individuais.
+- Use campos Pessoa quando o acesso depende do responsável preenchido no formulário.
+- Evite `Controlo total` salvo em cenários administrativos.
+- Confirme se anexos e listas vinculadas realmente precisam de quebra.
+- Garanta que pelo menos um grupo de suporte ou administração mantenha acesso.
+- Revise a configuração ao copiar JSON entre ambientes.
+
 
