@@ -4752,3 +4752,631 @@ Ao clicar no botão, o formulário altera o status, registra a data de envio e m
 - Em `Definir valor de um campo`, confirme se o valor informado é compatível com o tipo do campo.
 - Em `Juntar vários campos`, prefira placeholders selecionados pela interface para evitar erro no nome interno.
 
+### Auditoria e versões
+
+A aba `Auditoria e versões` reúne configurações para registrar ações executadas no formulário e, quando configurado, consultar versões do item.
+
+Essa aba é usada quando o cliente precisa acompanhar o histórico de ações, decisões, alterações ou movimentações realizadas em um registro.
+
+#### Lista de logs
+
+A seção `Lista de logs` configura onde os registros de log serão gravados.
+
+O log funciona como um histórico textual das ações executadas pelos botões do formulário.
+
+Exemplos de uso:
+
+- Registrar que uma solicitação foi aprovada.
+- Registrar que uma solicitação foi reprovada.
+- Registrar que um item foi enviado para análise.
+- Registrar que um usuário abriu o histórico.
+- Registrar alterações feitas por um botão de atualização.
+
+#### Lista de registo e captação
+
+O collapse `Lista de registo e captação` define a lista onde os logs serão armazenados e habilita a captura dos registros.
+
+Essa configuração é necessária para que o formulário consiga gravar informações de auditoria em uma lista do SharePoint.
+
+##### Lista para registos de log
+
+O campo `Lista para registos de log` define qual lista do SharePoint receberá os registros de auditoria.
+
+Essa lista deve ser preparada para armazenar os textos de log e se relacionar com a lista principal do formulário.
+
+Exemplo:
+
+Um formulário de solicitações pode usar uma lista chamada `Logs de Solicitações`.
+
+Cada vez que um botão importante for executado, um novo registro pode ser gravado nessa lista.
+
+Uso recomendado:
+
+- Use uma lista separada para armazenar logs.
+- Dê um nome claro para a lista, como `Logs de Solicitações` ou `Histórico de Aprovações`.
+- Evite misturar logs de processos diferentes na mesma lista sem necessidade.
+- Garanta que a lista esteja disponível no mesmo contexto em que o formulário será usado.
+
+##### Carregamento de listas
+
+Enquanto o painel busca as listas disponíveis, pode aparecer uma mensagem de carregamento.
+
+Exemplo:
+
+`A carregar listas...`
+
+Se ocorrer erro ao carregar as listas, o painel pode mostrar uma mensagem de erro.
+
+Uso recomendado:
+
+- Aguarde o carregamento antes de selecionar a lista.
+- Se houver erro, revise permissões e disponibilidade das listas no site.
+
+##### Campo para guardar a ação
+
+O campo `Campo para guardar a ação` define em qual coluna da lista de logs o texto do registro será gravado.
+
+Esse campo deve ser uma coluna de `várias linhas de texto`.
+
+Ele é responsável por armazenar a descrição da ação executada.
+
+Exemplo:
+
+A lista `Logs de Solicitações` pode ter uma coluna chamada `Descrição do log`.
+
+Quando o botão `Aprovar` for executado, essa coluna pode receber um texto informando a ação realizada.
+
+Uso recomendado:
+
+- Crie uma coluna de várias linhas de texto para receber o conteúdo do log.
+- Use um nome claro, como `Descrição`, `Log`, `Registro` ou `Detalhes da ação`.
+- Evite usar colunas de texto curto quando o log pode ter mensagens maiores.
+
+Ponto de atenção:
+
+Se a lista escolhida não tiver colunas de várias linhas de texto visíveis, o painel informa que será necessário criar uma coluna desse tipo.
+
+##### Lookup para a lista principal
+
+O campo `Lookup para a lista principal (vínculo ao item)` define qual coluna da lista de logs liga o registro de auditoria ao item principal do formulário.
+
+Esse vínculo permite saber a qual solicitação, cadastro ou item cada log pertence.
+
+Na prática, a lista de logs precisa ter uma coluna de lookup apontando para a lista principal do formulário.
+
+Exemplo:
+
+A lista principal é `Solicitações`.
+
+A lista de logs é `Logs de Solicitações`.
+
+Na lista de logs, existe uma coluna lookup chamada `Solicitação`, apontando para a lista `Solicitações`.
+
+Assim, cada log fica relacionado ao item correto.
+
+Uso recomendado:
+
+- Configure esse campo sempre que habilitar logs.
+- Garanta que a lista de logs tenha uma coluna lookup para a lista principal.
+- Use nomes claros, como `Solicitação`, `Item relacionado` ou `Registro principal`.
+
+Ponto de atenção:
+
+Se não existir uma coluna de lookup na lista de logs apontando para a lista principal, o painel exibirá um aviso indicando que essa coluna precisa ser criada.
+
+##### Mensagens sobre a lista principal
+
+Durante a configuração, o painel pode tentar resolver a lista principal do formulário.
+
+Podem aparecer mensagens como:
+
+- Informar o título da lista principal na origem dos dados.
+- Avisar que a lista principal não foi encontrada.
+- Carregar a lista principal para identificar os campos de vínculo.
+
+Essas mensagens indicam se o formulário conseguiu identificar corretamente a lista principal que será relacionada aos logs.
+
+Uso recomendado:
+
+- Verifique se a origem dos dados do formulário está configurada.
+- Confirme se o título da lista principal está correto.
+- Corrija a configuração antes de habilitar a captação de logs.
+
+##### Habilitar captação de logs
+
+A opção `Habilitar captação de logs` liga ou desliga a gravação dos registros de auditoria.
+
+Quando está ativa, o formulário pode gravar logs conforme as ações configuradas.
+
+Quando está inativa, os logs não são capturados.
+
+Essa opção só fica disponível quando os campos obrigatórios para a captação estão configurados.
+
+Para habilitar, é necessário definir:
+
+- A lista de logs.
+- O campo multilinhas onde a ação será gravada.
+- O lookup que vincula o log ao item principal.
+
+Uso recomendado:
+
+- Ative somente depois de concluir a configuração da lista e dos campos.
+- Use quando o processo precisa de rastreabilidade.
+- Desative quando o formulário não precisa registrar ações.
+
+Exemplo:
+
+Ao ativar a captação, um botão `Aprovar` pode gravar um log informando que a solicitação foi aprovada por determinado usuário.
+
+##### Mensagem de bloqueio da captação
+
+Quando a captação ainda não pode ser ativada, o painel informa que é necessário definir a lista, o campo multilinhas e o lookup de vínculo.
+
+Essa mensagem ajuda a identificar o que falta para liberar a funcionalidade.
+
+Uso recomendado:
+
+- Revise os campos obrigatórios da configuração.
+- Crie as colunas necessárias na lista de logs.
+- Só habilite a captação depois que o botão estiver disponível.
+
+##### Alterações automáticas
+
+A opção `Alterações automáticas (botões Atualizar)` registra automaticamente mudanças feitas quando um botão do tipo `Atualizar` grava o item.
+
+Quando essa opção está ativa, o log pode incluir as diferenças efetivas entre o valor que existia ao abrir o item e o valor gravado.
+
+Exemplo:
+
+O item foi aberto com:
+
+- `Status`: `Em análise`
+- `Responsável`: `João`
+
+Depois da atualização:
+
+- `Status`: `Aprovado`
+- `Responsável`: `Maria`
+
+O log pode registrar que esses campos foram alterados.
+
+Uso recomendado:
+
+- Use quando o cliente precisa rastrear alterações feitas no item.
+- Use em processos com aprovação, revisão ou alteração de status.
+- Use quando é importante saber o que mudou, e não apenas que o botão foi clicado.
+
+Ponto de atenção:
+
+Se o usuário alterar um campo e depois voltar para o mesmo valor original, essa diferença não será registrada, pois o valor final não mudou.
+
+##### Fluxo recomendado de configuração
+
+Para configurar a lista de logs:
+
+- Criar ou escolher uma lista para armazenar os logs.
+- Criar uma coluna de várias linhas de texto para guardar a descrição da ação.
+- Criar uma coluna lookup apontando para a lista principal do formulário.
+- Selecionar a lista no campo `Lista para registos de log`.
+- Selecionar o campo multilinhas no campo `Campo para guardar a ação`.
+- Selecionar o lookup no campo `Lookup para a lista principal`.
+- Ativar `Habilitar captação de logs`.
+- Ativar `Alterações automáticas` se quiser registrar mudanças feitas por botões de atualização.
+
+##### Exemplo completo
+
+Cenário: registrar aprovações de solicitações.
+
+Configuração:
+
+- Lista principal do formulário: `Solicitações`.
+- Lista de logs: `Logs de Solicitações`.
+- Campo multilinhas na lista de logs: `Descrição do log`.
+- Lookup na lista de logs: `Solicitação`.
+- Captação de logs: ativa.
+- Alterações automáticas: ativa.
+
+Resultado:
+
+Quando um botão de aprovação ou atualização for executado, o sistema poderá gravar um registro na lista de logs relacionado ao item principal da solicitação.
+
+#### Textos de registo por botão
+
+O collapse `Textos de registo por botão` permite configurar o texto que será gravado no log para cada botão do formulário.
+
+Essa área ajuda a deixar os registros de auditoria mais claros para quem consulta o histórico.
+
+Em vez de gravar apenas uma ação genérica, é possível descrever o que cada botão representa no processo.
+
+##### Quando essa seção fica disponível
+
+Essa seção depende da captação de logs estar configurada.
+
+Ela também precisa ter pelo menos um botão configurado ou o botão de histórico ativo.
+
+Se ainda não houver configuração suficiente, o painel pode exibir mensagens orientando o usuário.
+
+Exemplos de mensagens:
+
+- Ativar a captação na seção anterior.
+- Ativar o histórico na aba `Componentes`.
+- Configurar botões na aba `Botões`.
+
+Uso recomendado:
+
+- Configure primeiro a lista de logs.
+- Ative a captação.
+- Depois configure os textos de registro para cada botão.
+
+##### Botão de histórico integrado
+
+Quando o histórico está ativo na aba `Componentes`, a seção pode exibir o bloco `Botão de histórico (integrado)`.
+
+Esse bloco permite configurar o registro de log relacionado à abertura ou uso do histórico.
+
+Exemplo:
+
+Quando o usuário abre o histórico do item, o log pode registrar uma mensagem indicando que o histórico foi consultado.
+
+##### Botões personalizados
+
+Para cada botão personalizado configurado na aba `Botões`, a seção exibe um bloco próprio.
+
+Cada bloco mostra o nome do botão e seu identificador interno.
+
+Exemplo:
+
+Um botão chamado `Aprovar` pode aparecer com seu identificador interno ao lado.
+
+Isso ajuda a diferenciar botões com nomes parecidos ou botões clonados.
+
+##### Cor do registo
+
+O campo `Cor do registo` define a cor visual usada para destacar o registro no histórico.
+
+Essa cor segue o tema do site.
+
+Uso recomendado:
+
+- Use a cor principal para ações importantes.
+- Use cores diferentes para separar tipos de ação.
+- Use uma cor mais forte para ações críticas.
+- Mantenha padrão visual entre ações parecidas.
+
+Exemplo:
+
+- `Aprovar`: cor principal ou positiva.
+- `Reprovar`: cor de destaque mais crítica.
+- `Enviar para análise`: cor neutra ou principal.
+
+##### Texto gravado no registo de log
+
+O editor de texto permite escrever a mensagem que será gravada no log quando aquele botão for executado.
+
+Esse texto deve explicar o significado da ação no processo.
+
+Exemplos:
+
+- `Solicitação aprovada pelo gestor.`
+- `Solicitação enviada para análise.`
+- `Item atualizado pelo responsável.`
+- `Solicitação reprovada com justificativa.`
+
+Uso recomendado:
+
+- Escreva mensagens claras.
+- Informe o que a ação representa.
+- Evite textos genéricos demais.
+- Use linguagem que faça sentido para o cliente.
+- Padronize mensagens entre botões parecidos.
+
+##### Editor rico
+
+O texto do registro é configurado em um editor rico.
+
+Isso permite escrever uma descrição mais elaborada do que um texto simples, conforme as opções disponíveis no editor.
+
+Uso recomendado:
+
+- Use formatação apenas quando ajudar na leitura.
+- Evite textos longos demais.
+- Prefira mensagens objetivas, porque o histórico pode acumular muitos registros.
+
+##### Exemplo de configuração
+
+Cenário: formulário de aprovação.
+
+Botões configurados:
+
+- `Enviar para análise`
+- `Aprovar`
+- `Reprovar`
+
+Textos de registro:
+
+- `Enviar para análise`: `Solicitação enviada para análise.`
+- `Aprovar`: `Solicitação aprovada pelo responsável.`
+- `Reprovar`: `Solicitação reprovada. Consulte a justificativa informada.`
+
+Resultado:
+
+Quando cada botão for executado, o histórico terá registros mais claros, facilitando a auditoria do processo.
+
+##### Boas práticas
+
+- Configure texto para todos os botões importantes.
+- Use mensagens diferentes para ações diferentes.
+- Mantenha o texto curto e compreensível.
+- Revise os textos quando clonar ou renomear botões.
+- Teste a geração do log em homologação antes de publicar.
+
+#### Versionamento do item
+
+O collapse `Versionamento do item (SharePoint)` configura a exibição das versões nativas do item dentro do painel de histórico.
+
+Essa funcionalidade usa o versionamento da própria lista principal do SharePoint.
+
+Ela permite consultar versões anteriores do item e visualizar valores gravados em cada versão, conforme os campos configurados.
+
+Exemplos de uso:
+
+- Consultar como o item estava antes de uma alteração.
+- Ver quando uma versão foi criada.
+- Identificar a versão atual.
+- Comparar valores registrados em versões anteriores.
+
+Ponto de atenção:
+
+Para essa funcionalidade funcionar, o versionamento precisa estar ativo nas configurações da lista principal do SharePoint.
+
+#### No painel de histórico
+
+O collapse `No painel de histórico` define se as versões do item serão exibidas dentro do histórico do formulário.
+
+##### Mostrar versões do item no painel de histórico
+
+A opção `Mostrar versões do item no painel de histórico` ativa ou desativa a exibição das versões do SharePoint no painel de histórico.
+
+Quando marcada, o painel de histórico passa a incluir a seção de versionamento do item.
+
+Quando desmarcada, o painel não mostra as versões nativas da lista.
+
+Uso recomendado:
+
+- Ative quando o cliente precisa consultar versões anteriores do item.
+- Ative quando alterações de campos precisam ser rastreadas ao longo do tempo.
+- Desative quando o processo só precisa dos logs por botão.
+- Desative quando a lista principal não usa versionamento.
+
+Exemplo:
+
+Em uma solicitação que passa por várias alterações, o histórico pode mostrar a versão atual e versões anteriores do item.
+
+##### Dependência do SharePoint
+
+Essa opção usa o histórico de versões nativo da lista principal.
+
+Por isso, o versionamento deve estar habilitado na lista do SharePoint.
+
+Caminho conceitual:
+
+- Acessar as configurações da lista.
+- Abrir as configurações de versão.
+- Ativar o controle de versões da lista.
+
+Uso recomendado:
+
+- Confirme com o administrador do SharePoint se o versionamento está ativo.
+- Valide em homologação antes de liberar para o cliente.
+- Combine com logs por botão quando quiser histórico técnico e histórico funcional.
+
+#### Campos ao expandir uma versão
+
+O collapse `Campos ao expandir uma versão` define quais campos serão carregados quando o usuário expandir uma versão no painel de histórico.
+
+Quando uma versão é expandida, o sistema busca os valores daquela versão para os campos configurados.
+
+Essa configuração ajuda a controlar quais informações serão exibidas e evita carregar campos desnecessários.
+
+##### Lista principal necessária
+
+Para listar os campos disponíveis, o formulário precisa saber qual é a lista principal.
+
+Se a lista principal ainda não estiver definida na origem dos dados, o painel informa que é necessário indicar essa lista.
+
+Uso recomendado:
+
+- Configure corretamente a lista principal na origem dos dados.
+- Verifique se a lista principal é a mesma usada pelo formulário.
+- Corrija a origem antes de configurar os campos de versionamento.
+
+##### Carregamento dos campos da lista principal
+
+Enquanto o painel busca os campos da lista principal, pode aparecer uma mensagem de carregamento.
+
+Exemplo:
+
+`A carregar campos da lista principal...`
+
+Se houver erro, o painel exibe uma mensagem de erro.
+
+Uso recomendado:
+
+- Aguarde o carregamento dos campos.
+- Se houver erro, revise permissões, título da lista e configuração da origem dos dados.
+
+##### Todos os campos compatíveis
+
+A opção `Todos os campos compatíveis com o pedido REST das versões` usa automaticamente os campos visíveis que podem ser consultados nas versões.
+
+Essa é a opção padrão.
+
+Com essa opção marcada, o sistema escolhe os campos compatíveis para exibir quando uma versão for expandida.
+
+Uso recomendado:
+
+- Use quando não há necessidade de escolher campo por campo.
+- Use para configuração mais rápida.
+- Use quando o cliente quer uma visão geral das versões.
+
+Ponto de atenção:
+
+Nem todos os tipos de campo aparecem nessa consulta.
+
+Campos como lookup, pessoa e taxonomia são excluídos da lista de campos elegíveis para esse pedido de versões.
+
+##### Escolher campos individuais
+
+Ao desmarcar `Todos os campos compatíveis`, o painel permite selecionar campos específicos.
+
+Essa opção é útil quando o cliente quer ver apenas campos relevantes ao expandir uma versão.
+
+Exemplos de campos úteis:
+
+- `Status`
+- `Responsável`
+- `Data de aprovação`
+- `Valor`
+- `Observações`
+
+Uso recomendado:
+
+- Use quando há muitos campos na lista.
+- Use quando o histórico deve mostrar apenas dados importantes.
+- Use para facilitar a leitura do painel de versões.
+- Evite selecionar campos que não ajudam na análise do histórico.
+
+##### Marcar todos
+
+O link `Marcar todos` seleciona todos os campos elegíveis disponíveis.
+
+Use quando quiser partir de uma seleção completa e depois remover apenas alguns campos.
+
+##### Limpar
+
+O link `Limpar` remove a seleção manual de campos.
+
+Use quando quiser recomeçar a escolha dos campos ou deixar a lista vazia antes de selecionar novamente.
+
+##### Lista de campos
+
+Quando a seleção manual está ativa, o painel exibe uma lista de campos com caixas de seleção.
+
+Cada item mostra o título do campo e o nome interno.
+
+Exemplo:
+
+`Status (Status)`
+
+`Data de aprovação (DataAprovacao)`
+
+Uso recomendado:
+
+- Marque apenas campos que o usuário precisa consultar em versões anteriores.
+- Prefira campos de status, datas, valores e observações relevantes.
+- Evite excesso de campos para não deixar a expansão da versão pesada ou difícil de ler.
+
+##### Campos não elegíveis
+
+Alguns tipos de campo não aparecem na lista de seleção por limitação do pedido de versões.
+
+Tipos excluídos:
+
+- Lookup.
+- Lookup múltiplo.
+- Pessoa.
+- Pessoa múltipla.
+- Taxonomia.
+- Taxonomia múltipla.
+
+Também são ignorados campos ocultos ou campos cujo nome interno não é compatível com o padrão necessário para consulta.
+
+Se não houver campos elegíveis, o painel informa que nenhum campo pode ser selecionado.
+
+##### Limite de campos
+
+Ao selecionar campos individuais, existe um limite de campos usados na consulta de versões.
+
+O sistema limita a quantidade para evitar consultas muito grandes.
+
+Uso recomendado:
+
+- Selecione apenas os campos realmente importantes.
+- Evite tentar transformar o versionamento em uma cópia completa do item.
+- Use logs de auditoria para registrar descrições funcionais e versões para consultar valores principais.
+
+#### Como aparece no histórico
+
+Quando o versionamento está ativo, o painel de histórico pode exibir uma seção `Versionamento do item (SharePoint)`.
+
+Nessa seção, o usuário pode ver as versões disponíveis.
+
+Cada versão pode mostrar:
+
+- Número ou rótulo da versão.
+- Data de criação da versão.
+- Indicação da versão atual.
+- Campos carregados ao expandir a versão.
+
+Ao expandir uma versão, o painel carrega os campos daquela versão e mostra os valores registrados.
+
+Exemplo:
+
+O usuário expande a versão `3.0` e vê que naquela versão o campo `Status` estava como `Em análise`.
+
+Depois, expande a versão atual e vê que o `Status` passou para `Aprovado`.
+
+#### Diferença entre logs e versionamento
+
+Logs e versionamento têm finalidades diferentes.
+
+Logs registram ações funcionais, como:
+
+- Quem aprovou.
+- Quem reprovou.
+- Qual botão foi executado.
+- Qual mensagem foi gravada no histórico.
+
+Versionamento mostra versões do item na lista principal, como:
+
+- Valores salvos em versões anteriores.
+- Data de criação de cada versão.
+- Estado do item em determinado momento.
+
+Uso recomendado:
+
+- Use logs para explicar o significado das ações.
+- Use versionamento para consultar valores históricos do item.
+- Use os dois juntos quando o processo precisa de auditoria mais completa.
+
+#### Exemplo completo
+
+Cenário: acompanhar alterações em uma solicitação.
+
+Configuração:
+
+- Ativar `Mostrar versões do item no painel de histórico`.
+- Manter `Todos os campos compatíveis` ativo ou selecionar campos específicos.
+- Garantir que o versionamento da lista principal esteja ativo no SharePoint.
+
+Campos selecionados:
+
+- `Status`
+- `Data de aprovação`
+- `Valor`
+- `Observações`
+
+Resultado:
+
+No painel de histórico, o usuário consegue consultar logs funcionais e também expandir versões do item para ver como os campos estavam em versões anteriores.
+
+#### Boas práticas
+
+- Ative versionamento apenas quando houver necessidade real de consultar versões.
+- Confirme se o versionamento está habilitado na lista do SharePoint.
+- Selecione poucos campos quando a lista tiver muitos dados.
+- Use campos relevantes para auditoria, como status, datas, valores e observações.
+- Combine com `Textos de registo por botão` para ter histórico funcional claro.
+- Teste a expansão de versões em homologação antes de liberar para o cliente.
+
+
