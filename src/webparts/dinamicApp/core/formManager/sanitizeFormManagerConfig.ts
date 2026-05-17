@@ -21,6 +21,7 @@ import type {
   TFormCustomButtonsBarVertical,
   TFormCustomButtonsBarHorizontal,
   TFormButtonAction,
+  IFormButtonActionHttpRequest,
   TFormCustomButtonOperation,
   TFormManagerFormMode,
   TFormRule,
@@ -762,6 +763,41 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
       targetField,
       sourceFields,
       separator,
+      ...(whenAct ? { when: whenAct } : {}),
+    };
+  }
+  if (kind === 'httpRequest') {
+    const stepIdRaw = typeof a.stepId === 'string' ? a.stepId.trim() : '';
+    const HTTP_METHOD_SET = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+    const methodUp = typeof a.method === 'string' ? a.method.trim().toUpperCase() : 'GET';
+    const method = HTTP_METHOD_SET.has(methodUp) ? (methodUp as IFormButtonActionHttpRequest['method']) : 'GET';
+    const url = typeof a.url === 'string' ? a.url.trim() : '';
+    const stepId = /^[a-zA-Z][a-zA-Z0-9_]*$/.test(stepIdRaw) ? stepIdRaw : '';
+    if (!stepId || !url) return undefined;
+    const sanitizePairs = (raw: unknown): Array<{ key: string; value: string }> => {
+      if (!Array.isArray(raw)) return [];
+      const out: Array<{ key: string; value: string }> = [];
+      for (let i = 0; i < raw.length; i++) {
+        const row = raw[i];
+        if (!row || typeof row !== 'object') continue;
+        const r = row as Record<string, unknown>;
+        const key = typeof r.key === 'string' ? r.key : '';
+        const value = typeof r.value === 'string' ? r.value : '';
+        out.push({ key, value });
+      }
+      return out;
+    };
+    const headers = sanitizePairs(a.headers);
+    const query = sanitizePairs(a.query);
+    const body = typeof a.body === 'string' ? a.body : '';
+    return {
+      kind: 'httpRequest',
+      stepId,
+      method,
+      url,
+      ...(headers.length ? { headers } : {}),
+      ...(query.length ? { query } : {}),
+      ...(body.trim().length > 0 ? { body } : {}),
       ...(whenAct ? { when: whenAct } : {}),
     };
   }

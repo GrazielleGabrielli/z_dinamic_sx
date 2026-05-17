@@ -20,6 +20,15 @@ function addFieldName(out: Set<string>, raw: string | undefined): void {
   out.add(base);
 }
 
+/** Evita tratar `{{passo.campo}}` (saída HTTP) como nome de coluna. */
+function addFieldNameFromMustacheToken(out: Set<string>, full: string): void {
+  const t = full.trim();
+  if (!t) return;
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*\./.test(t)) return;
+  const base = t.split('/')[0]?.trim();
+  addFieldName(out, base);
+}
+
 function collectFromJoinTemplate(tpl: string | undefined, out: Set<string>): void {
   if (!tpl) return;
   JOIN_PH_RE.lastIndex = 0;
@@ -27,8 +36,7 @@ function collectFromJoinTemplate(tpl: string | undefined, out: Set<string>): voi
   while ((m = JOIN_PH_RE.exec(tpl)) !== null) {
     const full = String(m[1] ?? '').trim();
     if (!full) continue;
-    const base = full.split('/')[0]?.trim();
-    addFieldName(out, base);
+    addFieldNameFromMustacheToken(out, full);
   }
 }
 
@@ -39,8 +47,7 @@ function collectFromValueTemplate(tpl: string | undefined, out: Set<string>): vo
   while ((m = JOIN_PH_RE.exec(tpl)) !== null) {
     const full = String(m[1] ?? '').trim();
     if (!full) continue;
-    const base = full.split('/')[0]?.trim();
-    addFieldName(out, base);
+    addFieldNameFromMustacheToken(out, full);
   }
 }
 
@@ -67,6 +74,22 @@ function collectFromButtonActions(actions: TFormButtonAction[] | undefined, out:
       case 'hideFields':
         for (let j = 0; j < (a.fields ?? []).length; j++) {
           addFieldName(out, a.fields[j]);
+        }
+        break;
+      case 'httpRequest':
+        collectFromJoinTemplate(a.url, out);
+        collectFromJoinTemplate(a.body, out);
+        {
+          const hh = a.headers ?? [];
+          for (let j = 0; j < hh.length; j++) {
+            collectFromJoinTemplate(hh[j].key, out);
+            collectFromJoinTemplate(hh[j].value, out);
+          }
+          const qq = a.query ?? [];
+          for (let j = 0; j < qq.length; j++) {
+            collectFromJoinTemplate(qq[j].key, out);
+            collectFromJoinTemplate(qq[j].value, out);
+          }
         }
         break;
       default:

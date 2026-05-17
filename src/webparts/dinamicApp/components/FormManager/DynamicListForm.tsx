@@ -103,7 +103,6 @@ function buildPackedGridColumnSpans(
   }
   return out;
 }
-import { isDynamicToken } from '../../core/dynamicTokens';
 import {
   buildFormDerivedState,
   collectFormValidationErrors,
@@ -111,7 +110,6 @@ import {
   filterValidationErrorsToStepFields,
   pickRequiredStyleStepErrors,
   evaluateCondition,
-  evaluateFormValueExpression,
   getDefaultValuesFromRules,
   getMergedValidateValueLengthBounds,
   getMergedValidateValueNumberBounds,
@@ -146,6 +144,11 @@ import {
   appendFormActionLogEntry,
   type IFormActionLogRuntimeContext,
 } from '../../core/formManager/formActionLog';
+import {
+  reduceCustomButtonActions,
+  reduceCustomButtonActionsAsync,
+  type IFormButtonFieldOverlay,
+} from '../../core/formManager/formButtonChainedActions';
 import { parseAttachmentUiRule } from '../../core/formManager/formManagerVisualModel';
 import {
   initConfirmPromptEditor,
@@ -418,96 +421,6 @@ function itemToFormValues(
   return out;
 }
 
-function formatJoinedFieldValue(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  if (typeof v === 'object' && v !== null && 'Title' in (v as object)) {
-    return String((v as Record<string, unknown>).Title ?? '');
-  }
-  return String(v);
-}
-
-type IFormButtonFieldOverlay = {
-  show: Set<string>;
-  hide: Set<string>;
-  showOnStepId?: Record<string, string>;
-};
-
-function reduceCustomButtonActions(
-  actions: TFormButtonAction[],
-  startValues: Record<string, unknown>,
-  dynamicContext: IDynamicContext,
-  baseOverlay: IFormButtonFieldOverlay,
-  attachmentFolderUrl: IFormAttachmentFolderUrlContext | undefined,
-  userGroupTitles: string[],
-  conditionOpts?: { lookupOptionSnapshots?: IFormRuleRuntimeContext['lookupOptionSnapshots'] }
-): { mergedValues: Record<string, unknown>; mergedOverlay: IFormButtonFieldOverlay } {
-  let next = { ...startValues };
-  const mergedOverlay: IFormButtonFieldOverlay = {
-    show: cloneStringSet(baseOverlay.show),
-    hide: cloneStringSet(baseOverlay.hide),
-    ...(baseOverlay.showOnStepId && Object.keys(baseOverlay.showOnStepId).length > 0
-      ? { showOnStepId: { ...baseOverlay.showOnStepId } }
-      : {}),
-  };
-  for (let i = 0; i < actions.length; i++) {
-    const a = actions[i];
-    if (a.when && !evaluateCondition(a.when, next, dynamicContext, userGroupTitles, conditionOpts)) {
-      continue;
-    }
-    if (a.kind === 'setFieldValue') {
-      const tplRaw = String(a.valueTemplate ?? '');
-      const trimmed = tplRaw.trim();
-      let useExpr = trimmed.startsWith('str:') || trimmed.startsWith('attfolder:');
-      if (!useExpr) useExpr = isDynamicToken(trimmed);
-      if (!useExpr && dynamicContext && trimmed.indexOf('[') !== -1) useExpr = true;
-      const raw = useExpr
-        ? evaluateFormValueExpression(tplRaw, next, dynamicContext, attachmentFolderUrl)
-        : tplRaw;
-      next = { ...next, [a.field]: raw };
-    } else if (a.kind === 'joinFields') {
-      const tpl = (a.valueTemplate ?? '').trim();
-      if (tpl.length > 0) {
-        const rawTpl = a.valueTemplate ?? '';
-        const interpolated = rawTpl.replace(/\{\{([^}]+)\}\}/g, (_, raw: string) => {
-          const name = String(raw).trim();
-          return formatJoinedFieldValue(next[name]);
-        });
-        next = { ...next, [a.targetField]: interpolated };
-      } else {
-        const parts = a.sourceFields.map((f) => formatJoinedFieldValue(next[f]));
-        next = { ...next, [a.targetField]: parts.join(a.separator) };
-      }
-    } else if (a.kind === 'showFields') {
-      const sid = typeof a.displayOnStepId === 'string' ? a.displayOnStepId.trim() : '';
-      for (let j = 0; j < a.fields.length; j++) {
-        const fn = a.fields[j];
-        mergedOverlay.show.add(fn);
-        if (sid) {
-          if (!mergedOverlay.showOnStepId) mergedOverlay.showOnStepId = {};
-          mergedOverlay.showOnStepId[fn] = sid;
-        }
-      }
-    } else if (a.kind === 'hideFields') {
-      for (let j = 0; j < a.fields.length; j++) {
-        const fn = a.fields[j];
-        mergedOverlay.hide.add(fn);
-        if (mergedOverlay.showOnStepId && mergedOverlay.showOnStepId[fn]) {
-          delete mergedOverlay.showOnStepId[fn];
-        }
-      }
-    }
-  }
-  return { mergedValues: next, mergedOverlay };
-}
-
-function cloneStringSet(s: Set<string>): Set<string> {
-  const n = new Set<string>();
-  s.forEach((x) => {
-    n.add(x);
-  });
-  return n;
-}
-
 function confirmKindToIconSpec(kind: TFormCustomButtonConfirmKind | undefined): { iconName: string; color: string } {
   switch (kind) {
     case 'success':
@@ -581,6 +494,23 @@ interface IFormButtonRunTimelineCtx {
   permissionBreakWillRun: boolean;
 }
 
+function timelineLabelForCustomButtonAction(a: TFormButtonAction): string {
+  switch (a.kind) {
+    case 'httpRequest':
+      return `HTTP ${a.method} · ${a.stepId}`;
+    case 'showFields':
+      return 'Mostrar campos';
+    case 'hideFields':
+      return 'Ocultar campos';
+    case 'setFieldValue':
+      return 'Definir valor de campo';
+    case 'joinFields':
+      return 'Juntar campos';
+    default:
+      return 'Ação do botão';
+  }
+}
+
 function buildCustomButtonRunTimelineLabels(
   btn: IFormCustomButtonConfig,
   ctx: IFormButtonRunTimelineCtx
@@ -595,7 +525,9 @@ function buildCustomButtonRunTimelineLabels(
   }
 
   if (actions.length > 0) {
-    out.push('Aplicar alterações nos campos (ações do botão)');
+    for (let ai = 0; ai < actions.length; ai++) {
+      out.push(timelineLabelForCustomButtonAction(actions[ai]));
+    }
   }
 
   if (op === 'redirect') {
@@ -2820,21 +2752,59 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     }
 
     const actions = op === 'redirect' ? [] : btn.actions ?? [];
-    if (actions.length > 0) {
-      if (tl) tl.enter(ti);
-    }
-    const { mergedValues, mergedOverlay } = reduceCustomButtonActions(
-      actions,
-      baseValues,
-      dynamicContext,
-      buttonOverlay,
-      attachmentFolderUrl,
-      userGroupTitles,
-      { lookupOptionSnapshots: lookupDetailSnapshot }
-    );
-    if (actions.length > 0 && tl) {
-      tl.ok(ti);
-      ti++;
+    const actionsUseHttp = actions.some((a) => a.kind === 'httpRequest');
+    let mergedValues: Record<string, unknown>;
+    let mergedOverlay: IFormButtonFieldOverlay;
+    if (actionsUseHttp) {
+      const res = await reduceCustomButtonActionsAsync(
+        actions,
+        baseValues,
+        dynamicContext,
+        buttonOverlay,
+        attachmentFolderUrl,
+        userGroupTitles,
+        { lookupOptionSnapshots: lookupDetailSnapshot },
+        tl && actions.length > 0
+          ? {
+              onStepStart: () => {
+                tl!.enter(ti);
+              },
+              onStepOk: () => {
+                tl!.ok(ti);
+                ti++;
+              },
+              onStepErr: () => {
+                tl!.err(ti);
+                tl!.closeError();
+              },
+            }
+          : undefined
+      );
+      if (res.error) {
+        setFormError(res.error);
+        return;
+      }
+      mergedValues = res.mergedValues;
+      mergedOverlay = res.mergedOverlay;
+    } else {
+      if (actions.length > 0) {
+        if (tl) tl.enter(ti);
+      }
+      const r = reduceCustomButtonActions(
+        actions,
+        baseValues,
+        dynamicContext,
+        buttonOverlay,
+        attachmentFolderUrl,
+        userGroupTitles,
+        { lookupOptionSnapshots: lookupDetailSnapshot }
+      );
+      mergedValues = r.mergedValues;
+      mergedOverlay = r.mergedOverlay;
+      if (actions.length > 0 && tl) {
+        tl.ok(ti);
+        ti++;
+      }
     }
     if (op !== 'redirect') {
       flushSync(() => {
@@ -3324,27 +3294,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         ((btn.confirmBeforeRun?.message ?? '').trim().length > 0 ||
           (btn.confirmBeforeRun?.promptFieldInternalName ?? '').trim().length > 0);
       if (!skipNativeDeleteConfirm && !window.confirm('Eliminar este item permanentemente?')) return;
-      if (useRunTimeline) {
-        tl = createRunTimelineController(
-          setRunTimelineDialog,
-          buildCustomButtonRunTimelineLabels(btn, tlCtx),
-          runTlTitle
-        );
-      }
-      if (actions.length > 0 && tl) {
-        tl.enter(0);
-        tl.ok(0);
+      const deleteTl = useRunTimeline
+        ? createRunTimelineController(
+            setRunTimelineDialog,
+            buildCustomButtonRunTimelineLabels(btn, tlCtx),
+            runTlTitle
+          )
+        : null;
+      if (actions.length > 0 && deleteTl) {
+        deleteTl.enter(0);
+        deleteTl.ok(0);
         ti = 1;
       }
       setFormError(undefined);
       setSubmitUi(resolveSubmitLoadingKind(formManager, btn));
       try {
-        if (tl) tl.enter(ti);
+        if (deleteTl) deleteTl.enter(ti);
         await itemsService.deleteItem(listTitle, itemId, listWeb);
-        if (tl) tl.ok(ti);
+        if (deleteTl) deleteTl.ok(ti);
         ti++;
         if (logWillRun) {
-          if (tl) tl.enter(ti);
+          if (deleteTl) deleteTl.enter(ti);
           try {
             await appendFormActionLogEntry(
               itemsService,
@@ -3357,27 +3327,27 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               `Eliminado, mas o registo de log falhou: ${le instanceof Error ? le.message : String(le)}`
             );
           }
-          if (tl) tl.ok(ti);
+          if (deleteTl) deleteTl.ok(ti);
           ti++;
         }
-        if (tl) tl.enter(ti);
+        if (deleteTl) deleteTl.enter(ti);
         const finDel = await runFinishAfterSuccess(btn, mergedValues, itemId);
-        if (tl) {
+        if (deleteTl) {
           if (finDel === 'none' && btn.finishAfterRun?.kind === 'redirect') {
-            tl.err(ti);
-            tl.closeError();
+            deleteTl.err(ti);
+            deleteTl.closeError();
           } else {
-            tl.ok(ti);
-            tl.closeSuccess();
+            deleteTl.ok(ti);
+            deleteTl.closeSuccess();
           }
         }
         if (finDel !== 'redirect') {
           onDismiss();
         }
       } catch (e) {
-        if (tl) {
-          tl.err(ti);
-          tl.closeError();
+        if (deleteTl) {
+          deleteTl.err(ti);
+          deleteTl.closeError();
         }
         setFormError(e instanceof Error ? e.message : String(e));
       } finally {

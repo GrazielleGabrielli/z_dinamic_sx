@@ -18,6 +18,7 @@ import type {
   TFormButtonAction,
   TFormConditionNode,
   TFormConditionOp,
+  IFormButtonActionHttpRequest,
 } from '../../core/config/types/formManager';
 import { FORM_FIXOS_STEP_ID, FORM_OCULTOS_STEP_ID } from '../../core/config/types/formManager';
 import {
@@ -28,11 +29,20 @@ import {
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 
+const HTTP_METHOD_OPTIONS: IDropdownOption[] = [
+  { key: 'GET', text: 'GET' },
+  { key: 'POST', text: 'POST' },
+  { key: 'PUT', text: 'PUT' },
+  { key: 'PATCH', text: 'PATCH' },
+  { key: 'DELETE', text: 'DELETE' },
+];
+
 const BUTTON_ACTION_KIND_OPTIONS: IDropdownOption[] = [
   { key: 'showFields', text: 'Mostrar campos' },
   { key: 'hideFields', text: 'Ocultar campos' },
   { key: 'setFieldValue', text: 'Definir valor de um campo' },
   { key: 'joinFields', text: 'Juntar vários campos num campo' },
+  { key: 'httpRequest', text: 'Pedido HTTP' },
 ];
 
 const CHAINED_ACTION_DROPDOWN_MIN_ROOT = 280;
@@ -65,6 +75,16 @@ function defaultActionForKind(kind: TFormButtonAction['kind']): TFormButtonActio
       return { kind: 'setFieldValue', field: '', valueTemplate: '' };
     case 'joinFields':
       return { kind: 'joinFields', targetField: '', valueTemplate: '', sourceFields: [], separator: ' ' };
+    case 'httpRequest':
+      return {
+        kind: 'httpRequest',
+        stepId: 'http1',
+        method: 'POST',
+        url: '',
+        headers: [{ key: '', value: '' }],
+        query: [{ key: '', value: '' }],
+        body: '',
+      };
     default:
       return { kind: 'showFields', fields: [] };
   }
@@ -454,6 +474,159 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                 label="Separador (só com modelo vazio)"
                 value={act.separator}
                 onChange={(_, v) => patchAction(ai, { ...act, separator: v ?? ' ' })}
+              />
+            </Stack>
+          )}
+          {act.kind === 'httpRequest' && (
+            <Stack tokens={{ childrenGap: 10 }}>
+              <MessageBar messageBarType={MessageBarType.info}>
+                Execução no browser: o endpoint tem de autorizar CORS. Identificador único nesta sequência — na resposta
+                JSON use placeholders como {'{{http1.token}}'} (substitua http1 pelo identificador).
+              </MessageBar>
+              <TextField
+                label="Identificador deste passo"
+                value={act.stepId}
+                onChange={(_, v) => patchAction(ai, { ...act, stepId: (v ?? '').replace(/\s+/g, '') })}
+                description="Letras, números e _; deve ser único entre as ações HTTP do botão."
+              />
+              <Dropdown
+                label="Método"
+                styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
+                dropdownWidth={CHAINED_ACTION_DROPDOWN_PANEL_WIDTH}
+                options={HTTP_METHOD_OPTIONS}
+                selectedKey={act.method}
+                onChange={(_, o) => {
+                  if (!o) return;
+                  patchAction(ai, { ...act, method: String(o.key) as IFormButtonActionHttpRequest['method'] });
+                }}
+              />
+              <TextField
+                label="URL"
+                multiline
+                rows={2}
+                value={act.url}
+                onChange={(_, v) => patchAction(ai, { ...act, url: v ?? '' })}
+                description="Absoluta (https://…) ou relativa ao site. Placeholders {{NomeInterno}} e {{passo.chave}}."
+              />
+              <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                Cabeçalhos
+              </Text>
+              <Stack tokens={{ childrenGap: 6 }}>
+                {(act.headers && act.headers.length ? act.headers : [{ key: '', value: '' }]).map((row, hi) => (
+                  <Stack
+                    horizontal
+                    verticalAlign="end"
+                    wrap
+                    tokens={{ childrenGap: 8 }}
+                    key={`${reactKeysPrefix}-h-${ai}-${hi}`}
+                  >
+                    <TextField
+                      placeholder="Chave"
+                      styles={{ root: { minWidth: 140, flex: '1 1 160px' } }}
+                      value={row.key}
+                      onChange={(_, v) => {
+                        const base = act.headers && act.headers.length ? act.headers.slice() : [{ key: '', value: '' }];
+                        base[hi] = { ...base[hi], key: v ?? '' };
+                        patchAction(ai, { ...act, headers: base });
+                      }}
+                    />
+                    <TextField
+                      placeholder="Valor"
+                      styles={{ root: { minWidth: 180, flex: '2 1 220px' } }}
+                      value={row.value}
+                      onChange={(_, v) => {
+                        const base = act.headers && act.headers.length ? act.headers.slice() : [{ key: '', value: '' }];
+                        base[hi] = { ...base[hi], value: v ?? '' };
+                        patchAction(ai, { ...act, headers: base });
+                      }}
+                    />
+                    <IconButton
+                      iconProps={{ iconName: 'Delete' }}
+                      title="Remover linha"
+                      disabled={(act.headers?.length ?? 0) <= 1 && hi === 0}
+                      onClick={() => {
+                        const base = act.headers && act.headers.length ? act.headers.slice() : [{ key: '', value: '' }];
+                        if (base.length <= 1) {
+                          patchAction(ai, { ...act, headers: [{ key: '', value: '' }] });
+                          return;
+                        }
+                        base.splice(hi, 1);
+                        patchAction(ai, { ...act, headers: base });
+                      }}
+                    />
+                  </Stack>
+                ))}
+                <DefaultButton
+                  text="Adicionar cabeçalho"
+                  onClick={() => {
+                    const base = act.headers && act.headers.length ? act.headers.slice() : [{ key: '', value: '' }];
+                    patchAction(ai, { ...act, headers: base.concat([{ key: '', value: '' }]) });
+                  }}
+                />
+              </Stack>
+              <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+                Consulta (query string)
+              </Text>
+              <Stack tokens={{ childrenGap: 6 }}>
+                {(act.query && act.query.length ? act.query : [{ key: '', value: '' }]).map((row, qi) => (
+                  <Stack
+                    horizontal
+                    verticalAlign="end"
+                    wrap
+                    tokens={{ childrenGap: 8 }}
+                    key={`${reactKeysPrefix}-q-${ai}-${qi}`}
+                  >
+                    <TextField
+                      placeholder="Parâmetro"
+                      styles={{ root: { minWidth: 140, flex: '1 1 160px' } }}
+                      value={row.key}
+                      onChange={(_, v) => {
+                        const base = act.query && act.query.length ? act.query.slice() : [{ key: '', value: '' }];
+                        base[qi] = { ...base[qi], key: v ?? '' };
+                        patchAction(ai, { ...act, query: base });
+                      }}
+                    />
+                    <TextField
+                      placeholder="Valor"
+                      styles={{ root: { minWidth: 180, flex: '2 1 220px' } }}
+                      value={row.value}
+                      onChange={(_, v) => {
+                        const base = act.query && act.query.length ? act.query.slice() : [{ key: '', value: '' }];
+                        base[qi] = { ...base[qi], value: v ?? '' };
+                        patchAction(ai, { ...act, query: base });
+                      }}
+                    />
+                    <IconButton
+                      iconProps={{ iconName: 'Delete' }}
+                      title="Remover linha"
+                      disabled={(act.query?.length ?? 0) <= 1 && qi === 0}
+                      onClick={() => {
+                        const base = act.query && act.query.length ? act.query.slice() : [{ key: '', value: '' }];
+                        if (base.length <= 1) {
+                          patchAction(ai, { ...act, query: [{ key: '', value: '' }] });
+                          return;
+                        }
+                        base.splice(qi, 1);
+                        patchAction(ai, { ...act, query: base });
+                      }}
+                    />
+                  </Stack>
+                ))}
+                <DefaultButton
+                  text="Adicionar parâmetro"
+                  onClick={() => {
+                    const base = act.query && act.query.length ? act.query.slice() : [{ key: '', value: '' }];
+                    patchAction(ai, { ...act, query: base.concat([{ key: '', value: '' }]) });
+                  }}
+                />
+              </Stack>
+              <TextField
+                label="Corpo"
+                multiline
+                rows={8}
+                value={act.body ?? ''}
+                onChange={(_, v) => patchAction(ai, { ...act, body: v ?? '' })}
+                description="Corpo em texto (ex.: JSON). Ignorado em GET/DELETE se vazio. Placeholders {{Campo}} e {{passo.chave}}."
               />
             </Stack>
           )}

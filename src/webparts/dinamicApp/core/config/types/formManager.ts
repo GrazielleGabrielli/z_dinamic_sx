@@ -741,11 +741,32 @@ export interface IFormButtonActionJoinFields {
   when?: TFormConditionNode;
 }
 
+/** Verbo HTTP para ações em cadeia (pedido a partir do browser; API deve permitir CORS). */
+export type TFormButtonHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+export interface IFormButtonActionHttpRequest {
+  kind: 'httpRequest';
+  /**
+   * Identificador único nesta cadeia; corpo JSON da resposta fica disponível como `{{id.caminho}}` nas ações seguintes.
+   * Ex.: resposta `{ "token": "x" }` com `stepId` «http1» → `{{http1.token}}`.
+   */
+  stepId: string;
+  method: TFormButtonHttpMethod;
+  /** URL absoluta ou relativa ao site; placeholders `{{Campo}}` e `{{id.chave}}`. */
+  url: string;
+  headers?: Array<{ key: string; value: string }>;
+  query?: Array<{ key: string; value: string }>;
+  /** Corpo (ex.: JSON). Ignorado em GET/DELETE se vazio. */
+  body?: string;
+  when?: TFormConditionNode;
+}
+
 export type TFormButtonAction =
   | IFormButtonActionShowFields
   | IFormButtonActionHideFields
   | IFormButtonActionSetFieldValue
-  | IFormButtonActionJoinFields;
+  | IFormButtonActionJoinFields
+  | IFormButtonActionHttpRequest;
 
 /** Alinhado a `MessageBarType` (Fluent): realce do ícone no modal de confirmação. */
 export type TFormCustomButtonConfirmKind = 'info' | 'success' | 'warning' | 'error' | 'blocked';
