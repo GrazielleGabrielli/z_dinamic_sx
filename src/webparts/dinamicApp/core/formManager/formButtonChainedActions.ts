@@ -166,13 +166,23 @@ function applySyncButtonAction(
   if (a.kind === 'setFieldValue') {
     const tplRaw = String(a.valueTemplate ?? '');
     const trimmed = tplRaw.trim();
+    const hasMustache = /\{\{[^}]+\}\}/.test(tplRaw);
+
     let useExpr = trimmed.startsWith('str:') || trimmed.startsWith('attfolder:');
     if (!useExpr) useExpr = isDynamicToken(trimmed);
     if (!useExpr && dynamicContext && trimmed.indexOf('[') !== -1) useExpr = true;
-    const raw = useExpr
-      ? evaluateFormValueExpression(tplRaw, next, dynamicContext, attachmentFolderUrl)
-      : tplRaw;
-    next[a.field] = raw;
+
+    if (hasMustache && !trimmed.startsWith('str:') && !trimmed.startsWith('attfolder:')) {
+      next[a.field] = interpolateButtonMustacheTemplates(tplRaw, next, httpOutputs);
+    } else if (useExpr) {
+      let ev = evaluateFormValueExpression(tplRaw, next, dynamicContext, attachmentFolderUrl);
+      if (typeof ev === 'string' && /\{\{[^}]+\}\}/.test(ev)) {
+        ev = interpolateButtonMustacheTemplates(ev, next, httpOutputs);
+      }
+      next[a.field] = ev;
+    } else {
+      next[a.field] = tplRaw;
+    }
   } else if (a.kind === 'joinFields') {
     const tpl = (a.valueTemplate ?? '').trim();
     if (tpl.length > 0) {
