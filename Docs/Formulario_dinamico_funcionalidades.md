@@ -3269,3 +3269,1486 @@ Uso recomendado:
 - Combine a restrição de extensão com instruções claras no texto de ajuda do campo.
 - Teste o envio com arquivos reais antes de publicar para o cliente.
 
+### Botões
+
+A aba `Botões` reúne as configurações relacionadas aos botões de ação do formulário.
+
+Nessa aba é possível definir onde a barra de botões será exibida e configurar ações específicas que o usuário poderá executar.
+
+#### Onde mostrar a barra de botões
+
+A seção `Onde mostrar a barra de botões` define a posição da barra de botões dentro do formulário.
+
+Essa configuração controla onde os botões aparecem visualmente para o usuário, considerando a posição vertical e horizontal.
+
+Ela é útil para adaptar a experiência ao tamanho do formulário, ao tipo de processo e ao comportamento esperado do usuário.
+
+##### Vertical
+
+O campo `Vertical` define se a barra de botões ficará na parte superior ou inferior do formulário.
+
+Opções disponíveis:
+
+- `Inferior`: exibe a barra de botões na parte de baixo do formulário.
+- `Superior`: exibe a barra de botões na parte de cima do formulário.
+
+Uso recomendado:
+
+- Use `Inferior` quando o usuário deve preencher o formulário antes de executar uma ação.
+- Use `Inferior` para formulários de cadastro, solicitação ou envio.
+- Use `Superior` quando as ações precisam ficar disponíveis logo ao abrir o formulário.
+- Use `Superior` em telas de consulta, aprovação ou gerenciamento, onde o usuário pode precisar agir rapidamente.
+
+Exemplo:
+
+Em um formulário de solicitação de férias, a posição `Inferior` faz sentido porque o usuário normalmente preenche os dados antes de enviar.
+
+Em uma tela de aprovação, a posição `Superior` pode facilitar o acesso rápido aos botões `Aprovar` ou `Reprovar`.
+
+##### Horizontal
+
+O campo `Horizontal` define o alinhamento da barra de botões na tela.
+
+Opções disponíveis:
+
+- `Esquerda`: alinha os botões à esquerda.
+- `Direita`: alinha os botões à direita.
+
+Uso recomendado:
+
+- Use `Esquerda` quando quiser manter os botões próximos do início do conteúdo.
+- Use `Esquerda` em formulários com leitura da esquerda para a direita e ações mais simples.
+- Use `Direita` quando quiser aproximar os botões do padrão comum de confirmação no fim da área.
+- Use `Direita` para ações finais, como salvar, enviar ou concluir.
+
+Exemplo:
+
+Em um formulário de cadastro, a barra `Inferior` e `Direita` pode deixar os botões próximos do ponto natural de conclusão.
+
+Em uma tela administrativa, a barra `Superior` e `Esquerda` pode facilitar o acesso às ações assim que a tela abrir.
+
+##### Combinações comuns
+
+Exemplos de combinações:
+
+- `Inferior` + `Direita`: indicado para formulários de preenchimento e envio.
+- `Inferior` + `Esquerda`: indicado para formulários simples ou fluxos internos.
+- `Superior` + `Direita`: indicado para telas de consulta com ações rápidas.
+- `Superior` + `Esquerda`: indicado para telas administrativas ou de gerenciamento.
+
+Uso recomendado:
+
+- Escolha a posição pensando no momento em que o usuário executa a ação.
+- Para ações finais, prefira posicionar a barra no fim do fluxo.
+- Para ações de consulta ou gestão, prefira deixar a barra mais acessível no topo.
+- Mantenha um padrão entre formulários parecidos para facilitar o uso pelo cliente.
+
+#### Adicionar botão
+
+O botão `Adicionar botão` cria uma nova ação personalizada na barra de botões do formulário.
+
+Ao clicar nessa opção, um novo botão é adicionado à lista de botões configuráveis.
+
+Por padrão, o novo botão é criado com o nome `Novo botão` e pode ser ajustado depois conforme a finalidade desejada.
+
+Essa funcionalidade é usada quando o formulário precisa oferecer ações além dos botões padrão.
+
+Exemplos de uso:
+
+- Criar um botão `Aprovar`.
+- Criar um botão `Reprovar`.
+- Criar um botão `Enviar para análise`.
+- Criar um botão `Cancelar solicitação`.
+- Criar um botão `Gerar protocolo`.
+- Criar um botão para executar ações internas configuradas no formulário.
+
+##### O que acontece ao adicionar
+
+Quando um botão é criado, ele aparece como um novo bloco dentro da aba `Botões`.
+
+Esse bloco pode ser expandido para configurar o texto, aparência, tipo de operação, condições de exibição e ações que serão executadas.
+
+O botão criado passa a fazer parte da barra de botões do formulário, respeitando a posição vertical e horizontal definida anteriormente.
+
+Exemplo:
+
+Se a barra estiver configurada como `Inferior` e `Direita`, o novo botão será exibido nessa área junto com os demais botões configurados.
+
+##### Reordenação dos botões
+
+Os botões criados podem ser reordenados.
+
+Isso permite controlar a sequência em que as ações aparecem para o usuário.
+
+Exemplo:
+
+Em um fluxo de aprovação, a ordem pode ser:
+
+- `Aprovar`
+- `Reprovar`
+- `Solicitar ajuste`
+
+Uso recomendado:
+
+- Coloque primeiro as ações mais usadas.
+- Mantenha ações críticas em posições fáceis de identificar.
+- Evite criar muitos botões quando poucas ações resolvem o processo.
+- Use nomes claros para que o usuário entenda exatamente o que cada botão faz.
+
+##### Quando usar
+
+Use `Adicionar botão` quando o processo exigir uma ação específica dentro do formulário.
+
+Exemplos:
+
+- Aprovação de solicitação.
+- Mudança de status.
+- Execução de automações internas.
+- Redirecionamento após uma ação.
+- Registro de uma decisão no histórico.
+
+##### Boas práticas
+
+- Dê nomes objetivos aos botões.
+- Evite textos genéricos como `Executar` quando a ação não for óbvia.
+- Use poucos botões para não confundir o usuário.
+- Revise a ordem dos botões antes de publicar o formulário.
+- Teste cada botão em homologação antes de liberar em produção.
+
+#### Clonar botão
+
+O botão `Clonar` cria uma cópia de um botão já configurado.
+
+Essa funcionalidade é útil quando é necessário criar outro botão parecido, aproveitando a configuração existente como base.
+
+Ao clonar, o sistema cria um novo botão logo abaixo do botão original.
+
+O novo botão recebe um novo identificador interno e o nome passa a incluir `(cópia)`.
+
+Exemplo:
+
+Se o botão original se chama `Aprovar`, o botão clonado pode aparecer como `Aprovar (cópia)`.
+
+##### O que é copiado
+
+Ao clonar um botão, as configurações do botão original são copiadas para o novo botão.
+
+Isso pode incluir:
+
+- Texto do botão.
+- Aparência.
+- Tipo de operação.
+- Condições de exibição.
+- Ações configuradas.
+- Comportamento após executar as ações.
+- Configurações relacionadas ao carregamento.
+
+Depois de clonar, o novo botão pode ser editado normalmente.
+
+Exemplo:
+
+Um botão `Aprovar` pode ser clonado para criar um botão `Reprovar`, aproveitando a mesma estrutura de configuração e ajustando apenas o texto, as ações e as condições.
+
+##### Quando usar
+
+Use `Clonar` quando dois botões têm comportamento parecido.
+
+Exemplos:
+
+- `Aprovar` e `Reprovar`.
+- `Enviar para análise` e `Enviar para revisão`.
+- `Salvar rascunho` e `Salvar e concluir`.
+- `Notificar gestor` e `Notificar solicitante`.
+
+Uso recomendado:
+
+- Clone botões para ganhar tempo em configurações parecidas.
+- Após clonar, revise o texto do botão.
+- Ajuste as ações para evitar executar o mesmo comportamento do botão original por engano.
+- Revise as condições de exibição do botão clonado.
+- Teste o botão clonado antes de publicar o formulário.
+
+##### Ponto de atenção
+
+Como o botão clonado copia a configuração do original, ele pode trazer ações ou condições que não fazem sentido para o novo caso.
+
+Por isso, sempre revise a cópia antes de salvar a configuração final.
+
+#### Remover botão
+
+O botão `Remover botão` exclui um botão personalizado da configuração do formulário.
+
+Ao remover, o botão deixa de aparecer na barra de botões e suas configurações deixam de fazer parte da experiência do usuário.
+
+Essa ação deve ser usada quando uma ação não é mais necessária no processo.
+
+Exemplos de uso:
+
+- Remover um botão criado por engano.
+- Excluir uma ação que deixou de fazer parte do fluxo.
+- Limpar botões antigos após uma mudança no processo.
+- Remover um botão clonado que não será mais utilizado.
+
+##### O que acontece ao remover
+
+Quando o botão é removido, ele sai da lista de botões configurados.
+
+Com isso, o usuário final não verá mais essa ação no formulário.
+
+As configurações associadas ao botão removido também deixam de ser usadas, como:
+
+- Texto do botão.
+- Aparência.
+- Tipo de operação.
+- Condições de exibição.
+- Ações configuradas.
+- Comportamento após execução.
+
+##### Cuidados antes de remover
+
+Antes de remover um botão, revise se ele ainda é usado no processo.
+
+Uso recomendado:
+
+- Confirme se a ação realmente não será mais necessária.
+- Verifique se outro botão já substitui essa função.
+- Revise se o processo ainda terá uma forma de concluir, aprovar, enviar ou cancelar quando necessário.
+- Evite remover botões críticos sem validar o fluxo completo.
+
+Exemplo:
+
+Se o botão `Enviar para análise` for removido, o usuário pode ficar sem uma forma de encaminhar o registro para a próxima etapa do processo, caso não exista outro botão equivalente.
+
+##### Ponto de atenção
+
+A remoção é indicada para simplificar a interface, mas deve ser feita com cuidado.
+
+Se houver dúvida, clone ou ajuste o botão antes de remover definitivamente da configuração.
+
+#### Configurações de um botão adicionado
+
+Ao expandir um botão criado na aba `Botões`, o painel exibe as configurações daquele botão.
+
+Essas configurações definem o nome exibido, o tipo de ação, o comportamento visual, em quais modos o botão aparece e se ele está ativo no formulário.
+
+Esta seção descreve as opções desde `Texto do botão` até `Botão ativo`.
+
+##### Texto do botão
+
+O campo `Texto do botão` define o nome que será exibido para o usuário na barra de botões.
+
+Esse texto deve deixar clara a ação que será executada.
+
+Exemplos:
+
+- `Salvar`
+- `Enviar`
+- `Aprovar`
+- `Reprovar`
+- `Solicitar ajuste`
+- `Cancelar solicitação`
+
+Uso recomendado:
+
+- Use textos curtos e objetivos.
+- Evite nomes genéricos quando a ação for importante.
+- Prefira verbos de ação, como `Enviar`, `Aprovar`, `Cancelar` ou `Concluir`.
+- Use o mesmo padrão de nome em formulários semelhantes.
+
+Exemplo:
+
+Em vez de usar `OK`, prefira `Enviar solicitação`, pois o usuário entende melhor o que acontecerá ao clicar.
+
+##### Descrição curta
+
+O campo `Descrição curta` aparece quando o botão está configurado como botão de histórico legado.
+
+Ele serve como texto de apoio ou tooltip para explicar a função do botão.
+
+Uso recomendado:
+
+- Use para orientar o usuário quando o botão não tiver texto suficiente.
+- Use descrições curtas.
+- Evite repetir exatamente o mesmo texto do botão.
+
+Ponto de atenção:
+
+Para histórico, a configuração recomendada é usar o botão integrado na aba `Componentes`, na seção `Histórico de auditoria`.
+
+##### Tipo de operação
+
+O campo `Tipo de operação` define qual será o comportamento principal do botão.
+
+Opções disponíveis:
+
+- `Ações em cadeia`: executa uma sequência de ações configuradas no próprio botão.
+- `Redirecionar`: envia o usuário para uma URL configurada.
+- `Adicionar`: cria um novo item na lista.
+- `Atualizar`: grava alterações no item atual.
+- `Eliminar`: apaga o item atual.
+- `Histórico`: opção legada para histórico, quando disponível.
+
+Uso recomendado:
+
+- Use `Ações em cadeia` quando o botão precisa executar várias ações internas.
+- Use `Redirecionar` quando o botão deve levar o usuário para outra página.
+- Use `Adicionar` para criar novos registros.
+- Use `Atualizar` para salvar alterações no item atual.
+- Use `Eliminar` apenas quando o processo permite exclusão de registros.
+
+Exemplo:
+
+Um botão `Enviar para análise` pode usar `Ações em cadeia` para alterar o status, preencher campos e depois enviar o formulário.
+
+##### Loading ao gravar
+
+O campo `Loading ao gravar` define qual indicador visual será exibido enquanto a ação do botão está sendo processada.
+
+Opções disponíveis:
+
+- `Padrão`: usa o comportamento definido na aba `Componentes`.
+- `Sobreposição + spinner`: mostra uma camada de carregamento sobre o formulário.
+- `Barra de progresso no topo`: mostra uma barra no topo.
+- `Shimmer sobre o formulário`: mostra uma animação sobre o formulário.
+- `Spinner por baixo dos botões`: mostra o carregamento próximo à barra de botões.
+- `Faixa informativa`: mostra uma mensagem em faixa.
+
+Uso recomendado:
+
+- Use `Padrão` para manter consistência entre os botões.
+- Use uma opção específica quando aquele botão tiver uma ação mais demorada ou crítica.
+- Use indicadores mais visíveis em ações que gravam, enviam ou alteram status.
+
+Exemplo:
+
+Um botão `Enviar` pode usar `Sobreposição + spinner` para deixar claro que o usuário deve aguardar o envio terminar.
+
+##### URL de destino
+
+O campo `URL de destino` aparece quando o tipo de operação é `Redirecionar`.
+
+Ele define para qual endereço o usuário será enviado ao clicar no botão.
+
+A URL pode conter valores dinâmicos do formulário.
+
+Exemplos:
+
+- `https://empresa.sharepoint.com/sites/portal`
+- `/sites/portal/SitePages/Resumo.aspx?item={{FormID}}`
+- `/sites/portal/SitePages/Detalhe.aspx?status={{Status}}`
+
+Uso recomendado:
+
+- Use URLs completas ou caminhos claros.
+- Use valores dinâmicos quando o destino depende do item atual.
+- Teste o redirecionamento antes de liberar para produção.
+
+##### Inserir valor dinâmico
+
+A opção `Inserir valor dinâmico` ajuda a incluir campos ou tokens na URL.
+
+Ela adiciona o valor escolhido ao final da URL ou substitui um placeholder vazio.
+
+Exemplo:
+
+Se a URL tiver:
+
+`/SitePages/Detalhe.aspx?id={{}}`
+
+Ao escolher `FormID`, o resultado pode ficar:
+
+`/SitePages/Detalhe.aspx?id={{FormID}}`
+
+Uso recomendado:
+
+- Use quando a página de destino precisa receber o ID do item.
+- Use quando o destino depende de um campo preenchido no formulário.
+- Prefira selecionar o valor pela lista para evitar erro de digitação.
+
+##### Mostrar o botão eliminar em
+
+Essa opção aparece quando o tipo de operação é `Eliminar`.
+
+Ela define em quais modos o botão de exclusão será exibido.
+
+Opções disponíveis:
+
+- `Modo ver`: mostra o botão quando o usuário está apenas visualizando o item.
+- `Modo editar`: mostra o botão quando o usuário está editando o item.
+
+Uso recomendado:
+
+- Use com cuidado, pois a exclusão é uma ação sensível.
+- Mostre em `Modo ver` quando a exclusão pode ser feita a partir da consulta.
+- Mostre em `Modo editar` quando a exclusão deve acontecer durante a manutenção do registro.
+- Combine com condições de exibição quando apenas alguns usuários podem excluir.
+
+##### Cor do botão
+
+O campo `Cor do botão` define o visual do botão com base no tema do site.
+
+Essa configuração ajuda a diferenciar botões principais, secundários ou de atenção.
+
+Exemplos de estilos:
+
+- `Contorno`: visual neutro, com menos destaque.
+- `Primária do tema`: botão com destaque principal.
+- Cores secundárias ou variações do tema, conforme disponível no site.
+
+Uso recomendado:
+
+- Use a cor principal para a ação mais importante.
+- Use contorno para ações secundárias.
+- Evite dar o mesmo destaque para todos os botões.
+- Use cores com cuidado em ações críticas, como reprovar ou excluir.
+
+Exemplo:
+
+Em um formulário de aprovação, `Aprovar` pode usar a cor principal, enquanto `Solicitar ajuste` pode usar um visual mais discreto.
+
+##### Depois das ações
+
+O campo `Depois das ações` aparece quando o botão usa `Ações em cadeia`.
+
+Ele define o que deve acontecer após executar as ações configuradas.
+
+Opções disponíveis:
+
+- `Só executar ações`: executa as ações e não faz outro comportamento final automático.
+- `Ações e depois rascunho`: executa as ações e salva como rascunho.
+- `Ações e depois enviar`: executa as ações e envia o formulário.
+- `Ações e depois fechar formulário`: executa as ações e fecha o formulário.
+
+Uso recomendado:
+
+- Use `Só executar ações` quando o botão apenas ajusta campos ou prepara o formulário.
+- Use `Ações e depois rascunho` quando o usuário ainda poderá continuar depois.
+- Use `Ações e depois enviar` para botões finais.
+- Use `Ações e depois fechar formulário` quando a ação encerra o uso da tela.
+
+Exemplo:
+
+Um botão `Enviar para análise` pode alterar o status para `Em análise` e depois enviar o formulário.
+
+##### Modos
+
+A seção `Modos` define em quais modos do formulário o botão será exibido.
+
+Opções disponíveis:
+
+- `Criar`: mostra o botão quando o usuário está criando um novo item.
+- `Editar`: mostra o botão quando o usuário está alterando um item existente.
+- `Ver`: mostra o botão quando o usuário está apenas consultando o item.
+
+Quando nenhum modo específico restringe o botão, ele pode ser considerado disponível para todos os modos aplicáveis.
+
+Uso recomendado:
+
+- Use `Criar` para ações de cadastro inicial.
+- Use `Editar` para ações de manutenção ou andamento do processo.
+- Use `Ver` para ações que podem ser executadas a partir da consulta do item.
+
+Exemplo:
+
+Um botão `Enviar solicitação` pode aparecer apenas em `Criar`.
+
+Um botão `Aprovar` pode aparecer em `Editar` ou `Ver`, conforme o fluxo definido.
+
+##### Botão ativo
+
+A opção `Botão ativo` define se o botão está habilitado na configuração.
+
+Quando marcada, o botão fica ativo e pode aparecer no formulário conforme os modos e condições configuradas.
+
+Quando desmarcada, o botão fica desativado na configuração e não deve ser usado pelo usuário.
+
+Uso recomendado:
+
+- Mantenha ativo somente o que estiver pronto para uso.
+- Desative botões em configuração ou em teste.
+- Use para guardar uma configuração sem exibir o botão temporariamente.
+- Antes de publicar, revise se todos os botões necessários estão ativos.
+
+Exemplo:
+
+Um botão `Reabrir solicitação` pode ficar configurado, mas desativado até que o processo esteja validado pelo cliente.
+
+##### Modal de confirmação
+
+A seção `Modal de confirmação` permite pedir uma confirmação do usuário antes de executar o botão.
+
+Essa confirmação acontece como primeiro passo do clique.
+
+Se o usuário cancelar, nenhuma ação do botão será executada.
+
+Isso inclui ações em cadeia, gravação, redirecionamento, exclusão ou qualquer outro comportamento configurado depois.
+
+Uso recomendado:
+
+- Use em ações importantes ou irreversíveis.
+- Use quando o clique pode alterar status, enviar informações ou excluir dados.
+- Use quando o usuário precisa revisar uma mensagem antes de continuar.
+- Use para pedir uma justificativa ou informação complementar no momento da ação.
+
+Exemplo:
+
+Antes de executar o botão `Reprovar`, o formulário pode abrir uma confirmação pedindo que o usuário revise a ação e informe uma justificativa.
+
+##### Pedir confirmação antes de executar
+
+A opção `Pedir confirmação antes de executar` ativa ou desativa o modal de confirmação do botão.
+
+Quando ativada, o usuário precisa confirmar antes que o botão execute qualquer ação.
+
+Quando desativada, o botão executa diretamente o fluxo configurado.
+
+Comportamento importante:
+
+- Confirmar: continua a execução do botão.
+- Cancelar: interrompe tudo e não executa ações.
+
+Exemplo:
+
+Em um botão `Excluir item`, essa opção evita que o usuário apague um registro por engano.
+
+##### Ícone / tipo
+
+O campo `Ícone / tipo` define o estilo visual da confirmação.
+
+Ele ajuda o usuário a entender a importância da mensagem exibida.
+
+Opções disponíveis:
+
+- `Informação`: usado para confirmações simples ou neutras.
+- `Sucesso`: usado para ações positivas ou conclusivas.
+- `Aviso`: usado para ações que exigem atenção.
+- `Erro / crítico`: usado para ações sensíveis, perigosas ou irreversíveis.
+- `Bloqueado`: usado quando a mensagem precisa transmitir impedimento ou restrição.
+
+Uso recomendado:
+
+- Use `Informação` para ações comuns.
+- Use `Aviso` para ações que merecem revisão.
+- Use `Erro / crítico` para exclusão, reprovação ou ações de alto impacto.
+- Use `Sucesso` para confirmações positivas, como aprovar ou concluir.
+- Use `Bloqueado` quando a confirmação está ligada a uma restrição de processo.
+
+Exemplo:
+
+Um botão `Aprovar` pode usar `Sucesso`.
+
+Um botão `Excluir` pode usar `Erro / crítico`.
+
+##### Mensagem
+
+O campo `Mensagem` define o texto exibido dentro do modal de confirmação.
+
+Essa mensagem deve explicar o que acontecerá se o usuário confirmar.
+
+Exemplos:
+
+- `Tem certeza que deseja enviar esta solicitação para análise?`
+- `Ao confirmar, o item será aprovado e seguirá para a próxima etapa.`
+- `Esta ação irá excluir o item atual. Deseja continuar?`
+
+Uso recomendado:
+
+- Escreva mensagens claras e diretas.
+- Informe a consequência da confirmação.
+- Evite textos longos demais.
+- Use linguagem compatível com o processo do cliente.
+
+Ponto de atenção:
+
+A mensagem é obrigatória, exceto quando for escolhido um campo para preencher no modal.
+
+Se a mensagem e o campo estiverem vazios, a confirmação não será gravada na configuração.
+
+##### Campo da lista principal a preencher no modal
+
+O campo `Campo da lista principal a preencher no modal` permite escolher um campo que o usuário deverá preencher dentro da confirmação.
+
+Essa opção transforma o modal em uma etapa rápida de coleta de informação antes de executar o botão.
+
+Exemplos de uso:
+
+- Pedir `Motivo da reprovação`.
+- Pedir `Comentário do aprovador`.
+- Pedir `Data prevista`.
+- Pedir `Valor aprovado`.
+- Pedir uma marcação simples de confirmação.
+
+Tipos de campo que podem aparecer nessa lista:
+
+- Texto.
+- Texto multilinha.
+- URL.
+- Número.
+- Moeda.
+- Sim ou não.
+- Data.
+- Escolha.
+
+Campos ocultos, somente leitura ou incompatíveis não devem aparecer como opção para preenchimento no modal.
+
+Uso recomendado:
+
+- Use quando a ação precisa registrar uma justificativa.
+- Use quando o usuário precisa complementar uma informação antes de executar.
+- Use para reprovação, devolução, aprovação com observação ou encerramento com comentário.
+- Escolha campos claros e relacionados à ação do botão.
+
+Exemplo:
+
+No botão `Reprovar`, o modal pode pedir o campo `Motivo da reprovação`.
+
+O usuário só confirma a ação depois de preencher esse campo.
+
+##### Como a confirmação se comporta no fluxo
+
+O modal de confirmação é executado antes de todo o restante do botão.
+
+Fluxo esperado:
+
+- Usuário clica no botão.
+- O modal de confirmação é exibido.
+- Se o usuário cancelar, o fluxo para.
+- Se o usuário confirmar, o botão continua.
+- Se houver campo no modal, o valor informado é usado no processo.
+- Depois disso, o botão executa as ações configuradas.
+
+Exemplo:
+
+Um botão `Solicitar ajuste` pode:
+
+- Abrir confirmação.
+- Pedir o campo `Comentário para ajuste`.
+- Confirmar a ação.
+- Atualizar o status para `Ajuste solicitado`.
+- Salvar o formulário.
+
+##### Boas práticas
+
+- Use confirmação em ações críticas.
+- Não use confirmação em botões simples demais, para não cansar o usuário.
+- Deixe claro o que acontecerá ao confirmar.
+- Use o tipo visual correto para a gravidade da ação.
+- Se pedir um campo no modal, escolha um campo diretamente relacionado ao botão.
+- Teste o fluxo confirmando e cancelando antes de publicar.
+
+##### Último passo
+
+A seção `Último passo` define o que deve acontecer depois que o fluxo do botão terminar com sucesso.
+
+Ela é executada somente após o botão concluir suas ações sem erro.
+
+Essa configuração é útil para definir o encerramento da experiência do usuário depois de uma ação.
+
+Exemplos:
+
+- Deixar o usuário na mesma tela.
+- Redirecionar para outra página.
+- Limpar o formulário para novo preenchimento.
+
+##### Quando o fluxo do botão terminar sem erro
+
+O campo `Quando o fluxo do botão terminar sem erro` define a ação final executada após o botão concluir o fluxo.
+
+Opções disponíveis:
+
+- `Nada`: não executa nenhuma ação final extra.
+- `Redirecionar`: envia o usuário para uma URL configurada.
+- `Limpar o formulário`: limpa os dados da tela após o sucesso.
+
+Uso recomendado:
+
+- Use `Nada` quando o usuário deve continuar na mesma tela.
+- Use `Redirecionar` quando o processo deve levar o usuário para uma página de confirmação, listagem ou acompanhamento.
+- Use `Limpar o formulário` quando o usuário pode cadastrar outro item em seguida.
+
+Exemplo:
+
+Após clicar em `Enviar solicitação`, o formulário pode redirecionar o usuário para uma página de acompanhamento.
+
+##### URL de redirecionamento
+
+O campo `URL de redirecionamento` aparece quando a opção final escolhida é `Redirecionar`.
+
+Ele define para onde o usuário será levado depois que o botão terminar com sucesso.
+
+Exemplos:
+
+- `/sites/portal/SitePages/Obrigado.aspx`
+- `/sites/portal/SitePages/MinhasSolicitacoes.aspx`
+- `/sites/portal/SitePages/Detalhe.aspx?id={{FormID}}`
+
+Uso recomendado:
+
+- Use uma página de confirmação quando o usuário precisa saber que a ação foi concluída.
+- Use uma página de listagem quando o usuário deve acompanhar os registros.
+- Use uma página de detalhe quando o usuário deve consultar o item recém-atualizado.
+
+Ponto de atenção:
+
+O redirecionamento só deve acontecer se o fluxo do botão terminar sem erro.
+
+Se houver falha na ação do botão, o usuário não deve ser enviado para a página final como se tudo tivesse sido concluído.
+
+##### Só mostrar se todos os campos obrigatórios estiverem preenchidos
+
+A opção `Só mostrar se todos os campos obrigatórios estiverem preenchidos` controla a exibição do botão com base no preenchimento dos campos obrigatórios.
+
+Quando marcada, o botão só aparece quando todos os campos obrigatórios estiverem preenchidos.
+
+Quando desmarcada, o botão pode aparecer mesmo que ainda existam campos obrigatórios pendentes.
+
+Uso recomendado:
+
+- Use em botões finais, como `Enviar`, `Concluir` ou `Aprovar`.
+- Use quando não faz sentido executar a ação antes de completar os dados obrigatórios.
+- Evite usar em botões auxiliares, como `Salvar rascunho`, se o rascunho puder ser salvo incompleto.
+
+Exemplo:
+
+O botão `Enviar solicitação` pode ficar oculto até que todos os campos obrigatórios sejam preenchidos.
+
+Já o botão `Salvar rascunho` pode continuar visível mesmo com campos pendentes.
+
+##### Só autor do item
+
+A opção `Só autor do item` mostra o botão apenas quando o usuário atual é o criador do item.
+
+Ela compara o usuário atual com o campo `AuthorId`, que representa o autor do registro no SharePoint.
+
+Quando marcada, o botão aparece somente para quem criou o item.
+
+Quando desmarcada, o botão não fica limitado ao autor por essa regra.
+
+Uso recomendado:
+
+- Use para ações que só o solicitante original deve executar.
+- Use para botões como `Cancelar minha solicitação`, `Editar minha solicitação` ou `Reenviar`.
+- Evite usar quando gestores, administradores ou aprovadores também precisam executar a ação.
+
+Exemplo:
+
+O botão `Cancelar solicitação` pode aparecer apenas para o autor do item, impedindo que outros usuários cancelem solicitações que não criaram.
+
+##### Grupos do SharePoint
+
+A seção `Grupos do SharePoint` permite limitar a exibição do botão a usuários que pertencem a grupos específicos do site.
+
+Quando nenhum grupo é selecionado, o botão não fica restrito por grupo.
+
+Quando um ou mais grupos são selecionados, o botão passa a ser exibido apenas para usuários desses grupos.
+
+Exemplos de grupos:
+
+- `Gestores`
+- `Aprovadores`
+- `Financeiro`
+- `Administradores`
+- `RH`
+
+Uso recomendado:
+
+- Use para botões de aprovação.
+- Use para ações administrativas.
+- Use para botões que alteram status sensíveis.
+- Use quando apenas uma área específica pode executar determinada ação.
+
+Exemplo:
+
+O botão `Aprovar` pode aparecer apenas para usuários do grupo `Gestores`.
+
+O botão `Validar pagamento` pode aparecer apenas para o grupo `Financeiro`.
+
+##### Filtrar grupos por nome
+
+O campo `Filtrar grupos por nome` ajuda a localizar grupos do SharePoint na lista.
+
+Ele é útil quando o site possui muitos grupos.
+
+Uso recomendado:
+
+- Digite parte do nome do grupo para encontrar rapidamente.
+- Use o filtro antes de marcar o grupo desejado.
+- Limpe o filtro para voltar a visualizar todos os grupos.
+
+##### Grupos guardados que não estão na lista do site
+
+Quando um grupo salvo na configuração não é encontrado na lista atual do site, ele pode aparecer como grupo guardado.
+
+Isso indica que a configuração possui uma referência antiga ou vinda de outro ambiente.
+
+Exemplo:
+
+Um grupo configurado em homologação pode não existir ainda em produção.
+
+Uso recomendado:
+
+- Revise grupos guardados ao copiar configurações entre ambientes.
+- Remova grupos que não existem mais.
+- Crie o grupo no ambiente correto quando ele ainda for necessário.
+
+##### Mensagens da lista de grupos
+
+Durante o uso, o painel pode exibir mensagens como:
+
+- Carregando grupos do site.
+- Erro ao carregar grupos.
+- Nenhum grupo corresponde ao filtro.
+- Nenhum grupo no site.
+
+Essas mensagens ajudam a entender se a lista de grupos foi carregada corretamente ou se é necessário revisar permissões e configuração do ambiente.
+
+##### Mostrar só quando as condições abaixo forem verdadeiras
+
+A opção `Mostrar só quando as condições abaixo forem verdadeiras` permite exibir o botão apenas quando uma ou mais regras forem atendidas.
+
+Quando essa opção está desmarcada, o botão pode aparecer conforme as demais configurações, como modo, ativo, autor e grupos.
+
+Quando essa opção está marcada, o botão só aparece se as condições configuradas forem verdadeiras.
+
+Uso recomendado:
+
+- Use quando o botão depende do valor de um campo.
+- Use quando o botão só deve aparecer em um status específico.
+- Use quando a ação só faz sentido em determinada etapa do processo.
+- Use para reduzir botões desnecessários na tela do usuário.
+
+Exemplo:
+
+O botão `Aprovar` pode aparecer somente quando o campo `Status` for igual a `Em análise`.
+
+##### Lógica entre condições
+
+O campo `Lógica entre condições` define como o sistema deve avaliar múltiplas condições.
+
+Opções disponíveis:
+
+- `Todas (E)`: todas as condições precisam ser verdadeiras para o botão aparecer.
+- `Pelo menos uma (OU)`: basta uma das condições ser verdadeira para o botão aparecer.
+
+Exemplo com `Todas (E)`:
+
+O botão `Aprovar` aparece somente quando:
+
+- `Status` é igual a `Em análise`.
+- `Valor` é menor ou igual a `5000`.
+
+Nesse caso, as duas regras precisam ser atendidas.
+
+Exemplo com `Pelo menos uma (OU)`:
+
+O botão `Solicitar ajuste` aparece quando:
+
+- `Status` é igual a `Pendente`.
+- `Status` é igual a `Em revisão`.
+
+Nesse caso, basta uma das regras ser atendida.
+
+##### Condições nos dados do formulário
+
+A área `Condições nos dados do formulário` exibe as regras configuradas para controlar a visibilidade do botão.
+
+Cada regra aparece como uma condição numerada.
+
+Exemplo:
+
+`Condição 1`
+
+`Condição 2`
+
+Cada condição possui os campos `Campo`, `Operador`, `Comparar com` e `Valor`.
+
+##### Campo
+
+O campo `Campo` define qual campo do formulário será usado na condição.
+
+É esse campo que o sistema irá observar para decidir se o botão deve aparecer.
+
+Exemplo:
+
+Selecionar o campo `Status` para mostrar o botão apenas quando o status tiver determinado valor.
+
+##### Operador
+
+O campo `Operador` define como o valor será avaliado.
+
+Exemplos de operadores:
+
+- `é igual a`
+- `é diferente de`
+- `contém`
+- `não contém`
+- `começa com`
+- `termina com`
+- `maior que`
+- `maior ou igual a`
+- `menor que`
+- `menor ou igual a`
+- `está vazio`
+- `não está vazio`
+- `é verdadeiro`
+- `é falso`
+
+Uso recomendado:
+
+- Use `é igual a` para status, tipo ou categoria.
+- Use `contém` quando o campo pode ter texto maior.
+- Use `maior que` ou `menor que` para valores numéricos.
+- Use `está vazio` ou `não está vazio` para verificar preenchimento.
+
+##### Comparar com
+
+O campo `Comparar com` define qual será a referência usada na condição.
+
+Opções disponíveis:
+
+- `Texto fixo`: compara o campo com um valor digitado manualmente.
+- `Outro campo`: compara o campo selecionado com outro campo do formulário.
+- `Token`: compara o campo com uma informação dinâmica.
+
+Exemplo com `Texto fixo`:
+
+Mostrar o botão quando `Status` for igual a `Em análise`.
+
+Exemplo com `Outro campo`:
+
+Mostrar o botão quando `Data final` for maior que `Data inicial`.
+
+Exemplo com `Token`:
+
+Mostrar o botão quando um campo estiver relacionado ao usuário atual ou a uma informação dinâmica disponível.
+
+##### Valor
+
+O campo `Valor` recebe o valor usado na comparação.
+
+Exemplos:
+
+- `Em análise`
+- `Aprovado`
+- `5000`
+- `[me]`
+- `{{OutroCampo}}`
+
+O campo `Valor` fica desabilitado quando o operador escolhido não precisa de valor complementar.
+
+Exemplos:
+
+- `está vazio`
+- `não está vazio`
+- `é verdadeiro`
+- `é falso`
+
+Nesses casos, o próprio operador já define o que será verificado.
+
+##### Adicionar condição
+
+O botão `Adicionar condição` cria uma nova regra para controlar a exibição do botão.
+
+Use quando o botão precisa depender de mais de um critério.
+
+Exemplo:
+
+O botão `Validar pagamento` pode aparecer quando:
+
+- `Status` é igual a `Aguardando financeiro`.
+- `Comprovante anexado` é verdadeiro.
+
+##### Remover condição
+
+O ícone de remover exclui uma condição da lista.
+
+Ele é útil quando uma regra deixou de fazer sentido ou quando o botão deve depender de menos critérios.
+
+Uso recomendado:
+
+- Remova condições antigas após mudanças no processo.
+- Revise a lógica `E/OU` depois de remover uma condição.
+- Teste o botão para confirmar se ele aparece nos cenários corretos.
+
+##### Exemplo completo
+
+Cenário: mostrar o botão `Aprovar` somente para solicitações em análise com valor até `5000`.
+
+Configuração:
+
+- Ativar `Mostrar só quando as condições abaixo forem verdadeiras`.
+- Lógica entre condições: `Todas (E)`.
+- Condição 1: campo `Status`, operador `é igual a`, comparar com `Texto fixo`, valor `Em análise`.
+- Condição 2: campo `Valor`, operador `menor ou igual a`, comparar com `Texto fixo`, valor `5000`.
+
+Resultado:
+
+O botão só aparece quando a solicitação está em análise e o valor está dentro do limite definido.
+
+##### Boas práticas
+
+- Use condições para simplificar a tela do usuário.
+- Evite deixar botões visíveis quando a ação não pode ser executada.
+- Prefira regras simples e fáceis de validar.
+- Teste cada cenário esperado antes de publicar.
+- Combine condições com grupos do SharePoint quando a regra depender de dados e perfil de usuário.
+
+##### Ações por ordem
+
+A seção `Ações por ordem` permite configurar uma sequência de ações que o botão executará quando for clicado.
+
+As ações são executadas na ordem em que aparecem.
+
+Isso significa que a `Ação 1` é executada antes da `Ação 2`, a `Ação 2` antes da `Ação 3`, e assim por diante.
+
+Essa ordem é importante porque uma ação pode preparar informações que serão usadas por ações seguintes.
+
+Exemplo:
+
+Um botão `Enviar para análise` pode executar:
+
+- Ação 1: mostrar o campo `Comentário`.
+- Ação 2: definir o campo `Status` como `Em análise`.
+- Ação 3: juntar campos em um resumo.
+
+Uso recomendado:
+
+- Organize as ações na sequência real do processo.
+- Coloque primeiro ações que preparam campos ou valores.
+- Coloque depois ações que dependem dos valores já definidos.
+- Teste a ordem antes de publicar.
+
+##### Adicionar ação
+
+O botão `Adicionar ação` inclui uma nova ação no final da lista.
+
+Ao adicionar, a nova ação passa a fazer parte da sequência executada pelo botão.
+
+Uso recomendado:
+
+- Use quando o botão precisa executar mais de uma tarefa.
+- Adicione ações aos poucos e teste o resultado.
+- Evite criar uma sequência muito longa sem necessidade.
+
+##### Remover ação
+
+O botão `Remover ação` exclui uma ação da sequência.
+
+Ao remover, aquela etapa deixa de ser executada quando o botão for clicado.
+
+Uso recomendado:
+
+- Remova ações que não fazem mais parte do processo.
+- Revise a ordem das ações restantes depois da remoção.
+- Verifique se outra ação não dependia da ação removida.
+
+Exemplo:
+
+Se uma ação definia o campo `Status` e outra ação dependia desse status, remover a primeira pode afetar o comportamento da segunda.
+
+##### Tipo da ação
+
+O campo `Tipo` define o que aquela ação fará.
+
+Tipos disponíveis:
+
+- `Mostrar campos`
+- `Ocultar campos`
+- `Definir valor de um campo`
+- `Juntar vários campos num campo`
+
+Cada tipo exibe configurações próprias.
+
+#### Tipo Mostrar campos
+
+O tipo `Mostrar campos` faz com que campos selecionados passem a aparecer no formulário quando a ação for executada.
+
+Essa ação é útil quando alguns campos devem ficar ocultos inicialmente e só aparecer depois que o usuário clicar em um botão.
+
+Exemplos de uso:
+
+- Mostrar campos de aprovação.
+- Mostrar campos de justificativa.
+- Mostrar campos complementares.
+- Mostrar campos que estavam na aba `Ocultos`.
+
+##### Campos
+
+A área `Campos` permite selecionar quais campos serão exibidos pela ação.
+
+Os campos aparecem em uma lista com caixas de seleção.
+
+Ao marcar um campo, ele passa a fazer parte da ação.
+
+Ao desmarcar, ele deixa de ser exibido por essa ação.
+
+Exemplo:
+
+Um botão `Solicitar ajuste` pode mostrar os campos:
+
+- `Motivo do ajuste`
+- `Comentário para o solicitante`
+- `Prazo para correção`
+
+##### Etapa onde mostrar
+
+O campo `Etapa onde mostrar` aparece quando o formulário possui mais de uma etapa e a ação precisa mostrar campos que estavam apenas em `Ocultos`.
+
+Essa configuração define em qual etapa os campos devem aparecer depois da execução do botão.
+
+Uso recomendado:
+
+- Use quando o campo está em `Ocultos` e precisa ser exibido em uma etapa específica.
+- Escolha uma etapa coerente com o assunto do campo.
+- Evite mostrar campos em uma etapa que não tenha relação com a ação.
+
+Exemplo:
+
+Campos de aprovação podem aparecer na etapa `Análise do gestor` após o botão `Iniciar aprovação`.
+
+#### Tipo Ocultar campos
+
+O tipo `Ocultar campos` esconde campos selecionados quando a ação for executada.
+
+Essa ação é útil quando determinados campos deixam de ser necessários após uma decisão do usuário.
+
+Exemplos de uso:
+
+- Ocultar campos de justificativa quando a solicitação for aprovada.
+- Ocultar campos de edição após finalizar o processo.
+- Ocultar campos auxiliares que não precisam continuar visíveis.
+
+##### Campos
+
+A área `Campos` permite selecionar quais campos serão ocultados pela ação.
+
+Ao marcar um campo, ele será escondido quando o botão executar essa ação.
+
+Exemplo:
+
+Um botão `Aprovar` pode ocultar o campo `Motivo da reprovação`, pois ele só faz sentido quando a solicitação for reprovada.
+
+Uso recomendado:
+
+- Use para simplificar a tela após uma ação.
+- Oculte apenas campos que realmente não precisam aparecer.
+- Evite ocultar campos importantes para conferência final.
+
+#### Tipo Definir valor de um campo
+
+O tipo `Definir valor de um campo` preenche ou altera o valor de um campo quando o botão é executado.
+
+Essa é uma das ações mais usadas para automatizar o processo.
+
+Exemplos de uso:
+
+- Alterar `Status` para `Aprovado`.
+- Preencher `Data de aprovação`.
+- Registrar o usuário responsável.
+- Preencher um comentário padrão.
+
+##### Campo
+
+O campo `Campo` define qual campo será preenchido ou alterado.
+
+Exemplo:
+
+Selecionar o campo `Status` para que o botão altere o status da solicitação.
+
+Uso recomendado:
+
+- Escolha o campo que representa o resultado da ação.
+- Use campos claros e diretamente relacionados ao botão.
+- Evite alterar campos que o usuário não espera que sejam modificados.
+
+##### Valor
+
+Quando o campo selecionado é do tipo escolha, pode aparecer um campo `Valor` em formato de lista.
+
+Essa lista permite escolher uma das opções disponíveis do campo.
+
+Exemplo:
+
+Para o campo `Status`, o valor pode ser:
+
+- `Em análise`
+- `Aprovado`
+- `Reprovado`
+- `Cancelado`
+
+Uso recomendado:
+
+- Use a lista quando o campo possui opções fixas.
+- Escolha exatamente o valor que representa a ação do botão.
+- Revise se o valor existe no campo de escolha da lista.
+
+##### Valor fixo ou str:{{Campo}}
+
+Quando o campo não usa lista de opções, aparece o campo `Valor fixo ou str:{{Campo}}`.
+
+Esse campo permite informar um valor manual ou montar um valor dinâmico.
+
+Exemplos de valor fixo:
+
+- `Aprovado`
+- `Reprovado`
+- `Em análise`
+- `Solicitação enviada`
+
+Exemplos com expressão:
+
+- `str:Solicitação enviada por [myName]`
+- `str:Pedido {{Title}} aprovado`
+- `str:{{Departamento}} - {{TipoSolicitacao}}`
+
+Uso recomendado:
+
+- Use valor fixo quando o preenchimento é sempre o mesmo.
+- Use `str:` quando o valor precisa combinar texto com dados do formulário.
+- Use `{{NomeInterno}}` para inserir valores de outros campos.
+- Use tokens como `[myName]`, `[myEmail]` ou `[today]` quando fizer sentido.
+
+Exemplo prático:
+
+Um botão `Aprovar` pode definir:
+
+- Campo: `Status`
+- Valor: `Aprovado`
+
+Outro botão pode definir:
+
+- Campo: `Resumo`
+- Valor: `str:Solicitação {{Title}} aprovada por [myName]`
+
+#### Tipo Juntar vários campos num campo
+
+O tipo `Juntar vários campos num campo` monta um valor combinando informações de vários campos e grava o resultado em um campo destino.
+
+Essa ação é útil para criar resumos, títulos, descrições padronizadas ou textos compostos.
+
+Exemplos de uso:
+
+- Criar um resumo da solicitação.
+- Montar um título padronizado.
+- Juntar número, área e tipo de solicitação.
+- Gerar uma descrição com informações principais.
+
+##### Campo destino
+
+O campo `Campo destino` define onde o resultado será gravado.
+
+Exemplo:
+
+Selecionar `Resumo` para receber o texto montado a partir de outros campos.
+
+Uso recomendado:
+
+- Use um campo destinado a receber o texto final.
+- Evite sobrescrever campos preenchidos manualmente sem necessidade.
+- Informe no texto de ajuda do campo quando ele for preenchido automaticamente.
+
+##### Modelo de texto
+
+O campo `Modelo de texto` permite escrever um texto usando placeholders.
+
+Formato dos placeholders:
+
+`{{NomeInterno}}`
+
+Exemplo:
+
+`Número: {{Numero}} — Obra: {{Title}}`
+
+O formulário substitui os placeholders pelos valores atuais dos campos.
+
+Exemplo prático:
+
+Modelo:
+
+`str:Solicitação {{Title}} da área {{Area}} para {{TipoSolicitacao}}`
+
+Resultado esperado:
+
+Um texto preenchido com os valores atuais desses campos.
+
+Uso recomendado:
+
+- Use quando precisa de um texto com estrutura específica.
+- Use placeholders para inserir campos na posição correta.
+- Revise os nomes internos dos campos.
+- Teste com registros reais para validar o resultado.
+
+##### Campos na ordem
+
+A área `Campos na ordem` permite escolher quais campos serão usados na junção.
+
+Ela também permite ordenar os campos.
+
+Quando o `Modelo de texto` está vazio, a junção pode usar a ordem dos campos selecionados e o separador configurado.
+
+Exemplo:
+
+Campos na ordem:
+
+- `Numero`
+- `Title`
+- `Area`
+
+Separador:
+
+` - `
+
+Resultado:
+
+`123 - Solicitação de férias - RH`
+
+##### Adicionar campo à ordem
+
+O campo `Adicionar campo à ordem` permite incluir mais um campo na lista de campos usados na junção.
+
+Uso recomendado:
+
+- Adicione apenas os campos que devem compor o resultado final.
+- Ordene os campos na mesma sequência em que devem aparecer no texto.
+
+##### Subir e descer
+
+Os botões de subir e descer alteram a ordem dos campos selecionados.
+
+Essa ordem influencia o resultado quando o modelo de texto está vazio.
+
+Exemplo:
+
+Se a ordem for `Área`, `Tipo`, `Número`, o resultado seguirá essa sequência.
+
+##### Acrescentar placeholder ao modelo
+
+O botão de adicionar ao lado de um campo insere o placeholder desse campo no `Modelo de texto`.
+
+Exemplo:
+
+Ao clicar para acrescentar o campo `Title`, o modelo recebe:
+
+`{{Title}}`
+
+Uso recomendado:
+
+- Use para evitar digitar manualmente o nome interno.
+- Use quando estiver montando um modelo personalizado.
+
+##### Remover da ordem
+
+O botão de remover exclui o campo da lista de campos usados na junção.
+
+Ele não exclui o campo do formulário nem da lista, apenas remove esse campo da ação de junção.
+
+##### Separador
+
+O campo `Separador` define o texto usado entre os campos quando o `Modelo de texto` está vazio.
+
+Exemplos:
+
+- Espaço: ` `
+- Hífen: ` - `
+- Barra: ` / `
+- Vírgula: `, `
+
+Exemplo:
+
+Campos:
+
+- `Numero`
+- `Title`
+- `Area`
+
+Separador:
+
+` / `
+
+Resultado:
+
+`123 / Solicitação de férias / RH`
+
+Ponto de atenção:
+
+O separador é usado apenas quando o `Modelo de texto` está vazio.
+
+Se houver um modelo preenchido, o modelo tem prioridade.
+
+#### Condição por ação
+
+Cada ação pode ter uma condição própria.
+
+A opção `Só executar esta ação se` permite definir se aquela ação específica deve ou não rodar.
+
+Essa condição avalia os valores já alterados pelas ações anteriores.
+
+Isso significa que a ordem das ações pode influenciar o resultado da condição.
+
+Exemplo:
+
+- Ação 1 define `Status` como `Em análise`.
+- Ação 2 só executa se `Status` for igual a `Em análise`.
+
+Nesse caso, a segunda ação pode considerar o valor definido pela primeira.
+
+##### Como combinar as condições
+
+Quando a condição da ação é ativada, é possível definir como as condições serão combinadas.
+
+Opções disponíveis:
+
+- `Uma condição`: usa apenas uma regra.
+- `Todas têm de ser verdade (E)`: todas as condições precisam ser atendidas.
+- `Pelo menos uma verdadeira (OU)`: basta uma condição ser atendida.
+
+##### Campo, operador, comparar com e valor
+
+Cada condição da ação usa a mesma lógica das condições de exibição do botão.
+
+Ela possui:
+
+- `Campo`: campo avaliado.
+- `Operador`: comparação aplicada.
+- `Comparar com`: texto fixo, outro campo ou token.
+- `Valor`: valor usado na comparação, quando necessário.
+
+Uso recomendado:
+
+- Use condições por ação quando apenas parte do fluxo deve ser executada.
+- Evite duplicar condições se o botão inteiro já possui a mesma regra.
+- Use com cuidado quando ações anteriores alteram valores usados depois.
+
+#### Exemplo completo de ações por ordem
+
+Cenário: botão `Enviar para análise`.
+
+Configuração:
+
+- Ação 1: `Definir valor de um campo`
+- Campo: `Status`
+- Valor: `Em análise`
+
+- Ação 2: `Definir valor de um campo`
+- Campo: `DataEnvio`
+- Valor: `[today]`
+
+- Ação 3: `Juntar vários campos num campo`
+- Campo destino: `Resumo`
+- Modelo de texto: `str:Solicitação {{Title}} enviada por [myName] em [today]`
+
+Resultado:
+
+Ao clicar no botão, o formulário altera o status, registra a data de envio e monta um resumo automático da solicitação.
+
+#### Boas práticas para ações por ordem
+
+- Use nomes claros nos botões para indicar o que a sequência faz.
+- Mantenha as ações na ordem lógica do processo.
+- Teste cada ação separadamente antes de criar fluxos maiores.
+- Use condições por ação apenas quando necessário.
+- Revise campos ocultos antes de usar `Mostrar campos`.
+- Cuidado ao usar `Ocultar campos` para não esconder informações importantes.
+- Em `Definir valor de um campo`, confirme se o valor informado é compatível com o tipo do campo.
+- Em `Juntar vários campos`, prefira placeholders selecionados pela interface para evitar erro no nome interno.
+
