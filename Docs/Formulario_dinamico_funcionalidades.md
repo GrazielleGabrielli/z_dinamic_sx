@@ -4616,6 +4616,7 @@ Uso recomendado:
 - Use `str:` quando o valor precisa combinar texto com dados do formulário.
 - Use `{{NomeInterno}}` para inserir valores de outros campos.
 - Use tokens como `[myName]`, `[myEmail]` ou `[today]` quando fizer sentido.
+- Com `@` no campo (como nas regras de valor padrão), aparecem sugestões incluindo **pedidos HTTP já executados antes desta ação, no mesmo botão**: a escolha insere `{{httpN.` para completar a propriedade na resposta JSON (ex.: `{{http1.cep}}`). Os identificadores `httpN` são os definidos automaticamente para o formulário.
 
 Exemplo prático:
 
@@ -4658,7 +4659,7 @@ Uso recomendado:
 
 ##### Modelo de texto
 
-O campo `Modelo de texto` permite escrever um texto usando placeholders.
+O campo `Modelo de texto` permite escrever um texto usando placeholders e o auxiliar `@` (campos, tokens e, quando existirem **antes desta ação**, passos HTTP do mesmo botão — inserção `{{httpN.` para propriedades JSON).
 
 Formato dos placeholders:
 
@@ -4800,12 +4801,16 @@ O pedido corre no contexto da página SharePoint. O servidor de destino tem de p
 
 **Identificador deste passo**
 
-Cada ação `Pedido HTTP` precisa de um **identificador único** dentro da sequência de ações HTTP daquele botão (por exemplo `http1`, `auth`, `zapi`). Esse identificador:
+Cada ação `Pedido HTTP` recebe **automaticamente** um identificador **único em todo o formulário**: `http1`, `http2`, `http3`, … pela ordem em que os pedidos aparecem — primeiro a ordem dos botões na lista de botões personalizados, depois a ordem das ações em cadeia **dentro** de cada botão.
+
+O campo **não é editável** no gestor: renumerar ocorre ao adicionar, remover, reordenar botões ou ações, ou ao guardar (a sanitização aplica a mesma regra).
+
+Esse identificador:
 
 - Serve para montar expressões do tipo `{{identificador.caminho}}`.
 - Associa a **resposta** do pedido a esse nome. Se a resposta for JSON, `caminho` pode usar notação por pontos para propriedades aninhadas (ex.: `{{http1.data.access_token}}`).
 
-Regras práticas: use apenas letras, números e sublinhado; não repita o mesmo identificador em dois pedidos HTTP do mesmo botão.
+**Atenção:** referências como `{{http2.token}}` nos URL, cabeçalhos ou corpos ligam-se ao **segundo** pedido HTTP **global** dessa ordem, não ao «segundo pedido deste botão». Se alterar a ordem dos botões ou das ações, os números podem mudar — reveja os placeholders nesses campos.
 
 **Método, URL, cabeçalhos, consulta e corpo**
 

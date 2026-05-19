@@ -31,6 +31,8 @@ import {
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { parseCurlForHttpImport } from '../../core/formManager/parseCurlForHttpImport';
 import { FormManagerBraceMentionTextField } from './FormManagerBraceMentionTextField';
+import { FieldRulesDefaultValueTextField } from './FormFieldRulesPanel';
+import { defaultValueMentionParts } from './fieldRulesMentionProfiles';
 
 const HTTP_METHOD_OPTIONS: IDropdownOption[] = [
   { key: 'GET', text: 'GET' },
@@ -91,6 +93,17 @@ function defaultActionForKind(kind: TFormButtonAction['kind']): TFormButtonActio
     default:
       return { kind: 'showFields', fields: [] };
   }
+}
+
+function collectPriorHttpStepIdsInChain(actions: TFormButtonAction[], beforeIndex: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < beforeIndex && i < actions.length; i++) {
+    const a = actions[i];
+    if (a.kind !== 'httpRequest') continue;
+    const s = typeof a.stepId === 'string' ? a.stepId.trim() : '';
+    if (s) out.push(s);
+  }
+  return out;
 }
 
 type TWhenEditorParsed =
@@ -197,6 +210,29 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
   const httpBraceFieldOptions = useMemo(
     () => fieldOptions.filter((o) => String(o.key).length > 0),
     [fieldOptions]
+  );
+  const chainedDefaultValueMentionParts = useMemo(() => defaultValueMentionParts('text'), []);
+  const chainedDateFieldMentionOptions = useMemo(
+    () =>
+      metaSortedForPool
+        .filter((m) => m.MappedType === 'datetime')
+        .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` })),
+    [metaSortedForPool]
+  );
+  const chainedLookupFieldMentionOptions = useMemo(
+    () =>
+      metaSortedForPool.map((m) => ({
+        key: m.InternalName,
+        text: `${m.Title} (${m.InternalName})`,
+      })),
+    [metaSortedForPool]
+  );
+  const chainedNumericFieldMentionOptions = useMemo(
+    () =>
+      metaSortedForPool
+        .filter((m) => m.MappedType === 'number' || m.MappedType === 'currency')
+        .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` })),
+    [metaSortedForPool]
   );
   const prevActionLenRef = useRef(actions.length);
   useEffect(() => {
@@ -361,12 +397,19 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                       }
                     />
                   ) : (
-                    <TextField
-                      label="Valor fixo ou str:{{Campo}}"
-                      styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
-                      value={act.valueTemplate}
-                      onChange={(_, v) => patchAction(ai, { ...act, valueTemplate: v ?? '' })}
-                    />
+                    <div style={{ minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT, flex: '1 1 280px' }}>
+                      <FieldRulesDefaultValueTextField
+                        label="Valor fixo ou str:{{Campo}}"
+                        description="@: campos, tokens e respostas HTTP deste botão anteriores a esta ação (insere {{id. para completar a propriedade JSON)."
+                        value={act.valueTemplate ?? ''}
+                        onChange={(next) => patchAction(ai, { ...act, valueTemplate: next })}
+                        defaultParts={chainedDefaultValueMentionParts}
+                        dateFieldMentionOptions={chainedDateFieldMentionOptions}
+                        lookupFieldMentionOptions={chainedLookupFieldMentionOptions}
+                        numericFieldMentionOptions={chainedNumericFieldMentionOptions}
+                        httpChainedStepIds={collectPriorHttpStepIdsInChain(actions, ai)}
+                      />
+                    </div>
                   )}
                 </Stack>
               );
@@ -385,13 +428,17 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                   })
                 }
               />
-              <TextField
+              <FieldRulesDefaultValueTextField
                 label="Modelo de texto"
-                multiline
                 rows={5}
+                description="Placeholders {{NomeInterno}}. @: campos, tokens e HTTP anteriores neste botão. Vazio = junção com separador e ordem da lista."
                 value={act.valueTemplate ?? ''}
-                onChange={(_, v) => patchAction(ai, { ...act, valueTemplate: v ?? '' })}
-                description="Placeholders: {{NomeInterno}}. Ex.: Número: {{Numero}} — Obra: {{Title}}. Vazio = junção simples com separador e ordem da lista abaixo."
+                onChange={(next) => patchAction(ai, { ...act, valueTemplate: next })}
+                defaultParts={chainedDefaultValueMentionParts}
+                dateFieldMentionOptions={chainedDateFieldMentionOptions}
+                lookupFieldMentionOptions={chainedLookupFieldMentionOptions}
+                numericFieldMentionOptions={chainedNumericFieldMentionOptions}
+                httpChainedStepIds={collectPriorHttpStepIdsInChain(actions, ai)}
               />
               <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                 Campos na ordem (modo simples ou botão + para acrescentar placeholders ao modelo)
@@ -567,8 +614,9 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
               <TextField
                 label="Identificador deste passo"
                 value={act.stepId}
-                onChange={(_, v) => patchAction(ai, { ...act, stepId: (v ?? '').replace(/\s+/g, '') })}
-                description="Letras, números e _; deve ser único entre as ações HTTP do botão."
+                disabled
+                readOnly
+                description="Único em todo o formulário: http1, http2, … pela ordem dos botões e das ações (atribuído automaticamente)."
               />
               <Dropdown
                 label="Método"

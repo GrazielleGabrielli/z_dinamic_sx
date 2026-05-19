@@ -747,7 +747,9 @@ export type TFormButtonHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface IFormButtonActionHttpRequest {
   kind: 'httpRequest';
   /**
-   * Identificador único nesta cadeia; corpo JSON da resposta fica disponível como `{{id.caminho}}` nas ações seguintes.
+   * Identificador automático único em **todo** o formulário: `http1`, `http2`, … pela ordem dos botões
+   * personalizados e das ações em cadeia. Corpo JSON da resposta fica em `{{id.caminho}}` nas ações seguintes
+   * **desse mesmo botão** (e nos placeholders que usem o mesmo id).
    * Ex.: resposta `{ "token": "x" }` com `stepId` «http1» → `{{http1.token}}`.
    */
   stepId: string;

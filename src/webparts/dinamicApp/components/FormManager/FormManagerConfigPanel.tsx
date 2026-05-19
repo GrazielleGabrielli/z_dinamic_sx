@@ -98,6 +98,7 @@ import { getDefaultFormManagerConfig } from '../../core/config/utils';
 import { resolveFormCustomButtonPaletteSlot } from '../../core/formManager/formCustomButtonTheme';
 import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import { applyGlobalHttpStepIds } from '../../core/formManager/applyGlobalHttpStepIds';
 import {
   attachmentFolderNodePathLabel,
   flattenFolderTreeNodes,
@@ -936,11 +937,22 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [helpJson, setHelpJson] = useState(() => JSON.stringify(value.dynamicHelp ?? [], null, 2));
   const [managerColumnFields, setManagerColumnFields] = useState<string[]>(() => value.managerColumnFields ?? []);
   const [customButtons, setCustomButtons] = useState<IFormCustomButtonConfig[]>(() =>
-    (value.customButtons ?? []).map((b) => ({
-      ...b,
-      actions: (b.actions ?? []).map((a) => ({ ...a })),
-    }))
+    applyGlobalHttpStepIds(
+      (value.customButtons ?? []).map((b) => ({
+        ...b,
+        actions: (b.actions ?? []).map((a) => ({ ...a })),
+      }))
+    )
   );
+  const commitCustomButtons = useCallback((updater: React.SetStateAction<IFormCustomButtonConfig[]>) => {
+    setCustomButtons((prev) => {
+      const next =
+        typeof updater === 'function'
+          ? (updater as (p: IFormCustomButtonConfig[]) => IFormCustomButtonConfig[])(prev)
+          : updater;
+      return applyGlobalHttpStepIds(next);
+    });
+  }, []);
   const [stepLayout, setStepLayout] = useState<TFormStepLayoutKind>(() => value.stepLayout ?? 'segmented');
   const [stepNavButtons, setStepNavButtons] = useState<TFormStepNavButtonsKind>(
     () => value.stepNavButtons ?? 'fluent'
@@ -1166,10 +1178,12 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     setHelpJson(JSON.stringify(cfg.dynamicHelp ?? [], null, 2));
     setManagerColumnFields(cfg.managerColumnFields ?? []);
     setCustomButtons(
-      (cfg.customButtons ?? []).map((b) => ({
-        ...b,
-        actions: (b.actions ?? []).map((a) => ({ ...a })),
-      }))
+      applyGlobalHttpStepIds(
+        (cfg.customButtons ?? []).map((b) => ({
+          ...b,
+          actions: (b.actions ?? []).map((a) => ({ ...a })),
+        }))
+      )
     );
     setStepLayout(cfg.stepLayout ?? 'segmented');
     setStepAccentPaletteSlot(cfg.stepAccentPaletteSlot);
@@ -2103,7 +2117,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const addCustomButton = (): void => {
-    setCustomButtons((b) =>
+    commitCustomButtons((b) =>
       b.concat([
         {
           id: newId('btn'),
@@ -2118,11 +2132,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const patchCustomButton = (i: number, patch: Partial<IFormCustomButtonConfig>): void => {
-    setCustomButtons((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+    commitCustomButtons((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   };
 
   const patchButtonWhenRow = (bi: number, ri: number, partial: Partial<IWhenUi>): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const { combiner, rows } = parseButtonWhenToRows(b.when, meta);
@@ -2134,7 +2148,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const setButtonWhenCombiner = (bi: number, combiner: 'all' | 'any'): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const { rows } = parseButtonWhenToRows(b.when, meta);
@@ -2145,7 +2159,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const addButtonWhenRow = (bi: number): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const { combiner, rows } = parseButtonWhenToRows(b.when, meta);
@@ -2157,7 +2171,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const removeButtonWhenRow = (bi: number, ri: number): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const { combiner, rows } = parseButtonWhenToRows(b.when, meta);
@@ -2170,7 +2184,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const patchButtonActionCondition = (bi: number, ai: number, when: TFormConditionNode | undefined): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const acts = b.actions.map((a, k) => {
@@ -2187,11 +2201,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const removeCustomButton = (i: number): void => {
-    setCustomButtons((prev) => prev.filter((_, j) => j !== i));
+    commitCustomButtons((prev) => prev.filter((_, j) => j !== i));
   };
 
   const cloneCustomButton = (i: number): void => {
-    setCustomButtons((prev) => {
+    commitCustomButtons((prev) => {
       const src = prev[i];
       if (!src) return prev;
       const copy = JSON.parse(JSON.stringify(src)) as IFormCustomButtonConfig;
@@ -2205,11 +2219,11 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const reorderCustomButton = (from: number, to: number): void => {
-    setCustomButtons((prev) => reorderByIndex(prev, from, to));
+    commitCustomButtons((prev) => reorderByIndex(prev, from, to));
   };
 
   const addButtonAction = (bi: number): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) =>
         j === bi ? { ...b, actions: b.actions.concat([{ kind: 'showFields', fields: [] }]) } : b
       )
@@ -2217,7 +2231,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const patchButtonAction = (bi: number, ai: number, next: TFormButtonAction): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) => {
         if (j !== bi) return b;
         const acts = b.actions.map((a, k) => (k === ai ? next : a));
@@ -2227,7 +2241,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   };
 
   const removeButtonAction = (bi: number, ai: number): void => {
-    setCustomButtons((prev) =>
+    commitCustomButtons((prev) =>
       prev.map((b, j) =>
         j === bi ? { ...b, actions: b.actions.filter((_, k) => k !== ai) } : b
       )
@@ -3969,7 +3983,7 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     onChange={(_, o) => {
                       if (!o) return;
                       const k = String(o.key);
-                      setCustomButtons((prev) =>
+                      commitCustomButtons((prev) =>
                         prev.map((b, j) => {
                           if (j !== bi) return b;
                           if (k === FORM_SUBMIT_LOADING_INHERIT_KEY) {

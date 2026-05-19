@@ -382,7 +382,8 @@ function buildDefaultValueMentionItems(
   parts: TDefaultValueMentionParts,
   dateFields?: IDropdownOption[],
   lookupFields?: IDropdownOption[],
-  numericFields?: IDropdownOption[]
+  numericFields?: IDropdownOption[],
+  httpChainedStepIds?: string[]
 ): TMentionItem[] {
   const f = filter.trim().toLowerCase();
   const match = (s: string): boolean => !f || s.toLowerCase().includes(f);
@@ -459,6 +460,23 @@ function buildDefaultValueMentionItems(
       }
     }
   }
+  if (httpChainedStepIds !== undefined && httpChainedStepIds.length > 0) {
+    for (let i = 0; i < httpChainedStepIds.length; i++) {
+      const sid = httpChainedStepIds[i];
+      if (!sid) continue;
+      const ins = `{{${sid}.`;
+      const primary = sid;
+      const secondary = `Resposta JSON deste botão · ex. ${ins}cep}}`;
+      if (match(sid) || match(ins) || match('http')) {
+        out.push({
+          key: `dv-httpchain-${sid}-${i}`,
+          insert: ins,
+          primary,
+          secondary,
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -497,9 +515,12 @@ type TFieldRulesDefaultValueTextFieldProps = {
   lookupFieldMentionOptions?: IDropdownOption[];
   /** Campos número/moeda para expressões `{{Campo}}+N`. */
   numericFieldMentionOptions?: IDropdownOption[];
+  /** Passos HTTP anteriores na mesma cadeia do botão → inserção `{{id.`. */
+  httpChainedStepIds?: string[];
+  rows?: number;
 };
 
-function FieldRulesDefaultValueTextField({
+export function FieldRulesDefaultValueTextField({
   label,
   description,
   value,
@@ -508,6 +529,8 @@ function FieldRulesDefaultValueTextField({
   dateFieldMentionOptions,
   lookupFieldMentionOptions,
   numericFieldMentionOptions,
+  httpChainedStepIds,
+  rows = 2,
 }: TFieldRulesDefaultValueTextFieldProps): JSX.Element {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionRange, setMentionRange] = useState<{ from: number; to: number; filter: string } | null>(null);
@@ -543,7 +566,8 @@ function FieldRulesDefaultValueTextField({
       defaultParts,
       dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
       lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined,
-      numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined
+      numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined,
+      httpChainedStepIds
     );
   }, [
     mentionOpen,
@@ -552,6 +576,7 @@ function FieldRulesDefaultValueTextField({
     dateFieldMentionOptions,
     lookupFieldMentionOptions,
     numericFieldMentionOptions,
+    httpChainedStepIds,
   ]);
 
   useLayoutEffect(() => {
@@ -639,7 +664,8 @@ function FieldRulesDefaultValueTextField({
           defaultParts,
           dateFieldMentionOptions !== undefined ? dateFieldMentionOptions : undefined,
           lookupFieldMentionOptions !== undefined ? lookupFieldMentionOptions : undefined,
-          numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined
+          numericFieldMentionOptions !== undefined ? numericFieldMentionOptions : undefined,
+          httpChainedStepIds
         );
         if (items.length > 0) {
           setMentionRange(range);
@@ -655,7 +681,7 @@ function FieldRulesDefaultValueTextField({
       }
       onChange(raw);
     },
-    [onChange, defaultParts, dateFieldMentionOptions, lookupFieldMentionOptions, numericFieldMentionOptions]
+    [onChange, defaultParts, dateFieldMentionOptions, lookupFieldMentionOptions, numericFieldMentionOptions, httpChainedStepIds]
   );
 
   const handleKeyDown = useCallback(
@@ -686,7 +712,7 @@ function FieldRulesDefaultValueTextField({
         label={label}
         description={description}
         multiline
-        rows={2}
+        rows={rows}
         value={value}
         componentRef={tfRef}
         onChange={handleChange}

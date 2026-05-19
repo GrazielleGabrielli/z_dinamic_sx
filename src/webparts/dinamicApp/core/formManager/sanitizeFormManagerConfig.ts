@@ -60,6 +60,7 @@ import { FORM_CUSTOM_BUTTON_THEME_SLOTS } from './formCustomButtonTheme';
 import { migrateFolderPathSegmentsToTree, sanitizeFolderTreeInput } from './attachmentFolderTree';
 import { sanitizeConditionNode } from './formConditionSanitize';
 import { isTextInputMaskKind, TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from './formTextInputMasks';
+import { applyGlobalHttpStepIds } from './applyGlobalHttpStepIds';
 
 const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText']);
 
@@ -772,8 +773,8 @@ function sanitizeButtonAction(raw: unknown): TFormButtonAction | undefined {
     const methodUp = typeof a.method === 'string' ? a.method.trim().toUpperCase() : 'GET';
     const method = HTTP_METHOD_SET.has(methodUp) ? (methodUp as IFormButtonActionHttpRequest['method']) : 'GET';
     const url = typeof a.url === 'string' ? a.url.trim() : '';
-    const stepId = /^[a-zA-Z][a-zA-Z0-9_]*$/.test(stepIdRaw) ? stepIdRaw : '';
-    if (!stepId || !url) return undefined;
+    const stepId = /^[a-zA-Z][a-zA-Z0-9_]*$/.test(stepIdRaw) ? stepIdRaw : 'http';
+    if (!url) return undefined;
     const sanitizePairs = (raw: unknown): Array<{ key: string; value: string }> => {
       if (!Array.isArray(raw)) return [];
       const out: Array<{ key: string; value: string }> = [];
@@ -1590,6 +1591,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       customButtonsAdjusted.push(btn);
     }
   }
+  const customButtonsWithGlobalHttpIds = applyGlobalHttpStepIds(customButtonsAdjusted);
   return {
     sections,
     fields,
@@ -1601,7 +1603,7 @@ export function sanitizeFormManagerConfig(raw: unknown): IFormManagerConfig | un
       ? { managerBrowseLayoutControl: 'compactDropdown' as const }
       : {}),
     ...(dynamicHelp.length ? { dynamicHelp } : {}),
-    ...(customButtonsAdjusted.length ? { customButtons: customButtonsAdjusted } : {}),
+    ...(customButtonsWithGlobalHttpIds.length ? { customButtons: customButtonsWithGlobalHttpIds } : {}),
     ...(customButtonsBarVertical === 'top' ? { customButtonsBarVertical: 'top' as const } : {}),
     ...(customButtonsBarHorizontal === 'right' ? { customButtonsBarHorizontal: 'right' as const } : {}),
     ...(stepLayout ? { stepLayout } : {}),
