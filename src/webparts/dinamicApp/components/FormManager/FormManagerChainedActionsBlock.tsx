@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Stack,
   Text,
@@ -30,6 +30,7 @@ import {
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
 import { parseCurlForHttpImport } from '../../core/formManager/parseCurlForHttpImport';
+import { FormManagerBraceMentionTextField } from './FormManagerBraceMentionTextField';
 
 const HTTP_METHOD_OPTIONS: IDropdownOption[] = [
   { key: 'GET', text: 'GET' },
@@ -192,6 +193,11 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
   const [actionOpen, setActionOpen] = useState<Record<number, boolean>>({});
   const [curlDraftByAi, setCurlDraftByAi] = useState<Record<number, string>>({});
   const [curlErrorByAi, setCurlErrorByAi] = useState<Record<number, string>>({});
+  const [httpBraceDropNonce, setHttpBraceDropNonce] = useState<Record<string, number>>({});
+  const httpBraceFieldOptions = useMemo(
+    () => fieldOptions.filter((o) => String(o.key).length > 0),
+    [fieldOptions]
+  );
   const prevActionLenRef = useRef(actions.length);
   useEffect(() => {
     if (actions.length < prevActionLenRef.current) {
@@ -575,13 +581,33 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                   patchAction(ai, { ...act, method: String(o.key) as IFormButtonActionHttpRequest['method'] });
                 }}
               />
-              <TextField
+              <FormManagerBraceMentionTextField
                 label="URL"
                 multiline
                 rows={2}
                 value={act.url}
-                onChange={(_, v) => patchAction(ai, { ...act, url: v ?? '' })}
-                description="Absoluta (https://…) ou relativa ao site. Placeholders {{NomeInterno}} e {{passo.chave}}."
+                onChange={(next) => patchAction(ai, { ...act, url: next })}
+                fieldOptions={httpBraceFieldOptions}
+                description="Absoluta (https://…) ou relativa ao site. Digite {{ para escolher campos; placeholders {{NomeInterno}} e {{passo.chave}}."
+              />
+              <Dropdown
+                label="Inserir campo no fim da URL"
+                styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
+                dropdownWidth={CHAINED_ACTION_DROPDOWN_PANEL_WIDTH}
+                options={[{ key: '', text: '— escolher campo —' }, ...httpBraceFieldOptions]}
+                selectedKey=""
+                key={`${reactKeysPrefix}-url-brace-${ai}-${httpBraceDropNonce[`${ai}-url`] ?? 0}`}
+                onChange={(_, o) => {
+                  if (!o || String(o.key) === '') return;
+                  patchAction(ai, {
+                    ...act,
+                    url: (act.url ?? '') + `{{${String(o.key)}}}`,
+                  });
+                  setHttpBraceDropNonce((p) => ({
+                    ...p,
+                    [`${ai}-url`]: (p[`${ai}-url`] ?? 0) + 1,
+                  }));
+                }}
               />
               <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                 Cabeçalhos
@@ -695,13 +721,33 @@ export function FormManagerChainedActionsBlock(props: IFormManagerChainedActions
                   }}
                 />
               </Stack>
-              <TextField
+              <FormManagerBraceMentionTextField
                 label="Corpo"
                 multiline
                 rows={8}
                 value={act.body ?? ''}
-                onChange={(_, v) => patchAction(ai, { ...act, body: v ?? '' })}
-                description="Corpo em texto (ex.: JSON). Ignorado em GET/DELETE se vazio. Placeholders {{Campo}} e {{passo.chave}}."
+                onChange={(next) => patchAction(ai, { ...act, body: next })}
+                fieldOptions={httpBraceFieldOptions}
+                description="Corpo em texto (ex.: JSON). Ignorado em GET/DELETE se vazio. Digite {{ para escolher campos; placeholders {{Campo}} e {{passo.chave}}."
+              />
+              <Dropdown
+                label="Inserir campo no fim do corpo"
+                styles={{ root: { minWidth: CHAINED_ACTION_DROPDOWN_MIN_ROOT } }}
+                dropdownWidth={CHAINED_ACTION_DROPDOWN_PANEL_WIDTH}
+                options={[{ key: '', text: '— escolher campo —' }, ...httpBraceFieldOptions]}
+                selectedKey=""
+                key={`${reactKeysPrefix}-body-brace-${ai}-${httpBraceDropNonce[`${ai}-body`] ?? 0}`}
+                onChange={(_, o) => {
+                  if (!o || String(o.key) === '') return;
+                  patchAction(ai, {
+                    ...act,
+                    body: (act.body ?? '') + `{{${String(o.key)}}}`,
+                  });
+                  setHttpBraceDropNonce((p) => ({
+                    ...p,
+                    [`${ai}-body`]: (p[`${ai}-body`] ?? 0) + 1,
+                  }));
+                }}
               />
             </Stack>
           )}

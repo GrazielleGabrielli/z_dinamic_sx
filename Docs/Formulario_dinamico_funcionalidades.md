@@ -4810,10 +4810,10 @@ Regras práticas: use apenas letras, números e sublinhado; não repita o mesmo 
 **Método, URL, cabeçalhos, consulta e corpo**
 
 - **Método**: `GET`, `POST`, `PUT`, `PATCH` ou `DELETE`.
-- **URL**: endereço absoluto (`https://…`) ou relativo ao site. Aceita placeholders `{{NomeInternoDoCampo}}` nos mesmos moldes das outras ações.
+- **URL**: endereço absoluto (`https://…`) ou relativo ao site. Aceita placeholders `{{NomeInternoDoCampo}}` nos mesmos moldes das outras ações. No gestor, ao escrever `{{` no campo URL, abre-se uma lista para escolher o campo (como nas regras com `@`); existe também o menu **Inserir campo no fim da URL** para acrescentar `{{NomeInterno}}` sem digitar o nome à mão.
 - **Cabeçalhos**: lista de pares chave / valor; valores podem incluir placeholders de campos e de respostas de pedidos anteriores (`{{http1.token}}`, etc.).
 - **Consulta (query string)**: parâmetros que o sistema junta ao URL na execução (útil quando o URL base é fixo e os parâmetros variam).
-- **Corpo**: texto livre (em geral JSON). Em `GET` ou `DELETE`, se o corpo estiver vazio, não é enviado. Placeholders funcionam como no URL e nos cabeçalhos.
+- **Corpo**: texto livre (em geral JSON). Em `GET` ou `DELETE`, se o corpo estiver vazio, não é enviado. Placeholders funcionam como no URL e nos cabeçalhos; no gestor, `{{` no campo corpo e **Inserir campo no fim do corpo** oferecem as mesmas sugestões.
 
 **Resposta e erros**
 
