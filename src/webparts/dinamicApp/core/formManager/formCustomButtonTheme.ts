@@ -143,31 +143,33 @@ export function getFilledPaletteButtonStyles(
       borderColor: bg,
       color: fg,
       borderWidth: 1,
+    },
+    rootHovered: {
+      backgroundColor: hoverBg,
+      borderColor: hoverBg,
+      color: hoverFg,
+    },
+    rootPressed: {
+      backgroundColor: pressedBg,
+      borderColor: pressedBg,
+      color: pressedFg,
       selectors: {
-        ':hover': {
-          backgroundColor: hoverBg,
-          borderColor: hoverBg,
-          color: hoverFg,
-        },
-        ':active': {
-          backgroundColor: pressedBg,
-          borderColor: pressedBg,
-          color: pressedFg,
-        },
+        '& .ms-Button-label': { color: pressedFg },
       },
     },
     rootDisabled: {
       backgroundColor: theme.palette.neutralLighter,
       borderColor: theme.palette.neutralLight,
       color: theme.palette.neutralSecondary,
-      selectors: {
-        ':hover': {},
-        ':active': {},
-      },
     },
     flexContainer: { height: '100%' },
     icon: { color: fg },
+    iconHovered: { color: hoverFg },
+    iconPressed: { color: pressedFg },
+    iconDisabled: { color: theme.palette.neutralSecondary },
     label: { color: fg },
+    labelHovered: { color: hoverFg },
+    labelDisabled: { color: theme.palette.neutralSecondary },
     splitButtonDivider: { backgroundColor: border },
   };
 }
