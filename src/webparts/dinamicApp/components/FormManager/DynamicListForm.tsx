@@ -194,7 +194,9 @@ import {
 } from '../../core/formManager/linkedChildAttachmentRuntime';
 import { FieldsService } from '../../../../services';
 import {
+  getFilledCustomButtonStyles,
   getFilledPaletteButtonStyles,
+  normalizeCustomButtonHexColor,
   resolveActionLogPaletteAccentHex,
   resolveFormCustomButtonPaletteSlot,
   resolveStepUiAccentColor,
@@ -4828,6 +4830,19 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   });
 
   function renderOneCustomButton(b: IFormCustomButtonConfig): React.ReactElement {
+    const customColorHex = normalizeCustomButtonHexColor(b.customColorHex ?? '');
+    if (customColorHex) {
+      return (
+        <DefaultButton
+          key={b.id}
+          text={b.label}
+          title={b.shortDescription || undefined}
+          onClick={() => void runCustomButton(b)}
+          disabled={submitting}
+          styles={getFilledCustomButtonStyles(theme, customColorHex)}
+        />
+      );
+    }
     const slot = resolveFormCustomButtonPaletteSlot(b);
     const common = {
       text: b.label,

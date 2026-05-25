@@ -819,6 +819,7 @@ export interface IFormCustomButtonConfig {
    * Cor de preenchimento a partir do tema. Omitido = só `appearance` (primary → themePrimary, default → outline).
    */
   themePaletteSlot?: TFormCustomButtonPaletteSlot;
+  customColorHex?: string;
   behavior?: TFormCustomButtonBehavior;
   /** Omitido ou legacy: usa apenas `behavior` + ações. */
   operation?: TFormCustomButtonOperation;

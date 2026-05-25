@@ -56,7 +56,7 @@ import {
   FORM_FIXOS_STEP_ID,
   FORM_OCULTOS_STEP_ID,
 } from '../config/types/formManager';
-import { FORM_CUSTOM_BUTTON_THEME_SLOTS } from './formCustomButtonTheme';
+import { FORM_CUSTOM_BUTTON_THEME_SLOTS, normalizeCustomButtonHexColor } from './formCustomButtonTheme';
 import { migrateFolderPathSegmentsToTree, sanitizeFolderTreeInput } from './attachmentFolderTree';
 import { sanitizeConditionNode } from './formConditionSanitize';
 import { isTextInputMaskKind, TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from './formTextInputMasks';
@@ -824,6 +824,8 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     typeof tpsRaw === 'string' && PALETTE_SLOT_SET.has(tpsRaw)
       ? (tpsRaw as TFormCustomButtonPaletteSlot)
       : undefined;
+  const customColorHex =
+    typeof b.customColorHex === 'string' ? normalizeCustomButtonHexColor(b.customColorHex) : undefined;
   const appearance = b.appearance === 'primary' ? 'primary' : 'default';
   const behaviorRaw = b.behavior;
   const behavior: IFormCustomButtonConfig['behavior'] =
@@ -914,6 +916,7 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     label,
     appearance,
     ...(themePaletteSlot ? { themePaletteSlot } : {}),
+    ...(customColorHex ? { customColorHex } : {}),
     behavior,
     ...(operation && operation !== 'legacy' ? { operation } : {}),
     ...(shortDescription && opResolved === 'history' ? { shortDescription } : {}),

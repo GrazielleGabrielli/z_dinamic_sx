@@ -95,7 +95,10 @@ import {
 } from '../../core/listView/listViewColumnBreakpoints';
 import type { TListViewColumnBreakpoint } from '../../core/config/types/listViewBreakpoints';
 import { getDefaultFormManagerConfig } from '../../core/config/utils';
-import { resolveFormCustomButtonPaletteSlot } from '../../core/formManager/formCustomButtonTheme';
+import {
+  normalizeCustomButtonHexColor,
+  resolveFormCustomButtonPaletteSlot,
+} from '../../core/formManager/formCustomButtonTheme';
 import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
 import { applyGlobalHttpStepIds } from '../../core/formManager/applyGlobalHttpStepIds';
@@ -4093,14 +4096,53 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   <Stack horizontal wrap tokens={{ childrenGap: 12 }} verticalAlign="end">
                     <ThemePaletteSlotDropdown
                       label="Cor do botão (tema do site)"
-                      selectedKey={resolveFormCustomButtonPaletteSlot(btn)}
-                      onChange={(slot) =>
+                      selectedKey={
+                        btn.customColorHex !== undefined ? 'custom' : resolveFormCustomButtonPaletteSlot(btn)
+                      }
+                      customColorHex={btn.customColorHex}
+                      allowCustom
+                      onChange={(slot) => {
+                        if (slot === 'custom') {
+                          patchCustomButton(bi, {
+                            customColorHex: normalizeCustomButtonHexColor(btn.customColorHex ?? '') ?? '#0078D4',
+                            appearance: 'primary',
+                          });
+                          return;
+                        }
                         patchCustomButton(bi, {
                           themePaletteSlot: slot,
+                          customColorHex: undefined,
                           appearance: slot === 'outline' ? 'default' : 'primary',
-                        })
-                      }
+                        });
+                      }}
                     />
+                    {btn.customColorHex !== undefined && (
+                      <Stack horizontal tokens={{ childrenGap: 8 }} verticalAlign="end">
+                        <input
+                          type="color"
+                          aria-label="Cor personalizada do botão"
+                          value={normalizeCustomButtonHexColor(btn.customColorHex ?? '') ?? '#0078D4'}
+                          onChange={(ev) =>
+                            patchCustomButton(bi, {
+                              customColorHex: normalizeCustomButtonHexColor(ev.currentTarget.value) ?? '#0078D4',
+                              appearance: 'primary',
+                            })
+                          }
+                          style={{ width: 44, height: 32, padding: 0, border: '1px solid #8a8886' }}
+                        />
+                        <TextField
+                          label="Hexa"
+                          value={btn.customColorHex ?? ''}
+                          onChange={(_, v) =>
+                            patchCustomButton(bi, {
+                              customColorHex: v ?? '',
+                              appearance: 'primary',
+                            })
+                          }
+                          styles={{ root: { width: 110 } }}
+                        />
+                      </Stack>
+                    )}
                     {(btn.operation ?? 'legacy') === 'legacy' && (
                       <Dropdown
                         label="Depois das ações"

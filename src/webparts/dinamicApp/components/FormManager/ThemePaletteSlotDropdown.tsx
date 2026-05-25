@@ -5,8 +5,11 @@ import type { TFormCustomButtonPaletteSlot } from '../../core/config/types/formM
 import {
   FORM_CUSTOM_BUTTON_SLOT_LABELS,
   FORM_CUSTOM_BUTTON_THEME_SLOTS,
+  normalizeCustomButtonHexColor,
   paletteBgFromSlot,
 } from '../../core/formManager/formCustomButtonTheme';
+
+export type TThemePaletteSlotDropdownKey = TFormCustomButtonPaletteSlot | 'custom';
 
 export function ThemePaletteSlotDropdownRow(props: { option: IDropdownOption; theme: ITheme }): JSX.Element {
   const { option, theme } = props;
@@ -32,7 +35,7 @@ export function ThemePaletteSlotDropdownRow(props: { option: IDropdownOption; th
   );
 }
 
-export function useThemePaletteSlotDropdownOptions(): IDropdownOption[] {
+export function useThemePaletteSlotDropdownOptions(allowCustom?: boolean): IDropdownOption[] {
   const theme = useTheme();
   return useMemo((): IDropdownOption[] => {
     const outline: IDropdownOption = { key: 'outline', text: FORM_CUSTOM_BUTTON_SLOT_LABELS.outline };
@@ -41,17 +44,45 @@ export function useThemePaletteSlotDropdownOptions(): IDropdownOption[] {
       text: FORM_CUSTOM_BUTTON_SLOT_LABELS[slot],
       data: { swatch: paletteBgFromSlot(theme, slot) },
     }));
-    return [outline, ...colorOpts];
-  }, [theme]);
+    if (!allowCustom) return [outline, ...colorOpts];
+    const custom: IDropdownOption = { key: 'custom', text: 'Personalizado' };
+    return [outline, ...colorOpts, custom];
+  }, [allowCustom, theme]);
 }
 
-export const ThemePaletteSlotDropdown: React.FC<{
-  label: string;
-  selectedKey: TFormCustomButtonPaletteSlot;
-  onChange: (slot: TFormCustomButtonPaletteSlot) => void;
-}> = ({ label, selectedKey, onChange }) => {
+type TThemePaletteSlotDropdownProps =
+  | {
+      label: string;
+      selectedKey: TFormCustomButtonPaletteSlot;
+      customColorHex?: string;
+      allowCustom?: false;
+      onChange: (slot: TFormCustomButtonPaletteSlot) => void;
+    }
+  | {
+      label: string;
+      selectedKey: TThemePaletteSlotDropdownKey;
+      customColorHex?: string;
+      allowCustom: true;
+      onChange: (slot: TThemePaletteSlotDropdownKey) => void;
+    };
+
+export const ThemePaletteSlotDropdown: React.FC<TThemePaletteSlotDropdownProps> = (props) => {
+  const { label, selectedKey, customColorHex } = props;
+  const allowCustom = props.allowCustom === true;
   const theme = useTheme();
-  const options = useThemePaletteSlotDropdownOptions();
+  const baseOptions = useThemePaletteSlotDropdownOptions(allowCustom);
+  const options = useMemo(
+    () =>
+      baseOptions.map((o) =>
+        o.key === 'custom'
+          ? {
+              ...o,
+              data: { swatch: normalizeCustomButtonHexColor(customColorHex ?? '') ?? theme.palette.neutralLight },
+            }
+          : o
+      ),
+    [baseOptions, customColorHex, theme.palette.neutralLight]
+  );
   return (
     <Dropdown
       label={label}
@@ -67,7 +98,12 @@ export const ThemePaletteSlotDropdown: React.FC<{
       }
       onChange={(_, o) => {
         if (!o) return;
-        onChange(String(o.key) as TFormCustomButtonPaletteSlot);
+        const key = String(o.key) as TThemePaletteSlotDropdownKey;
+        if (key === 'custom') {
+          if (allowCustom) props.onChange(key);
+          return;
+        }
+        props.onChange(key);
       }}
     />
   );

@@ -33,9 +33,18 @@ function parseHex(hex: string): { r: number; g: number; b: number } | undefined 
   if (h.length !== 3 && h.length !== 6) return undefined;
   const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
   if (full.length !== 6) return undefined;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return undefined;
   const n = parseInt(full, 16);
   if (Number.isNaN(n)) return undefined;
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+export function normalizeCustomButtonHexColor(hex: string): string | undefined {
+  const rgb = parseHex(hex);
+  if (!rgb) return undefined;
+  return `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b
+    .toString(16)
+    .padStart(2, '0')}`.toUpperCase();
 }
 
 function relativeLuminance(hex: string): number {
@@ -130,7 +139,11 @@ export function getFilledPaletteButtonStyles(
   theme: ITheme,
   slot: Exclude<TFormCustomButtonPaletteSlot, 'outline'>
 ): IButtonStyles {
-  const bg = paletteBgFromSlot(theme, slot);
+  return getFilledCustomButtonStyles(theme, paletteBgFromSlot(theme, slot));
+}
+
+export function getFilledCustomButtonStyles(theme: ITheme, colorHex: string): IButtonStyles {
+  const bg = normalizeCustomButtonHexColor(colorHex) ?? paletteBgFromSlot(theme, 'themePrimary');
   const fg = buttonLabelOnBackground(bg);
   const hoverBg = lightenHex(bg, 0.12);
   const hoverFg = buttonLabelOnBackground(hoverBg);
