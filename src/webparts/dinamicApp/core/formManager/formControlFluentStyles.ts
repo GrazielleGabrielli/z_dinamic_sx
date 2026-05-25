@@ -188,7 +188,8 @@ export function getFormConfirmPromptTextFieldStyles(
       root: {
         fontWeight: '600',
         color: theme.palette.neutralPrimary,
-        marginBottom: 6,
+        marginBottom: opts.modalSurface ? 8 : 6,
+        ...(opts.modalSurface ? { fontSize: 14, lineHeight: '20px' } : {}),
       },
     },
     fieldGroup,

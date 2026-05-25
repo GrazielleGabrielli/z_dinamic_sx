@@ -439,7 +439,7 @@ function confirmKindToIconSpec(kind: TFormCustomButtonConfirmKind | undefined): 
   }
 }
 
-/** Modal centrado: círculo do ícone + botão principal destaque (vermelho) para ações críticas. */
+/** Modal centrado: ícone + botão principal destaque (vermelho) para ações críticas. */
 function confirmKindToCenteredModalPalette(kind: TFormCustomButtonConfirmKind | undefined): {
   circleBg: string;
   iconName: string;
@@ -957,7 +957,7 @@ function ConfirmPromptFieldEditor(props: {
           multiline
           autoAdjustHeight
           resizable={false}
-          rows={4}
+          rows={modalSurface ? 5 : 4}
           value={editor.text}
           disabled={dis}
           onChange={(_, v) => onChange({ ...editor, text: v ?? '' })}
@@ -5137,10 +5137,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           styles={{
             root: { selectors: { '& .ms-Modal-scrollableContent': { overflow: 'hidden' } } },
             main: {
-              maxWidth: 560,
-              borderRadius: 16,
+              maxWidth: 640,
+              minWidth: 480,
+              borderRadius: 6,
               overflow: 'hidden',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.22)',
+              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.16)',
               border: `1px solid ${theme.palette.neutralLight}`,
             },
           }}
@@ -5153,8 +5154,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                   ? {
                       flex: '1 1 0',
                       minWidth: 0,
-                      borderRadius: 10,
-                      height: 44,
+                      borderRadius: 4,
+                      height: 40,
                       backgroundColor: '#DC2626',
                       borderColor: '#DC2626',
                       borderWidth: 1,
@@ -5162,8 +5163,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                   : {
                       flex: '1 1 0',
                       minWidth: 0,
-                      borderRadius: 10,
-                      height: 44,
+                      borderRadius: 4,
+                      height: 40,
                     };
               const confirmBtnHovered =
                 pal.confirmDanger === true
@@ -5172,50 +5173,67 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               const cancelBtnStyles = {
                 flex: '1 1 0',
                 minWidth: 0,
-                borderRadius: 10,
-                height: 44,
+                borderRadius: 4,
+                height: 40,
                 border: `1px solid ${theme.palette.neutralQuaternaryAlt}`,
                 backgroundColor: theme.palette.white,
               };
               return (
                 <Stack
                   horizontalAlign="center"
-                  tokens={{ childrenGap: 16 }}
+                  tokens={{ childrenGap: 0 }}
                   styles={{
                     root: {
-                      padding: '28px 28px 24px',
+                      width: '100%',
+                      padding: '32px 40px 28px',
                       boxSizing: 'border-box',
+                      alignItems: 'center',
                     },
                   }}
                 >
+                  <Stack
+                    horizontalAlign="center"
+                    tokens={{ childrenGap: 20 }}
+                    styles={{
+                      root: {
+                        width: '100%',
+                        alignItems: 'center',
+                        paddingBottom: confirmPromptMetaForDialog && confirmPromptEditor ? 24 : 20,
+                      },
+                    }}
+                  >
                   <div
                     style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: '50%',
+                      width: 56,
+                      height: 56,
+                      borderRadius: 6,
                       background: pal.circleBg,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
-                      marginTop: 4,
                     }}
                   >
                     <Icon
                       iconName={pal.iconName}
-                      styles={{ root: { fontSize: 34, lineHeight: 1, color: pal.iconColor } }}
+                      styles={{ root: { fontSize: 28, lineHeight: 1, color: pal.iconColor } }}
                     />
                   </div>
+                  <Stack
+                    horizontalAlign="center"
+                    tokens={{ childrenGap: 20 }}
+                    styles={{ root: { width: '100%', alignItems: 'center' } }}
+                  >
                   <Text
                     as="h2"
                     variant="xLarge"
                     styles={{
                       root: {
-                        fontWeight: 700,
+                        fontWeight: 600,
                         textAlign: 'center',
                         color: theme.palette.neutralPrimary,
                         margin: 0,
-                        padding: '0 4px',
+                        width: '100%',
                         lineHeight: 1.25,
                       },
                     }}
@@ -5224,15 +5242,16 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                   </Text>
                   {confirmDialogView.message.trim() ? (
                     <Text
-                      variant="medium"
+                      variant="mediumPlus"
                       styles={{
                         root: {
                           textAlign: 'center',
                           color: theme.palette.neutralSecondary,
-                          lineHeight: 1.55,
+                          lineHeight: 1.6,
                           whiteSpace: 'pre-wrap',
-                          maxWidth: 520,
-                          margin: '0 auto',
+                          maxWidth: '100%',
+                          width: '100%',
+                          margin: 0,
                         },
                       }}
                     >
@@ -5240,27 +5259,30 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                     </Text>
                   ) : !(confirmPromptMetaForDialog && confirmPromptEditor) ? (
                     <Text
-                      variant="medium"
+                      variant="mediumPlus"
                       styles={{
                         root: {
                           textAlign: 'center',
                           color: theme.palette.neutralSecondary,
-                          lineHeight: 1.5,
-                          maxWidth: 520,
+                          lineHeight: 1.6,
+                          maxWidth: '100%',
+                          width: '100%',
+                          margin: 0,
                         },
                       }}
                     >
                       Tem a certeza que deseja continuar?
                     </Text>
                   ) : null}
+                  </Stack>
+                  </Stack>
                   {confirmPromptMetaForDialog && confirmPromptEditor ? (
                     <Stack
-                      tokens={{ childrenGap: 10 }}
+                      tokens={{ childrenGap: 12 }}
                       styles={{
                         root: {
                           width: '100%',
-                          maxWidth: 520,
-                          marginTop: 4,
+                          paddingBottom: 24,
                           textAlign: 'left',
                         },
                       }}
@@ -5276,7 +5298,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                         <Text
                           variant="small"
                           styles={{
-                            root: { color: theme.palette.redDark, textAlign: 'center' },
+                            root: { color: theme.palette.redDark, textAlign: 'left', marginTop: 4 },
                           }}
                         >
                           Preencha o campo acima para continuar.
@@ -5290,9 +5312,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                     styles={{
                       root: {
                         width: '100%',
-                        maxWidth: 520,
-                        marginTop: 8,
-                        justifyContent: 'stretch',
+                        paddingTop: 24,
+                        borderTop: `1px solid ${theme.palette.neutralLight}`,
                       },
                     }}
                   >
@@ -5301,8 +5322,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                       onClick={() => closeButtonConfirmDialog(false)}
                       styles={{
                         root: cancelBtnStyles,
-                        flexContainer: { height: 44 },
-                        label: { fontWeight: 600 },
+                        flexContainer: { height: 40 },
+                        label: { fontWeight: 600, fontSize: 14 },
                       }}
                     />
                     <PrimaryButton
@@ -5316,8 +5337,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
                           pal.confirmDanger === true
                             ? { backgroundColor: '#991B1B', borderColor: '#991B1B' }
                             : undefined,
-                        flexContainer: { height: 44 },
-                        label: { fontWeight: 600 },
+                        flexContainer: { height: 40 },
+                        label: { fontWeight: 600, fontSize: 14 },
                       }}
                     />
                   </Stack>
