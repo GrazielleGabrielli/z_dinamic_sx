@@ -839,6 +839,13 @@ export interface IFormCustomButtonConfig {
   /** Botão oculto para utilizadores nestes grupos (opcional). */
   excludeGroupTitles?: string[];
   /**
+   * Caminhos `Lookup/CampoUser` ou campo user/usermulti na lista principal.
+   * Botão visível se o utilizador atual constar em algum destes campos. Vazio = todos.
+   */
+  lookupUserFieldPaths?: string[];
+  /** Botão oculto se o utilizador atual constar em algum destes campos user (opcional). */
+  excludeLookupUserFieldPaths?: string[];
+  /**
    * Se true, o botão só aparece quando todos os campos obrigatórios visíveis estão preenchidos
    * (regras + obrigatório na lista; anexos se obrigatórios). Cumulativo com grupos e condição «when».
    */

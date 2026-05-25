@@ -101,6 +101,7 @@ import {
 } from '../../core/formManager/formCustomButtonTheme';
 import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
+import { normalizeLookupUserFieldPath } from '../../core/formManager/formButtonLookupUserVisibility';
 import { applyGlobalHttpStepIds } from '../../core/formManager/applyGlobalHttpStepIds';
 import {
   attachmentFolderNodePathLabel,
@@ -1073,6 +1074,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
   const [siteGroupsLoading, setSiteGroupsLoading] = useState(false);
   const [siteGroupsErr, setSiteGroupsErr] = useState<string | undefined>(undefined);
   const [customButtonGroupNameFilter, setCustomButtonGroupNameFilter] = useState('');
+  const [customButtonLookupUserFilter, setCustomButtonLookupUserFilter] = useState('');
+  const [lookupDestMetaByListId, setLookupDestMetaByListId] = useState<Record<string, IFieldMetadata[]>>({});
+  const [lookupDestMetaLoading, setLookupDestMetaLoading] = useState(false);
   const [actionLogCaptureEnabled, setActionLogCaptureEnabled] = useState(false);
   const [actionLogListTitle, setActionLogListTitle] = useState('');
   const [actionLogFieldInternalName, setActionLogFieldInternalName] = useState('');
@@ -1341,6 +1345,47 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
       .catch(() => setLoading(false));
   }, [isOpen, listTitle, lw]);
 
+  useEffect(() => {
+    if (!isOpen || !meta.length) {
+      setLookupDestMetaByListId({});
+      return;
+    }
+    let alive = true;
+    const listIds: string[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < meta.length; i++) {
+      const m = meta[i];
+      if ((m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti') || !m.LookupList) continue;
+      const id = String(m.LookupList);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      listIds.push(id);
+    }
+    if (!listIds.length) {
+      setLookupDestMetaByListId({});
+      setLookupDestMetaLoading(false);
+      return;
+    }
+    setLookupDestMetaLoading(true);
+    void (async (): Promise<void> => {
+      const next: Record<string, IFieldMetadata[]> = {};
+      for (let i = 0; i < listIds.length; i++) {
+        try {
+          next[listIds[i]] = await fieldsService.getFields(listIds[i], lw);
+        } catch {
+          next[listIds[i]] = [];
+        }
+      }
+      if (alive) {
+        setLookupDestMetaByListId(next);
+        setLookupDestMetaLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [isOpen, meta, lw, fieldsService]);
+
   const loadSiteGroups = useCallback((): void => {
     setSiteGroupsErr(undefined);
     setSiteGroupsLoading(true);
@@ -1372,6 +1417,41 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     () => filterSiteGroupsByNameQuery(siteGroupsSorted, customButtonGroupNameFilter),
     [siteGroupsSorted, customButtonGroupNameFilter]
   );
+
+  const lookupUserVisibilityOptions = useMemo((): { path: string; label: string }[] => {
+    const out: { path: string; label: string }[] = [];
+    for (let i = 0; i < meta.length; i++) {
+      const m = meta[i];
+      if (m.MappedType === 'user' || m.MappedType === 'usermulti') {
+        out.push({ path: m.InternalName, label: `${m.Title} (${m.InternalName})` });
+      }
+    }
+    for (let i = 0; i < meta.length; i++) {
+      const m = meta[i];
+      if (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti') continue;
+      if (!m.LookupList) continue;
+      const destMeta = lookupDestMetaByListId[String(m.LookupList)] ?? [];
+      for (let j = 0; j < destMeta.length; j++) {
+        const df = destMeta[j];
+        if (df.MappedType !== 'user' && df.MappedType !== 'usermulti') continue;
+        const path = `${m.InternalName}/${df.InternalName}`;
+        out.push({
+          path,
+          label: `${m.Title} → ${df.Title} (${path})`,
+        });
+      }
+    }
+    out.sort((a, b) => a.label.localeCompare(b.label, 'pt'));
+    return out;
+  }, [meta, lookupDestMetaByListId]);
+
+  const lookupUserVisibilityOptionsForCustomButtons = useMemo(() => {
+    const q = customButtonLookupUserFilter.trim().toLowerCase();
+    if (!q) return lookupUserVisibilityOptions;
+    return lookupUserVisibilityOptions.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.path.toLowerCase().includes(q)
+    );
+  }, [lookupUserVisibilityOptions, customButtonLookupUserFilter]);
 
   const buttonOperationDropdownOptions = useMemo((): IDropdownOption[] => {
     const opts = BUTTON_OPERATION_OPTIONS_BASE.slice();
@@ -4441,6 +4521,96 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                       {!siteGroupsSorted.length && !(btn.groupTitles ?? []).length && (
                         <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
                           Nenhum grupo no site.
+                        </Text>
+                      )}
+                    </Stack>
+                  ) : null}
+                  <Text variant="small" styles={{ root: { fontWeight: 600, marginTop: 8 } }}>
+                    Campos de utilizador
+                  </Text>
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Utilizador atual no campo (lista principal ou via lookup). Vazio = todos.
+                  </Text>
+                  <TextField
+                    placeholder="Filtrar campos por nome"
+                    value={customButtonLookupUserFilter}
+                    onChange={(_: unknown, v?: string) => setCustomButtonLookupUserFilter(v ?? '')}
+                    styles={{ root: { maxWidth: 420 } }}
+                  />
+                  {lookupDestMetaLoading && <Spinner label="A carregar campos das listas ligadas…" />}
+                  {!lookupDestMetaLoading ? (
+                    <Stack
+                      tokens={{ childrenGap: 6 }}
+                      styles={{
+                        root: {
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                          border: '1px solid #edebe9',
+                          borderRadius: 4,
+                          padding: 8,
+                        },
+                      }}
+                    >
+                      {(btn.lookupUserFieldPaths ?? [])
+                        .filter(
+                          (p) =>
+                            !lookupUserVisibilityOptions.some(
+                              (o) => normalizeLookupUserFieldPath(o.path) === normalizeLookupUserFieldPath(p)
+                            )
+                        )
+                        .filter((p) => {
+                          const q = customButtonLookupUserFilter.trim().toLowerCase();
+                          return !q || p.toLowerCase().includes(q);
+                        })
+                        .map((p, oi) => (
+                          <Checkbox
+                            key={`orphan-lu-${bi}-${oi}-${p}`}
+                            label={`${p} (guardado; não encontrado)`}
+                            checked
+                            onChange={(_, c) => {
+                              if (c) return;
+                              const cur = btn.lookupUserFieldPaths ?? [];
+                              const n = normalizeLookupUserFieldPath(p);
+                              const next = cur.filter((x) => normalizeLookupUserFieldPath(x) !== n);
+                              patchCustomButton(bi, {
+                                lookupUserFieldPaths: next.length ? next : undefined,
+                              });
+                            }}
+                          />
+                        ))}
+                      {lookupUserVisibilityOptionsForCustomButtons.map((o) => {
+                        const cur = btn.lookupUserFieldPaths ?? [];
+                        const n = normalizeLookupUserFieldPath(o.path);
+                        const checked = cur.some((x) => normalizeLookupUserFieldPath(x) === n);
+                        return (
+                          <Checkbox
+                            key={o.path}
+                            label={o.label}
+                            checked={checked}
+                            onChange={(_, c) => {
+                              let next: string[];
+                              if (c) {
+                                next = checked ? cur : cur.concat([o.path]);
+                              } else {
+                                next = cur.filter((x) => normalizeLookupUserFieldPath(x) !== n);
+                              }
+                              patchCustomButton(bi, {
+                                lookupUserFieldPaths: next.length ? next : undefined,
+                              });
+                            }}
+                          />
+                        );
+                      })}
+                      {lookupUserVisibilityOptions.length > 0 &&
+                        !lookupUserVisibilityOptionsForCustomButtons.length &&
+                        customButtonLookupUserFilter.trim() && (
+                          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            Nenhum campo corresponde ao filtro.
+                          </Text>
+                        )}
+                      {!lookupUserVisibilityOptions.length && !(btn.lookupUserFieldPaths ?? []).length && (
+                        <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                          Nenhum campo user ou lookup→user no formulário.
                         </Text>
                       )}
                     </Stack>

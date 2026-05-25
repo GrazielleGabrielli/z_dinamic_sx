@@ -1877,6 +1877,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       formManager.rules,
       formManager.steps,
       formManager.dynamicHelp,
+      formManager.customButtons,
     ]
   );
 

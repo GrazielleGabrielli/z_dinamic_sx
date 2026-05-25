@@ -28,6 +28,7 @@ import { fieldVisibleInFormMode } from './stepFormMode';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 import { applyFormFieldTextTransform } from './formTextValueTransform';
 import { ensureAbsoluteSharePointUrl } from './formUrlUtils';
+import { ruleAppliesLookupUserFieldFilters } from './formButtonLookupUserVisibility';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -747,6 +748,10 @@ export function shouldShowCustomButton(
   }
   if (op === 'update' && ctx.formMode === 'create') return false;
   if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, b)) return false;
+  if (
+    !ruleAppliesLookupUserFieldFilters(ctx.currentUserId, ctx.values, b, ctx.lookupOptionSnapshots)
+  )
+    return false;
   if (b.showOnlyForItemAuthor === true) {
     if (ctx.formMode === 'create') return false;
     const aid = resolveRuntimeItemAuthorId(ctx);

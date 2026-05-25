@@ -854,6 +854,28 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
   const excludeGroupTitlesBtn = Array.isArray(b.excludeGroupTitles)
     ? (b.excludeGroupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const lookupUserFieldPaths = Array.isArray(b.lookupUserFieldPaths)
+    ? (b.lookupUserFieldPaths as unknown[])
+        .map((x) =>
+          String(x)
+            .split('/')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join('/')
+        )
+        .filter(Boolean)
+    : undefined;
+  const excludeLookupUserFieldPaths = Array.isArray(b.excludeLookupUserFieldPaths)
+    ? (b.excludeLookupUserFieldPaths as unknown[])
+        .map((x) =>
+          String(x)
+            .split('/')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join('/')
+        )
+        .filter(Boolean)
+    : undefined;
   const showOnlyWhenAllRequiredFilled = b.showOnlyWhenAllRequiredFilled === true ? true : undefined;
   const showOnlyForItemAuthor = b.showOnlyForItemAuthor === true ? true : undefined;
   const shortDescriptionRaw = typeof b.shortDescription === 'string' ? b.shortDescription.trim() : '';
@@ -928,6 +950,8 @@ function sanitizeCustomButton(raw: unknown): IFormCustomButtonConfig | undefined
     ...(when ? { when } : {}),
     ...(groupTitles?.length ? { groupTitles } : {}),
     ...(excludeGroupTitlesBtn?.length ? { excludeGroupTitles: excludeGroupTitlesBtn } : {}),
+    ...(lookupUserFieldPaths?.length ? { lookupUserFieldPaths } : {}),
+    ...(excludeLookupUserFieldPaths?.length ? { excludeLookupUserFieldPaths } : {}),
     ...(showOnlyWhenAllRequiredFilled ? { showOnlyWhenAllRequiredFilled: true } : {}),
     ...(showOnlyForItemAuthor ? { showOnlyForItemAuthor: true } : {}),
     ...(submitLoadingKind ? { submitLoadingKind } : {}),

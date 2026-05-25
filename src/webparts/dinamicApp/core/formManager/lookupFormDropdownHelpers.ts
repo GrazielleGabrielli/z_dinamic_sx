@@ -5,6 +5,7 @@ import type {
   IFormStepConfig,
   TFormConditionNode,
 } from '../config/types/formManager';
+import { collectLookupSubfieldsFromUserVisibilityPaths } from './formButtonLookupUserVisibility';
 
 function extractLookupId(v: unknown): number | undefined {
   if (typeof v === 'number' && isFinite(v)) return v;
@@ -213,7 +214,7 @@ function collectFirstSubfieldAfterRoot(
  * Campos na lista ligada do lookup a incluir no $select das opções (regras, passos, ajuda dinâmica).
  */
 export function collectLookupSelectInjectFields(
-  cfg: Partial<Pick<IFormManagerConfig, 'rules' | 'steps' | 'dynamicHelp'>>,
+  cfg: Partial<Pick<IFormManagerConfig, 'rules' | 'steps' | 'dynamicHelp' | 'customButtons'>>,
   lookupInternalName: string
 ): string[] {
   const subs = new Set<string>();
@@ -227,6 +228,12 @@ export function collectLookupSelectInjectFields(
   }
   const dh = cfg.dynamicHelp ?? [];
   for (let i = 0; i < dh.length; i++) collectFirstSubfieldAfterRoot(dh[i].when, lookupInternalName, subs);
+  const buttons = cfg.customButtons ?? [];
+  for (let i = 0; i < buttons.length; i++) {
+    const b = buttons[i];
+    collectLookupSubfieldsFromUserVisibilityPaths(b.lookupUserFieldPaths, lookupInternalName, subs);
+    collectLookupSubfieldsFromUserVisibilityPaths(b.excludeLookupUserFieldPaths, lookupInternalName, subs);
+  }
   return Array.from(subs);
 }
 
