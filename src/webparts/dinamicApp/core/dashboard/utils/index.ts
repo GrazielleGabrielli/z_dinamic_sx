@@ -1,5 +1,10 @@
 export {
   getDefaultDashboardCardStyle,
+  getDefaultDashboardCardLayoutStyle,
+  resolveDashboardCardLayoutStyle,
+  resolveEffectiveCardStyle,
+  extractLayoutFromCardStyle,
+  stripLayoutFromCards,
   mergeWithDefaultStyle,
   getCardContainerClasses,
   getCardInlineStyles,

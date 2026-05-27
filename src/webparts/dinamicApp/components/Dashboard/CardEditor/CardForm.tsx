@@ -21,22 +21,12 @@ import {
 import {
   IDashboardCardConfig,
   IDashboardCardFilter,
+  IDashboardCardLayoutStyle,
   IDashboardCardStyleConfig,
   TAggregateType,
   TFilterOperator,
-  TCardVariant,
-  TBorderRadius,
-  TPadding,
-  TShadow,
-  TTitleSize,
-  TSubtitleSize,
-  TValueSize,
-  TFontWeight,
-  TAlign,
-  TIconPosition,
-  TLoadingStyle,
 } from '../../../core/config/types';
-import { mergeWithDefaultStyle } from '../../../core/dashboard/utils/dashboardCardStyles';
+import { mergeWithDefaultStyle, resolveEffectiveCardStyle } from '../../../core/dashboard/utils/dashboardCardStyles';
 import { IDashboardCardResult } from '../../../core/dashboard/types';
 import { DashboardCard } from '../DashboardCard';
 import { FieldsService } from '../../../../../services';
@@ -52,6 +42,7 @@ interface ICardFormProps {
   listTitle: string;
   listWebServerRelativeUrl?: string;
   card: IDashboardCardConfig | undefined;
+  cardLayoutStyle: IDashboardCardLayoutStyle;
   onConfirm: (card: IDashboardCardConfig) => void;
   onBack: () => void;
 }
@@ -66,28 +57,12 @@ interface ICardFormState {
   field: string;
   hasFilter: boolean;
   filters: IDashboardCardFilter[];
-  variant: TCardVariant;
-  borderRadius: TBorderRadius;
-  padding: TPadding;
-  shadow: TShadow;
-  border: boolean;
   backgroundColor: string;
   borderColor: string;
   titleColor: string;
   subtitleColor: string;
   valueColor: string;
-  titleSize: TTitleSize;
-  subtitleSize: TSubtitleSize;
-  valueSize: TValueSize;
-  titleWeight: TFontWeight;
-  valueWeight: TFontWeight;
-  align: TAlign;
-  showSubtitle: boolean;
-  showValue: boolean;
-  showIcon: boolean;
   iconName: string;
-  iconPosition: TIconPosition;
-  loadingStyle: TLoadingStyle;
 }
 
 const AGGREGATE_OPTIONS: IChoiceGroupOption[] = [
@@ -103,80 +78,6 @@ const OPERATOR_OPTIONS: IDropdownOption[] = [
   { key: 'ge', text: 'maior ou igual a' },
   { key: 'le', text: 'menor ou igual a' },
   { key: 'contains', text: 'contém (texto)' },
-];
-
-const VARIANT_OPTIONS: IDropdownOption[] = [
-  { key: 'default', text: 'Padrão' },
-  { key: 'outlined', text: 'Contorno' },
-  { key: 'soft', text: 'Suave' },
-  { key: 'solid', text: 'Sólido' },
-];
-
-const BORDER_RADIUS_OPTIONS: IDropdownOption[] = [
-  { key: 'none', text: 'Nenhum' },
-  { key: 'sm', text: 'Pequeno' },
-  { key: 'md', text: 'Médio' },
-  { key: 'lg', text: 'Grande' },
-  { key: 'xl', text: 'Extra grande' },
-  { key: 'full', text: 'Total' },
-];
-
-const PADDING_OPTIONS: IDropdownOption[] = [
-  { key: 'sm', text: 'Pequeno' },
-  { key: 'md', text: 'Médio' },
-  { key: 'lg', text: 'Grande' },
-];
-
-const SHADOW_OPTIONS: IDropdownOption[] = [
-  { key: 'none', text: 'Nenhum' },
-  { key: 'sm', text: 'Pequeno' },
-  { key: 'md', text: 'Médio' },
-  { key: 'lg', text: 'Grande' },
-];
-
-const TITLE_SIZE_OPTIONS: IDropdownOption[] = [
-  { key: 'xs', text: 'Extra pequeno' },
-  { key: 'sm', text: 'Pequeno' },
-  { key: 'md', text: 'Médio' },
-  { key: 'lg', text: 'Grande' },
-];
-
-const SUBTITLE_SIZE_OPTIONS: IDropdownOption[] = [
-  { key: 'xs', text: 'Extra pequeno' },
-  { key: 'sm', text: 'Pequeno' },
-  { key: 'md', text: 'Médio' },
-];
-
-const VALUE_SIZE_OPTIONS: IDropdownOption[] = [
-  { key: 'lg', text: 'Grande' },
-  { key: 'xl', text: 'Extra grande' },
-  { key: '2xl', text: '2x grande' },
-  { key: '3xl', text: '3x grande' },
-];
-
-const FONT_WEIGHT_OPTIONS: IDropdownOption[] = [
-  { key: 'normal', text: 'Normal' },
-  { key: 'medium', text: 'Médio' },
-  { key: 'semibold', text: 'Semi-negrito' },
-  { key: 'bold', text: 'Negrito' },
-];
-
-const ALIGN_OPTIONS: IDropdownOption[] = [
-  { key: 'left', text: 'Esquerda' },
-  { key: 'center', text: 'Centro' },
-  { key: 'right', text: 'Direita' },
-];
-
-const ICON_POSITION_OPTIONS: IDropdownOption[] = [
-  { key: 'left', text: 'Esquerda' },
-  { key: 'top', text: 'Topo' },
-  { key: 'right', text: 'Direita' },
-];
-
-const LOADING_STYLE_OPTIONS: IDropdownOption[] = [
-  { key: 'skeleton', text: 'Skeleton' },
-  { key: 'spinner', text: 'Spinner' },
-  { key: 'text', text: 'Texto' },
 ];
 
 const ICON_OPTIONS: IDropdownOption[] = [
@@ -197,8 +98,8 @@ const ICON_OPTIONS: IDropdownOption[] = [
   { key: 'Cancel', text: 'Cancelado' },
 ];
 
-function initState(card?: IDashboardCardConfig): ICardFormState {
-  const s = mergeWithDefaultStyle(card?.style);
+function initState(card: IDashboardCardConfig | undefined, layout: IDashboardCardLayoutStyle): ICardFormState {
+  const s = mergeWithDefaultStyle(card?.style, layout);
   return {
     title: card?.title ?? '',
     subtitle: card?.subtitle ?? '',
@@ -213,65 +114,40 @@ function initState(card?: IDashboardCardConfig): ICardFormState {
       : card?.filter
         ? [{ field: card.filter.field, operator: card.filter.operator, value: card.filter.value }]
         : [{ field: '', operator: 'eq' as TFilterOperator, value: '' }],
-    variant: s.variant,
-    borderRadius: s.borderRadius,
-    padding: s.padding,
-    shadow: s.shadow,
-    border: s.border,
     backgroundColor: s.backgroundColor ?? '',
     borderColor: s.borderColor ?? '',
     titleColor: s.titleColor ?? '',
     subtitleColor: s.subtitleColor ?? '',
     valueColor: s.valueColor ?? '',
-    titleSize: s.titleSize,
-    subtitleSize: s.subtitleSize,
-    valueSize: s.valueSize,
-    titleWeight: s.titleWeight,
-    valueWeight: s.valueWeight,
-    align: s.align,
-    showSubtitle: s.showSubtitle,
-    showValue: s.showValue,
-    showIcon: s.showIcon,
     iconName: s.iconName ?? '',
-    iconPosition: s.iconPosition,
-    loadingStyle: s.loadingStyle,
   };
 }
 
-function buildCardStyle(state: ICardFormState): IDashboardCardStyleConfig {
-  const style: IDashboardCardStyleConfig = {
-    variant: state.variant,
-    borderRadius: state.borderRadius,
-    padding: state.padding,
-    shadow: state.shadow,
-    border: state.border,
-    titleSize: state.titleSize,
-    subtitleSize: state.subtitleSize,
-    valueSize: state.valueSize,
-    titleWeight: state.titleWeight,
-    valueWeight: state.valueWeight,
-    align: state.align,
-    showIcon: state.showIcon,
-    iconPosition: state.iconPosition,
-    showSubtitle: state.showSubtitle,
-    showValue: state.showValue,
-    loadingStyle: state.loadingStyle,
-  };
+function buildCardStyle(
+  state: ICardFormState,
+  layout: IDashboardCardLayoutStyle
+): Partial<IDashboardCardStyleConfig> {
+  const style: Partial<IDashboardCardStyleConfig> = {};
   if (state.backgroundColor) style.backgroundColor = state.backgroundColor;
   if (state.borderColor) style.borderColor = state.borderColor;
   if (state.titleColor) style.titleColor = state.titleColor;
   if (state.subtitleColor) style.subtitleColor = state.subtitleColor;
   if (state.valueColor) style.valueColor = state.valueColor;
-  if (state.showIcon && state.iconName) style.iconName = state.iconName;
+  if (layout.showIcon && state.iconName) style.iconName = state.iconName;
   return style;
 }
 
-function buildCard(state: ICardFormState, existingId?: string): IDashboardCardConfig {
+function buildCard(
+  state: ICardFormState,
+  layout: IDashboardCardLayoutStyle,
+  existingId?: string
+): IDashboardCardConfig {
+  const appearance = buildCardStyle(state, layout);
   const card: IDashboardCardConfig = {
     id: existingId ?? `card_${String(Date.now())}`,
     title: state.title.trim(),
     aggregate: state.aggregate,
-    style: buildCardStyle(state),
+    ...(Object.keys(appearance).length > 0 ? { style: appearance as IDashboardCardStyleConfig } : {}),
   };
   if (state.subtitle.trim()) card.subtitle = state.subtitle.trim();
   if (state.emptyValueText.trim()) card.emptyValueText = state.emptyValueText.trim();
@@ -287,9 +163,20 @@ function buildCard(state: ICardFormState, existingId?: string): IDashboardCardCo
   return card;
 }
 
-export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRelativeUrl, card, onConfirm, onBack }) => {
+export const CardForm: React.FC<ICardFormProps> = ({
+  listTitle,
+  listWebServerRelativeUrl,
+  card,
+  cardLayoutStyle,
+  onConfirm,
+  onBack,
+}) => {
   const lw = listWebServerRelativeUrl?.trim() || undefined;
-  const [state, setState] = useState<ICardFormState>(() => initState(card));
+  const [state, setState] = useState<ICardFormState>(() => initState(card, cardLayoutStyle));
+
+  useEffect(() => {
+    setState(initState(card, cardLayoutStyle));
+  }, [card, cardLayoutStyle]);
   const [listFields, setListFields] = useState<IFieldMetadata[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [fieldsError, setFieldsError] = useState<string | undefined>(undefined);
@@ -341,13 +228,14 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRel
   const isValid =
     state.title.trim().length > 0 &&
     (state.aggregate === 'count' || state.field.trim().length > 0) &&
-    (!state.showIcon || state.iconName.trim().length > 0);
+    (!cardLayoutStyle.showIcon || state.iconName.trim().length > 0);
 
   const handleConfirm = (): void => {
     if (!isValid) return;
-    onConfirm(buildCard(state, card?.id));
+    onConfirm(buildCard(state, cardLayoutStyle, card?.id));
   };
 
+  const previewAppearance = buildCardStyle(state, cardLayoutStyle);
   const previewCardConfig: IDashboardCardConfig = {
     id: 'preview',
     title: state.title.trim() || 'Título do card',
@@ -356,7 +244,7 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRel
     emptyValueText: state.emptyValueText,
     errorText: state.errorText,
     loadingText: state.loadingText,
-    style: buildCardStyle(state),
+    style: resolveEffectiveCardStyle(cardLayoutStyle, previewAppearance),
   };
   const previewResult: IDashboardCardResult = {
     id: 'preview',
@@ -369,7 +257,7 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRel
   return (
     <Stack tokens={{ childrenGap: 0 }}>
       <Pivot styles={{ root: { marginBottom: 4 } }}>
-        <PivotItem headerText="Dados">
+        <PivotItem headerText="Filtros" itemKey="filtros">
           <Stack tokens={{ childrenGap: 20 }} styles={{ root: { paddingTop: 20 } }}>
             <TextField
               label="Título"
@@ -524,7 +412,7 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRel
           </Stack>
         </PivotItem>
 
-        <PivotItem headerText="Aparência">
+        <PivotItem headerText="Aparência" itemKey="aparencia">
           <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 20 } }}>
             <Text variant="small" styles={{ root: { color: '#605e5c', marginBottom: 8 } }}>
               Pré-visualização
@@ -538,176 +426,37 @@ export const CardForm: React.FC<ICardFormProps> = ({ listTitle, listWebServerRel
                 justifyContent: 'center',
               }}
             >
-              <DashboardCard result={previewResult} cardConfig={previewCardConfig} />
+              <DashboardCard
+                result={previewResult}
+                cardConfig={previewCardConfig}
+                cardLayoutStyle={cardLayoutStyle}
+              />
             </div>
 
             <Separator />
 
-            <Dropdown
-              label="Variante"
-              options={VARIANT_OPTIONS}
-              selectedKey={state.variant}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ variant: opt.key as TCardVariant });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Borda (cantos)"
-              options={BORDER_RADIUS_OPTIONS}
-              selectedKey={state.borderRadius}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ borderRadius: opt.key as TBorderRadius });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Preenchimento"
-              options={PADDING_OPTIONS}
-              selectedKey={state.padding}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ padding: opt.key as TPadding });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Sombra"
-              options={SHADOW_OPTIONS}
-              selectedKey={state.shadow}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ shadow: opt.key as TShadow });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Toggle
-              label="Exibir borda"
-              checked={state.border}
-              onChange={(_: React.MouseEvent<HTMLElement>, checked?: boolean) =>
-                update({ border: !!checked })
-              }
-            />
-
+            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+              Cores
+            </Text>
+            <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+              Estilo, tipografia e layout são definidos na aba Aparência da visão geral.
+            </Text>
             <TextField label="Cor de fundo" value={state.backgroundColor} onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => update({ backgroundColor: v ?? '' })} placeholder="#ffffff" />
             <TextField label="Cor da borda" value={state.borderColor} onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => update({ borderColor: v ?? '' })} placeholder="#e2e8f0" />
             <TextField label="Cor do título" value={state.titleColor} onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => update({ titleColor: v ?? '' })} placeholder="#334155" />
             <TextField label="Cor do subtítulo" value={state.subtitleColor} onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => update({ subtitleColor: v ?? '' })} placeholder="#64748b" />
             <TextField label="Cor do valor" value={state.valueColor} onChange={(_: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, v?: string) => update({ valueColor: v ?? '' })} placeholder="#0f172a" />
-          </Stack>
-        </PivotItem>
-
-        <PivotItem headerText="Tipografia">
-          <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 20 } }}>
-            <Dropdown
-              label="Tamanho do título"
-              options={TITLE_SIZE_OPTIONS}
-              selectedKey={state.titleSize}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ titleSize: opt.key as TTitleSize });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Tamanho do subtítulo"
-              options={SUBTITLE_SIZE_OPTIONS}
-              selectedKey={state.subtitleSize}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ subtitleSize: opt.key as TSubtitleSize });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Tamanho do valor"
-              options={VALUE_SIZE_OPTIONS}
-              selectedKey={state.valueSize}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ valueSize: opt.key as TValueSize });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Peso do título"
-              options={FONT_WEIGHT_OPTIONS}
-              selectedKey={state.titleWeight}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ titleWeight: opt.key as TFontWeight });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Dropdown
-              label="Peso do valor"
-              options={FONT_WEIGHT_OPTIONS}
-              selectedKey={state.valueWeight}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ valueWeight: opt.key as TFontWeight });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-          </Stack>
-        </PivotItem>
-
-        <PivotItem headerText="Layout">
-          <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 20 } }}>
-            <Dropdown
-              label="Alinhamento"
-              options={ALIGN_OPTIONS}
-              selectedKey={state.align}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ align: opt.key as TAlign });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
-            <Toggle
-              label="Exibir subtítulo"
-              checked={state.showSubtitle}
-              onChange={(_: React.MouseEvent<HTMLElement>, checked?: boolean) =>
-                update({ showSubtitle: !!checked })
-              }
-            />
-            <Toggle
-              label="Exibir valor"
-              checked={state.showValue}
-              onChange={(_: React.MouseEvent<HTMLElement>, checked?: boolean) =>
-                update({ showValue: !!checked })
-              }
-            />
-            <Toggle
-              label="Exibir ícone"
-              checked={state.showIcon}
-              onChange={(_: React.MouseEvent<HTMLElement>, checked?: boolean) =>
-                update({ showIcon: !!checked })
-              }
-            />
-            {state.showIcon && (
-              <>
-                <Dropdown
-                  label="Ícone"
-                  options={ICON_OPTIONS}
-                  selectedKey={state.iconName || ''}
-                  onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                    if (opt) update({ iconName: String(opt.key) });
-                  }}
-                  styles={{ root: { maxWidth: 220 } }}
-                />
-                <Dropdown
-                  label="Posição do ícone"
-                  options={ICON_POSITION_OPTIONS}
-                  selectedKey={state.iconPosition}
-                  onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                    if (opt) update({ iconPosition: opt.key as TIconPosition });
-                  }}
-                  styles={{ root: { maxWidth: 200 } }}
-                />
-              </>
+            {cardLayoutStyle.showIcon && (
+              <Dropdown
+                label="Ícone"
+                options={ICON_OPTIONS}
+                selectedKey={state.iconName || ''}
+                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+                  if (opt) update({ iconName: String(opt.key) });
+                }}
+                styles={{ root: { maxWidth: 220 } }}
+              />
             )}
-            <Dropdown
-              label="Estilo de carregamento"
-              options={LOADING_STYLE_OPTIONS}
-              selectedKey={state.loadingStyle}
-              onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                if (opt) update({ loadingStyle: opt.key as TLoadingStyle });
-              }}
-              styles={{ root: { maxWidth: 200 } }}
-            />
           </Stack>
         </PivotItem>
       </Pivot>

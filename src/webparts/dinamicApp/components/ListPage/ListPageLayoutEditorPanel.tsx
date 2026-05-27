@@ -51,6 +51,8 @@ export interface IListPageLayoutEditorPanelProps {
   rootDashboard: IDashboardConfig;
   /** Título da lista da vista (regras de contagem no alerta). */
   sourceListTitle?: string;
+  onConfigureDashboard?: (blockId: string) => void;
+  onConfigureList?: (blockId: string) => void;
   onSave: (next: IListPageLayoutConfig) => void;
   onDismiss: () => void;
 }
@@ -269,6 +271,8 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   value,
   rootDashboard,
   sourceListTitle,
+  onConfigureDashboard,
+  onConfigureList,
   onSave,
   onDismiss,
 }) => {
@@ -560,8 +564,8 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
           >
             Monte seções como em páginas modernas: colunas por seção e blocos (dashboard, tabela, banner, editor,
             título de seção, alerta ou botões). Use as setas no cabeçalho de cada seção para alterar a ordem (qual
-            aparece primeiro na página). Use a engrenagem para configurar esses blocos de conteúdo. Lista e dashboard
-            usam os botões da barra da página.
+            aparece primeiro na página). Use a engrenagem em cada bloco (aqui ou na página) para abrir a configuração
+            do componente.
           </p>
         </ListPageLayoutCollapse>
 
@@ -747,16 +751,28 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
                           onClick={() => moveBlockInColumn(si, ci, bi, 1)}
                           styles={{ root: { width: 28, height: 28 } }}
                         />
-                        {(b.type === 'banner' ||
+                        {((b.type === 'banner' ||
                           b.type === 'editor' ||
                           b.type === 'sectionTitle' ||
                           b.type === 'alert' ||
-                          b.type === 'buttons') && (
+                          b.type === 'buttons') ||
+                          (b.type === 'dashboard' && onConfigureDashboard !== undefined) ||
+                          (b.type === 'list' && onConfigureList !== undefined)) && (
                           <IconButton
                             iconProps={{ iconName: 'Settings' }}
                             title="Configurar bloco"
                             ariaLabel="Configurar bloco"
-                            onClick={() => setBlockConfigPath({ si, ci, bi })}
+                            onClick={() => {
+                              if (b.type === 'dashboard') {
+                                onConfigureDashboard?.(b.id);
+                                return;
+                              }
+                              if (b.type === 'list') {
+                                onConfigureList?.(b.id);
+                                return;
+                              }
+                              setBlockConfigPath({ si, ci, bi });
+                            }}
                           />
                         )}
                         <IconButton

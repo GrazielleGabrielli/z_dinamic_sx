@@ -32,6 +32,7 @@ import {
   collectCompatibleListBlocksForDashboard,
   resolveLinkedListBlockIdForDashboard,
 } from '../../core/listPage/linkedViewModeOData';
+import { ListPageBlockConfigToolbar } from '../ListPage/ListPageBlockConfigToolbar';
 
 const DEFAULT_COLORS = ['#0078d4', '#2b88d8', '#71afe5', '#00b294', '#ffaa44', '#d13438', '#8764b8', '#038387'];
 
@@ -92,7 +93,7 @@ interface IChartViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   refreshKey?: number;
-  onEditSeries?: () => void;
+  onConfigure?: () => void;
   onSeriesClick?: (series: IChartSeriesConfig) => void;
   selectedSeriesId?: string | null;
   showListFilterHint?: boolean;
@@ -111,7 +112,7 @@ export const ChartView: React.FC<IChartViewProps> = ({
   config,
   dataSource,
   refreshKey = 0,
-  onEditSeries,
+  onConfigure,
   onSeriesClick,
   selectedSeriesId,
   showListFilterHint,
@@ -264,11 +265,12 @@ export const ChartView: React.FC<IChartViewProps> = ({
   const showChart = hasSeries && !chartState.loading && chartState.results.length > 0;
 
   const showLinkRow = linkableTables.length > 0 && onLinkedTableChange !== undefined;
-  const showTopToolbar = showLinkRow || onEditSeries !== undefined;
-
   return (
     <div style={{ marginBottom: 24 }}>
-      {showTopToolbar ? (
+      {onConfigure !== undefined ? (
+        <ListPageBlockConfigToolbar label="Dashboard (gráficos)" onConfigure={onConfigure} />
+      ) : null}
+      {showLinkRow ? (
         <Stack
           horizontal
           horizontalAlign="end"
@@ -277,29 +279,16 @@ export const ChartView: React.FC<IChartViewProps> = ({
           tokens={{ childrenGap: 8 }}
           styles={{ root: { marginBottom: 12 } }}
         >
-          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
-            {showLinkRow && (
-              <Dropdown
-                label="Combinar com modo da tabela"
-                options={linkDropdownOptions}
-                selectedKey={linkedResolved ?? '__none__'}
-                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                  const k = opt ? String(opt.key) : '__none__';
-                  onLinkedTableChange(k === '__none__' ? undefined : k);
-                }}
-                styles={{ root: { minWidth: 260, maxWidth: 320 } }}
-              />
-            )}
-            {onEditSeries !== undefined && (
-              <ActionButton
-                iconProps={{ iconName: 'Edit' }}
-                onClick={onEditSeries}
-                styles={{ root: { height: 28, color: '#0078d4' } }}
-              >
-                Editar séries
-              </ActionButton>
-            )}
-          </Stack>
+          <Dropdown
+            label="Combinar com modo da tabela"
+            options={linkDropdownOptions}
+            selectedKey={linkedResolved ?? '__none__'}
+            onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+              const k = opt ? String(opt.key) : '__none__';
+              onLinkedTableChange!(k === '__none__' ? undefined : k);
+            }}
+            styles={{ root: { minWidth: 260, maxWidth: 320 } }}
+          />
         </Stack>
       ) : null}
 
@@ -322,9 +311,9 @@ export const ChartView: React.FC<IChartViewProps> = ({
           <Text variant="medium" styles={{ root: { color: '#a19f9d', display: 'block', marginBottom: 12 } }}>
             Nenhuma série configurada ainda.
           </Text>
-          {onEditSeries !== undefined && (
-            <ActionButton iconProps={{ iconName: 'Add' }} onClick={onEditSeries} styles={{ root: { color: '#0078d4' } }}>
-              Adicionar série
+          {onConfigure !== undefined && (
+            <ActionButton iconProps={{ iconName: 'Settings' }} onClick={onConfigure} styles={{ root: { color: '#0078d4' } }}>
+              Configurar
             </ActionButton>
           )}
         </div>

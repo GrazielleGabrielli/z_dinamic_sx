@@ -1,6 +1,7 @@
 import type {
   IDataSourceConfig,
   IDashboardCardConfig,
+  IDashboardCardLayoutStyle,
   IDashboardConfig,
   IDynamicViewConfig,
   IChartSeriesConfig,
@@ -12,6 +13,7 @@ import type {
   TListPageSectionLayout,
 } from '../config/types';
 import { sourceKey } from '../config/configMemory';
+import { getDefaultDashboardCardLayoutStyle } from '../dashboard/utils';
 import {
   sanitizeAlertConfig,
   sanitizeBannerConfig,
@@ -108,6 +110,7 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
     }
     chartSeries = ser;
   }
+  const cardLayoutStyle = sanitizeBlockCardLayoutStyle(d.cardLayoutStyle);
   if (dtype === 'charts') {
     return {
       enabled: d.enabled,
@@ -116,6 +119,7 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
       cards,
       chartType,
       chartSeries: chartSeries ?? [],
+      ...(cardLayoutStyle ? { cardLayoutStyle } : {}),
       ...(dashCombine !== undefined && { combineWithActiveViewMode: dashCombine }),
       ...(linkedListBlockId ? { linkedListBlockId } : {}),
     };
@@ -126,8 +130,105 @@ function sanitizeBlockDashboard(raw: unknown): IDashboardConfig | undefined {
     cardsCount,
     cards,
     chartType,
+    ...(cardLayoutStyle ? { cardLayoutStyle } : {}),
     ...(dashCombine !== undefined && { combineWithActiveViewMode: dashCombine }),
     ...(linkedListBlockId ? { linkedListBlockId } : {}),
+  };
+}
+
+const VALID_VARIANTS = new Set(['default', 'outlined', 'soft', 'solid']);
+const VALID_BORDER_RADIUS = new Set(['none', 'sm', 'md', 'lg', 'xl', 'full']);
+const VALID_PADDING = new Set(['sm', 'md', 'lg']);
+const VALID_SHADOW = new Set(['none', 'sm', 'md', 'lg']);
+const VALID_TITLE_SIZE = new Set(['xs', 'sm', 'md', 'lg']);
+const VALID_SUBTITLE_SIZE = new Set(['xs', 'sm', 'md']);
+const VALID_VALUE_SIZE = new Set(['lg', 'xl', '2xl', '3xl']);
+const VALID_FONT_WEIGHT = new Set(['normal', 'medium', 'semibold', 'bold']);
+const VALID_ALIGN = new Set(['left', 'center', 'right']);
+const VALID_ICON_POSITION = new Set(['left', 'top', 'right']);
+const VALID_LOADING_STYLE = new Set(['skeleton', 'spinner', 'text']);
+
+function sanitizeBlockCardLayoutStyle(raw: unknown): IDashboardCardLayoutStyle | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const s = raw as Record<string, unknown>;
+  const variant = VALID_VARIANTS.has(s.variant as string)
+    ? (s.variant as IDashboardCardLayoutStyle['variant'])
+    : undefined;
+  const borderRadius = VALID_BORDER_RADIUS.has(s.borderRadius as string)
+    ? (s.borderRadius as IDashboardCardLayoutStyle['borderRadius'])
+    : undefined;
+  const padding = VALID_PADDING.has(s.padding as string)
+    ? (s.padding as IDashboardCardLayoutStyle['padding'])
+    : undefined;
+  const shadow = VALID_SHADOW.has(s.shadow as string)
+    ? (s.shadow as IDashboardCardLayoutStyle['shadow'])
+    : undefined;
+  const border = typeof s.border === 'boolean' ? s.border : undefined;
+  const titleSize = VALID_TITLE_SIZE.has(s.titleSize as string)
+    ? (s.titleSize as IDashboardCardLayoutStyle['titleSize'])
+    : undefined;
+  const subtitleSize = VALID_SUBTITLE_SIZE.has(s.subtitleSize as string)
+    ? (s.subtitleSize as IDashboardCardLayoutStyle['subtitleSize'])
+    : undefined;
+  const valueSize = VALID_VALUE_SIZE.has(s.valueSize as string)
+    ? (s.valueSize as IDashboardCardLayoutStyle['valueSize'])
+    : undefined;
+  const titleWeight = VALID_FONT_WEIGHT.has(s.titleWeight as string)
+    ? (s.titleWeight as IDashboardCardLayoutStyle['titleWeight'])
+    : undefined;
+  const valueWeight = VALID_FONT_WEIGHT.has(s.valueWeight as string)
+    ? (s.valueWeight as IDashboardCardLayoutStyle['valueWeight'])
+    : undefined;
+  const align = VALID_ALIGN.has(s.align as string)
+    ? (s.align as IDashboardCardLayoutStyle['align'])
+    : undefined;
+  const iconPosition = VALID_ICON_POSITION.has(s.iconPosition as string)
+    ? (s.iconPosition as IDashboardCardLayoutStyle['iconPosition'])
+    : undefined;
+  const loadingStyle = VALID_LOADING_STYLE.has(s.loadingStyle as string)
+    ? (s.loadingStyle as IDashboardCardLayoutStyle['loadingStyle'])
+    : undefined;
+  const showSubtitle = typeof s.showSubtitle === 'boolean' ? s.showSubtitle : undefined;
+  const showValue = typeof s.showValue === 'boolean' ? s.showValue : undefined;
+  const showIcon = typeof s.showIcon === 'boolean' ? s.showIcon : undefined;
+  if (
+    variant === undefined &&
+    borderRadius === undefined &&
+    padding === undefined &&
+    shadow === undefined &&
+    border === undefined &&
+    titleSize === undefined &&
+    subtitleSize === undefined &&
+    valueSize === undefined &&
+    titleWeight === undefined &&
+    valueWeight === undefined &&
+    align === undefined &&
+    iconPosition === undefined &&
+    loadingStyle === undefined &&
+    showSubtitle === undefined &&
+    showValue === undefined &&
+    showIcon === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    ...getDefaultDashboardCardLayoutStyle(),
+    ...(variant !== undefined ? { variant } : {}),
+    ...(borderRadius !== undefined ? { borderRadius } : {}),
+    ...(padding !== undefined ? { padding } : {}),
+    ...(shadow !== undefined ? { shadow } : {}),
+    ...(border !== undefined ? { border } : {}),
+    ...(titleSize !== undefined ? { titleSize } : {}),
+    ...(subtitleSize !== undefined ? { subtitleSize } : {}),
+    ...(valueSize !== undefined ? { valueSize } : {}),
+    ...(titleWeight !== undefined ? { titleWeight } : {}),
+    ...(valueWeight !== undefined ? { valueWeight } : {}),
+    ...(align !== undefined ? { align } : {}),
+    ...(iconPosition !== undefined ? { iconPosition } : {}),
+    ...(loadingStyle !== undefined ? { loadingStyle } : {}),
+    ...(showSubtitle !== undefined ? { showSubtitle } : {}),
+    ...(showValue !== undefined ? { showValue } : {}),
+    ...(showIcon !== undefined ? { showIcon } : {}),
   };
 }
 
@@ -135,6 +236,7 @@ export function cloneDashboardConfig(d: IDashboardConfig): IDashboardConfig {
   return {
     ...d,
     cards: d.cards.map((c) => ({ ...c, ...(c.style ? { style: { ...c.style } } : {}) })),
+    ...(d.cardLayoutStyle !== undefined ? { cardLayoutStyle: { ...d.cardLayoutStyle } } : {}),
     ...(d.chartSeries !== undefined
       ? { chartSeries: d.chartSeries.map((s) => ({ ...s })) }
       : {}),

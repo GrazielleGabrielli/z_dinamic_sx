@@ -3,6 +3,7 @@ import {
   IDataSourceConfig,
   IDashboardConfig,
   IDashboardCardConfig,
+  IDashboardCardLayoutStyle,
   IDashboardCardStyleConfig,
   IProjectManagementConfig,
   IPaginationConfig,
@@ -30,6 +31,11 @@ import {
   sanitizeListPageLayout,
 } from '../../listPage/listPageLayoutUtils';
 import { sanitizeFormManagerConfig } from '../../formManager/sanitizeFormManagerConfig';
+import {
+  extractLayoutFromCardStyle,
+  getDefaultDashboardCardLayoutStyle,
+  stripLayoutFromCards,
+} from '../../dashboard/utils';
 
 const VALID_MODES = ['list', 'projectManagement', 'formManager'];
 const VALID_AGGREGATES = ['count', 'sum'];
@@ -56,6 +62,36 @@ function isValidDataSource(ds: unknown): ds is IDataSourceConfig {
   );
 }
 
+function isValidCardLayoutStyle(s: unknown): s is IDashboardCardLayoutStyle {
+  if (!s || typeof s !== 'object') return false;
+  const st = s as Record<string, unknown>;
+  if (st.variant !== undefined && VALID_VARIANTS.indexOf(st.variant as string) === -1) return false;
+  if (st.borderRadius !== undefined && VALID_BORDER_RADIUS.indexOf(st.borderRadius as string) === -1)
+    return false;
+  if (st.padding !== undefined && VALID_PADDING.indexOf(st.padding as string) === -1) return false;
+  if (st.shadow !== undefined && VALID_SHADOW.indexOf(st.shadow as string) === -1) return false;
+  if (st.border !== undefined && typeof st.border !== 'boolean') return false;
+  if (st.titleSize !== undefined && VALID_TITLE_SIZE.indexOf(st.titleSize as string) === -1)
+    return false;
+  if (st.subtitleSize !== undefined && VALID_SUBTITLE_SIZE.indexOf(st.subtitleSize as string) === -1)
+    return false;
+  if (st.valueSize !== undefined && VALID_VALUE_SIZE.indexOf(st.valueSize as string) === -1)
+    return false;
+  if (st.titleWeight !== undefined && VALID_FONT_WEIGHT.indexOf(st.titleWeight as string) === -1)
+    return false;
+  if (st.valueWeight !== undefined && VALID_FONT_WEIGHT.indexOf(st.valueWeight as string) === -1)
+    return false;
+  if (st.align !== undefined && VALID_ALIGN.indexOf(st.align as string) === -1) return false;
+  if (st.iconPosition !== undefined && VALID_ICON_POSITION.indexOf(st.iconPosition as string) === -1)
+    return false;
+  if (st.loadingStyle !== undefined && VALID_LOADING_STYLE.indexOf(st.loadingStyle as string) === -1)
+    return false;
+  if (st.showSubtitle !== undefined && typeof st.showSubtitle !== 'boolean') return false;
+  if (st.showValue !== undefined && typeof st.showValue !== 'boolean') return false;
+  if (st.showIcon !== undefined && typeof st.showIcon !== 'boolean') return false;
+  return true;
+}
+
 function isValidCardStyle(s: unknown): s is IDashboardCardStyleConfig {
   if (!s || typeof s !== 'object') return false;
   const st = s as Record<string, unknown>;
@@ -63,6 +99,7 @@ function isValidCardStyle(s: unknown): s is IDashboardCardStyleConfig {
   if (st.borderRadius !== undefined && VALID_BORDER_RADIUS.indexOf(st.borderRadius as string) === -1) return false;
   if (st.padding !== undefined && VALID_PADDING.indexOf(st.padding as string) === -1) return false;
   if (st.shadow !== undefined && VALID_SHADOW.indexOf(st.shadow as string) === -1) return false;
+  if (st.border !== undefined && typeof st.border !== 'boolean') return false;
   if (st.titleSize !== undefined && VALID_TITLE_SIZE.indexOf(st.titleSize as string) === -1) return false;
   if (st.subtitleSize !== undefined && VALID_SUBTITLE_SIZE.indexOf(st.subtitleSize as string) === -1) return false;
   if (st.valueSize !== undefined && VALID_VALUE_SIZE.indexOf(st.valueSize as string) === -1) return false;
@@ -93,6 +130,7 @@ function isValidDashboard(db: unknown): db is IDashboardConfig {
   if (!db || typeof db !== 'object') return false;
   const d = db as Record<string, unknown>;
   if (typeof d.enabled !== 'boolean') return false;
+  if (d.cardLayoutStyle !== undefined && !isValidCardLayoutStyle(d.cardLayoutStyle)) return false;
   const cards = Array.isArray(d.cards) ? (d.cards as unknown[]) : [];
   if (!cards.every(isValidCard)) return false;
   const cnt =
@@ -106,13 +144,25 @@ function isValidDashboard(db: unknown): db is IDashboardConfig {
 /** Garante `cards`/`cardsCount` e cópia de `chartSeries` para JSON válido e runtime seguro. */
 export function coerceDashboardShape(d: IDashboardConfig): IDashboardConfig {
   const defaults = getDefaultConfig().dashboard;
-  const cards = Array.isArray(d.cards) ? d.cards : [];
+  const cardsIn = Array.isArray(d.cards) ? d.cards : [];
+  let cardLayoutStyle =
+    d.cardLayoutStyle !== undefined
+      ? { ...getDefaultDashboardCardLayoutStyle(), ...d.cardLayoutStyle }
+      : undefined;
+  let cards = cardsIn.map((c) => ({ ...c, ...(c.style ? { style: { ...c.style } } : {}) }));
+  if (!cardLayoutStyle && cards.length > 0 && cards[0].style) {
+    cardLayoutStyle = extractLayoutFromCardStyle(cards[0].style);
+    cards = stripLayoutFromCards(cards);
+  } else if (cardLayoutStyle) {
+    cards = stripLayoutFromCards(cards);
+  }
   const out: IDashboardConfig = {
     ...defaults,
     ...d,
     cards,
     cardsCount:
       typeof d.cardsCount === 'number' && !Number.isNaN(d.cardsCount) ? d.cardsCount : cards.length,
+    ...(cardLayoutStyle !== undefined ? { cardLayoutStyle } : {}),
   };
   if (Array.isArray(d.chartSeries)) {
     out.chartSeries = d.chartSeries.map((s) => ({ ...s }));

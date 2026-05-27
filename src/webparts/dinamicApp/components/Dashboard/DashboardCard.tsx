@@ -2,8 +2,10 @@ import * as React from 'react';
 import { Spinner, SpinnerSize, Icon } from '@fluentui/react';
 import { IDashboardCardResult } from '../../core/dashboard/types';
 import { IDashboardCardConfig } from '../../core/config/types';
+import type { IDashboardCardLayoutStyle } from '../../core/config/types';
 import {
   mergeWithDefaultStyle,
+  resolveDashboardCardLayoutStyle,
   getCardContainerClasses,
   getCardInlineStyles,
   getCardTextStyles,
@@ -13,6 +15,7 @@ import {
 interface IDashboardCardProps {
   result: IDashboardCardResult;
   cardConfig?: IDashboardCardConfig;
+  cardLayoutStyle?: IDashboardCardLayoutStyle;
   selected?: boolean;
   onActivate?: () => void;
 }
@@ -21,8 +24,17 @@ function formatValue(value: number): string {
   return value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
 
-export const DashboardCard: React.FC<IDashboardCardProps> = ({ result, cardConfig, selected, onActivate }) => {
-  const style = mergeWithDefaultStyle(cardConfig?.style);
+export const DashboardCard: React.FC<IDashboardCardProps> = ({
+  result,
+  cardConfig,
+  cardLayoutStyle,
+  selected,
+  onActivate,
+}) => {
+  const layout =
+    cardLayoutStyle ??
+    (cardConfig ? resolveDashboardCardLayoutStyle({ cards: [cardConfig] }) : undefined);
+  const style = mergeWithDefaultStyle(cardConfig?.style, layout);
   const containerStyles = getCardInlineStyles(style);
   const textStyles = getCardTextStyles(style);
   const containerClasses = getCardContainerClasses(style);

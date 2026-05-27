@@ -32,12 +32,27 @@ export type TAlign = 'left' | 'center' | 'right';
 export type TIconPosition = 'left' | 'top' | 'right';
 export type TLoadingStyle = 'skeleton' | 'spinner' | 'text';
 
-export interface IDashboardCardStyleConfig {
+/** Estilo compartilhado por todos os cards do dashboard (estrutura, tipografia e layout). */
+export interface IDashboardCardLayoutStyle {
   variant: TCardVariant;
   borderRadius: TBorderRadius;
   padding: TPadding;
   shadow: TShadow;
   border: boolean;
+  titleSize: TTitleSize;
+  subtitleSize: TSubtitleSize;
+  valueSize: TValueSize;
+  titleWeight: TFontWeight;
+  valueWeight: TFontWeight;
+  align: TAlign;
+  showSubtitle: boolean;
+  showValue: boolean;
+  showIcon: boolean;
+  iconPosition: TIconPosition;
+  loadingStyle: TLoadingStyle;
+}
+
+export interface IDashboardCardStyleConfig extends IDashboardCardLayoutStyle {
   backgroundColor?: string;
   borderColor?: string;
   titleColor?: string;
@@ -95,6 +110,8 @@ export interface IDashboardConfig {
   dashboardType: TDashboardType;
   cardsCount: number;
   cards: IDashboardCardConfig[];
+  /** Estilo global dos cards (estrutura, tipografia e layout). */
+  cardLayoutStyle?: IDashboardCardLayoutStyle;
   chartType?: TChartType;
   chartSeries?: IChartSeriesConfig[];
   /**

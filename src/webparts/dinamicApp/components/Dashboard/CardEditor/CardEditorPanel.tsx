@@ -11,16 +11,21 @@ import {
   Separator,
   ChoiceGroup,
   IChoiceGroupOption,
+  Pivot,
+  PivotItem,
 } from '@fluentui/react';
 import {
   IDashboardCardConfig,
+  IDashboardCardLayoutStyle,
   TChartType,
   TDashboardType,
 } from '../../../core/config/types';
 import { generateDefaultCards } from '../../../core/config/utils';
+import { resolveDashboardCardLayoutStyle, stripLayoutFromCards } from '../../../core/dashboard/utils';
 import { ChoiceFieldBreakdownModal } from '../ChoiceFieldBreakdownModal';
 import { ChartTypeCard } from '../ChartTypeCard';
 import { CardForm } from './CardForm';
+import { CardAppearanceTabs } from './CardAppearanceTabs';
 
 const DASHBOARD_TYPE_OPTIONS: IChoiceGroupOption[] = [
   { key: 'cards', text: 'Cards' },
@@ -32,6 +37,7 @@ const CHART_TYPES: TChartType[] = ['bar', 'line', 'area', 'pie', 'donut'];
 export interface ICardEditorSaveOptions {
   dashboardType?: TDashboardType;
   chartType?: TChartType;
+  cardLayoutStyle?: IDashboardCardLayoutStyle;
 }
 
 interface ICardEditorPanelProps {
@@ -42,6 +48,7 @@ interface ICardEditorPanelProps {
   cardsCount: number;
   dashboardType: TDashboardType;
   chartType?: TChartType;
+  cardLayoutStyle?: IDashboardCardLayoutStyle;
   onSave: (cards: IDashboardCardConfig[], options?: ICardEditorSaveOptions) => void;
   onDismiss: () => void;
 }
@@ -80,11 +87,15 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   cardsCount,
   dashboardType,
   chartType = 'bar',
+  cardLayoutStyle,
   onSave,
   onDismiss,
 }) => {
   const [localCards, setLocalCards] = useState<IDashboardCardConfig[]>(() =>
     initLocalCards(cards, cardsCount)
+  );
+  const [localCardLayoutStyle, setLocalCardLayoutStyle] = useState<IDashboardCardLayoutStyle>(() =>
+    cardLayoutStyle ?? resolveDashboardCardLayoutStyle({ cards, cardLayoutStyle })
   );
   const [localDashboardType, setLocalDashboardType] = useState<TDashboardType>(dashboardType);
   const [localChartType, setLocalChartType] = useState<TChartType>(chartType);
@@ -95,11 +106,14 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setLocalCards(initLocalCards(cards, cardsCount));
+    setLocalCardLayoutStyle(
+      cardLayoutStyle ?? resolveDashboardCardLayoutStyle({ cards, cardLayoutStyle })
+    );
     setLocalDashboardType(dashboardType);
     setLocalChartType(chartType ?? 'bar');
     setView('list');
     setEditingIndex(undefined);
-  }, [isOpen, cards, cardsCount, dashboardType, chartType]);
+  }, [isOpen, cards, cardsCount, dashboardType, chartType, cardLayoutStyle]);
 
   const handleEdit = (index: number): void => {
     setEditingIndex(index);
@@ -125,7 +139,11 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
   };
 
   const handleSave = (): void => {
-    onSave(localCards, { dashboardType: localDashboardType, chartType: localChartType });
+    onSave(stripLayoutFromCards(localCards), {
+      dashboardType: localDashboardType,
+      chartType: localChartType,
+      cardLayoutStyle: localCardLayoutStyle,
+    });
   };
 
   const getEditingCard = (): IDashboardCardConfig | undefined => {
@@ -143,105 +161,119 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
       : 'Novo card';
 
   const renderListView = (): React.ReactElement => (
-    <Stack tokens={{ childrenGap: 16 }}>
-      <Stack tokens={{ childrenGap: 8 }}>
-        <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-          Visualização do dashboard
-        </Text>
-        <ChoiceGroup
-          options={DASHBOARD_TYPE_OPTIONS}
-          selectedKey={localDashboardType}
-          onChange={(_, opt) => opt && setLocalDashboardType(opt.key as TDashboardType)}
-        />
-      </Stack>
-      {localDashboardType === 'charts' && (
-        <Stack tokens={{ childrenGap: 10 }}>
-          <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-            Escolha o tipo de gráfico
-          </Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {CHART_TYPES.map((type) => (
-              <ChartTypeCard
-                key={type}
-                type={type}
-                selected={localChartType === type}
-                onClick={() => setLocalChartType(type)}
-              />
-            ))}
-          </div>
-        </Stack>
-      )}
-      <Separator />
-      <Stack tokens={{ childrenGap: 0 }}>
-      {localCards.length === 0 && (
-        <Text variant="small" styles={{ root: { color: '#a19f9d', padding: '16px 0' } }}>
-          Nenhum card configurado ainda.
-        </Text>
-      )}
-
-      {localCards.map((card, index) => {
-        const filterLine = cardFilterSummary(card);
-        return (
-        <React.Fragment key={card.id}>
-          <div
-            style={{
-              padding: '14px 0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <Stack tokens={{ childrenGap: 2 }}>
+    <Pivot styles={{ root: { marginTop: 4 } }}>
+      <PivotItem headerText="Filtros" itemKey="filtros">
+        <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 16 } }}>
+          <Stack tokens={{ childrenGap: 8 }}>
+            <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+              Visualização do dashboard
+            </Text>
+            <ChoiceGroup
+              options={DASHBOARD_TYPE_OPTIONS}
+              selectedKey={localDashboardType}
+              onChange={(_, opt) => opt && setLocalDashboardType(opt.key as TDashboardType)}
+            />
+          </Stack>
+          {localDashboardType === 'charts' && (
+            <Stack tokens={{ childrenGap: 10 }}>
               <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
-                {card.title}
+                Escolha o tipo de gráfico
               </Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {AGGREGATE_LABEL[card.aggregate] ?? card.aggregate}
-                {card.field !== undefined ? ` · campo: ${card.field}` : ''}
-                {filterLine !== undefined ? ` · ${filterLine}` : ''}
-              </Text>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {CHART_TYPES.map((type) => (
+                  <ChartTypeCard
+                    key={type}
+                    type={type}
+                    selected={localChartType === type}
+                    onClick={() => setLocalChartType(type)}
+                  />
+                ))}
+              </div>
             </Stack>
-
-            <Stack horizontal tokens={{ childrenGap: 2 }}>
-              <IconButton
-                iconProps={{ iconName: 'Edit' }}
-                title="Editar"
-                ariaLabel="Editar card"
-                onClick={() => handleEdit(index)}
-                styles={{ root: { color: '#0078d4' } }}
-              />
-              <IconButton
-                iconProps={{ iconName: 'Delete' }}
-                title="Remover"
-                ariaLabel="Remover card"
-                onClick={() => handleDelete(index)}
-                styles={{ root: { color: '#d13438' } }}
-              />
-            </Stack>
-          </div>
-          {index < localCards.length - 1 && (
-            <Separator styles={{ root: { padding: 0 } }} />
           )}
-        </React.Fragment>
-        );
-      })}
-
-      <Stack horizontal tokens={{ childrenGap: 8 }} styles={{ root: { marginTop: 20, flexWrap: 'wrap' } }}>
-        <DefaultButton
-          iconProps={{ iconName: 'Add' }}
-          text="Adicionar card"
-          onClick={handleAdd}
-        />
-        {localDashboardType === 'cards' && (
-          <DefaultButton
-            iconProps={{ iconName: 'LightningBolt' }}
-            text="Avançada"
-            onClick={() => setChoiceModalOpen(true)}
-          />
-        )}
-      </Stack>
-      </Stack>
-    </Stack>
+          {localDashboardType === 'cards' && (
+            <>
+              <Separator />
+              <Stack tokens={{ childrenGap: 0 }}>
+                {localCards.length === 0 && (
+                  <Text variant="small" styles={{ root: { color: '#a19f9d', padding: '16px 0' } }}>
+                    Nenhum card configurado ainda.
+                  </Text>
+                )}
+                {localCards.map((card, index) => {
+                  const filterLine = cardFilterSummary(card);
+                  return (
+                    <React.Fragment key={card.id}>
+                      <div
+                        style={{
+                          padding: '14px 0',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Stack tokens={{ childrenGap: 2 }}>
+                          <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
+                            {card.title}
+                          </Text>
+                          <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                            {AGGREGATE_LABEL[card.aggregate] ?? card.aggregate}
+                            {card.field !== undefined ? ` · campo: ${card.field}` : ''}
+                            {filterLine !== undefined ? ` · ${filterLine}` : ''}
+                          </Text>
+                        </Stack>
+                        <Stack horizontal tokens={{ childrenGap: 2 }}>
+                          <IconButton
+                            iconProps={{ iconName: 'Edit' }}
+                            title="Editar"
+                            ariaLabel="Editar card"
+                            onClick={() => handleEdit(index)}
+                            styles={{ root: { color: '#0078d4' } }}
+                          />
+                          <IconButton
+                            iconProps={{ iconName: 'Delete' }}
+                            title="Remover"
+                            ariaLabel="Remover card"
+                            onClick={() => handleDelete(index)}
+                            styles={{ root: { color: '#d13438' } }}
+                          />
+                        </Stack>
+                      </div>
+                      {index < localCards.length - 1 && (
+                        <Separator styles={{ root: { padding: 0 } }} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+                <Stack
+                  horizontal
+                  tokens={{ childrenGap: 8 }}
+                  styles={{ root: { marginTop: 20, flexWrap: 'wrap' } }}
+                >
+                  <DefaultButton
+                    iconProps={{ iconName: 'Add' }}
+                    text="Adicionar card"
+                    onClick={handleAdd}
+                  />
+                  <DefaultButton
+                    iconProps={{ iconName: 'LightningBolt' }}
+                    text="Avançada"
+                    onClick={() => setChoiceModalOpen(true)}
+                  />
+                </Stack>
+              </Stack>
+            </>
+          )}
+        </Stack>
+      </PivotItem>
+      {localDashboardType === 'cards' && (
+        <PivotItem headerText="Aparência" itemKey="aparencia">
+          <Stack styles={{ root: { paddingTop: 16 } }}>
+            <CardAppearanceTabs value={localCardLayoutStyle} onChange={setLocalCardLayoutStyle} />
+          </Stack>
+        </PivotItem>
+      )}
+    </Pivot>
   );
 
   return (
@@ -291,6 +323,7 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
             listTitle={listTitle}
             listWebServerRelativeUrl={listWebServerRelativeUrl}
             card={getEditingCard()}
+            cardLayoutStyle={localCardLayoutStyle}
             onConfirm={handleConfirmCard}
             onBack={() => setView('list')}
           />

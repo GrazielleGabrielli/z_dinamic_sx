@@ -22,6 +22,7 @@ import {
 } from '../../core/listPage/linkedViewModeOData';
 import { DashboardCard } from './DashboardCard';
 import { ChartView } from './ChartView';
+import { ListPageBlockConfigToolbar } from '../ListPage/ListPageBlockConfigToolbar';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
 
 interface IDashboardViewProps {
@@ -29,9 +30,7 @@ interface IDashboardViewProps {
   config: IDashboardConfig;
   dataSource: IDataSourceConfig;
   refreshKey?: number;
-  onEditCards?: (blockId: string) => void;
-  onEditSeries?: (blockId: string) => void;
-  onSwitchToCharts?: (blockId: string) => void;
+  onConfigure?: () => void;
   onCardClick?: (card: IDashboardCardConfig, blockId: string) => void;
   selectedCardId?: string | null;
   onSeriesClick?: (series: IChartSeriesConfig, blockId: string) => void;
@@ -57,9 +56,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   config,
   dataSource,
   refreshKey = 0,
-  onEditCards,
-  onEditSeries,
-  onSwitchToCharts,
+  onConfigure,
   onCardClick,
   selectedCardId,
   onSeriesClick,
@@ -75,7 +72,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         config={config}
         dataSource={dataSource}
         refreshKey={refreshKey}
-        onEditSeries={onEditSeries !== undefined ? () => onEditSeries(dashboardBlockId) : undefined}
+        onConfigure={onConfigure}
         onSeriesClick={
           onSeriesClick !== undefined ? (s) => onSeriesClick(s, dashboardBlockId) : undefined
         }
@@ -203,49 +200,29 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
   if (results.length === 0) return null;
 
   const showLinkRow = linkableTables.length > 0 && onLinkedTableChange !== undefined;
-  const showEditToolbar = showLinkRow || onSwitchToCharts !== undefined || onEditCards !== undefined;
 
   return (
     <div style={{ marginBottom: 24 }}>
-      {showEditToolbar ? (
+      {onConfigure !== undefined ? (
+        <ListPageBlockConfigToolbar label="Dashboard" onConfigure={onConfigure} />
+      ) : null}
+      {showLinkRow ? (
         <Stack
           horizontal
           horizontalAlign="end"
           verticalAlign="center"
           styles={{ root: { marginBottom: 12 } }}
         >
-          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }} wrap>
-            {showLinkRow && (
-              <Dropdown
-                label="Combinar com modo da tabela"
-                options={linkDropdownOptions}
-                selectedKey={linkedResolved ?? '__none__'}
-                onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                  const k = opt ? String(opt.key) : '__none__';
-                  onLinkedTableChange(k === '__none__' ? undefined : k);
-                }}
-                styles={{ root: { minWidth: 260, maxWidth: 320 } }}
-              />
-            )}
-            {onSwitchToCharts !== undefined && (
-              <ActionButton
-                iconProps={{ iconName: 'BarChartVertical' }}
-                onClick={() => onSwitchToCharts(dashboardBlockId)}
-                styles={{ root: { height: 28, color: '#0078d4' } }}
-              >
-                Gráficos
-              </ActionButton>
-            )}
-            {onEditCards !== undefined && (
-              <ActionButton
-                iconProps={{ iconName: 'Edit' }}
-                onClick={() => onEditCards(dashboardBlockId)}
-                styles={{ root: { height: 28, color: '#0078d4' } }}
-              >
-                Editar cards
-              </ActionButton>
-            )}
-          </Stack>
+          <Dropdown
+            label="Combinar com modo da tabela"
+            options={linkDropdownOptions}
+            selectedKey={linkedResolved ?? '__none__'}
+            onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
+              const k = opt ? String(opt.key) : '__none__';
+              onLinkedTableChange!(k === '__none__' ? undefined : k);
+            }}
+            styles={{ root: { minWidth: 260, maxWidth: 320 } }}
+          />
         </Stack>
       ) : null}
 
@@ -267,6 +244,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
               key={result.id}
               result={result}
               cardConfig={cfg}
+              cardLayoutStyle={config.cardLayoutStyle}
               selected={selectedCardId === result.id}
               onActivate={onCardClick && cfg ? () => onCardClick(cfg, dashboardBlockId) : undefined}
             />

@@ -1,5 +1,8 @@
 import type {
+  IDashboardCardConfig,
+  IDashboardCardLayoutStyle,
   IDashboardCardStyleConfig,
+  IDashboardConfig,
   TBorderRadius,
   TCardVariant,
   TShadow,
@@ -60,7 +63,7 @@ const FONT_WEIGHT_MAP: Record<TFontWeight, string> = {
   bold: '700',
 };
 
-export function getDefaultDashboardCardStyle(): IDashboardCardStyleConfig {
+export function getDefaultDashboardCardLayoutStyle(): IDashboardCardLayoutStyle {
   return {
     variant: 'default',
     borderRadius: 'lg',
@@ -81,12 +84,119 @@ export function getDefaultDashboardCardStyle(): IDashboardCardStyleConfig {
   };
 }
 
-export function mergeWithDefaultStyle(
+export function getDefaultDashboardCardStyle(): IDashboardCardStyleConfig {
+  return {
+    ...getDefaultDashboardCardLayoutStyle(),
+    titleSize: 'sm',
+    subtitleSize: 'xs',
+    valueSize: '2xl',
+    titleWeight: 'semibold',
+    valueWeight: 'bold',
+    align: 'left',
+    showIcon: false,
+    iconPosition: 'left',
+    showSubtitle: true,
+    showValue: true,
+    loadingStyle: 'skeleton',
+  };
+}
+
+const SHARED_CARD_STYLE_KEYS: (keyof IDashboardCardLayoutStyle)[] = [
+  'variant',
+  'borderRadius',
+  'padding',
+  'shadow',
+  'border',
+  'titleSize',
+  'subtitleSize',
+  'valueSize',
+  'titleWeight',
+  'valueWeight',
+  'align',
+  'showSubtitle',
+  'showValue',
+  'showIcon',
+  'iconPosition',
+  'loadingStyle',
+];
+
+export function extractLayoutFromCardStyle(
   partial?: Partial<IDashboardCardStyleConfig> | null
+): IDashboardCardLayoutStyle {
+  const m = mergeWithDefaultStyle(partial);
+  return {
+    variant: m.variant,
+    borderRadius: m.borderRadius,
+    padding: m.padding,
+    shadow: m.shadow,
+    border: m.border,
+    titleSize: m.titleSize,
+    subtitleSize: m.subtitleSize,
+    valueSize: m.valueSize,
+    titleWeight: m.titleWeight,
+    valueWeight: m.valueWeight,
+    align: m.align,
+    showSubtitle: m.showSubtitle,
+    showValue: m.showValue,
+    showIcon: m.showIcon,
+    iconPosition: m.iconPosition,
+    loadingStyle: m.loadingStyle,
+  };
+}
+
+export function resolveDashboardCardLayoutStyle(
+  dashboard?: Pick<IDashboardConfig, 'cardLayoutStyle' | 'cards'> | null
+): IDashboardCardLayoutStyle {
+  if (dashboard?.cardLayoutStyle) {
+    return { ...getDefaultDashboardCardLayoutStyle(), ...dashboard.cardLayoutStyle };
+  }
+  const first = dashboard?.cards?.[0];
+  if (first?.style) return extractLayoutFromCardStyle(first.style);
+  return getDefaultDashboardCardLayoutStyle();
+}
+
+export function resolveEffectiveCardStyle(
+  layout: IDashboardCardLayoutStyle,
+  cardStyle?: Partial<IDashboardCardStyleConfig> | null
 ): IDashboardCardStyleConfig {
   const def = getDefaultDashboardCardStyle();
-  if (!partial || typeof partial !== 'object') return { ...def };
-  return { ...def, ...partial };
+  const cardPart = cardStyle && typeof cardStyle === 'object' ? cardStyle : {};
+  return {
+    ...def,
+    ...cardPart,
+    ...layout,
+  };
+}
+
+export function stripLayoutFromCardStyle(
+  style: IDashboardCardStyleConfig | undefined
+): Partial<IDashboardCardStyleConfig> | undefined {
+  if (!style) return undefined;
+  const next: Partial<IDashboardCardStyleConfig> = { ...style };
+  for (const key of SHARED_CARD_STYLE_KEYS) {
+    delete next[key];
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export function stripLayoutFromCards(cards: IDashboardCardConfig[]): IDashboardCardConfig[] {
+  return cards.map((card) => {
+    if (!card.style) return card;
+    const nextStyle = stripLayoutFromCardStyle(card.style);
+    if (!nextStyle) {
+      const { style: _removed, ...rest } = card;
+      return rest;
+    }
+    return { ...card, style: nextStyle as IDashboardCardStyleConfig };
+  });
+}
+
+export function mergeWithDefaultStyle(
+  partial?: Partial<IDashboardCardStyleConfig> | null,
+  layout?: IDashboardCardLayoutStyle | null
+): IDashboardCardStyleConfig {
+  const layoutResolved = layout ?? getDefaultDashboardCardLayoutStyle();
+  return resolveEffectiveCardStyle(layoutResolved, partial);
 }
 
 function getVariantStyles(variant: TCardVariant): { background?: string; border?: string } {
