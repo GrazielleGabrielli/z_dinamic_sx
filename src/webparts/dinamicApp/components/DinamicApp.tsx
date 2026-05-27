@@ -398,6 +398,28 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
     setIsEditingPageLayout(false);
   };
 
+  const closeLayoutEditor = useCallback((): void => {
+    setIsEditingCards(false);
+    setIsEditingSeries(false);
+    setIsEditingTableColumns(false);
+    setEditingDashboardBlockId(null);
+    setEditingTableBlockId(null);
+    setListPageContentBlockId(null);
+    setIsEditingPageLayout(false);
+  }, []);
+
+  const handleLayoutPanelDismissAttempt = useCallback((): void => {
+    if (
+      isEditingCards ||
+      isEditingSeries ||
+      isEditingTableColumns ||
+      listPageContentBlockId !== null
+    ) {
+      return;
+    }
+    setIsEditingPageLayout(false);
+  }, [isEditingCards, isEditingSeries, isEditingTableColumns, listPageContentBlockId]);
+
   const handleSaveFormManagerConfig = (formManager: IFormManagerConfig): void => {
     if (!config) return;
     saveConfig({ ...config, formManager });
@@ -542,13 +564,20 @@ const DinamicApp: React.FC<IDinamicAppProps> = ({
         value={config.listPageLayout ?? defaultListPageLayoutFromLegacy(config)}
         rootDashboard={config.dashboard}
         sourceListTitle={config.dataSource.title ?? ''}
+        overlayEditorOpen={
+          isEditingCards ||
+          isEditingSeries ||
+          isEditingTableColumns ||
+          listContentBlockPanelOpen
+        }
         onConfigureDashboard={handleConfigureDashboard}
         onConfigureList={(blockId) => {
           setEditingTableBlockId(blockId);
           setIsEditingTableColumns(true);
         }}
         onSave={handleSaveListPageLayout}
-        onDismiss={() => setIsEditingPageLayout(false)}
+        onDismiss={closeLayoutEditor}
+        onDismissAttempt={handleLayoutPanelDismissAttempt}
       />
 
       <ListPageBlockConfigPanel

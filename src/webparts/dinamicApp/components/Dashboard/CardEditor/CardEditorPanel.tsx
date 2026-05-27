@@ -281,11 +281,22 @@ export const CardEditorPanel: React.FC<ICardEditorPanelProps> = ({
       isOpen={isOpen}
       onDismiss={onDismiss}
       type={PanelType.custom}
-      customWidth="98vw"
+      customWidth="72vw"
       styles={{
-        main: { width: 'min(98vw, calc(100vw - 16px))', maxWidth: 'min(98vw, calc(100vw - 16px))' },
-        scrollableContent: { overflowX: 'hidden' },
-        content: { overflowX: 'hidden', minWidth: 0 },
+        main: {
+          width: 'min(72vw, calc(100vw - 16px))',
+          maxWidth: 'min(72vw, calc(100vw - 16px))',
+          borderRadius: '12px 0 0 12px',
+          boxShadow: '-8px 0 40px rgba(0, 0, 0, 0.12)',
+        },
+        scrollableContent: { overflowX: 'hidden', background: '#f5f4f2' },
+        content: { overflowX: 'hidden', minWidth: 0, background: '#f5f4f2' },
+        header: {
+          background: '#f8f7f6',
+          borderBottom: '1px solid #e8e6e4',
+          flexShrink: 0,
+        },
+        footer: { borderTop: '1px solid #e8e6e4', background: '#faf9f8', paddingTop: 12 },
       }}
       headerText={panelHeader}
       closeButtonAriaLabel="Fechar"

@@ -53,8 +53,13 @@ export interface IListPageLayoutEditorPanelProps {
   sourceListTitle?: string;
   onConfigureDashboard?: (blockId: string) => void;
   onConfigureList?: (blockId: string) => void;
+  /** Painel de configuração de componente aberto por cima (cards, tabela, etc.). */
+  overlayEditorOpen?: boolean;
   onSave: (next: IListPageLayoutConfig) => void;
+  /** Fecho explícito (Cancelar / X) — fecha o layout. */
   onDismiss: () => void;
+  /** Fecho automático (ex.: painel filho) — ignorado enquanto houver subpainel ou overlay. */
+  onDismissAttempt?: () => void;
 }
 
 const LAYOUT_OPTIONS: { key: TListPageSectionLayout; label: string }[] = [
@@ -273,8 +278,10 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
   sourceListTitle,
   onConfigureDashboard,
   onConfigureList,
+  overlayEditorOpen = false,
   onSave,
   onDismiss,
+  onDismissAttempt,
 }) => {
   const [sections, setSections] = useState<IListPageSection[]>(() => value.sections.slice());
   const [jsonOpen, setJsonOpen] = useState(false);
@@ -464,6 +471,17 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
 
   const handleSave = (): void => {
     onSave(finalizeListPageLayoutForSave(sections, rootDashboard, contentPadding, blocksCssText));
+  };
+
+  const isSubPanelOpen = blockConfigPath !== null || jsonOpen;
+  const keepLayoutBlocking = !overlayEditorOpen && !isSubPanelOpen;
+
+  const handlePanelDismissAttempt = (): void => {
+    if (overlayEditorOpen || isSubPanelOpen) return;
+    if (onDismissAttempt) {
+      onDismissAttempt();
+      return;
+    }
     onDismiss();
   };
 
@@ -524,8 +542,10 @@ export const ListPageLayoutEditorPanel: React.FC<IListPageLayoutEditorPanelProps
       type={PanelType.custom}
       customWidth="520px"
       headerText="Layout da página (modo lista)"
-      onDismiss={onDismiss}
+      onDismiss={handlePanelDismissAttempt}
       closeButtonAriaLabel="Fechar"
+      isLightDismiss={false}
+      isBlocking={keepLayoutBlocking}
       isFooterAtBottom={true}
       onRenderFooterContent={() => (
         <Stack horizontal tokens={{ childrenGap: 8 }}>
