@@ -1,4 +1,5 @@
 export const DINAMIC_SX_TOOLBAR_CLASS = {
+  chromeRow: 'dinamicSxToolbarChromeRow',
   end: 'dinamicSxToolbarEnd',
   layoutToggle: 'dinamicSxToolbarLayoutToggle',
   layoutToggleBtn: 'dinamicSxToolbarLayoutToggleBtn',
@@ -8,13 +9,17 @@ export const DINAMIC_SX_TOOLBAR_CLASS = {
 } as const;
 
 export const DEFAULT_LIST_TOOLBAR_CSS = `
-.${DINAMIC_SX_TOOLBAR_CLASS.end} {
+.${DINAMIC_SX_TOOLBAR_CLASS.chromeRow} {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
-  margin-left: auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.${DINAMIC_SX_TOOLBAR_CLASS.end} {
+  display: contents;
 }
 
 .${DINAMIC_SX_TOOLBAR_CLASS.layoutToggle} {
@@ -81,6 +86,13 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 120, 212, 0.2);
   transition: box-shadow 0.18s ease, transform 0.12s ease;
+  flex-shrink: 0;
+}
+
+.${DINAMIC_SX_TOOLBAR_CLASS.layoutToggle},
+.${DINAMIC_SX_TOOLBAR_CLASS.defaultBtn}.ms-Button,
+.${DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}.ms-Button {
+  flex-shrink: 0;
 }
 
 .${DINAMIC_SX_TOOLBAR_CLASS.primaryBtn}.ms-Button:hover {

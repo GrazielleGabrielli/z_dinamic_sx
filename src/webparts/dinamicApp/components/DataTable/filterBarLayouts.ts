@@ -1,5 +1,7 @@
 export const DINAMIC_SX_FILTER_CLASS = {
   bar: 'dinamicSxFilterBar',
+  barFieldsOnly: 'dinamicSxFilterBarFieldsOnly',
+  barAdvancedOnly: 'dinamicSxFilterBarAdvancedOnly',
   primary: 'dinamicSxFilterPrimary',
   actions: 'dinamicSxFilterActions',
   headerClear: 'dinamicSxFilterHeaderClear',
@@ -16,12 +18,40 @@ export const DEFAULT_FILTER_BAR_CSS = `
   gap: 15px;
 }
 
+.dinamicSxToolbarChromeRow + .dinamicSxFilterBar {
+  margin-top: -7px;
+}
+
 .${DINAMIC_SX_FILTER_CLASS.bar} {
   padding: 12px 14px 14px;
   background: #f5f5f5;
-  border: none;
+  border: 1px solid #e8e8e8;
   border-radius: 15px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.${DINAMIC_SX_FILTER_CLASS.barFieldsOnly} {
+  padding: 12px 14px 14px;
+}
+
+.${DINAMIC_SX_FILTER_CLASS.barAdvancedOnly} {
+  padding: 12px 14px 14px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 3px 10px rgba(0, 0, 0, 0.05);
+}
+
+.${DINAMIC_SX_FILTER_CLASS.bar} .${DINAMIC_SX_FILTER_CLASS.advancedPanel} {
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.${DINAMIC_SX_FILTER_CLASS.bar} .${DINAMIC_SX_FILTER_CLASS.fieldsRow} + .${DINAMIC_SX_FILTER_CLASS.advancedPanel} {
+  margin-top: 10px;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.primary} {
@@ -44,11 +74,17 @@ export const DEFAULT_FILTER_BAR_CSS = `
 
 .${DINAMIC_SX_FILTER_CLASS.fieldsRow} {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px 14px;
   width: 100%;
   min-width: 0;
   align-items: end;
+}
+
+@media (max-width: 1279px) {
+  .${DINAMIC_SX_FILTER_CLASS.fieldsRow} {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1023px) {
@@ -82,11 +118,13 @@ export const DEFAULT_FILTER_BAR_CSS = `
 
 .${DINAMIC_SX_FILTER_CLASS.advancedPanel} {
   margin-top: 10px;
-  padding: 10px 10px 12px;
-  background: #ececec;
-  border: none;
+  padding: 12px 14px 14px;
+  background: #f5f5f5;
+  border: 1px solid #e8e8e8;
   border-radius: 15px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 3px 10px rgba(0, 0, 0, 0.05);
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} {
@@ -118,10 +156,10 @@ export const DEFAULT_FILTER_BAR_CSS = `
   font-family: inherit;
   color: #242424;
   background: #ffffff;
-  border: 1px solid transparent;
+  border: 1px solid #e0e0e0;
   border-radius: 15px;
   outline: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
   transition: box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -132,14 +170,14 @@ export const DEFAULT_FILTER_BAR_CSS = `
 
 .${DINAMIC_SX_FILTER_CLASS.input}:hover,
 .${DINAMIC_SX_FILTER_CLASS.control} input[type="date"]:hover {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-color: #d4d4d4;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.input}:focus,
 .${DINAMIC_SX_FILTER_CLASS.control} input[type="date"]:focus {
-  border-color: transparent;
+  border-color: #c8c8c8;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 10px rgba(0, 0, 0, 0.07);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField {
@@ -148,15 +186,15 @@ export const DEFAULT_FILTER_BAR_CSS = `
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup {
   min-height: 38px;
-  border: 1px solid transparent;
+  border: 1px solid #e0e0e0;
   border-radius: 15px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
   transition: box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup:hover {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-color: #d4d4d4;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup::after {
@@ -165,9 +203,9 @@ export const DEFAULT_FILTER_BAR_CSS = `
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup:focus-within {
-  border-color: transparent;
+  border-color: #c8c8c8;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 10px rgba(0, 0, 0, 0.07);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-field {
@@ -187,18 +225,18 @@ export const DEFAULT_FILTER_BAR_CSS = `
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown-title {
   min-height: 38px;
   line-height: 36px;
-  border: 1px solid transparent;
+  border: 1px solid #e0e0e0;
   border-radius: 15px;
   background: #ffffff;
   font-size: 14px;
   color: #242424;
   padding: 0 34px 0 13px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.18s ease, background 0.18s ease;
+  box-shadow: none;
+  transition: box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown:hover .ms-Dropdown-title {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-color: #d4d4d4;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown:focus::after {
@@ -208,8 +246,8 @@ export const DEFAULT_FILTER_BAR_CSS = `
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown.is-open .ms-Dropdown-title,
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown:focus .ms-Dropdown-title {
-  border-color: transparent;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 10px rgba(0, 0, 0, 0.07);
+  border-color: #c8c8c8;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown-caretDownWrapper {
@@ -228,6 +266,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
   font-weight: 600 !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
   transition: box-shadow 0.18s ease, background 0.18s ease !important;
+  flex-shrink: 0;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.advancedBtn}:hover {
@@ -259,6 +298,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
   font-weight: 600 !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
   transition: box-shadow 0.18s ease !important;
+  flex-shrink: 0;
 }
 
 .${DINAMIC_SX_FILTER_CLASS.headerClear}:hover {

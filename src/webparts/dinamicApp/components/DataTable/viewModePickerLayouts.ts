@@ -28,7 +28,7 @@ export function defaultViewModeIcon(mode: IListViewModeConfig): string {
 
 export const DEFAULT_VIEW_MODE_CSS = `
 .dinamicSxViewModeBar {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
 }
 

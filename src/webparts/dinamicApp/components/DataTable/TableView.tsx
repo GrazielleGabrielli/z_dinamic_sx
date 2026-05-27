@@ -151,9 +151,24 @@ function scopeTableCssByInstance(css: string, scopeClass: string): string {
   return css.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`);
 }
 
-function scopeFilterCssByInstance(css: string, scopeClass: string): string {
+function scopeCssSelectorsByInstance(css: string, scopeClass: string): string {
   if (!css.trim()) return '';
-  return css.replace(/\.dinamicSxFilter/g, `.${scopeClass} .dinamicSxFilter`);
+  const scope = `.${scopeClass}`;
+  return css.replace(/(^|})\s*([^{}]+)\{/g, (match, prefix, selectorPart) => {
+    const trimmed = selectorPart.trim();
+    if (!trimmed || trimmed.startsWith('@') || trimmed.includes(scope)) {
+      return match;
+    }
+    const scoped = trimmed
+      .split(',')
+      .map((sel: string) => `${scope} ${sel.trim()}`)
+      .join(', ');
+    return `${prefix} ${scoped}{`;
+  });
+}
+
+function scopeFilterCssByInstance(css: string, scopeClass: string): string {
+  return scopeCssSelectorsByInstance(css, scopeClass);
 }
 
 function scopeViewModeCssByInstance(css: string, scopeClass: string): string {
@@ -162,20 +177,7 @@ function scopeViewModeCssByInstance(css: string, scopeClass: string): string {
 }
 
 function scopeToolbarCssByInstance(css: string, scopeClass: string): string {
-  if (!css.trim()) return '';
-  const classNames = [
-    'dinamicSxToolbarLayoutToggleBtn',
-    'dinamicSxToolbarLayoutToggle',
-    'dinamicSxToolbarPrimaryBtn',
-    'dinamicSxToolbarDefaultBtn',
-    'dinamicSxToolbarGhostBtn',
-    'dinamicSxToolbarEnd',
-  ];
-  let result = css;
-  for (const name of classNames) {
-    result = result.replace(new RegExp(`\\.${name}\\b`, 'g'), `.${scopeClass} .${name}`);
-  }
-  return result;
+  return scopeCssSelectorsByInstance(css, scopeClass);
 }
 
 export const TableView: React.FC<ITableViewProps> = ({
@@ -915,12 +917,84 @@ export const TableView: React.FC<ITableViewProps> = ({
       <React.Fragment key={it.id}>{renderListChromeButton(it)}</React.Fragment>
     ));
 
-  const showToolbar =
+  const showChromeRow =
     viewModeOptions.length > 0 ||
     showPdfButton ||
     listCardViewEnabled ||
     hasAnyActiveFilter ||
-    hasChromeToolbarSlot;
+    hasChromeToolbarSlot ||
+    showFilterBar;
+
+  const hasFixedFilterFields = tableFilterFieldsMetaSplit.fixed.length > 0;
+  const showAdvancedFilterPanel =
+    hasTopFilters &&
+    tableFilterFieldsMetaSplit.advanced.length > 0 &&
+    advancedTableFiltersExpanded;
+  const showFilterFieldsPanel =
+    hasFixedFilterFields || showAdvancedFilterPanel || chromeFiltersBelow.length > 0;
+  const advancedOnlyPanel =
+    showAdvancedFilterPanel && !hasFixedFilterFields && chromeFiltersBelow.length === 0;
+
+  const renderListChromeRow = (): React.ReactNode => (
+    <div className={DINAMIC_SX_TOOLBAR_CLASS.chromeRow}>
+      {viewModeOptions.length > 0 ? (
+        <ViewModePickerBar
+          picker={listView?.viewModePicker}
+          modes={visibleViewModes}
+          selectedId={selectedViewModeId}
+          onSelect={setSelectedViewModeId}
+          options={viewModeOptions}
+        />
+      ) : null}
+      {renderToolbarChrome('toolbarAfterViewMode')}
+      {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
+        <ActionButton
+          className={`${DINAMIC_SX_FILTER_CLASS.advancedBtn}${advancedTableFiltersExpanded ? ' dinamicSxFilterAdvancedBtn--open' : ''}`}
+          iconProps={{
+            iconName: advancedTableFiltersExpanded ? 'ChevronUp' : 'ChevronDown',
+          }}
+          onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
+          aria-expanded={advancedTableFiltersExpanded}
+        >
+          {advancedTableFiltersTitle}
+        </ActionButton>
+      ) : null}
+      {renderInlineFilterChrome()}
+      {activeTopFiltersCount > 0 ? (
+        <ActionButton
+          className={DINAMIC_SX_FILTER_CLASS.headerClear}
+          iconProps={{ iconName: 'ClearFilter' }}
+          text="Limpar"
+          onClick={() => setTopFilters({})}
+        />
+      ) : null}
+      {listCardViewEnabled ? (
+        <>
+          <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
+          {renderToolbarChrome('toolbarAfterTableCardsToggle')}
+        </>
+      ) : null}
+      {showPdfButton ? (
+        <ActionButton
+          className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
+          iconProps={{ iconName: 'PDF' }}
+          text="Exportar PDF"
+          onClick={handleExportPdf}
+        />
+      ) : null}
+      {renderToolbarChrome('toolbarAfterPdfExport')}
+      {renderToolbarChrome('toolbarBeforeClearFilters')}
+      {hasAnyActiveFilter ? (
+        <ActionButton
+          className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
+          iconProps={{ iconName: 'ClearFilter' }}
+          onClick={handleClearAllFilters}
+        >
+          Remover Filtros
+        </ActionButton>
+      ) : null}
+    </div>
+  );
 
   return (
     <Stack
@@ -929,95 +1003,25 @@ export const TableView: React.FC<ITableViewProps> = ({
       styles={{ root: { marginTop: 8 } }}
     >
       {tableCustomStyle}
-      {showToolbar && (
-        <Stack
-          className={DINAMIC_SX_TABLE_CLASS.toolbar}
-          horizontal
-          horizontalAlign="space-between"
-          tokens={{ childrenGap: 12 }}
-          verticalAlign="end"
-          styles={{ root: { flexWrap: 'wrap' } }}
-        >
-          <Stack
-            horizontal
-            verticalAlign="end"
-            tokens={{ childrenGap: 12 }}
-            styles={{ root: { flexWrap: 'wrap', flex: '1 1 auto', minWidth: 0 } }}
-          >
-            {viewModeOptions.length > 0 && (
-              <ViewModePickerBar
-                picker={listView?.viewModePicker}
-                modes={visibleViewModes}
-                selectedId={selectedViewModeId}
-                onSelect={setSelectedViewModeId}
-                options={viewModeOptions}
-              />
-            )}
-            {renderToolbarChrome('toolbarAfterViewMode')}
-          </Stack>
-          <div className={DINAMIC_SX_TOOLBAR_CLASS.end}>
-            {listCardViewEnabled && (
-              <>
-                <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
-                {renderToolbarChrome('toolbarAfterTableCardsToggle')}
-              </>
-            )}
-            {showPdfButton && (
-              <ActionButton
-                className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
-                iconProps={{ iconName: 'PDF' }}
-                text="Exportar PDF"
-                onClick={handleExportPdf}
-              />
-            )}
-            {renderToolbarChrome('toolbarAfterPdfExport')}
-            {renderToolbarChrome('toolbarBeforeClearFilters')}
-            {hasAnyActiveFilter && (
-              <ActionButton
-                className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
-                iconProps={{ iconName: 'ClearFilter' }}
-                onClick={handleClearAllFilters}
-              >
-                Remover Filtros
-              </ActionButton>
-            )}
-          </div>
-        </Stack>
-      )}
       <Stack className="dinamicSxFilterTableBlock" tokens={{ childrenGap: 15 }}>
-        {showFilterBar && (
-          <Stack className={DINAMIC_SX_FILTER_CLASS.bar} tokens={{ childrenGap: 0 }}>
-            {hasTopFilters || chromeFiltersAfterToggle.length > 0 ? (
-              <div className={DINAMIC_SX_FILTER_CLASS.primary}>
-                <div className={DINAMIC_SX_FILTER_CLASS.fieldsRow}>
-                  {hasTopFilters ? tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f)) : null}
-                </div>
-                <div className={DINAMIC_SX_FILTER_CLASS.actions}>
-                  {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
-                    <ActionButton
-                      className={`${DINAMIC_SX_FILTER_CLASS.advancedBtn}${advancedTableFiltersExpanded ? ' dinamicSxFilterAdvancedBtn--open' : ''}`}
-                      iconProps={{
-                        iconName: advancedTableFiltersExpanded ? 'ChevronUp' : 'ChevronDown',
-                      }}
-                      onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
-                      aria-expanded={advancedTableFiltersExpanded}
-                    >
-                      {advancedTableFiltersTitle}
-                    </ActionButton>
-                  ) : null}
-                  {renderInlineFilterChrome()}
-                  {activeTopFiltersCount > 0 ? (
-                    <ActionButton
-                      className={DINAMIC_SX_FILTER_CLASS.headerClear}
-                      iconProps={{ iconName: 'ClearFilter' }}
-                      text="Limpar"
-                      onClick={() => setTopFilters({})}
-                    />
-                  ) : null}
-                </div>
+        {showChromeRow ? renderListChromeRow() : null}
+        {showFilterFieldsPanel ? (
+          <Stack
+            className={`${DINAMIC_SX_FILTER_CLASS.bar}${
+              advancedOnlyPanel ? ` ${DINAMIC_SX_FILTER_CLASS.barAdvancedOnly}` : ''
+            }${
+              hasFixedFilterFields && !showAdvancedFilterPanel && chromeFiltersBelow.length === 0
+                ? ` ${DINAMIC_SX_FILTER_CLASS.barFieldsOnly}`
+                : ''
+            }`}
+            tokens={{ childrenGap: 0 }}
+          >
+            {hasFixedFilterFields ? (
+              <div className={DINAMIC_SX_FILTER_CLASS.fieldsRow}>
+                {tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f))}
               </div>
             ) : null}
-            {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 && advancedTableFiltersExpanded ? (
+            {showAdvancedFilterPanel ? (
               <div className={DINAMIC_SX_FILTER_CLASS.advancedPanel}>
                 <div className={DINAMIC_SX_FILTER_CLASS.fieldsRow}>
                   {tableFilterFieldsMetaSplit.advanced.map((f) => renderTopFilterControl(f))}
@@ -1030,7 +1034,7 @@ export const TableView: React.FC<ITableViewProps> = ({
               </div>
             ) : null}
           </Stack>
-        )}
+        ) : null}
         {listDisplayMode === 'cards' && listCardViewEnabled ? (
           <ListItemsCardGrid
             columns={engine.getVisibleColumns(tableConfig)}
