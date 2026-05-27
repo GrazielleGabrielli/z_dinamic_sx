@@ -2,10 +2,8 @@ import * as React from 'react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Stack,
-  Text,
   Dropdown,
   IDropdownOption,
-  IDropdownStyles,
   ActionButton,
   DefaultButton,
   PrimaryButton,
@@ -44,25 +42,13 @@ import {
 } from './tableLayoutClasses';
 import { ViewModePickerBar } from './ViewModePickerBar';
 import { resolveViewModeCss } from './viewModePickerLayouts';
+import { DINAMIC_SX_FILTER_CLASS, resolveFilterBarCss } from './filterBarLayouts';
 import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import {
   isSafeListRowNavigationUrl,
   resolveListRowActionUrl,
 } from '../../core/table/utils/resolveListRowActionUrl';
 import type { IDynamicContext } from '../../core/dynamicTokens/types';
-
-const TOP_FILTER_DROPDOWN_STYLES: Partial<IDropdownStyles> = {
-  root: { display: 'block', margin: 0 },
-  dropdown: { borderStyle: 'none', borderWidth: 0 },
-  title: {
-    borderWidth: 1,
-    borderStyle: 'solid',
-    borderColor: '#605e5c',
-    borderRadius: 2,
-    backgroundColor: '#fff',
-  },
-  caretDownWrapper: { color: '#323130' },
-};
 
 const EMPTY_VIEW_MODES: IListViewModeConfig[] = [];
 
@@ -724,25 +710,19 @@ export const TableView: React.FC<ITableViewProps> = ({
       });
     const mtype = meta?.MappedType ?? 'text';
 
-    const wrapperStyle: React.CSSProperties = {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'flex-start',
-    };
-
     if (mtype === 'choice' || mtype === 'multichoice') {
       const choiceOptions: IDropdownOption[] = [
         { key: '', text: `Todos` },
         ...(meta?.Choices ?? []).map((c) => ({ key: c, text: c })),
       ];
       return (
-        <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 160, maxWidth: 240 }}>
+        <div key={fc.field} className={DINAMIC_SX_FILTER_CLASS.control}>
           <Dropdown
             label={label}
             selectedKey={val}
             options={choiceOptions}
             onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
-            styles={TOP_FILTER_DROPDOWN_STYLES}
+            styles={{ root: { display: 'block', margin: 0 } }}
           />
         </div>
       );
@@ -754,46 +734,36 @@ export const TableView: React.FC<ITableViewProps> = ({
         { key: 'false', text: 'Não' },
       ];
       return (
-        <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 120, maxWidth: 180 }}>
+        <div key={fc.field} className={DINAMIC_SX_FILTER_CLASS.control}>
           <Dropdown
             label={label}
             selectedKey={val}
             options={boolOptions}
             onChange={(_, opt) => onChange(opt?.key === '' ? '' : String(opt?.key ?? ''))}
-            styles={TOP_FILTER_DROPDOWN_STYLES}
+            styles={{ root: { display: 'block', margin: 0 } }}
           />
         </div>
       );
     }
     if (mtype === 'datetime') {
       return (
-        <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 150, maxWidth: 220 }}>
-          <label style={{ fontSize: 14, fontWeight: 600, color: '#323130', display: 'block', padding: '5px 0' }}>
+        <div key={fc.field} className={DINAMIC_SX_FILTER_CLASS.control}>
+          <label className={DINAMIC_SX_FILTER_CLASS.label} htmlFor={`filter-${fc.field}`}>
             {label}
           </label>
           <input
+            id={`filter-${fc.field}`}
             type="date"
+            className={DINAMIC_SX_FILTER_CLASS.input}
             value={val}
             onChange={(e) => onChange(e.target.value)}
             aria-label={label}
-            style={{
-              height: 32,
-              border: '1px solid #605e5c',
-              borderRadius: 2,
-              padding: '0 8px',
-              fontSize: 14,
-              fontFamily: 'inherit',
-              color: '#323130',
-              background: '#fff',
-              width: '100%',
-              boxSizing: 'border-box',
-            }}
           />
         </div>
       );
     }
     return (
-      <div key={fc.field} className="dinamicSxFilterControl" style={{ ...wrapperStyle, minWidth: 140, maxWidth: 220 }}>
+      <div key={fc.field} className={DINAMIC_SX_FILTER_CLASS.control}>
         <TextField
           label={label}
           value={val}
@@ -811,7 +781,10 @@ export const TableView: React.FC<ITableViewProps> = ({
   const mergedLayoutCssRaw = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
   const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
   const mergedCardCss = scopeCardCssByInstance(listView?.customCardCss ?? '', instanceScopeClass);
-  const mergedFilterCss = scopeFilterCssByInstance(listView?.customFilterCss ?? '', instanceScopeClass);
+  const mergedFilterCss = scopeFilterCssByInstance(
+    resolveFilterBarCss(listView?.customFilterCss),
+    instanceScopeClass
+  );
   const mergedViewModeCss = scopeViewModeCssByInstance(
     resolveViewModeCss(listView?.customViewModeCss),
     instanceScopeClass
@@ -1013,111 +986,91 @@ export const TableView: React.FC<ITableViewProps> = ({
           )}
         </Stack>
       )}
-      {showFilterBar && (
-        <Stack
-          className="dinamicSxFilterBar"
-          tokens={{ childrenGap: 8 }}
-          styles={{ root: { borderStyle: 'none', borderWidth: 0, boxShadow: 'none' } }}
-        >
-          {hasTopFilters ? (
-            <Stack horizontal verticalAlign="center" horizontalAlign="space-between">
-              <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                Filtros{activeTopFiltersCount > 0 ? ` (${activeTopFiltersCount} ativo${activeTopFiltersCount > 1 ? 's' : ''})` : ''}
-              </Text>
-              {activeTopFiltersCount > 0 && (
-                <ActionButton
-                  iconProps={{ iconName: 'ClearFilter' }}
-                  text="Limpar"
-                  styles={{ root: { height: 28, color: '#a4262c' } }}
-                  onClick={() => setTopFilters({})}
-                />
-              )}
-            </Stack>
-          ) : null}
-          {hasTopFilters || chromeFiltersAfterToggle.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-              {hasTopFilters ? tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f)) : null}
-              {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
-                <ActionButton
-                  iconProps={{
-                    iconName: advancedTableFiltersExpanded ? 'ChevronDown' : 'ChevronRight',
-                  }}
-                  onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
-                  aria-expanded={advancedTableFiltersExpanded}
-                  styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
-                >
-                  {advancedTableFiltersTitle}
-                </ActionButton>
-              ) : null}
-              {renderInlineFilterChrome()}
-              {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 && advancedTableFiltersExpanded ? (
-                <div
-                  style={{
-                    flexBasis: '100%',
-                    width: '100%',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                  }}
-                >
+      <Stack className="dinamicSxFilterTableBlock" tokens={{ childrenGap: 15 }}>
+        {showFilterBar && (
+          <Stack className={DINAMIC_SX_FILTER_CLASS.bar} tokens={{ childrenGap: 0 }}>
+            {hasTopFilters || chromeFiltersAfterToggle.length > 0 ? (
+              <div className={DINAMIC_SX_FILTER_CLASS.primary}>
+                <div className={DINAMIC_SX_FILTER_CLASS.fieldsRow}>
+                  {hasTopFilters ? tableFilterFieldsMetaSplit.fixed.map((f) => renderTopFilterControl(f)) : null}
+                </div>
+                <div className={DINAMIC_SX_FILTER_CLASS.actions}>
+                  {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
+                    <ActionButton
+                      className={`${DINAMIC_SX_FILTER_CLASS.advancedBtn}${advancedTableFiltersExpanded ? ' dinamicSxFilterAdvancedBtn--open' : ''}`}
+                      iconProps={{
+                        iconName: advancedTableFiltersExpanded ? 'ChevronUp' : 'ChevronDown',
+                      }}
+                      onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
+                      aria-expanded={advancedTableFiltersExpanded}
+                    >
+                      {advancedTableFiltersTitle}
+                    </ActionButton>
+                  ) : null}
+                  {renderInlineFilterChrome()}
+                  {activeTopFiltersCount > 0 ? (
+                    <ActionButton
+                      className={DINAMIC_SX_FILTER_CLASS.headerClear}
+                      iconProps={{ iconName: 'ClearFilter' }}
+                      text="Limpar"
+                      onClick={() => setTopFilters({})}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 && advancedTableFiltersExpanded ? (
+              <div className={DINAMIC_SX_FILTER_CLASS.advancedPanel}>
+                <div className={DINAMIC_SX_FILTER_CLASS.fieldsRow}>
                   {tableFilterFieldsMetaSplit.advanced.map((f) => renderTopFilterControl(f))}
                 </div>
-              ) : null}
-            </div>
-          ) : null}
-          {chromeFiltersBelow.length > 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 12,
-                alignItems: 'center',
-                width: '100%',
-              }}
-            >
-              {renderBelowFilterChrome()}
-            </div>
-          ) : null}
-        </Stack>
-      )}
-      {listDisplayMode === 'cards' && listCardViewEnabled ? (
-        <ListItemsCardGrid
-          columns={engine.getVisibleColumns(tableConfig)}
-          displayColumns={displayColumns}
-          items={items}
-          loading={loading}
-          error={error}
-          emptyMessage={tableConfig.emptyMessage ?? 'Nenhum item encontrado.'}
-          engine={engine}
-          sortConfig={effectiveSort}
-          onSort={handleSort}
-          tableSortable={tableConfig.sortable}
-          columnFilters={columnFilters}
-          onColumnFilter={handleColumnFilter}
-          dense={tableConfig.dense}
-          rowActions={listRowActions}
-          dynamicContext={actionContext}
-          userGroupIds={userGroupIds}
-        />
-      ) : (
-        <DataTable
-          config={tableConfig}
-          displayColumns={displayColumns}
-          items={items}
-          loading={loading}
-          error={error}
-          sortConfig={effectiveSort}
-          onSort={handleSort}
-          columnFilters={columnFilters}
-          onColumnFilter={handleColumnFilter}
-          engine={engine}
-          rowStyleRules={listView?.tableRowStyleRules}
-          rowActions={listRowActions}
-          dynamicContext={actionContext}
-          userGroupIds={userGroupIds}
-        />
-      )}
+              </div>
+            ) : null}
+            {chromeFiltersBelow.length > 0 ? (
+              <div className={DINAMIC_SX_FILTER_CLASS.advancedPanel}>
+                <div className={DINAMIC_SX_FILTER_CLASS.fieldsRow}>{renderBelowFilterChrome()}</div>
+              </div>
+            ) : null}
+          </Stack>
+        )}
+        {listDisplayMode === 'cards' && listCardViewEnabled ? (
+          <ListItemsCardGrid
+            columns={engine.getVisibleColumns(tableConfig)}
+            displayColumns={displayColumns}
+            items={items}
+            loading={loading}
+            error={error}
+            emptyMessage={tableConfig.emptyMessage ?? 'Nenhum item encontrado.'}
+            engine={engine}
+            sortConfig={effectiveSort}
+            onSort={handleSort}
+            tableSortable={tableConfig.sortable}
+            columnFilters={columnFilters}
+            onColumnFilter={handleColumnFilter}
+            dense={tableConfig.dense}
+            rowActions={listRowActions}
+            dynamicContext={actionContext}
+            userGroupIds={userGroupIds}
+          />
+        ) : (
+          <DataTable
+            config={tableConfig}
+            displayColumns={displayColumns}
+            items={items}
+            loading={loading}
+            error={error}
+            sortConfig={effectiveSort}
+            onSort={handleSort}
+            columnFilters={columnFilters}
+            onColumnFilter={handleColumnFilter}
+            engine={engine}
+            rowStyleRules={listView?.tableRowStyleRules}
+            rowActions={listRowActions}
+            dynamicContext={actionContext}
+            userGroupIds={userGroupIds}
+          />
+        )}
+      </Stack>
       {paginationBar}
     </Stack>
   );

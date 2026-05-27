@@ -71,6 +71,7 @@ import { isNoteFieldMeta } from '../../core/listView';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
 import { VIEW_MODE_PICKER_OPTIONS, normalizeViewModePicker } from './viewModePickerLayouts';
+import { DINAMIC_SX_FILTER_CLASS } from './filterBarLayouts';
 import {
   sanitizeListTableEditorBundle,
   sanitizeListViewChromeButtons,
@@ -3117,7 +3118,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     onToggle={() => setLayoutSectionOpen((p) => ({ ...p, filterCss: !p.filterCss }))}
                   >
                     <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
-                      Personaliza a barra de filtros. Use os seletores abaixo para estilizar o container e os controles individuais.
+                      Vazio = estilo padrão dos filtros. Com texto, só o seu CSS é aplicado.
                     </Text>
                     <Stack tokens={{ childrenGap: 8 }}>
                       <TextField
@@ -3157,11 +3158,14 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                         styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8' } }}
                       >
                         {([
-                          { cls: 'dinamicSxFilterBar', desc: 'Container da barra de filtros' },
-                          { cls: 'dinamicSxFilterControl', desc: 'Wrapper de cada controle (label + input)' },
-                          { cls: 'dinamicSxFilterControl label', desc: 'Label do controle' },
-                          { cls: 'dinamicSxFilterControl input', desc: 'Input de texto / data' },
-                          { cls: 'dinamicSxFilterControl .ms-Dropdown', desc: 'Dropdown (choice / boolean)' },
+                          { cls: DINAMIC_SX_FILTER_CLASS.bar, desc: 'Container da barra de filtros' },
+                          { cls: DINAMIC_SX_FILTER_CLASS.control, desc: 'Cada campo (texto, data, select)' },
+                          { cls: DINAMIC_SX_FILTER_CLASS.label, desc: 'Rótulo do campo' },
+                          { cls: DINAMIC_SX_FILTER_CLASS.input, desc: 'Input nativo (data)' },
+                          { cls: `${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup`, desc: 'Caixa do TextField' },
+                          { cls: `${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown-title`, desc: 'Caixa do Dropdown' },
+                          { cls: DINAMIC_SX_FILTER_CLASS.advancedBtn, desc: 'Botão filtros avançados' },
+                          { cls: DINAMIC_SX_FILTER_CLASS.advancedPanel, desc: 'Painel dos filtros avançados' },
                         ] as const).map((r) => (
                           <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
                             <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}

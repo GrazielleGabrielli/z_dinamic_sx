@@ -111,7 +111,7 @@ export const ViewModePickerBar: React.FC<IViewModePickerBarProps> = ({
                 aria-selected={selected}
                 onClick={() => onSelect(m.id)}
               >
-                <Icon iconName={defaultViewModeIcon(m)} styles={{ root: { fontSize: 16, color: selected ? '#18181b' : '#71717a' } }} />
+                <Icon iconName={defaultViewModeIcon(m)} />
                 <span>{m.label}</span>
                 {m.badgeCount !== undefined ? (
                   <span className="dinamicSxViewModePillBadge">{m.badgeCount}</span>

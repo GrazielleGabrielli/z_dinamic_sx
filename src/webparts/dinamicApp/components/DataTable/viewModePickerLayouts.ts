@@ -47,34 +47,55 @@ export const DEFAULT_VIEW_MODE_CSS = `
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
-  background: #f4f4f5;
-  border-radius: 14px;
+  gap: 2px;
+  padding: 5px;
+  background: #f5f5f5;
+  border-radius: 999px;
   max-width: 100%;
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
 }
 
 .dinamicSxViewModeSegmentedItem {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
+  gap: 7px;
+  padding: 9px 16px;
   border: none;
-  border-radius: 10px;
+  border-radius: 999px;
   background: transparent;
-  color: #3f3f46;
-  font-size: 13px;
+  color: #525252;
+  font-size: 14px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+  transition: background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
   white-space: nowrap;
+}
+
+.dinamicSxViewModeSegmentedItem:hover {
+  color: #323130;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .dinamicSxViewModeSegmentedItem[aria-selected="true"] {
   background: #ffffff;
-  color: #18181b;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.06);
+  color: #242424;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.dinamicSxViewModeSegmentedItem[aria-selected="true"]:hover {
+  background: #ffffff;
+}
+
+.dinamicSxViewModeSegmentedItem i {
+  color: #757575;
+  font-size: 15px;
+}
+
+.dinamicSxViewModeSegmentedItem[aria-selected="true"] i {
+  color: #424242;
 }
 
 .dinamicSxViewModeUnderlineWrap {
