@@ -43,6 +43,7 @@ import {
 import { ViewModePickerBar } from './ViewModePickerBar';
 import { resolveViewModeCss } from './viewModePickerLayouts';
 import { DINAMIC_SX_FILTER_CLASS, resolveFilterBarCss } from './filterBarLayouts';
+import { DINAMIC_SX_TOOLBAR_CLASS, resolveListToolbarCss } from './listToolbarLayouts';
 import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import {
   isSafeListRowNavigationUrl,
@@ -158,6 +159,23 @@ function scopeFilterCssByInstance(css: string, scopeClass: string): string {
 function scopeViewModeCssByInstance(css: string, scopeClass: string): string {
   if (!css.trim()) return '';
   return css.replace(/\.dinamicSxViewMode/g, `.${scopeClass} .dinamicSxViewMode`);
+}
+
+function scopeToolbarCssByInstance(css: string, scopeClass: string): string {
+  if (!css.trim()) return '';
+  const classNames = [
+    'dinamicSxToolbarLayoutToggleBtn',
+    'dinamicSxToolbarLayoutToggle',
+    'dinamicSxToolbarPrimaryBtn',
+    'dinamicSxToolbarDefaultBtn',
+    'dinamicSxToolbarGhostBtn',
+    'dinamicSxToolbarEnd',
+  ];
+  let result = css;
+  for (const name of classNames) {
+    result = result.replace(new RegExp(`\\.${name}\\b`, 'g'), `.${scopeClass} .${name}`);
+  }
+  return result;
 }
 
 export const TableView: React.FC<ITableViewProps> = ({
@@ -789,9 +807,20 @@ export const TableView: React.FC<ITableViewProps> = ({
     resolveViewModeCss(listView?.customViewModeCss),
     instanceScopeClass
   );
+  const mergedToolbarCss = scopeToolbarCssByInstance(resolveListToolbarCss(), instanceScopeClass);
   const tableCustomStyle =
-    mergedLayoutCss.length > 0 || mergedCardCss.length > 0 || mergedFilterCss.length > 0 || mergedViewModeCss.length > 0
-      ? <style type="text/css">{[mergedLayoutCss, mergedCardCss, mergedFilterCss, mergedViewModeCss].filter(Boolean).join('\n\n')}</style>
+    mergedLayoutCss.length > 0 ||
+    mergedCardCss.length > 0 ||
+    mergedFilterCss.length > 0 ||
+    mergedViewModeCss.length > 0 ||
+    mergedToolbarCss.length > 0
+      ? (
+          <style type="text/css">
+            {[mergedLayoutCss, mergedCardCss, mergedFilterCss, mergedViewModeCss, mergedToolbarCss]
+              .filter(Boolean)
+              .join('\n\n')}
+          </style>
+        )
       : null;
 
   const actionContext = dynamicContext ?? { now: new Date() };
@@ -832,99 +861,59 @@ export const TableView: React.FC<ITableViewProps> = ({
     await generateAndDownloadPdf(template, data, name);
   };
 
+  const renderListChromeButton = (
+    it: IListPageButtonItemConfig,
+    alignSelf?: 'flex-end'
+  ): React.ReactNode => {
+    const btnStyle = parseListChromeCss(it.css);
+    const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
+    const className =
+      it.variant === 'primary' ? DINAMIC_SX_TOOLBAR_CLASS.primaryBtn : DINAMIC_SX_TOOLBAR_CLASS.defaultBtn;
+    const btn =
+      it.variant === 'primary' ? (
+        <PrimaryButton
+          className={className}
+          text={it.label}
+          iconProps={iconProps}
+          onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+        />
+      ) : (
+        <DefaultButton
+          className={className}
+          text={it.label}
+          iconProps={iconProps}
+          onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
+        />
+      );
+    const wrapStyle = alignSelf ? { ...btnStyle, alignSelf } : btnStyle;
+    return wrapStyle ? (
+      <span style={wrapStyle}>{btn}</span>
+    ) : (
+      btn
+    );
+  };
+
   const renderToolbarChrome = (slot: TListViewChromeButtonSlot): React.ReactNode => {
     const sorted = sortChromeForSlot(chromeBySlot.get(slot) ?? []);
     if (!sorted.length) return null;
     return (
-      <Stack horizontal verticalAlign="end" tokens={{ childrenGap: 8 }} styles={{ root: { flexWrap: 'wrap' } }}>
-        {sorted.map((it) => {
-          const btnStyle = parseListChromeCss(it.css);
-          const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
-          const btn =
-            it.variant === 'primary' ? (
-              <PrimaryButton
-                text={it.label}
-                iconProps={iconProps}
-                onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
-                styles={{ root: { height: 32 } }}
-              />
-            ) : (
-              <DefaultButton
-                text={it.label}
-                iconProps={iconProps}
-                onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
-                styles={{ root: { height: 32 } }}
-              />
-            );
-          return btnStyle ? (
-            <span key={it.id} style={btnStyle}>
-              {btn}
-            </span>
-          ) : (
-            <React.Fragment key={it.id}>{btn}</React.Fragment>
-          );
-        })}
-      </Stack>
+      <>
+        {sorted.map((it) => (
+          <React.Fragment key={it.id}>{renderListChromeButton(it)}</React.Fragment>
+        ))}
+      </>
     );
   };
 
   const renderInlineFilterChrome = (): React.ReactNode =>
-    chromeFiltersAfterToggle.map((it) => {
-      const btnStyle = parseListChromeCss(it.css);
-      const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
-      const btn =
-        it.variant === 'primary' ? (
-          <PrimaryButton
-            text={it.label}
-            iconProps={iconProps}
-            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
-            styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
-          />
-        ) : (
-          <DefaultButton
-            text={it.label}
-            iconProps={iconProps}
-            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
-            styles={{ root: { height: 32, alignSelf: 'flex-end' } }}
-          />
-        );
-      return btnStyle ? (
-        <span key={it.id} style={{ ...btnStyle, alignSelf: 'flex-end' }}>
-          {btn}
-        </span>
-      ) : (
-        <React.Fragment key={it.id}>{btn}</React.Fragment>
-      );
-    });
+    chromeFiltersAfterToggle.map((it) => (
+      <React.Fragment key={it.id}>{renderListChromeButton(it, 'flex-end')}</React.Fragment>
+    ));
 
   const renderBelowFilterChrome = (): React.ReactNode =>
-    chromeFiltersBelow.map((it) => {
-      const btnStyle = parseListChromeCss(it.css);
-      const iconProps = it.iconName ? { iconName: it.iconName } : undefined;
-      const btn =
-        it.variant === 'primary' ? (
-          <PrimaryButton
-            text={it.label}
-            iconProps={iconProps}
-            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
-            styles={{ root: { height: 32 } }}
-          />
-        ) : (
-          <DefaultButton
-            text={it.label}
-            iconProps={iconProps}
-            onClick={() => navigateListChromeButton(it, actionContext, chromeRowContext)}
-            styles={{ root: { height: 32 } }}
-          />
-        );
-      return btnStyle ? (
-        <span key={it.id} style={btnStyle}>
-          {btn}
-        </span>
-      ) : (
-        <React.Fragment key={it.id}>{btn}</React.Fragment>
-      );
-    });
+    chromeFiltersBelow.map((it) => (
+      <React.Fragment key={it.id}>{renderListChromeButton(it)}</React.Fragment>
+    ));
 
   const showToolbar =
     viewModeOptions.length > 0 ||
@@ -949,41 +938,50 @@ export const TableView: React.FC<ITableViewProps> = ({
           verticalAlign="end"
           styles={{ root: { flexWrap: 'wrap' } }}
         >
-          {viewModeOptions.length > 0 && (
-            <ViewModePickerBar
-              picker={listView?.viewModePicker}
-              modes={visibleViewModes}
-              selectedId={selectedViewModeId}
-              onSelect={setSelectedViewModeId}
-              options={viewModeOptions}
-            />
-          )}
-          {renderToolbarChrome('toolbarAfterViewMode')}
-          {listCardViewEnabled && (
-            <>
-              <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
-              {renderToolbarChrome('toolbarAfterTableCardsToggle')}
-            </>
-          )}
-          {showPdfButton && (
-            <ActionButton
-              iconProps={{ iconName: 'PDF' }}
-              text="Exportar PDF"
-              styles={{ root: { height: 32, color: '#0078d4' } }}
-              onClick={handleExportPdf}
-            />
-          )}
-          {renderToolbarChrome('toolbarAfterPdfExport')}
-          {renderToolbarChrome('toolbarBeforeClearFilters')}
-          {hasAnyActiveFilter && (
-            <ActionButton
-              iconProps={{ iconName: 'ClearFilter' }}
-              styles={{ root: { height: 32, color: '#a4262c', marginLeft: 'auto' } }}
-              onClick={handleClearAllFilters}
-            >
-              Remover Filtros
-            </ActionButton>
-          )}
+          <Stack
+            horizontal
+            verticalAlign="end"
+            tokens={{ childrenGap: 12 }}
+            styles={{ root: { flexWrap: 'wrap', flex: '1 1 auto', minWidth: 0 } }}
+          >
+            {viewModeOptions.length > 0 && (
+              <ViewModePickerBar
+                picker={listView?.viewModePicker}
+                modes={visibleViewModes}
+                selectedId={selectedViewModeId}
+                onSelect={setSelectedViewModeId}
+                options={viewModeOptions}
+              />
+            )}
+            {renderToolbarChrome('toolbarAfterViewMode')}
+          </Stack>
+          <div className={DINAMIC_SX_TOOLBAR_CLASS.end}>
+            {listCardViewEnabled && (
+              <>
+                <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
+                {renderToolbarChrome('toolbarAfterTableCardsToggle')}
+              </>
+            )}
+            {showPdfButton && (
+              <ActionButton
+                className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
+                iconProps={{ iconName: 'PDF' }}
+                text="Exportar PDF"
+                onClick={handleExportPdf}
+              />
+            )}
+            {renderToolbarChrome('toolbarAfterPdfExport')}
+            {renderToolbarChrome('toolbarBeforeClearFilters')}
+            {hasAnyActiveFilter && (
+              <ActionButton
+                className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
+                iconProps={{ iconName: 'ClearFilter' }}
+                onClick={handleClearAllFilters}
+              >
+                Remover Filtros
+              </ActionButton>
+            )}
+          </div>
         </Stack>
       )}
       <Stack className="dinamicSxFilterTableBlock" tokens={{ childrenGap: 15 }}>

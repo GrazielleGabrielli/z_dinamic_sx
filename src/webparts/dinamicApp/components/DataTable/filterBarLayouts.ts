@@ -20,7 +20,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
   padding: 12px 14px 14px;
   background: #f5f5f5;
   border: none;
-  border-radius: 16px;
+  border-radius: 15px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
 }
 
@@ -85,7 +85,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
   padding: 10px 10px 12px;
   background: #ececec;
   border: none;
-  border-radius: 12px;
+  border-radius: 15px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
 }
 
@@ -119,7 +119,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
   color: #242424;
   background: #ffffff;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 15px;
   outline: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
@@ -149,7 +149,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup {
   min-height: 38px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 15px;
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
@@ -160,7 +160,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-TextField-fieldGroup::after {
-  border-radius: 10px;
+  border-radius: 15px;
   border-color: transparent;
 }
 
@@ -188,7 +188,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
   min-height: 38px;
   line-height: 36px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 15px;
   background: #ffffff;
   font-size: 14px;
   color: #242424;
@@ -202,7 +202,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
 }
 
 .${DINAMIC_SX_FILTER_CLASS.control} .ms-Dropdown:focus::after {
-  border-radius: 10px;
+  border-radius: 15px;
   border-color: transparent;
 }
 
@@ -220,7 +220,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
 .${DINAMIC_SX_FILTER_CLASS.advancedBtn} {
   height: 38px !important;
   padding: 0 14px !important;
-  border-radius: 10px !important;
+  border-radius: 15px !important;
   border: none !important;
   background: #ffffff !important;
   color: #323130 !important;
@@ -251,7 +251,7 @@ export const DEFAULT_FILTER_BAR_CSS = `
 .${DINAMIC_SX_FILTER_CLASS.headerClear} {
   height: 38px !important;
   padding: 0 14px !important;
-  border-radius: 10px !important;
+  border-radius: 15px !important;
   border: none !important;
   background: #ffffff !important;
   color: #a4262c !important;
