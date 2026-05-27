@@ -1,5 +1,7 @@
 export const DINAMIC_SX_TOOLBAR_CLASS = {
   chromeRow: 'dinamicSxToolbarChromeRow',
+  chromeRowStart: 'dinamicSxToolbarChromeRowStart',
+  chromeRowEnd: 'dinamicSxToolbarChromeRowEnd',
   end: 'dinamicSxToolbarEnd',
   layoutToggle: 'dinamicSxToolbarLayoutToggle',
   layoutToggleBtn: 'dinamicSxToolbarLayoutToggleBtn',
@@ -13,9 +15,29 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px 8px;
   width: 100%;
   min-width: 0;
+}
+
+.${DINAMIC_SX_TOOLBAR_CLASS.chromeRowStart} {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.${DINAMIC_SX_TOOLBAR_CLASS.chromeRowEnd} {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 1 auto;
+  margin-left: auto;
 }
 
 .${DINAMIC_SX_TOOLBAR_CLASS.end} {
@@ -26,7 +48,7 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
   display: inline-flex;
   align-items: center;
   background: #f5f5f5;
-  border-radius: 15px;
+  border-radius: 8px;
   padding: 5px;
   gap: 2px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
@@ -43,7 +65,7 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
   height: 28px;
   padding: 0 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
   background: transparent;
   color: #525252;
@@ -80,7 +102,7 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
   height: 38px;
   min-width: 0;
   padding: 0 18px;
-  border-radius: 15px;
+  border-radius: 8px;
   border: none;
   font-size: 14px;
   font-weight: 600;
@@ -107,7 +129,7 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
   height: 38px;
   min-width: 0;
   padding: 0 16px;
-  border-radius: 15px;
+  border-radius: 8px;
   border: none;
   background: #ffffff;
   color: #323130;
@@ -125,7 +147,7 @@ export const DEFAULT_LIST_TOOLBAR_CSS = `
 .${DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}.ms-Button {
   height: 38px;
   padding: 0 14px;
-  border-radius: 15px;
+  border-radius: 8px;
   border: none;
   background: #ffffff;
   color: #115ea3;

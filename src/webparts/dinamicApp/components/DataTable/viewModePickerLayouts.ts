@@ -43,6 +43,14 @@ export const DEFAULT_VIEW_MODE_CSS = `
   align-items: center;
 }
 
+.dinamicSxViewModeTab.ms-Button {
+  border-radius: 8px;
+}
+
+.dinamicSxViewModeDropdown .ms-Dropdown-title {
+  border-radius: 8px;
+}
+
 .dinamicSxViewModeSegmentedTrack {
   display: inline-flex;
   flex-wrap: wrap;
@@ -50,7 +58,7 @@ export const DEFAULT_VIEW_MODE_CSS = `
   gap: 2px;
   padding: 5px;
   background: #f5f5f5;
-  border-radius: 999px;
+  border-radius: 8px;
   max-width: 100%;
   border: none;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
@@ -62,7 +70,7 @@ export const DEFAULT_VIEW_MODE_CSS = `
   gap: 7px;
   padding: 9px 16px;
   border: none;
-  border-radius: 999px;
+  border-radius: 8px;
   background: transparent;
   color: #525252;
   font-size: 14px;
@@ -98,19 +106,13 @@ export const DEFAULT_VIEW_MODE_CSS = `
   color: #424242;
 }
 
-.dinamicSxViewModeUnderlineWrap {
-  position: relative;
-  max-width: 100%;
-}
-
 .dinamicSxViewModeUnderlineTrack {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  max-width: 100%;
   border-bottom: 1px solid #e4e4e7;
-  padding-right: 36px;
 }
 
 .dinamicSxViewModeUnderlineItem {
@@ -151,23 +153,6 @@ export const DEFAULT_VIEW_MODE_CSS = `
   border-radius: 2px 2px 0 0;
 }
 
-.dinamicSxViewModeUnderlineScrollBtn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 1px;
-  width: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-left: 1px solid #e4e4e7;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #ffffff 40%);
-  color: #52525b;
-  cursor: pointer;
-  border-radius: 0;
-}
-
 .dinamicSxViewModePillsRow {
   display: flex;
   flex-wrap: wrap;
@@ -200,7 +185,7 @@ export const DEFAULT_VIEW_MODE_CSS = `
   justify-content: center;
   min-width: 22px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;

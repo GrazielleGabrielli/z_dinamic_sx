@@ -942,62 +942,66 @@ export const TableView: React.FC<ITableViewProps> = ({
 
   const renderListChromeRow = (): React.ReactNode => (
     <div className={DINAMIC_SX_TOOLBAR_CLASS.chromeRow}>
-      {viewModeOptions.length > 0 ? (
-        <ViewModePickerBar
-          picker={listView?.viewModePicker}
-          modes={visibleViewModes}
-          selectedId={selectedViewModeId}
-          onSelect={setSelectedViewModeId}
-          options={viewModeOptions}
-        />
-      ) : null}
-      {renderToolbarChrome('toolbarAfterViewMode')}
-      {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
-        <ActionButton
-          className={`${DINAMIC_SX_FILTER_CLASS.advancedBtn}${advancedTableFiltersExpanded ? ' dinamicSxFilterAdvancedBtn--open' : ''}`}
-          iconProps={{
-            iconName: advancedTableFiltersExpanded ? 'ChevronUp' : 'ChevronDown',
-          }}
-          onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
-          aria-expanded={advancedTableFiltersExpanded}
-        >
-          {advancedTableFiltersTitle}
-        </ActionButton>
-      ) : null}
-      {renderInlineFilterChrome()}
-      {activeTopFiltersCount > 0 ? (
-        <ActionButton
-          className={DINAMIC_SX_FILTER_CLASS.headerClear}
-          iconProps={{ iconName: 'ClearFilter' }}
-          text="Limpar"
-          onClick={() => setTopFilters({})}
-        />
-      ) : null}
-      {listCardViewEnabled ? (
-        <>
-          <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
-          {renderToolbarChrome('toolbarAfterTableCardsToggle')}
-        </>
-      ) : null}
-      {showPdfButton ? (
-        <ActionButton
-          className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
-          iconProps={{ iconName: 'PDF' }}
-          text="Exportar PDF"
-          onClick={handleExportPdf}
-        />
-      ) : null}
-      {renderToolbarChrome('toolbarAfterPdfExport')}
-      {renderToolbarChrome('toolbarBeforeClearFilters')}
-      {hasAnyActiveFilter ? (
-        <ActionButton
-          className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
-          iconProps={{ iconName: 'ClearFilter' }}
-          onClick={handleClearAllFilters}
-        >
-          Remover Filtros
-        </ActionButton>
-      ) : null}
+      <div className={DINAMIC_SX_TOOLBAR_CLASS.chromeRowStart}>
+        {viewModeOptions.length > 0 ? (
+          <ViewModePickerBar
+            picker={listView?.viewModePicker}
+            modes={visibleViewModes}
+            selectedId={selectedViewModeId}
+            onSelect={setSelectedViewModeId}
+            options={viewModeOptions}
+          />
+        ) : null}
+      </div>
+      <div className={DINAMIC_SX_TOOLBAR_CLASS.chromeRowEnd}>
+        {renderToolbarChrome('toolbarAfterViewMode')}
+        {hasTopFilters && tableFilterFieldsMetaSplit.advanced.length > 0 ? (
+          <ActionButton
+            className={`${DINAMIC_SX_FILTER_CLASS.advancedBtn}${advancedTableFiltersExpanded ? ' dinamicSxFilterAdvancedBtn--open' : ''}`}
+            iconProps={{
+              iconName: advancedTableFiltersExpanded ? 'ChevronUp' : 'ChevronDown',
+            }}
+            onClick={() => setAdvancedTableFiltersExpanded((x) => !x)}
+            aria-expanded={advancedTableFiltersExpanded}
+          >
+            {advancedTableFiltersTitle}
+          </ActionButton>
+        ) : null}
+        {renderInlineFilterChrome()}
+        {activeTopFiltersCount > 0 ? (
+          <ActionButton
+            className={DINAMIC_SX_FILTER_CLASS.headerClear}
+            iconProps={{ iconName: 'ClearFilter' }}
+            text="Limpar"
+            onClick={() => setTopFilters({})}
+          />
+        ) : null}
+        {listCardViewEnabled ? (
+          <>
+            <TableCardsLayoutToggle value={listDisplayMode} onChange={setListDisplayMode} />
+            {renderToolbarChrome('toolbarAfterTableCardsToggle')}
+          </>
+        ) : null}
+        {showPdfButton ? (
+          <ActionButton
+            className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
+            iconProps={{ iconName: 'PDF' }}
+            text="Exportar PDF"
+            onClick={handleExportPdf}
+          />
+        ) : null}
+        {renderToolbarChrome('toolbarAfterPdfExport')}
+        {renderToolbarChrome('toolbarBeforeClearFilters')}
+        {hasAnyActiveFilter ? (
+          <ActionButton
+            className={DINAMIC_SX_TOOLBAR_CLASS.ghostBtn}
+            iconProps={{ iconName: 'ClearFilter' }}
+            onClick={handleClearAllFilters}
+          >
+            Remover Filtros
+          </ActionButton>
+        ) : null}
+      </div>
     </div>
   );
 

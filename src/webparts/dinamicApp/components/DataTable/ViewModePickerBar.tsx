@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { useRef, useCallback } from 'react';
 import { Dropdown, IDropdownOption, DefaultButton, PrimaryButton, Icon } from '@fluentui/react';
 import type { IListViewModeConfig, TViewModePicker } from '../../core/config/types';
 import { defaultViewModeIcon, normalizeViewModePicker, pillBadgeVariant } from './viewModePickerLayouts';
@@ -22,13 +21,6 @@ export const ViewModePickerBar: React.FC<IViewModePickerBarProps> = ({
   showLabel = false,
 }) => {
   const picker = normalizeViewModePicker(pickerRaw);
-  const trackRef = useRef<HTMLDivElement>(null);
-
-  const scrollTrack = useCallback((dir: 1 | -1): void => {
-    const el = trackRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * 160, behavior: 'smooth' });
-  }, []);
 
   if (picker === 'dropdown') {
     return (
@@ -127,37 +119,22 @@ export const ViewModePickerBar: React.FC<IViewModePickerBarProps> = ({
   if (picker === 'tabs') {
     return (
       <div className="dinamicSxViewModeBar" role="presentation">
-        <div className="dinamicSxViewModeUnderlineWrap">
-          <div
-            ref={trackRef}
-            className="dinamicSxViewModeUnderlineTrack"
-            role="tablist"
-            aria-label="Modos de visualização"
-          >
-            {modes.map((m) => {
-              const selected = selectedId === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  className="dinamicSxViewModeUnderlineItem"
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => onSelect(m.id)}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            className="dinamicSxViewModeUnderlineScrollBtn"
-            aria-label="Ver mais modos"
-            onClick={() => scrollTrack(1)}
-          >
-            <Icon iconName="ChevronRight" />
-          </button>
+        <div className="dinamicSxViewModeUnderlineTrack" role="tablist" aria-label="Modos de visualização">
+          {modes.map((m) => {
+            const selected = selectedId === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                className="dinamicSxViewModeUnderlineItem"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => onSelect(m.id)}
+              >
+                {m.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     );

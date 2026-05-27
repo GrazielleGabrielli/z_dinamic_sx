@@ -218,7 +218,7 @@ function buildDefaultTableLayoutCss(): string {
   overflow-y: hidden;
   background: #ffffff;
   border: 1px solid #e8e8e8;
-  border-radius: 15px;
+  border-radius: 8px;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.03),
     0 3px 10px rgba(0, 0, 0, 0.05);
@@ -311,7 +311,7 @@ function buildDefaultTableLayoutCss(): string {
   color: #605e5c;
   font-size: 14px;
   background: #f5f5f5;
-  border-radius: 15px;
+  border-radius: 8px;
   border: 1px solid #e8e8e8;
   margin-top: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
@@ -335,7 +335,7 @@ function buildDefaultTableLayoutCss(): string {
   color: #323130;
   background: #ffffff;
   border: 1px solid #e0e0e0;
-  border-radius: 15px;
+  border-radius: 8px;
   padding: 0 16px;
   min-height: 38px;
   cursor: pointer;
@@ -369,7 +369,7 @@ function buildDefaultTableLayoutCss(): string {
   padding: 0 12px;
   min-height: 34px;
   font-size: 13px;
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 .${c.columnFilter} .ms-Button--primary {
@@ -392,7 +392,7 @@ export const TABLE_COLUMN_FILTER_PORTAL_CSS = (() => {
 .${c.columnFilter} .ms-TextField-fieldGroup {
   min-height: 38px;
   border: 1px solid #e0e0e0;
-  border-radius: 15px;
+  border-radius: 8px;
   background: #ffffff;
   box-shadow: none;
 }
@@ -412,7 +412,7 @@ export const TABLE_COLUMN_FILTER_PORTAL_CSS = (() => {
 }
 
 .${c.columnFilter} .ms-Button {
-  border-radius: 15px;
+  border-radius: 8px;
   min-height: 38px;
   font-weight: 600;
 }
