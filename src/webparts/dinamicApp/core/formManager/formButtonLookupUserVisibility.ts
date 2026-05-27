@@ -1,4 +1,5 @@
-import type { IFormCustomButtonConfig } from '../config/types/formManager';
+import type { IFieldMetadata } from '../../../../services/shared/types';
+import type { IFormCustomButtonConfig, IFormRuleBase } from '../config/types/formManager';
 
 function tryGetObjectProp(obj: Record<string, unknown>, key: string): unknown {
   if (key in obj) return obj[key];
@@ -104,10 +105,45 @@ export function userInAnyLookupUserField(
   return false;
 }
 
+export type ILookupUserFieldVisibilityFilter = Pick<
+  IFormRuleBase,
+  'lookupUserFieldPaths' | 'excludeLookupUserFieldPaths'
+>;
+
+export function buildLookupUserVisibilityOptions(
+  meta: readonly IFieldMetadata[],
+  lookupDestMetaByListId: Readonly<Record<string, readonly IFieldMetadata[]>>
+): { path: string; label: string }[] {
+  const out: { path: string; label: string }[] = [];
+  for (let i = 0; i < meta.length; i++) {
+    const m = meta[i];
+    if (m.MappedType === 'user' || m.MappedType === 'usermulti') {
+      out.push({ path: m.InternalName, label: `${m.Title} (${m.InternalName})` });
+    }
+  }
+  for (let i = 0; i < meta.length; i++) {
+    const m = meta[i];
+    if (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti') continue;
+    if (!m.LookupList) continue;
+    const destMeta = lookupDestMetaByListId[String(m.LookupList)] ?? [];
+    for (let j = 0; j < destMeta.length; j++) {
+      const df = destMeta[j];
+      if (df.MappedType !== 'user' && df.MappedType !== 'usermulti') continue;
+      const path = `${m.InternalName}/${df.InternalName}`;
+      out.push({
+        path,
+        label: `${m.Title} → ${df.Title} (${path})`,
+      });
+    }
+  }
+  out.sort((a, b) => a.label.localeCompare(b.label, 'pt'));
+  return out;
+}
+
 export function ruleAppliesLookupUserFieldFilters(
   currentUserId: number,
   values: Record<string, unknown>,
-  rule: Pick<IFormCustomButtonConfig, 'lookupUserFieldPaths' | 'excludeLookupUserFieldPaths'>,
+  rule: ILookupUserFieldVisibilityFilter | Pick<IFormCustomButtonConfig, 'lookupUserFieldPaths' | 'excludeLookupUserFieldPaths'>,
   lookupOptionSnapshots?: Readonly<
     Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
   >

@@ -221,6 +221,8 @@ export interface IConditionalRuleCard {
   /** Títulos de grupos SharePoint; vazio = todos os utilizadores. */
   groupTitles?: string[];
   excludeGroupTitles?: string[];
+  lookupUserFieldPaths?: string[];
+  excludeLookupUserFieldPaths?: string[];
   effects: IConditionalEffectUi[];
 }
 
@@ -240,6 +242,10 @@ export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] 
       ...(card.modes?.length ? { modes: card.modes } : {}),
       ...(card.groupTitles?.length ? { groupTitles: card.groupTitles } : {}),
       ...(card.excludeGroupTitles?.length ? { excludeGroupTitles: card.excludeGroupTitles } : {}),
+      ...(card.lookupUserFieldPaths?.length ? { lookupUserFieldPaths: card.lookupUserFieldPaths } : {}),
+      ...(card.excludeLookupUserFieldPaths?.length
+        ? { excludeLookupUserFieldPaths: card.excludeLookupUserFieldPaths }
+        : {}),
     };
     const id = (suffix: string): string => `ui_card_${card.id}_${idx++}_${suffix}`;
     const tf = (e.targetField ?? '').trim();
@@ -273,11 +279,18 @@ export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] 
         if (tf) out.push({ id: id('opt'), action: 'setRequired', field: tf, required: false, ...base });
         break;
       case 'disableField':
-        if (tf) out.push({ id: id('dis'), action: 'setDisabled', field: tf, disabled: true, ...base });
+      case 'enableField': {
+        const dis = e.kind === 'disableField';
+        if (tf)
+          out.push({
+            id: id(dis ? 'dis' : 'ena'),
+            action: 'setDisabled',
+            field: tf,
+            disabled: dis,
+            ...base,
+          });
         break;
-      case 'enableField':
-        if (tf) out.push({ id: id('ena'), action: 'setDisabled', field: tf, disabled: false, ...base });
-        break;
+      }
       case 'readonlyField':
         if (tf) out.push({ id: id('ro'), action: 'setReadOnly', field: tf, readOnly: true, ...base });
         break;
@@ -362,9 +375,18 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
     const modes = first.modes;
     const groupTitles = first.groupTitles;
     const excludeGroupTitles = first.excludeGroupTitles;
+    let lookupUserFieldPaths: string[] | undefined;
+    let excludeLookupUserFieldPaths: string[] | undefined;
     const effects: IConditionalEffectUi[] = [];
     for (let j = 0; j < list.length; j++) {
-      const eff = effectFromRule(list[j]);
+      const r = list[j];
+      if (!lookupUserFieldPaths?.length && r.lookupUserFieldPaths?.length) {
+        lookupUserFieldPaths = r.lookupUserFieldPaths;
+      }
+      if (!excludeLookupUserFieldPaths?.length && r.excludeLookupUserFieldPaths?.length) {
+        excludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths;
+      }
+      const eff = effectFromRule(r);
       if (eff) effects.push(eff);
     }
     cards.push({
@@ -373,6 +395,8 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
       ...(modes?.length ? { modes } : {}),
       ...(groupTitles?.length ? { groupTitles } : {}),
       ...(excludeGroupTitles?.length ? { excludeGroupTitles } : {}),
+      ...(lookupUserFieldPaths?.length ? { lookupUserFieldPaths } : {}),
+      ...(excludeLookupUserFieldPaths?.length ? { excludeLookupUserFieldPaths } : {}),
       effects,
     });
   });
@@ -423,8 +447,12 @@ export interface IFieldRuleEditorState {
   computedLiveInEditView: boolean;
   disableWhenActive: boolean;
   disableWhenUi: IWhenUi;
+  disableLookupUserFieldPaths?: string[];
+  disableExcludeLookupUserFieldPaths?: string[];
   enableWhenActive: boolean;
   enableWhenUi: IWhenUi;
+  enableLookupUserFieldPaths?: string[];
+  enableExcludeLookupUserFieldPaths?: string[];
 }
 
 export function mergeFieldRuleEditorState(
@@ -538,9 +566,17 @@ export function fieldRuleStateFromRules(
         if (r.id === `ui_f_${seg}_discond`) {
           st.disableWhenActive = true;
           st.disableWhenUi = w;
+          if (r.lookupUserFieldPaths?.length) st.disableLookupUserFieldPaths = r.lookupUserFieldPaths.slice();
+          if (r.excludeLookupUserFieldPaths?.length) {
+            st.disableExcludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths.slice();
+          }
         } else if (r.id === `ui_f_${seg}_enacond`) {
           st.enableWhenActive = true;
           st.enableWhenUi = w;
+          if (r.lookupUserFieldPaths?.length) st.enableLookupUserFieldPaths = r.lookupUserFieldPaths.slice();
+          if (r.excludeLookupUserFieldPaths?.length) {
+            st.enableExcludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths.slice();
+          }
         }
       }
     }
@@ -605,6 +641,10 @@ export function compileTextFieldConditionalVisibilityRules(
     const gid = safeIdSegment(g.id || `g${i}`);
     const groupPayload = g.groupTitles?.length ? { groupTitles: g.groupTitles } : {};
     const excludePayload = g.excludeGroupTitles?.length ? { excludeGroupTitles: g.excludeGroupTitles } : {};
+    const lookupUserPayload = g.lookupUserFieldPaths?.length ? { lookupUserFieldPaths: g.lookupUserFieldPaths } : {};
+    const excludeLookupUserPayload = g.excludeLookupUserFieldPaths?.length
+      ? { excludeLookupUserFieldPaths: g.excludeLookupUserFieldPaths }
+      : {};
     const clusters = clusterTextConditionalModesByAction(g);
     for (let c = 0; c < clusters.length; c++) {
       const cl = clusters[c];
@@ -617,6 +657,8 @@ export function compileTextFieldConditionalVisibilityRules(
           ...modePayload,
           ...groupPayload,
           ...excludePayload,
+          ...lookupUserPayload,
+          ...excludeLookupUserPayload,
           id: `ui_f_${seg}_txdis_${gid}${suf}`,
           action: 'setDisabled',
           field: internalName,
@@ -754,6 +796,12 @@ export function buildFieldUiRules(
       disabled: true,
       when: whenUiToNode(st.disableWhenUi),
       ...baseModes,
+      ...(st.disableLookupUserFieldPaths?.length
+        ? { lookupUserFieldPaths: st.disableLookupUserFieldPaths }
+        : {}),
+      ...(st.disableExcludeLookupUserFieldPaths?.length
+        ? { excludeLookupUserFieldPaths: st.disableExcludeLookupUserFieldPaths }
+        : {}),
     });
   }
   if (st.enableWhenActive && whenUiCompleteForSetDisabledWhen(st.enableWhenUi)) {
@@ -764,6 +812,12 @@ export function buildFieldUiRules(
       disabled: false,
       when: whenUiToNode(st.enableWhenUi),
       ...baseModes,
+      ...(st.enableLookupUserFieldPaths?.length
+        ? { lookupUserFieldPaths: st.enableLookupUserFieldPaths }
+        : {}),
+      ...(st.enableExcludeLookupUserFieldPaths?.length
+        ? { excludeLookupUserFieldPaths: st.enableExcludeLookupUserFieldPaths }
+        : {}),
     });
   }
 

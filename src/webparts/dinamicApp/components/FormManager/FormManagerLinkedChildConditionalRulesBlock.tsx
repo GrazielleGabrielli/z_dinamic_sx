@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useRef, useState } from 'react';
 import { Stack, Text, PrimaryButton, DefaultButton, Dropdown, TextField, IDropdownOption } from '@fluentui/react';
+import { LookupUserFieldPathsSection } from './LookupUserFieldPathsSection';
 import type { TFormConditionOp, TFormRule } from '../../core/config/types/formManager';
 import {
   compileConditionalCard,
@@ -36,17 +37,28 @@ function emptyEffect(): IConditionalEffectUi {
   return { kind: 'showField', targetField: '' };
 }
 
+function cardHasDisableEnableEffect(card: IConditionalRuleCard): boolean {
+  for (let i = 0; i < card.effects.length; i++) {
+    const k = card.effects[i].kind;
+    if (k === 'disableField' || k === 'enableField') return true;
+  }
+  return false;
+}
+
 export interface IFormManagerLinkedChildConditionalRulesBlockProps {
   rules: TFormRule[];
   fieldOptions: IDropdownOption[];
+  lookupUserVisibilityOptions?: { path: string; label: string }[];
+  lookupUserVisibilityLoading?: boolean;
   onRulesChange: (next: TFormRule[]) => void;
 }
 
 export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
   IFormManagerLinkedChildConditionalRulesBlockProps
-> = ({ rules, fieldOptions, onRulesChange }) => {
+> = ({ rules, fieldOptions, lookupUserVisibilityOptions = [], lookupUserVisibilityLoading, onRulesChange }) => {
   const rulesRef = useRef(rules);
   rulesRef.current = rules;
+  const [cardLookupUserFilter, setCardLookupUserFilter] = useState('');
 
   const conditionalCards = useMemo(() => parseConditionalCardsFromRules(rules).cards, [rules]);
   const customs = useMemo(() => customRulesOnly(rules), [rules]);
@@ -279,6 +291,18 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
               patchCard(ci, { excludeGroupTitles: parsed.length ? parsed : undefined });
             }}
           />
+          {cardHasDisableEnableEffect(card) ? (
+            <LookupUserFieldPathsSection
+              title="Desativar/ativar só para utilizadores nestes campos"
+              description="Os efeitos de desativar ou ativar campo só aplicam se o utilizador atual constar no campo (lista filha ou lookup→user). Vazio = todos."
+              paths={card.lookupUserFieldPaths}
+              onPathsChange={(next) => patchCard(ci, { lookupUserFieldPaths: next })}
+              options={lookupUserVisibilityOptions}
+              optionsLoading={lookupUserVisibilityLoading}
+              filter={cardLookupUserFilter}
+              onFilterChange={setCardLookupUserFilter}
+            />
+          ) : null}
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
             Então
           </Text>

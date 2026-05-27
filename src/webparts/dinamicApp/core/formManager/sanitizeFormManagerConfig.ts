@@ -108,6 +108,8 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       if (!t) continue;
       excludeGroupTitles.push(t.slice(0, 256));
     }
+    const lookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.lookupUserFieldPaths);
+    const excludeLookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.excludeLookupUserFieldPaths);
     const condRaw = Array.isArray(gr.conditions) ? gr.conditions : [];
     const conditions: ITextFieldConditionalCondition[] = [];
     for (let k = 0; k < condRaw.length; k++) {
@@ -140,6 +142,8 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       modes,
       ...(groupTitles.length ? { groupTitles } : {}),
       ...(excludeGroupTitles.length ? { excludeGroupTitles } : {}),
+      ...(lookupUserFieldPaths?.length ? { lookupUserFieldPaths } : {}),
+      ...(excludeLookupUserFieldPaths?.length ? { excludeLookupUserFieldPaths } : {}),
       groupOp,
       conditions,
       action,
@@ -245,6 +249,20 @@ const ACTION_SET = new Set<string>([
   'attachmentRules', 'asyncUniqueness', 'asyncCountLimit', 'setEffectiveSection',
 ]);
 
+function sanitizeLookupUserFieldPaths(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const p = String(raw[i])
+      .split('/')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join('/');
+    if (p) out.push(p);
+  }
+  return out.length ? out : undefined;
+}
+
 function sanitizeRule(raw: unknown): TFormRule | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
@@ -262,6 +280,8 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
   const excludeGroupTitles = Array.isArray(r.excludeGroupTitles)
     ? (r.excludeGroupTitles as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
+  const lookupUserFieldPaths = sanitizeLookupUserFieldPaths(r.lookupUserFieldPaths);
+  const excludeLookupUserFieldPaths = sanitizeLookupUserFieldPaths(r.excludeLookupUserFieldPaths);
   const tags = Array.isArray(r.tags)
     ? (r.tags as unknown[]).map((x) => String(x).trim()).filter(Boolean)
     : undefined;
@@ -272,6 +292,8 @@ function sanitizeRule(raw: unknown): TFormRule | undefined {
     ...(modes?.length ? { modes } : {}),
     ...(groupTitles?.length ? { groupTitles } : {}),
     ...(excludeGroupTitles?.length ? { excludeGroupTitles } : {}),
+    ...(lookupUserFieldPaths?.length ? { lookupUserFieldPaths } : {}),
+    ...(excludeLookupUserFieldPaths?.length ? { excludeLookupUserFieldPaths } : {}),
     ...(tags?.length ? { tags } : {}),
   };
 

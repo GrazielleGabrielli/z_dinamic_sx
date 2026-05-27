@@ -61,6 +61,13 @@ export interface IFormRuleBase {
   groupTitles?: string[];
   /** Se preenchido, a regra **não** aplica a utilizadores que pertençam a algum destes grupos. */
   excludeGroupTitles?: string[];
+  /**
+   * Caminhos `Lookup/CampoUser` ou campo user/usermulti na lista principal.
+   * A regra só aplica se o utilizador atual constar em algum destes campos. Vazio = todos.
+   */
+  lookupUserFieldPaths?: string[];
+  /** A regra não aplica se o utilizador atual constar em algum destes campos user (opcional). */
+  excludeLookupUserFieldPaths?: string[];
   /** Regras com `fullSubmitOnly` não rodam em rascunho. */
   tags?: string[];
 }
@@ -319,6 +326,10 @@ export interface ITextFieldConditionalGroup {
   groupTitles?: string[];
   /** Utilizadores nestes grupos não entram nesta regra (opcional). */
   excludeGroupTitles?: string[];
+  /** Só aplica (ex.: desativar) se o utilizador atual constar nestes campos user/lookup→user. Vazio = todos. */
+  lookupUserFieldPaths?: string[];
+  /** Não aplica se o utilizador constar nestes campos user (opcional). */
+  excludeLookupUserFieldPaths?: string[];
   groupOp: TTextFieldConditionalGroupOp;
   conditions: ITextFieldConditionalCondition[];
   action: TTextFieldConditionalAction;

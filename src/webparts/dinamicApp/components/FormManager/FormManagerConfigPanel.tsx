@@ -101,7 +101,10 @@ import {
 } from '../../core/formManager/formCustomButtonTheme';
 import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { sanitizeFormManagerConfig } from '../../core/formManager/sanitizeFormManagerConfig';
-import { normalizeLookupUserFieldPath } from '../../core/formManager/formButtonLookupUserVisibility';
+import {
+  buildLookupUserVisibilityOptions,
+  normalizeLookupUserFieldPath,
+} from '../../core/formManager/formButtonLookupUserVisibility';
 import { applyGlobalHttpStepIds } from '../../core/formManager/applyGlobalHttpStepIds';
 import {
   attachmentFolderNodePathLabel,
@@ -1418,32 +1421,10 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
     [siteGroupsSorted, customButtonGroupNameFilter]
   );
 
-  const lookupUserVisibilityOptions = useMemo((): { path: string; label: string }[] => {
-    const out: { path: string; label: string }[] = [];
-    for (let i = 0; i < meta.length; i++) {
-      const m = meta[i];
-      if (m.MappedType === 'user' || m.MappedType === 'usermulti') {
-        out.push({ path: m.InternalName, label: `${m.Title} (${m.InternalName})` });
-      }
-    }
-    for (let i = 0; i < meta.length; i++) {
-      const m = meta[i];
-      if (m.MappedType !== 'lookup' && m.MappedType !== 'lookupmulti') continue;
-      if (!m.LookupList) continue;
-      const destMeta = lookupDestMetaByListId[String(m.LookupList)] ?? [];
-      for (let j = 0; j < destMeta.length; j++) {
-        const df = destMeta[j];
-        if (df.MappedType !== 'user' && df.MappedType !== 'usermulti') continue;
-        const path = `${m.InternalName}/${df.InternalName}`;
-        out.push({
-          path,
-          label: `${m.Title} → ${df.Title} (${path})`,
-        });
-      }
-    }
-    out.sort((a, b) => a.label.localeCompare(b.label, 'pt'));
-    return out;
-  }, [meta, lookupDestMetaByListId]);
+  const lookupUserVisibilityOptions = useMemo(
+    () => buildLookupUserVisibilityOptions(meta, lookupDestMetaByListId),
+    [meta, lookupDestMetaByListId]
+  );
 
   const lookupUserVisibilityOptionsForCustomButtons = useMemo(() => {
     const q = customButtonLookupUserFilter.trim().toLowerCase();
@@ -5177,6 +5158,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
           lookupFieldsWebServerRelativeUrl={lw}
           listFieldMetadata={meta}
           allFieldConfigs={fields}
+          lookupDestMetaByListId={lookupDestMetaByListId}
+          lookupDestMetaLoading={lookupDestMetaLoading}
           onDismiss={() => setFieldPanelName(null)}
           onApply={(nextFc, editor) => {
             setFields((prev) =>

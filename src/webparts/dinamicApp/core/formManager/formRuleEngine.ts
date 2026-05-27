@@ -1480,6 +1480,15 @@ export function buildFormDerivedState(
     if (!ruleAppliesMode(rule, formMode)) continue;
     if (!ruleAppliesSubmit(rule, ctx.submitKind)) continue;
     if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, rule)) continue;
+    if (
+      !ruleAppliesLookupUserFieldFilters(
+        ctx.currentUserId,
+        ctx.values,
+        rule,
+        ctx.lookupOptionSnapshots
+      )
+    )
+      continue;
     const whenOk = evaluateCondition(rule.when, values, dynamicContext, userGroupTitles, condOpts);
     if (!whenOk) continue;
 

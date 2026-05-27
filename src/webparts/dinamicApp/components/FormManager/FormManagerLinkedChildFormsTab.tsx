@@ -40,6 +40,7 @@ import { FormManagerLinkedChildConditionalRulesBlock } from './FormManagerLinked
 import { FormManagerLinkedChildPresentationPreview } from './FormManagerLinkedChildPresentationPreview';
 import { mergeFormFieldConfigFromRulesPanel } from '../../core/formManager/mergeFormFieldConfigFromRulesPanel';
 import { buildFieldUiRules, mergeFieldRules } from '../../core/formManager/formManagerVisualModel';
+import { buildLookupUserVisibilityOptions } from '../../core/formManager/formButtonLookupUserVisibility';
 
 const MAX_LINKED = 10;
 
@@ -1104,6 +1105,7 @@ export function FormManagerLinkedChildFormsTabContent(props: IFormManagerLinkedC
                             m.InternalName !== cfg.parentLookupFieldInternalName.trim()
                         )
                         .map((m) => ({ key: m.InternalName, text: `${m.Title} (${m.InternalName})` }))}
+                      lookupUserVisibilityOptions={buildLookupUserVisibilityOptions(meta, {})}
                       onRulesChange={(next) =>
                         onLinkedChildFormsChange((prev) =>
                           prev.map((c) => (c.id === cfg.id ? { ...c, rules: next } : c))

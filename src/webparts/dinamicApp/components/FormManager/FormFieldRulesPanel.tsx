@@ -61,6 +61,8 @@ import {
   templateFieldRulesEmail,
 } from '../../core/formManager/formManagerVisualModel';
 import { FormManagerCollapseSection } from './FormManagerComponentsTab';
+import { LookupUserFieldPathsSection } from './LookupUserFieldPathsSection';
+import { buildLookupUserVisibilityOptions } from '../../core/formManager/formButtonLookupUserVisibility';
 import { TEXT_INPUT_MASK_CUSTOM_MAX_LEN } from '../../core/formManager/formTextInputMasks';
 import { ALL_FORM_MANAGER_MODES, toggleStepShowInFormMode } from '../../core/formManager/stepFormMode';
 import { isNoteFieldMeta } from '../../core/listView';
@@ -194,6 +196,15 @@ function newTextConditionalGroup(defaultRefField: string): ITextFieldConditional
   };
 }
 
+function textCondGroupHasDisableAction(g: ITextFieldConditionalGroup): boolean {
+  if (g.action === 'disable') return true;
+  const abm = g.actionByMode;
+  if (!abm) return false;
+  return (
+    abm.create === 'disable' || abm.edit === 'disable' || abm.view === 'disable'
+  );
+}
+
 export interface IFormFieldRulesPanelProps {
   isOpen: boolean;
   internalName: string;
@@ -209,6 +220,9 @@ export interface IFormFieldRulesPanelProps {
   listFieldMetadata?: IFieldMetadata[];
   /** Configuração completa dos campos para sugerir paths de lookup no valor padrão. */
   allFieldConfigs?: IFormFieldConfig[];
+  /** Metadados das listas destino dos lookups (id da lista → campos). */
+  lookupDestMetaByListId?: Record<string, IFieldMetadata[]>;
+  lookupDestMetaLoading?: boolean;
   onDismiss: () => void;
   onApply: (nextField: IFormFieldConfig, editor: IFieldRuleEditorState) => void;
 }
@@ -1367,9 +1381,28 @@ function FieldRulesDisableEnableCollapseContent(props: {
   siteGroupsLoading: boolean;
   siteGroupsErr?: string;
   onRetryLoadSiteGroups: () => void;
+  lookupUserVisibilityOptions: { path: string; label: string }[];
+  lookupDestMetaLoading?: boolean;
+  disableLookupUserFilter: string;
+  onDisableLookupUserFilterChange: (v: string) => void;
+  enableLookupUserFilter: string;
+  onEnableLookupUserFilterChange: (v: string) => void;
 }): JSX.Element {
-  const { ed, setEd, fieldOptions, siteGroupsSorted, siteGroupsLoading, siteGroupsErr, onRetryLoadSiteGroups } =
-    props;
+  const {
+    ed,
+    setEd,
+    fieldOptions,
+    siteGroupsSorted,
+    siteGroupsLoading,
+    siteGroupsErr,
+    onRetryLoadSiteGroups,
+    lookupUserVisibilityOptions,
+    lookupDestMetaLoading,
+    disableLookupUserFilter,
+    onDisableLookupUserFilterChange,
+    enableLookupUserFilter,
+    onEnableLookupUserFilterChange,
+  } = props;
   const disGrp = isDisableEnableGroupCompareKind(ed.disableWhenUi.compareKind);
   const enGrp = isDisableEnableGroupCompareKind(ed.enableWhenUi.compareKind);
   return (
@@ -1505,6 +1538,20 @@ function FieldRulesDisableEnableCollapseContent(props: {
           onRetryLoadSiteGroups={onRetryLoadSiteGroups}
         />
       ) : null}
+      {ed.disableWhenActive ? (
+        <LookupUserFieldPathsSection
+          title="Desativar só para utilizadores nestes campos"
+          description="A desativação acima só aplica se o utilizador atual constar no campo (lista ou lookup→user). Vazio = qualquer utilizador (só a condição «Quando»)."
+          paths={ed.disableLookupUserFieldPaths}
+          onPathsChange={(next) =>
+            setEd((p) => ({ ...p, disableLookupUserFieldPaths: next }))
+          }
+          options={lookupUserVisibilityOptions}
+          optionsLoading={lookupDestMetaLoading}
+          filter={disableLookupUserFilter}
+          onFilterChange={onDisableLookupUserFilterChange}
+        />
+      ) : null}
       <Checkbox
         label="Tornar editável quando a condição for verdadeira (sobrepor desativação acima)"
         checked={ed.enableWhenActive}
@@ -1636,6 +1683,18 @@ function FieldRulesDisableEnableCollapseContent(props: {
           onRetryLoadSiteGroups={onRetryLoadSiteGroups}
         />
       ) : null}
+      {ed.enableWhenActive ? (
+        <LookupUserFieldPathsSection
+          title="Ativar só para utilizadores nestes campos"
+          description="A reativação acima só aplica se o utilizador atual constar no campo. Vazio = qualquer utilizador (só a condição «Quando»)."
+          paths={ed.enableLookupUserFieldPaths}
+          onPathsChange={(next) => setEd((p) => ({ ...p, enableLookupUserFieldPaths: next }))}
+          options={lookupUserVisibilityOptions}
+          optionsLoading={lookupDestMetaLoading}
+          filter={enableLookupUserFilter}
+          onFilterChange={onEnableLookupUserFilterChange}
+        />
+      ) : null}
     </Stack>
   );
 }
@@ -1651,6 +1710,8 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   lookupFieldsWebServerRelativeUrl,
   listFieldMetadata,
   allFieldConfigs,
+  lookupDestMetaByListId = {},
+  lookupDestMetaLoading = false,
   onDismiss,
   onApply,
 }) => {
@@ -1665,6 +1726,9 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const [siteGroupsErr, setSiteGroupsErr] = useState<string>();
   const [spGroupRuleNameFilter, setSpGroupRuleNameFilter] = useState('');
   const [spExcludeGroupRuleNameFilter, setSpExcludeGroupRuleNameFilter] = useState('');
+  const [disableLookupUserFilter, setDisableLookupUserFilter] = useState('');
+  const [enableLookupUserFilter, setEnableLookupUserFilter] = useState('');
+  const [textCondLookupUserFilter, setTextCondLookupUserFilter] = useState('');
 
   const loadSiteGroups = useCallback((): void => {
     setSiteGroupsErr(undefined);
@@ -1701,6 +1765,15 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
   const siteGroupsSortedForExcludeRules = useMemo(
     () => filterSiteGroupsByNameQuery(siteGroupsSorted, spExcludeGroupRuleNameFilter),
     [siteGroupsSorted, spExcludeGroupRuleNameFilter]
+  );
+
+  const lookupUserVisibilityOptions = useMemo(
+    () =>
+      buildLookupUserVisibilityOptions(
+        listFieldMetadata ?? [],
+        lookupDestMetaByListId
+      ),
+    [listFieldMetadata, lookupDestMetaByListId]
   );
 
   useEffect(() => {
@@ -2249,6 +2322,31 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                           ) : null}
                         </Stack>
                       ) : null}
+                      {textCondGroupHasDisableAction(g) ? (
+                        <LookupUserFieldPathsSection
+                          title="Desativar só para utilizadores nestes campos"
+                          description="A ação «Desabilitar» só aplica se o utilizador atual constar no campo. Vazio = todos (respeita grupos e condições acima)."
+                          paths={g.lookupUserFieldPaths}
+                          onPathsChange={(next) =>
+                            setFc((p) => ({
+                              ...p,
+                              textConditionalVisibility: {
+                                groups: (p.textConditionalVisibility?.groups ?? []).map((gr) => {
+                                  if (gr.id !== g.id) return gr;
+                                  const out: ITextFieldConditionalGroup = { ...gr };
+                                  if (next?.length) out.lookupUserFieldPaths = next;
+                                  else delete out.lookupUserFieldPaths;
+                                  return out;
+                                }),
+                              },
+                            }))
+                          }
+                          options={lookupUserVisibilityOptions}
+                          optionsLoading={lookupDestMetaLoading}
+                          filter={textCondLookupUserFilter}
+                          onFilterChange={setTextCondLookupUserFilter}
+                        />
+                      ) : null}
                       <ChoiceGroup
                         label="Operador lógico entre condições"
                         selectedKey={g.groupOp}
@@ -2605,6 +2703,12 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 siteGroupsLoading={siteGroupsLoading}
                 siteGroupsErr={siteGroupsErr}
                 onRetryLoadSiteGroups={loadSiteGroups}
+                lookupUserVisibilityOptions={lookupUserVisibilityOptions}
+                lookupDestMetaLoading={lookupDestMetaLoading}
+                disableLookupUserFilter={disableLookupUserFilter}
+                onDisableLookupUserFilterChange={setDisableLookupUserFilter}
+                enableLookupUserFilter={enableLookupUserFilter}
+                onEnableLookupUserFilterChange={setEnableLookupUserFilter}
               />
             </FormManagerCollapseSection>
           </>
@@ -2877,6 +2981,12 @@ export const FormFieldRulesPanel: React.FC<IFormFieldRulesPanelProps> = ({
                 siteGroupsLoading={siteGroupsLoading}
                 siteGroupsErr={siteGroupsErr}
                 onRetryLoadSiteGroups={loadSiteGroups}
+                lookupUserVisibilityOptions={lookupUserVisibilityOptions}
+                lookupDestMetaLoading={lookupDestMetaLoading}
+                disableLookupUserFilter={disableLookupUserFilter}
+                onDisableLookupUserFilterChange={setDisableLookupUserFilter}
+                enableLookupUserFilter={enableLookupUserFilter}
+                onEnableLookupUserFilterChange={setEnableLookupUserFilter}
               />
             </FormManagerCollapseSection>
             {renderCondicionaisSection()}
