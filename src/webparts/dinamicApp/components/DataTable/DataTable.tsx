@@ -85,7 +85,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
   if (items.length === 0) return <TableEmptyState message={config.emptyMessage} />;
 
   return (
-    <div className={DINAMIC_SX_TABLE_CLASS.scrollWrap} style={{ overflowX: 'auto' }}>
+    <div className={DINAMIC_SX_TABLE_CLASS.scrollWrap}>
       <table
         className={DINAMIC_SX_TABLE_CLASS.table}
         role="grid"
@@ -126,7 +126,7 @@ export const DataTable: React.FC<IDataTableProps> = ({
           role="dialog"
           ariaLabel="Filtrar por campo"
         >
-          <Stack tokens={{ childrenGap: 8 }} styles={{ root: { padding: 12, minWidth: 220 } }}>
+          <Stack tokens={{ childrenGap: 8 }} className={DINAMIC_SX_TABLE_CLASS.columnFilter}>
             <TextField
               placeholder="Digite para filtrar..."
               value={filterInputValue}

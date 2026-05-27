@@ -19,6 +19,7 @@ export const DINAMIC_SX_TABLE_CLASS = {
   error: 'dinamicSxTableError',
   pagination: 'dinamicSxTablePagination',
   paginationBtn: 'dinamicSxTablePaginationBtn',
+  columnFilter: 'dinamicSxTableColumnFilter',
 } as const;
 
 export const DINAMIC_SX_CARD_CLASS = {
@@ -208,29 +209,28 @@ function buildDefaultTableLayoutCss(): string {
 }
 
 .${c.toolbar} {
-  margin-bottom: 12px;
-  padding: 2px 4px;
+  margin-bottom: 8px;
+  padding: 0;
 }
 
 .${c.scrollWrap} {
   overflow-x: auto;
   overflow-y: hidden;
   background: #ffffff;
-  border: 1px solid #e4e4e7;
-  border-radius: 14px;
+  border: 1px solid #e8e8e8;
+  border-radius: 15px;
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.02),
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 8px 24px rgba(15, 23, 42, 0.06);
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 3px 10px rgba(0, 0, 0, 0.05);
 }
 
 .${c.table} {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #18181b;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #242424;
   font-variant-numeric: tabular-nums;
 }
 
@@ -241,20 +241,18 @@ function buildDefaultTableLayoutCss(): string {
 }
 
 .${c.headerRow} {
-  background: rgba(250, 250, 250, 0.96);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: inset 0 -1px 0 #e4e4e7;
+  background: #f5f5f5;
+  box-shadow: inset 0 -1px 0 #e8e8e8;
 }
 
 .${c.headerCell} {
-  padding: 0 20px;
-  height: 46px;
-  font-size: 11px;
+  padding: 0 16px;
+  height: 44px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #71717a;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #605e5c;
   white-space: nowrap;
   vertical-align: middle;
   border: none;
@@ -268,13 +266,12 @@ function buildDefaultTableLayoutCss(): string {
 }
 
 .${c.headerFilterTrigger} {
-  opacity: 0.55;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  opacity: 0.6;
+  transition: opacity 0.18s ease;
 }
 
 .${c.headerFilterTrigger}:hover {
   opacity: 1;
-  transform: scale(1.05);
 }
 
 .${c.body} {
@@ -283,50 +280,41 @@ function buildDefaultTableLayoutCss(): string {
 
 .${c.row} {
   background: #ffffff;
-  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+  transition: background-color 0.16s ease;
 }
 
 .${c.row}:hover {
-  background: #f8fafc;
-  box-shadow: inset 3px 0 0 #0f6cbd;
+  background: #fafafa;
 }
 
 .${c.cell} {
-  padding: 14px 20px;
-  border-bottom: 1px solid #f4f4f5;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ececec;
   vertical-align: middle;
-  color: #3f3f46;
+  color: #323130;
 }
 
 .${c.cell}[data-field="Title"],
 .${c.cell}[data-field="LinkTitle"] {
-  color: #09090b;
-  font-weight: 500;
+  color: #242424;
+  font-weight: 600;
 }
 
 .${c.row}:last-child .${c.cell} {
   border-bottom: none;
 }
 
-.${c.row}:last-child:hover .${c.cell}:first-child {
-  border-bottom-left-radius: 13px;
-}
-
-.${c.row}:last-child:hover .${c.cell}:last-child {
-  border-bottom-right-radius: 13px;
-}
-
 .${c.empty},
 .${c.loading} {
-  padding: 48px 28px;
+  padding: 40px 24px;
   text-align: center;
-  color: #71717a;
+  color: #605e5c;
   font-size: 14px;
-  background: #fafafa;
-  border-radius: 12px;
-  border: 1px solid #e4e4e7;
+  background: #f5f5f5;
+  border-radius: 15px;
+  border: 1px solid #e8e8e8;
   margin-top: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .${c.error} {
@@ -335,49 +323,111 @@ function buildDefaultTableLayoutCss(): string {
 
 .${c.pagination} {
   margin-top: 12px;
-  padding: 4px 2px 2px;
+  padding: 2px 0;
   gap: 8px;
 }
 
 .${c.paginationBtn} {
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.2;
-  color: #3f3f46;
+  color: #323130;
   background: #ffffff;
-  border: 1px solid #e4e4e7;
-  border-radius: 8px;
-  padding: 8px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 15px;
+  padding: 0 16px;
+  min-height: 38px;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 
 .${c.paginationBtn}:hover {
-  background: #f8fafc;
-  border-color: #d4d4d8;
-  color: #18181b;
+  background: #ffffff;
+  border-color: #d4d4d4;
+  color: #242424;
 }
 
 .${c.paginationBtn}:active {
-  background: #f4f4f5;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  background: #f5f5f5;
+}
+
+.${c.paginationBtn}[data-active="true"] {
+  border-color: #0f6cbd;
+  color: #0f6cbd;
+  background: #f0f6fc;
 }
 
 .${c.pagination} > span {
-  font-size: 12px;
-  color: #71717a;
+  font-size: 13px;
+  color: #605e5c;
   font-weight: 500;
 }
 
 .dinamicSxTablePagination--compact .${c.paginationBtn} {
-  padding: 6px 11px;
-  font-size: 12px;
-  border-radius: 7px;
+  padding: 0 12px;
+  min-height: 34px;
+  font-size: 13px;
+  border-radius: 12px;
+}
+
+.${c.columnFilter} .ms-Button--primary {
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 120, 212, 0.2);
 }
 `.trim();
 }
+
+/** Callout de filtro por coluna renderiza no portal do Fluent (fora do escopo da instância). */
+export const TABLE_COLUMN_FILTER_PORTAL_CSS = (() => {
+  const c = DINAMIC_SX_TABLE_CLASS;
+  return `
+.${c.columnFilter} {
+  padding: 12px 14px;
+  min-width: 240px;
+  box-sizing: border-box;
+}
+
+.${c.columnFilter} .ms-TextField-fieldGroup {
+  min-height: 38px;
+  border: 1px solid #e0e0e0;
+  border-radius: 15px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.${c.columnFilter} .ms-TextField-fieldGroup:hover {
+  border-color: #d4d4d4;
+}
+
+.${c.columnFilter} .ms-TextField-fieldGroup:focus-within {
+  border-color: #c8c8c8;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
+}
+
+.${c.columnFilter} .ms-TextField-field {
+  font-size: 14px;
+  padding: 0 13px;
+}
+
+.${c.columnFilter} .ms-Button {
+  border-radius: 15px;
+  min-height: 38px;
+  font-weight: 600;
+}
+
+.${c.columnFilter} .ms-Button--default {
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+}
+
+.${c.columnFilter} .ms-Button--primary {
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 120, 212, 0.2);
+}
+`.trim();
+})();
 
 export const DEFAULT_TABLE_LAYOUT_CSS = buildDefaultTableLayoutCss();
 

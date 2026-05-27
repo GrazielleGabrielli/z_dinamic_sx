@@ -39,6 +39,7 @@ import {
   mergeRowStyleRulesCss,
   resolveTableLayoutCss,
   scopeCardCssByInstance,
+  TABLE_COLUMN_FILTER_PORTAL_CSS,
 } from './tableLayoutClasses';
 import { ViewModePickerBar } from './ViewModePickerBar';
 import { resolveViewModeCss } from './viewModePickerLayouts';
@@ -147,8 +148,7 @@ export interface ITableViewProps {
 }
 
 function scopeTableCssByInstance(css: string, scopeClass: string): string {
-  if (!css.trim()) return '';
-  return css.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`);
+  return scopeCssSelectorsByInstance(css, scopeClass);
 }
 
 function scopeCssSelectorsByInstance(css: string, scopeClass: string): string {
@@ -607,8 +607,8 @@ export const TableView: React.FC<ITableViewProps> = ({
                   key={n}
                   type="button"
                   className={DINAMIC_SX_TABLE_CLASS.paginationBtn}
+                  data-active={n === currentPage ? 'true' : undefined}
                   onClick={() => goToPage(n)}
-                  style={n === currentPage ? { fontWeight: 700, borderColor: '#0f6cbd', color: '#0f6cbd', background: '#f0f6fc' } : undefined}
                 >
                   {n}
                 </button>
@@ -799,7 +799,12 @@ export const TableView: React.FC<ITableViewProps> = ({
   const rowRulesCss = mergeRowStyleRulesCss(listView?.tableRowStyleRules);
   const instanceScopeClass = `dinamicSxScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const mergedLayoutCssRaw = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
-  const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
+  const mergedLayoutCss = [
+    scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass),
+    TABLE_COLUMN_FILTER_PORTAL_CSS,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   const mergedCardCss = scopeCardCssByInstance(listView?.customCardCss ?? '', instanceScopeClass);
   const mergedFilterCss = scopeFilterCssByInstance(
     resolveFilterBarCss(listView?.customFilterCss),
