@@ -90,8 +90,6 @@ export const DataTable: React.FC<IDataTableProps> = ({
         className={DINAMIC_SX_TABLE_CLASS.table}
         role="grid"
         style={{
-          width: '100%',
-          borderCollapse: 'collapse',
           tableLayout: useFixedLayout ? 'fixed' : 'auto',
         }}
       >

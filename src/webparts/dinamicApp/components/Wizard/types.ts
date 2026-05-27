@@ -79,7 +79,8 @@ export function configToWizardState(config: IDynamicViewConfig): IWizardFormStat
     viewModes,
     activeViewModeId: lv?.activeViewModeId ?? viewModes[0]?.id ?? 'all',
     viewModeDefaultRules: lv?.viewModeDefaultRules?.length ? lv.viewModeDefaultRules.map((r) => ({ ...r })) : [],
-    viewModePicker: lv?.viewModePicker === 'tabs' ? 'tabs' : 'dropdown',
+    viewModePicker:
+      lv?.viewModePicker && lv.viewModePicker !== 'dropdown' ? lv.viewModePicker : 'dropdown',
     formStepLayout: config.formManager?.stepLayout ?? 'segmented',
   };
 }

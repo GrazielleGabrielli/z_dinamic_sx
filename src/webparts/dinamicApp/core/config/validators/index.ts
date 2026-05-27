@@ -23,6 +23,7 @@ import {
 import { getDefaultConfig } from '../utils';
 import { isValidPdfPageFormat } from '../../pdf/pdfPageFormats';
 import { sanitizeTableCssSlots } from '../../../components/DataTable/tableLayoutClasses';
+import { normalizeViewModePicker } from '../../../components/DataTable/viewModePickerLayouts';
 import { sanitizeTableRowStyleRules } from '../../table/utils/tableRowStyleRuleEval';
 import {
   normalizeListPageLayoutDashboards,
@@ -200,6 +201,10 @@ function sanitizeViewModesList(raw: unknown, fallback: IListViewModeConfig[]): I
       });
     }
     const mode: IListViewModeConfig = { id, label, filters };
+    if (typeof r.iconName === 'string' && r.iconName.trim()) mode.iconName = r.iconName.trim();
+    if (typeof r.badgeCount === 'number' && Number.isFinite(r.badgeCount) && r.badgeCount >= 0) {
+      mode.badgeCount = Math.floor(r.badgeCount);
+    }
     if (r.access !== undefined) {
       const a = sanitizeViewModeAccessRaw(r.access);
       if (a !== undefined) mode.access = a;
@@ -453,7 +458,9 @@ export function sanitizeListViewConfig(lv: unknown): IListViewConfig | undefined
     ...(typeof lvo.customViewModeCss === 'string' ? { customViewModeCss: lvo.customViewModeCss } : {}),
     ...(rowRules ? { tableRowStyleRules: rowRules } : {}),
     ...(listRowActions ? { listRowActions } : {}),
-    ...(lvo.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
+    ...(normalizeViewModePicker(lvo.viewModePicker) !== 'dropdown'
+      ? { viewModePicker: normalizeViewModePicker(lvo.viewModePicker) }
+      : {}),
     ...(tableFilterFields?.length ? { tableFilterFields } : {}),
     ...(typeof lvo.tableAdvancedFiltersTitle === 'string' && lvo.tableAdvancedFiltersTitle.trim()
       ? { tableAdvancedFiltersTitle: lvo.tableAdvancedFiltersTitle.trim() }

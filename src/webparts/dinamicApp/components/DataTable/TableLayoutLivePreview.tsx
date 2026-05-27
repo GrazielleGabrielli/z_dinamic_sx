@@ -4,14 +4,22 @@ import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 
 export interface ITableLayoutLivePreviewProps {
   cssText: string;
-  /** Tokens de regras com CSS (pré-visualização das linhas de exemplo). */
   rulePreviewTokens?: readonly string[];
 }
 
 const scopeClass = 'dinamicSxLayoutLivePreviewScope';
 
 const StackWrap: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{ padding: 10, border: '1px solid #edebe9', borderRadius: 8, background: '#fff' }}>{children}</div>
+  <div
+    style={{
+      padding: 14,
+      border: '1px solid #e4e4e7',
+      borderRadius: 12,
+      background: 'linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%)',
+    }}
+  >
+    {children}
+  </div>
 );
 
 export const TableLayoutLivePreview: React.FC<ITableLayoutLivePreviewProps> = ({ cssText, rulePreviewTokens }) => {
@@ -20,66 +28,63 @@ export const TableLayoutLivePreview: React.FC<ITableLayoutLivePreviewProps> = ({
     ? cssTrim.replace(/\.dinamicSxTable/g, `.${scopeClass} .dinamicSxTable`)
     : '';
 
+  const C = DINAMIC_SX_TABLE_CLASS;
+
   return (
     <StackWrap>
       {scopedCss ? <style type="text/css">{scopedCss}</style> : null}
-      <Text variant="small" styles={{ root: { color: '#a19f9d', marginBottom: 8, display: 'block', fontWeight: 600 } }}>
-        Pré-visualização geral
+      <Text variant="small" styles={{ root: { color: '#71717a', marginBottom: 10, display: 'block', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: 10 } }}>
+        Pré-visualização
       </Text>
       <div className={scopeClass}>
-        <div className={DINAMIC_SX_TABLE_CLASS.viewRoot} style={{ padding: 8, background: '#faf9f8' }}>
-          <div className={DINAMIC_SX_TABLE_CLASS.toolbar} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 11, border: '1px solid #edebe9', padding: '2px 8px', borderRadius: 2 }}>Visualização</span>
-            <span style={{ fontSize: 11, color: '#0078d4' }}>Exportar PDF</span>
+        <div className={C.viewRoot}>
+          <div className={C.toolbar}>
+            <span style={{ fontSize: 11, fontWeight: 500, color: '#71717a' }}>Visualização</span>
           </div>
-          <div className={DINAMIC_SX_TABLE_CLASS.scrollWrap} style={{ overflowX: 'auto' }}>
-            <table className={DINAMIC_SX_TABLE_CLASS.table} style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead className={DINAMIC_SX_TABLE_CLASS.thead}>
-                <tr className={DINAMIC_SX_TABLE_CLASS.headerRow}>
-                  <th className={DINAMIC_SX_TABLE_CLASS.headerCell} data-field="Title" style={{ border: '1px solid #edebe9', padding: 6, textAlign: 'left' }}>
-                    <span className={DINAMIC_SX_TABLE_CLASS.headerCellInner} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                      Title
-                      <span className={DINAMIC_SX_TABLE_CLASS.headerFilterTrigger}>⧩</span>
+          <div className={C.scrollWrap}>
+            <table className={C.table} role="presentation">
+              <thead className={C.thead}>
+                <tr className={C.headerRow}>
+                  <th className={C.headerCell} data-field="Title">
+                    <span className={C.headerCellInner}>
+                      Título
+                      <span className={C.headerFilterTrigger} aria-hidden>⧩</span>
                     </span>
                   </th>
-                  <th className={DINAMIC_SX_TABLE_CLASS.headerCell} data-field="Status" style={{ border: '1px solid #edebe9', padding: 6, textAlign: 'left' }}>
-                    Status
+                  <th className={C.headerCell} data-field="Status">
+                    <span className={C.headerCellInner}>Estado</span>
                   </th>
                 </tr>
               </thead>
-              <tbody className={DINAMIC_SX_TABLE_CLASS.body}>
-                <tr className={DINAMIC_SX_TABLE_CLASS.row}>
+              <tbody className={C.body}>
+                <tr className={C.row}>
                   <td
-                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    className={C.cell}
                     data-field="Title"
                     {...(rulePreviewTokens?.[0] ? { 'data-dinamic-rules': rulePreviewTokens[0] } : {})}
-                    style={{ border: '1px solid #edebe9', padding: 6 }}
                   >
-                    Teste
+                    Registo de exemplo
                   </td>
                   <td
-                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    className={C.cell}
                     data-field="Status"
                     {...(rulePreviewTokens?.[0] ? { 'data-dinamic-rules': rulePreviewTokens[0] } : {})}
-                    style={{ border: '1px solid #edebe9', padding: 6 }}
                   >
                     Ativo
                   </td>
                 </tr>
-                <tr className={DINAMIC_SX_TABLE_CLASS.row}>
+                <tr className={C.row}>
                   <td
-                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    className={C.cell}
                     data-field="Title"
                     {...(rulePreviewTokens?.[1] ? { 'data-dinamic-rules': rulePreviewTokens[1] } : {})}
-                    style={{ border: '1px solid #edebe9', padding: 6 }}
                   >
-                    Outro item
+                    Outro registo
                   </td>
                   <td
-                    className={DINAMIC_SX_TABLE_CLASS.cell}
+                    className={C.cell}
                     data-field="Status"
                     {...(rulePreviewTokens?.[1] ? { 'data-dinamic-rules': rulePreviewTokens[1] } : {})}
-                    style={{ border: '1px solid #edebe9', padding: 6 }}
                   >
                     Pendente
                   </td>
@@ -87,14 +92,18 @@ export const TableLayoutLivePreview: React.FC<ITableLayoutLivePreviewProps> = ({
               </tbody>
             </table>
           </div>
-          <div className={DINAMIC_SX_TABLE_CLASS.pagination} style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: 11, border: '1px solid #8a8886', padding: '2px 8px', borderRadius: 2 }}>Anterior</span>
-            <span style={{ fontSize: 11, border: '1px solid #8a8886', padding: '2px 8px', borderRadius: 2 }}>Próxima</span>
+          <div className={C.pagination}>
+            <button type="button" className={C.paginationBtn}>
+              Anterior
+            </button>
+            <button type="button" className={C.paginationBtn} style={{ fontWeight: 700, borderColor: '#0f6cbd', color: '#0f6cbd', background: '#f0f6fc' }}>
+              1
+            </button>
+            <button type="button" className={C.paginationBtn}>
+              Próxima
+            </button>
           </div>
         </div>
-        <div className={DINAMIC_SX_TABLE_CLASS.empty} style={{ marginTop: 8, padding: 10, border: '1px solid #edebe9' }}>Estado vazio</div>
-        <div className={DINAMIC_SX_TABLE_CLASS.loading} style={{ marginTop: 6, padding: 10, border: '1px solid #edebe9' }}>Carregando...</div>
-        <div className={DINAMIC_SX_TABLE_CLASS.error} style={{ marginTop: 6, padding: 10, border: '1px solid #edebe9' }}>Erro de exemplo</div>
       </div>
     </StackWrap>
   );

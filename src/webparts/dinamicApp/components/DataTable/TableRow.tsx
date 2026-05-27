@@ -62,9 +62,6 @@ export const TableRow: React.FC<ITableRowProps> = ({ item, columns, engine, rowS
           onClick={(ev) => { ev.stopPropagation(); }}
           style={{
             textAlign: 'right',
-            padding: '8px 12px',
-            borderBottom: '1px solid #f3f2f1',
-            verticalAlign: 'middle',
             width: 1,
             whiteSpace: 'nowrap',
           }}

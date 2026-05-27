@@ -1,0 +1,272 @@
+import type { IListViewModeConfig, TViewModePicker } from '../../core/config/types';
+
+export const VIEW_MODE_PICKER_OPTIONS: { key: TViewModePicker; text: string }[] = [
+  { key: 'dropdown', text: 'Lista suspensa (select)' },
+  { key: 'buttons', text: 'Botões' },
+  { key: 'tabs', text: 'Abas com sublinhado' },
+  { key: 'segmented', text: 'Segmentado (pílulas no trilho)' },
+  { key: 'pills', text: 'Pílulas com contador' },
+  { key: 'iconsUnderline', text: 'Ícones e sublinhado' },
+  { key: 'iconsBadges', text: 'Ícones e contador' },
+];
+
+const PICKER_KEYS = new Set<TViewModePicker>(VIEW_MODE_PICKER_OPTIONS.map((o) => o.key));
+
+export function normalizeViewModePicker(raw: unknown): TViewModePicker {
+  if (typeof raw === 'string' && PICKER_KEYS.has(raw as TViewModePicker)) {
+    return raw as TViewModePicker;
+  }
+  return 'dropdown';
+}
+
+export function defaultViewModeIcon(mode: IListViewModeConfig): string {
+  if (mode.iconName?.trim()) return mode.iconName.trim();
+  if (mode.id === 'all') return 'ViewList';
+  if (mode.id === 'mine') return 'Contact';
+  return 'Filter';
+}
+
+export const DEFAULT_VIEW_MODE_CSS = `
+.dinamicSxViewModeBar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dinamicSxViewModeDropdown .ms-Dropdown {
+  max-width: 240px;
+}
+
+.dinamicSxViewModeButtonsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.dinamicSxViewModeSegmentedTrack {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: #f4f4f5;
+  border-radius: 14px;
+  max-width: 100%;
+}
+
+.dinamicSxViewModeSegmentedItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #3f3f46;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.dinamicSxViewModeSegmentedItem[aria-selected="true"] {
+  background: #ffffff;
+  color: #18181b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.dinamicSxViewModeUnderlineWrap {
+  position: relative;
+  max-width: 100%;
+}
+
+.dinamicSxViewModeUnderlineTrack {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border-bottom: 1px solid #e4e4e7;
+  padding-right: 36px;
+}
+
+.dinamicSxViewModeUnderlineItem {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.dinamicSxViewModeUnderlineItem:hover {
+  color: #3f3f46;
+}
+
+.dinamicSxViewModeUnderlineItem[aria-selected="true"] {
+  color: #0f6cbd;
+  font-weight: 600;
+}
+
+.dinamicSxViewModeUnderlineItem[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  background: #0f6cbd;
+  border-radius: 2px 2px 0 0;
+}
+
+.dinamicSxViewModeUnderlineScrollBtn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 1px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid #e4e4e7;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #ffffff 40%);
+  color: #52525b;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.dinamicSxViewModePillsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+}
+
+.dinamicSxViewModePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3f3f46;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.dinamicSxViewModePill[aria-selected="true"] {
+  color: #0f6cbd;
+}
+
+.dinamicSxViewModePillBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  background: #f4f4f5;
+  color: #52525b;
+}
+
+.dinamicSxViewModePill[aria-selected="true"] .dinamicSxViewModePillBadge {
+  background: #e8f3fc;
+  color: #0f6cbd;
+}
+
+.dinamicSxViewModePillBadge--success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dinamicSxViewModePillBadge--muted {
+  background: transparent;
+  color: #71717a;
+  padding-left: 0;
+  min-width: 0;
+}
+
+.dinamicSxViewModeIconRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+  border-bottom: 1px solid #e4e4e7;
+  padding-bottom: 2px;
+}
+
+.dinamicSxViewModeIconItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 12px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #71717a;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.dinamicSxViewModeIconItem i {
+  font-size: 16px;
+  color: #a1a1aa;
+}
+
+.dinamicSxViewModeIconItem[aria-selected="true"] {
+  color: #18181b;
+}
+
+.dinamicSxViewModeIconItem[aria-selected="true"] i {
+  color: #0f6cbd;
+}
+
+.dinamicSxViewModeIconItem[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #18181b;
+  border-radius: 2px 2px 0 0;
+}
+
+.dinamicSxViewModeIconItem .dinamicSxViewModePillBadge {
+  margin-left: 2px;
+}
+`.trim();
+
+export function resolveViewModeCss(customCss: string | undefined): string {
+  const custom = (customCss ?? '').trim();
+  return custom.length > 0 ? custom : DEFAULT_VIEW_MODE_CSS;
+}
+
+export function pillBadgeVariant(mode: IListViewModeConfig, selected: boolean): string {
+  if (mode.badgeCount === undefined) return 'muted';
+  if (selected) return '';
+  if (mode.id === 'mine' || mode.label.toLowerCase().indexOf('conclu') !== -1) return 'success';
+  return '';
+}

@@ -8,7 +8,6 @@ export const TableLoadingState: React.FC = () => (
     horizontalAlign="center"
     verticalAlign="center"
     tokens={{ childrenGap: 12 }}
-    styles={{ root: { padding: 48 } }}
   >
     <Spinner size={SpinnerSize.medium} />
     <Text variant="small" styles={{ root: { color: '#a19f9d' } }}>

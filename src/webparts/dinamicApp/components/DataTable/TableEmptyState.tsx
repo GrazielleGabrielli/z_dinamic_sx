@@ -7,12 +7,7 @@ export interface ITableEmptyStateProps {
 }
 
 export const TableEmptyState: React.FC<ITableEmptyStateProps> = ({ message }) => (
-  <Stack
-    className={DINAMIC_SX_TABLE_CLASS.empty}
-    horizontalAlign="center"
-    verticalAlign="center"
-    styles={{ root: { padding: 48, background: '#faf9f8', borderRadius: 8 } }}
-  >
+  <Stack className={DINAMIC_SX_TABLE_CLASS.empty} horizontalAlign="center" verticalAlign="center">
     <Text variant="medium" styles={{ root: { color: '#605e5c' } }}>
       {message ?? 'Nenhum item encontrado.'}
     </Text>

@@ -23,10 +23,10 @@ import type {
   IListViewModeAccessConfig,
   IListViewModeDefaultRule,
   TFilterOperator,
-  TViewModePicker,
 } from '../../../core/config/types';
 import { ViewModeAccessSection, accessSummary } from '../../shared/ViewModeAccessSection';
 import { isNoteFieldMeta } from '../../../core/listView';
+import { VIEW_MODE_PICKER_OPTIONS, normalizeViewModePicker } from '../../DataTable/viewModePickerLayouts';
 import { IWizardFormState } from '../types';
 
 const EXPANDABLE = ['lookup', 'lookupmulti', 'user', 'usermulti'];
@@ -69,10 +69,10 @@ function filterSummary(filters: IListViewFilterConfig[]): string {
   return filters.map((f) => `${f.field} ${f.operator} "${f.value}"`).join(' e ');
 }
 
-const VIEW_MODE_PICKER_OPTIONS: IChoiceGroupOption[] = [
-  { key: 'dropdown', text: 'Lista suspensa' },
-  { key: 'tabs', text: 'Abas horizontais' },
-];
+const VIEW_MODE_PICKER_CHOICES: IChoiceGroupOption[] = VIEW_MODE_PICKER_OPTIONS.map((o) => ({
+  key: o.key,
+  text: o.text,
+}));
 
 interface IStep5Props {
   form: IWizardFormState;
@@ -249,13 +249,11 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
       </Stack.Item>
 
       <ChoiceGroup
-        label="Controlo na lista"
+        label="Controle na lista"
         selectedKey={form.viewModePicker}
-        options={VIEW_MODE_PICKER_OPTIONS}
+        options={VIEW_MODE_PICKER_CHOICES}
         onChange={(_, opt) => {
-          const k = (opt?.key as string | undefined) ?? 'dropdown';
-          const next: TViewModePicker = k === 'tabs' ? 'tabs' : 'dropdown';
-          onChange({ viewModePicker: next });
+          onChange({ viewModePicker: normalizeViewModePicker(opt?.key) });
         }}
         styles={{
           flexContainer: { display: 'flex', flexWrap: 'wrap', columnGap: '12px', rowGap: '4px' },

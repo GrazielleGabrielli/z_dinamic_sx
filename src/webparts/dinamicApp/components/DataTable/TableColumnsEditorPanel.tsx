@@ -65,10 +65,12 @@ import {
   TABLE_LAYOUT_EDITOR_ROWS,
   mergeCustomTableCss,
   mergeRowStyleRulesCss,
+  DEFAULT_TABLE_LAYOUT_CSS,
 } from './tableLayoutClasses';
 import { isNoteFieldMeta } from '../../core/listView';
 import { toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { TableLayoutLivePreview } from './TableLayoutLivePreview';
+import { VIEW_MODE_PICKER_OPTIONS, normalizeViewModePicker } from './viewModePickerLayouts';
 import {
   sanitizeListTableEditorBundle,
   sanitizeListViewChromeButtons,
@@ -392,10 +394,10 @@ const DEFAULT_VIEW_MODES_FALLBACK: IListViewModeConfig[] = [
   { id: 'mine', label: 'Minhas', filters: [{ field: 'Author/Id', operator: 'eq', value: '[Me]' }] },
 ];
 
-const VIEW_MODE_PICKER_OPTIONS: IChoiceGroupOption[] = [
-  { key: 'dropdown', text: 'Lista suspensa' },
-  { key: 'tabs', text: 'Abas horizontais' },
-];
+const VIEW_MODE_PICKER_CHOICES: IChoiceGroupOption[] = VIEW_MODE_PICKER_OPTIONS.map((o) => ({
+  key: o.key,
+  text: o.text,
+}));
 
 const DEFAULT_PROJECT_COLUMNS: IProjectManagementColumnConfig[] = [];
 
@@ -563,6 +565,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 }) => {
   const lw = listWebServerRelativeUrl?.trim() || undefined;
   const [layoutSectionOpen, setLayoutSectionOpen] = useState<Partial<Record<'tableCss' | 'rowRules' | 'cardCss' | 'filterCss' | 'viewModeCss', boolean>>>({});
+  const [listEditorPivotKey, setListEditorPivotKey] = useState<string>('geral');
   const [localPdfTemplate, setLocalPdfTemplate] = useState<IPdfTemplateConfig | undefined>(pdfTemplate);
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<IFieldOption[]>([]);
@@ -608,7 +611,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   const [filterEditorAdvancedOpen, setFilterEditorAdvancedOpen] = useState(true);
   const [tableFilterZoneDropHighlight, setTableFilterZoneDropHighlight] = useState<TTableFilterDragZone | null>(null);
   const layoutPreviewCss = useMemo(() => {
-    const layout = layoutCssText.trim();
+    const layout = layoutCssText.trim() || DEFAULT_TABLE_LAYOUT_CSS;
     const rules = mergeRowStyleRulesCss(rowStyleRules).trim();
     return [layout, rules].filter(Boolean).join('\n\n');
   }, [layoutCssText, rowStyleRules]);
@@ -626,7 +629,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
   );
   const [activeViewModeId, setActiveViewModeId] = useState<string>(listView.activeViewModeId ?? 'all');
   const [listViewModePicker, setListViewModePicker] = useState<TViewModePicker>(
-    listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown'
+    normalizeViewModePicker(listView.viewModePicker)
   );
   const [viewModeDefaultRules, setViewModeDefaultRules] = useState<IListViewModeDefaultRule[]>(
     () => listView.viewModeDefaultRules?.map((r) => ({ ...r })) ?? []
@@ -699,7 +702,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setViewModes(listView.viewModes?.length ? listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
     setActiveViewModeId(listView.activeViewModeId ?? 'all');
     setViewModeDefaultRules(listView.viewModeDefaultRules?.map((r) => ({ ...r })) ?? []);
-    setListViewModePicker(listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
+    setListViewModePicker(normalizeViewModePicker(listView.viewModePicker));
     setLocalPdfTemplate(pdfTemplate);
     setPdfExportEnabled(listView.pdfExportEnabled ?? false);
     setListCardViewEnabled(listView.listCardViewEnabled ?? false);
@@ -1422,7 +1425,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       ...(effectiveListCardEnabled && effectiveListCardDefault === 'cards'
         ? { listDefaultDisplayMode: 'cards' as const }
         : {}),
-      ...(listViewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
+      ...(listViewModePicker !== 'dropdown' ? { viewModePicker: listViewModePicker } : {}),
       ...(viewModeDefaultRules.length > 0
         ? { viewModeDefaultRules: viewModeDefaultRules.map((r) => ({ ...r })) }
         : { viewModeDefaultRules: undefined }),
@@ -1522,7 +1525,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
       setViewModes(bundle.listView.viewModes?.length ? bundle.listView.viewModes : DEFAULT_VIEW_MODES_FALLBACK);
       setActiveViewModeId(bundle.listView.activeViewModeId ?? 'all');
       setViewModeDefaultRules(bundle.listView.viewModeDefaultRules?.map((r) => ({ ...r })) ?? []);
-      setListViewModePicker(bundle.listView.viewModePicker === 'tabs' ? 'tabs' : 'dropdown');
+      setListViewModePicker(normalizeViewModePicker(bundle.listView.viewModePicker));
       setRowStyleRules([...(bundle.listView.tableRowStyleRules ?? [])]);
       setRowActions([...(bundle.listView.listRowActions ?? [])]);
       setTableFilterFields(normalizeTableFilterFieldsOrderLocal(bundle.listView.tableFilterFields?.slice() ?? []));
@@ -1703,29 +1706,16 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
           </Stack>
         ) : (
           <Stack tokens={{ childrenGap: 18 }} styles={{ root: { minWidth: 0, maxWidth: '100%' } }}>
-            <Stack
-              tokens={{ childrenGap: 4 }}
-              styles={{
-                root: {
-                  padding: '12px 14px 14px',
-                  borderRadius: 12,
-                  background: '#ffffff',
-                  border: '1px solid #e8e6e4',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                  minWidth: 0,
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
-                },
+            <Pivot
+              selectedKey={listEditorPivotKey}
+              onLinkClick={(item) => {
+                const key = item?.props.itemKey;
+                if (key) setListEditorPivotKey(key);
               }}
+              styles={{ root: { marginBottom: 4 } }}
             >
-              <Text variant="large" styles={{ root: { fontWeight: 700, color: '#242424', letterSpacing: '-0.02em' } }}>
-                {mode === 'projectManagement' ? 'Quadro e campos' : 'Lista, grelha e cartões'}
-              </Text>
-              <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                {listTitle}
-              </Text>
-            </Stack>
-            <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 2, minWidth: 0, maxWidth: '100%' } }}>
+              <PivotItem itemKey="geral" headerText="Geral">
+                <Stack tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 12, minWidth: 0, maxWidth: '100%' } }}>
             {mode === 'projectManagement' && (
               <>
                 <Stack tokens={{ childrenGap: 8 }}>
@@ -1917,12 +1907,11 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     Ex.: Todas (sem filtro), Minhas (Author/Id eq [Me]), ou filtros customizados. O usuário alterna entre eles na lista.
                   </Text>
                   <ChoiceGroup
-                    label="Controlo na lista"
+                    label="Controle na lista"
                     selectedKey={listViewModePicker}
-                    options={VIEW_MODE_PICKER_OPTIONS}
+                    options={VIEW_MODE_PICKER_CHOICES}
                     onChange={(_, opt) => {
-                      const k = (opt?.key as string | undefined) ?? 'dropdown';
-                      setListViewModePicker(k === 'tabs' ? 'tabs' : 'dropdown');
+                      setListViewModePicker(normalizeViewModePicker(opt?.key));
                     }}
                     styles={{
                       flexContainer: { display: 'flex', flexWrap: 'wrap', columnGap: '12px', rowGap: '4px' },
@@ -2606,7 +2595,6 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                 ))}
               </>
             )}
-                </Stack>
               {mode !== 'projectManagement' ? (
                 <ListTabListaCollapse
                   title="Ações na linha"
@@ -2892,22 +2880,17 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                   </Stack>
                 </ListTabListaCollapse>
               ) : null}
-              <Stack tokens={{ childrenGap: 6 }} styles={{ root: { marginTop: 4, minWidth: 0, maxWidth: '100%' } }}>
-                <Text variant="large" styles={{ root: { fontWeight: 700, color: '#242424', letterSpacing: '-0.02em' } }}>
-                  Layout e aparência
-                </Text>
-                <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                  CSS da tabela, regras de linha, cartões, filtros e modos de visualização.
-                </Text>
-              </Stack>
-              <Stack tokens={{ childrenGap: 10 }} styles={{ root: { paddingBottom: 8, minWidth: 0, maxWidth: '100%' } }}>
+                </Stack>
+              </PivotItem>
+              <PivotItem itemKey="css" headerText="CSS">
+                <Stack tokens={{ childrenGap: 10 }} styles={{ root: { paddingTop: 12, paddingBottom: 8, minWidth: 0, maxWidth: '100%' } }}>
                   <ListTabListaCollapse
                     title="CSS da tabela"
                     isOpen={layoutSectionOpen.tableCss === true}
                     onToggle={() => setLayoutSectionOpen((p) => ({ ...p, tableCss: !p.tableCss }))}
                   >
                     <Text variant="small" styles={{ root: { color: '#323130', lineHeight: 1.55 } }}>
-                      Use seletores das classes da tabela. A pré-visualização reage ao digitar e inclui o CSS das regras de linha.
+                      Vazio = estilo padrão moderno da tabela. Com texto, só o seu CSS é aplicado. A pré-visualização inclui as regras de linha.
                     </Text>
                     <Stack horizontal wrap verticalAlign="start" tokens={{ childrenGap: 16 }}>
                       <Stack styles={{ root: { flex: '1 1 480px', minWidth: 320 } }} tokens={{ childrenGap: 8 }}>
@@ -3249,6 +3232,8 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     </Stack>
                   </ListTabListaCollapse>
                 </Stack>
+              </PivotItem>
+            </Pivot>
           </Stack>
         )}
         {formulasTarget && formulasFilterIndex !== null && (

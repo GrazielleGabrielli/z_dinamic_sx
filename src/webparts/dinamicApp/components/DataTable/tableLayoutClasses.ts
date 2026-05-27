@@ -18,6 +18,7 @@ export const DINAMIC_SX_TABLE_CLASS = {
   loading: 'dinamicSxTableLoading',
   error: 'dinamicSxTableError',
   pagination: 'dinamicSxTablePagination',
+  paginationBtn: 'dinamicSxTablePaginationBtn',
 } as const;
 
 export const DINAMIC_SX_CARD_CLASS = {
@@ -194,6 +195,198 @@ export function mergeCustomTableCss(
   const free = (legacyFreeform ?? '').trim();
   if (free) parts.push(free);
   return parts.join('\n\n').trim();
+}
+
+function buildDefaultTableLayoutCss(): string {
+  const c = DINAMIC_SX_TABLE_CLASS;
+  return `
+.${c.viewRoot} {
+  margin-top: 2px;
+  font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.${c.toolbar} {
+  margin-bottom: 12px;
+  padding: 2px 4px;
+}
+
+.${c.scrollWrap} {
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.${c.table} {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #18181b;
+  font-variant-numeric: tabular-nums;
+}
+
+.${c.thead} {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.${c.headerRow} {
+  background: rgba(250, 250, 250, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 -1px 0 #e4e4e7;
+}
+
+.${c.headerCell} {
+  padding: 0 20px;
+  height: 46px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717a;
+  white-space: nowrap;
+  vertical-align: middle;
+  border: none;
+  background: transparent;
+}
+
+.${c.headerCellInner} {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.${c.headerFilterTrigger} {
+  opacity: 0.55;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.${c.headerFilterTrigger}:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.${c.body} {
+  background: #ffffff;
+}
+
+.${c.row} {
+  background: #ffffff;
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.${c.row}:hover {
+  background: #f8fafc;
+  box-shadow: inset 3px 0 0 #0f6cbd;
+}
+
+.${c.cell} {
+  padding: 14px 20px;
+  border-bottom: 1px solid #f4f4f5;
+  vertical-align: middle;
+  color: #3f3f46;
+}
+
+.${c.cell}[data-field="Title"],
+.${c.cell}[data-field="LinkTitle"] {
+  color: #09090b;
+  font-weight: 500;
+}
+
+.${c.row}:last-child .${c.cell} {
+  border-bottom: none;
+}
+
+.${c.row}:last-child:hover .${c.cell}:first-child {
+  border-bottom-left-radius: 13px;
+}
+
+.${c.row}:last-child:hover .${c.cell}:last-child {
+  border-bottom-right-radius: 13px;
+}
+
+.${c.empty},
+.${c.loading} {
+  padding: 48px 28px;
+  text-align: center;
+  color: #71717a;
+  font-size: 14px;
+  background: #fafafa;
+  border-radius: 12px;
+  border: 1px solid #e4e4e7;
+  margin-top: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.${c.error} {
+  margin-top: 10px;
+}
+
+.${c.pagination} {
+  margin-top: 12px;
+  padding: 4px 2px 2px;
+  gap: 8px;
+}
+
+.${c.paginationBtn} {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #3f3f46;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.${c.paginationBtn}:hover {
+  background: #f8fafc;
+  border-color: #d4d4d8;
+  color: #18181b;
+}
+
+.${c.paginationBtn}:active {
+  background: #f4f4f5;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.${c.pagination} > span {
+  font-size: 12px;
+  color: #71717a;
+  font-weight: 500;
+}
+
+.dinamicSxTablePagination--compact .${c.paginationBtn} {
+  padding: 6px 11px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+`.trim();
+}
+
+export const DEFAULT_TABLE_LAYOUT_CSS = buildDefaultTableLayoutCss();
+
+export function resolveTableLayoutCss(
+  slots: ITableLayoutCssSlots | undefined,
+  legacyFreeform: string | undefined
+): string {
+  const custom = mergeCustomTableCss(slots, legacyFreeform);
+  return custom.trim().length > 0 ? custom : DEFAULT_TABLE_LAYOUT_CSS;
 }
 
 export function scopeCardCssByInstance(css: string, scopeClass: string): string {

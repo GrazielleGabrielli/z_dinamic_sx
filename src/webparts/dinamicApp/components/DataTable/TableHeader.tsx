@@ -50,9 +50,6 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
               minWidth: col.minWidth,
               maxWidth: col.maxWidth,
               width: col.width,
-              padding: '8px 12px',
-              borderBottom: '1px solid #edebe9',
-              fontWeight: 600,
             }}
           >
             <span className={DINAMIC_SX_TABLE_CLASS.headerCellInner} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
@@ -107,9 +104,6 @@ export const TableHeader: React.FC<ITableHeaderProps> = ({
             style={{
               textAlign: 'right',
               width: 1,
-              padding: '8px 12px',
-              borderBottom: '1px solid #edebe9',
-              fontWeight: 600,
               whiteSpace: 'nowrap',
             }}
           >

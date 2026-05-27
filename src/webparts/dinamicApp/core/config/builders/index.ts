@@ -60,7 +60,9 @@ export function buildConfig(params: {
         params.listView?.listRowActions !== undefined
           ? params.listView.listRowActions
           : defaults.listView.listRowActions,
-      ...(params.listView?.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : {}),
+      ...(params.listView?.viewModePicker && params.listView.viewModePicker !== 'dropdown'
+        ? { viewModePicker: params.listView.viewModePicker }
+        : {}),
       ...(params.listView?.viewModeDefaultRules?.length
         ? { viewModeDefaultRules: params.listView.viewModeDefaultRules }
         : {}),

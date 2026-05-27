@@ -160,6 +160,10 @@ export interface IListViewModeConfig {
   id: string;
   label: string;
   filters: IListViewFilterConfig[];
+  /** Ícone Fluent (modos com ícone). */
+  iconName?: string;
+  /** Contador opcional exibido em layouts com badge. */
+  badgeCount?: number;
   /** Presente e vazio `{}`: modo oculto para todos até configurar grupos/utilizadores (modo OU no conjunto permitido). */
   access?: IListViewModeAccessConfig;
 }
@@ -179,8 +183,15 @@ export interface IListViewModeDefaultRule {
 /** Modo inicial da lista quando Tabela/Cards está ativo. */
 export type TListViewDisplayMode = 'table' | 'cards';
 
-/** Como o utilizador escolhe o modo de visualização na barra da lista. */
-export type TViewModePicker = 'dropdown' | 'tabs';
+/** Controlo dos modos de visualização na barra da lista. */
+export type TViewModePicker =
+  | 'dropdown'
+  | 'buttons'
+  | 'tabs'
+  | 'segmented'
+  | 'pills'
+  | 'iconsUnderline'
+  | 'iconsBadges';
 
 export type TTableCssSlot =
   | 'viewRoot'
@@ -298,7 +309,7 @@ export interface IListViewConfig {
   tableFilterFields?: ITableFilterFieldConfig[];
   /** Rótulo do botão/painel que expande os filtros avançados (omitido = «Filtros avançados»). */
   tableAdvancedFiltersTitle?: string;
-  /** Omitido ou `dropdown`: lista suspensa. `tabs`: abas horizontais (Fluent Pivot). */
+  /** Controlo na lista: dropdown, buttons, tabs, segmented, pills, iconsUnderline, iconsBadges. */
   viewModePicker?: TViewModePicker;
   pdfExportEnabled?: boolean;
   /** Quando true, a lista exibe alternância Tabela / Cards na barra de ferramentas. */

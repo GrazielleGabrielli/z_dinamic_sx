@@ -97,7 +97,9 @@ function mergeWizardFormIntoConfig(
       ...prev.listView,
       viewModes: mergedForm.viewModes,
       activeViewModeId: mergedForm.activeViewModeId,
-      ...(mergedForm.viewModePicker === 'tabs' ? { viewModePicker: 'tabs' as const } : { viewModePicker: undefined }),
+      ...(mergedForm.viewModePicker && mergedForm.viewModePicker !== 'dropdown'
+        ? { viewModePicker: mergedForm.viewModePicker }
+        : { viewModePicker: undefined }),
       ...(mergedForm.viewModeDefaultRules && mergedForm.viewModeDefaultRules.length > 0
         ? { viewModeDefaultRules: mergedForm.viewModeDefaultRules }
         : { viewModeDefaultRules: undefined }),

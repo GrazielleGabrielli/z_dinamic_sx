@@ -36,7 +36,14 @@ import { DataTable } from './DataTable';
 import { ListItemsCardGrid } from './ListItemsCardGrid';
 import { TableCardsLayoutToggle } from './TableCardsLayoutToggle';
 import { useResponsiveListTableColumns } from './useResponsiveListTableColumns';
-import { DINAMIC_SX_TABLE_CLASS, mergeCustomTableCss, mergeRowStyleRulesCss, scopeCardCssByInstance } from './tableLayoutClasses';
+import {
+  DINAMIC_SX_TABLE_CLASS,
+  mergeRowStyleRulesCss,
+  resolveTableLayoutCss,
+  scopeCardCssByInstance,
+} from './tableLayoutClasses';
+import { ViewModePickerBar } from './ViewModePickerBar';
+import { resolveViewModeCss } from './viewModePickerLayouts';
 import { columnODataPath } from '../../core/table/utils/columnODataPath';
 import {
   isSafeListRowNavigationUrl,
@@ -558,12 +565,10 @@ export const TableView: React.FC<ITableViewProps> = ({
         : [1, 'ellipsis', currentPage - 2, currentPage - 1, currentPage]
       : [];
 
-  const btnPad = layout === 'compact' ? '4px 8px' : '6px 12px';
-
   const paginationBar =
     showPagination && (
       <Stack
-        className={DINAMIC_SX_TABLE_CLASS.pagination}
+        className={`${DINAMIC_SX_TABLE_CLASS.pagination}${layout === 'compact' ? ' dinamicSxTablePagination--compact' : ''}`}
         horizontal
         tokens={{ childrenGap: 8 }}
         horizontalAlign="end"
@@ -582,7 +587,7 @@ export const TableView: React.FC<ITableViewProps> = ({
         {layout === 'paged' && (
           <>
             {paging.pageIndex > 0 && (
-              <button type="button" onClick={onPrev} style={{ padding: btnPad, cursor: 'pointer' }}>
+              <button type="button" className={DINAMIC_SX_TABLE_CLASS.paginationBtn} onClick={onPrev}>
                 Anterior
               </button>
             )}
@@ -595,19 +600,16 @@ export const TableView: React.FC<ITableViewProps> = ({
                 <button
                   key={n}
                   type="button"
+                  className={DINAMIC_SX_TABLE_CLASS.paginationBtn}
                   onClick={() => goToPage(n)}
-                  style={{
-                    padding: btnPad,
-                    cursor: 'pointer',
-                    fontWeight: n === currentPage ? 'bold' : undefined,
-                  }}
+                  style={n === currentPage ? { fontWeight: 700, borderColor: '#0f6cbd', color: '#0f6cbd', background: '#f0f6fc' } : undefined}
                 >
                   {n}
                 </button>
               )
             )}
             {hasNext && (
-              <button type="button" onClick={onNext} style={{ padding: btnPad, cursor: 'pointer' }}>
+              <button type="button" className={DINAMIC_SX_TABLE_CLASS.paginationBtn} onClick={onNext}>
                 Próxima
               </button>
             )}
@@ -616,12 +618,12 @@ export const TableView: React.FC<ITableViewProps> = ({
         {layout !== 'paged' && (
           <>
             {paging.pageIndex > 0 && (
-              <button type="button" onClick={onPrev} style={{ padding: btnPad, cursor: 'pointer' }}>
+              <button type="button" className={DINAMIC_SX_TABLE_CLASS.paginationBtn} onClick={onPrev}>
                 {layout === 'compact' ? '‹' : 'Anterior'}
               </button>
             )}
             {hasNext && (
-              <button type="button" onClick={onNext} style={{ padding: btnPad, cursor: 'pointer' }}>
+              <button type="button" className={DINAMIC_SX_TABLE_CLASS.paginationBtn} onClick={onNext}>
                 {layout === 'compact' ? '›' : 'Próxima'}
               </button>
             )}
@@ -631,7 +633,6 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
 
   const viewModeOptions: IDropdownOption[] = visibleViewModes.map((m) => ({ key: m.id, text: m.label }));
-  const viewModesAsTabs = listView?.viewModePicker === 'tabs';
 
   const tableFilterFieldsMetaSplit = useMemo(() => {
     type Row = {
@@ -804,14 +805,17 @@ export const TableView: React.FC<ITableViewProps> = ({
     );
   };
 
-  const mergedTableCss = mergeCustomTableCss(listView?.customTableCssSlots, listView?.customTableCss);
+  const mergedTableCss = resolveTableLayoutCss(listView?.customTableCssSlots, listView?.customTableCss);
   const rowRulesCss = mergeRowStyleRulesCss(listView?.tableRowStyleRules);
   const instanceScopeClass = `dinamicSxScope_${instanceScopeId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const mergedLayoutCssRaw = [mergedTableCss, rowRulesCss].filter((s) => s.length > 0).join('\n\n').trim();
   const mergedLayoutCss = scopeTableCssByInstance(mergedLayoutCssRaw, instanceScopeClass);
   const mergedCardCss = scopeCardCssByInstance(listView?.customCardCss ?? '', instanceScopeClass);
   const mergedFilterCss = scopeFilterCssByInstance(listView?.customFilterCss ?? '', instanceScopeClass);
-  const mergedViewModeCss = scopeViewModeCssByInstance(listView?.customViewModeCss ?? '', instanceScopeClass);
+  const mergedViewModeCss = scopeViewModeCssByInstance(
+    resolveViewModeCss(listView?.customViewModeCss),
+    instanceScopeClass
+  );
   const tableCustomStyle =
     mergedLayoutCss.length > 0 || mergedCardCss.length > 0 || mergedFilterCss.length > 0 || mergedViewModeCss.length > 0
       ? <style type="text/css">{[mergedLayoutCss, mergedCardCss, mergedFilterCss, mergedViewModeCss].filter(Boolean).join('\n\n')}</style>
@@ -972,48 +976,15 @@ export const TableView: React.FC<ITableViewProps> = ({
           verticalAlign="end"
           styles={{ root: { flexWrap: 'wrap' } }}
         >
-          {viewModeOptions.length > 0 &&
-            (viewModesAsTabs ? (
-              <Stack className="dinamicSxViewModeBar" tokens={{ childrenGap: 4 }} styles={{ root: { flex: '1 1 auto', minWidth: 0 } }}>
-                <Text variant="small" styles={{ root: { fontWeight: 600, color: '#323130' } }}>
-                  Visualização
-                </Text>
-                <Stack
-                  horizontal
-                  wrap
-                  tokens={{ childrenGap: 6 }}
-                  verticalAlign="center"
-                  role="tablist"
-                  aria-label="Modos de visualização"
-                  styles={{ root: { flexWrap: 'wrap' } }}
-                >
-                  {visibleViewModes.map((m) => (
-                    <DefaultButton
-                      key={m.id}
-                      className="dinamicSxViewModeTab"
-                      role="tab"
-                      aria-selected={selectedViewModeId === m.id}
-                      primary={selectedViewModeId === m.id}
-                      text={m.label}
-                      onClick={() => setSelectedViewModeId(m.id)}
-                      styles={{ root: { minHeight: 32 } }}
-                    />
-                  ))}
-                </Stack>
-              </Stack>
-            ) : (
-              <div className="dinamicSxViewModeBar dinamicSxViewModeDropdown">
-                <Dropdown
-                  label="Visualização"
-                  options={viewModeOptions}
-                  selectedKey={selectedViewModeId}
-                  onChange={(_: React.FormEvent<HTMLDivElement>, opt?: IDropdownOption) => {
-                    if (opt) setSelectedViewModeId(String(opt.key));
-                  }}
-                  styles={{ root: { maxWidth: 220 } }}
-                />
-              </div>
-            ))}
+          {viewModeOptions.length > 0 && (
+            <ViewModePickerBar
+              picker={listView?.viewModePicker}
+              modes={visibleViewModes}
+              selectedId={selectedViewModeId}
+              onSelect={setSelectedViewModeId}
+              options={viewModeOptions}
+            />
+          )}
           {renderToolbarChrome('toolbarAfterViewMode')}
           {listCardViewEnabled && (
             <>
