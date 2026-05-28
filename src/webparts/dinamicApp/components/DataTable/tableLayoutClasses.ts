@@ -23,8 +23,16 @@ export const DINAMIC_SX_TABLE_CLASS = {
 } as const;
 
 export const DINAMIC_SX_CARD_CLASS = {
+  toolbar: 'dinamicSxCardToolbar',
+  toolbarInner: 'dinamicSxCardToolbarInner',
+  toolbarItem: 'dinamicSxCardToolbarItem',
+  toolbarItemLabel: 'dinamicSxCardToolbarItemLabel',
+  toolbarFilterTrigger: 'dinamicSxCardToolbarFilterTrigger',
   grid: 'dinamicSxCardGrid',
   card: 'dinamicSxCard',
+  cardClickable: 'dinamicSxCard--clickable',
+  cardHeader: 'dinamicSxCardHeader',
+  cardBody: 'dinamicSxCardBody',
   title: 'dinamicSxCardTitle',
   fieldRow: 'dinamicSxCardField',
   fieldLabel: 'dinamicSxCardLabel',
@@ -431,6 +439,160 @@ export const TABLE_COLUMN_FILTER_PORTAL_CSS = (() => {
 
 export const DEFAULT_TABLE_LAYOUT_CSS = buildDefaultTableLayoutCss();
 
+function buildDefaultCardLayoutCss(): string {
+  const c = DINAMIC_SX_CARD_CLASS;
+  const t = DINAMIC_SX_TABLE_CLASS;
+  return `
+.${c.toolbar} {
+  padding: 10px 14px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
+  overflow-x: auto;
+}
+
+.${c.toolbarInner} {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: min-content;
+}
+
+.${c.toolbarItem} {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 10px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+.${c.toolbarItemLabel} {
+  font-size: 12px;
+  font-weight: 600;
+  color: #605e5c;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.${c.toolbarFilterTrigger} {
+  opacity: 0.65;
+  transition: opacity 0.16s ease;
+}
+
+.${c.toolbarFilterTrigger}:hover {
+  opacity: 1;
+}
+
+.${c.grid} {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.${c.card} {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  overflow: hidden;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.${c.card}:hover {
+  border-color: #d4d4d4;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+.${c.cardClickable} {
+  cursor: pointer;
+}
+
+.${c.cardClickable}:hover {
+  transform: translateY(-1px);
+}
+
+.${c.cardHeader} {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+}
+
+.${c.title} {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #242424;
+  word-break: break-word;
+}
+
+.${c.cardBody} {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  flex: 1 1 auto;
+}
+
+.${c.fieldRow} {
+  display: grid;
+  grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.${c.fieldLabel} {
+  font-size: 12px;
+  font-weight: 600;
+  color: #605e5c;
+}
+
+.${c.fieldValue} {
+  color: #323130;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.${c.actions} {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.${t.scrollWrap} .${c.grid} + .${t.empty},
+.${t.scrollWrap} .${c.grid} + .${t.loading},
+.${t.scrollWrap} > .${t.empty},
+.${t.scrollWrap} > .${t.loading} {
+  margin: 16px;
+}
+`.trim();
+}
+
+export const DEFAULT_CARD_LAYOUT_CSS = buildDefaultCardLayoutCss();
+
+export function resolveCardLayoutCss(custom: string | undefined): string {
+  const trimmed = (custom ?? '').trim();
+  return trimmed.length > 0 ? trimmed : DEFAULT_CARD_LAYOUT_CSS;
+}
+
 export function resolveTableLayoutCss(
   slots: ITableLayoutCssSlots | undefined,
   legacyFreeform: string | undefined
@@ -441,7 +603,18 @@ export function resolveTableLayoutCss(
 
 export function scopeCardCssByInstance(css: string, scopeClass: string): string {
   if (!css.trim()) return '';
-  return css.replace(/\.dinamicSxCard/g, `.${scopeClass} .dinamicSxCard`);
+  const scope = `.${scopeClass}`;
+  return css.replace(/(^|})\s*([^{}]+)\{/g, (match, prefix, selectorPart) => {
+    const trimmed = selectorPart.trim();
+    if (!trimmed || trimmed.startsWith('@') || trimmed.includes(scope)) {
+      return match;
+    }
+    const scoped = trimmed
+      .split(',')
+      .map((sel: string) => `${scope} ${sel.trim()}`)
+      .join(', ');
+    return `${prefix} ${scoped}{`;
+  });
 }
 
 export function mergeRowStyleRulesCss(rules: ITableRowStyleRule[] | undefined): string {

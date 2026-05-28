@@ -38,6 +38,7 @@ import {
   DINAMIC_SX_TABLE_CLASS,
   mergeRowStyleRulesCss,
   resolveTableLayoutCss,
+  resolveCardLayoutCss,
   scopeCardCssByInstance,
   TABLE_COLUMN_FILTER_PORTAL_CSS,
 } from './tableLayoutClasses';
@@ -805,7 +806,10 @@ export const TableView: React.FC<ITableViewProps> = ({
   ]
     .filter(Boolean)
     .join('\n\n');
-  const mergedCardCss = scopeCardCssByInstance(listView?.customCardCss ?? '', instanceScopeClass);
+  const mergedCardCss = scopeCardCssByInstance(
+    resolveCardLayoutCss(listView?.customCardCss),
+    instanceScopeClass
+  );
   const mergedFilterCss = scopeFilterCssByInstance(
     resolveFilterBarCss(listView?.customFilterCss),
     instanceScopeClass

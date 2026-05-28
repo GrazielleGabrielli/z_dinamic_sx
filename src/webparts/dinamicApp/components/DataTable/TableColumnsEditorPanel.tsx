@@ -3095,13 +3095,16 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                         styles={{ root: { padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: '#faf9f8' } }}
                       >
                         {([
-                          { cls: 'dinamicSxCardGrid', desc: 'Container da grade de cards' },
+                          { cls: 'dinamicSxCardToolbar', desc: 'Barra de ordenação/filtro por coluna' },
+                          { cls: 'dinamicSxCardGrid', desc: 'Grade de cards' },
                           { cls: 'dinamicSxCard', desc: 'Card individual' },
-                          { cls: 'dinamicSxCardTitle', desc: 'Primeiro campo (título)' },
+                          { cls: 'dinamicSxCardHeader', desc: 'Cabeçalho do card (primeiro campo)' },
+                          { cls: 'dinamicSxCardTitle', desc: 'Título do card' },
+                          { cls: 'dinamicSxCardBody', desc: 'Corpo com os demais campos' },
                           { cls: 'dinamicSxCardField', desc: 'Linha de campo (label + valor)' },
                           { cls: 'dinamicSxCardLabel', desc: 'Rótulo do campo' },
                           { cls: 'dinamicSxCardValue', desc: 'Valor do campo' },
-                          { cls: 'dinamicSxCardActions', desc: 'Área de botões de ação' },
+                          { cls: 'dinamicSxCardActions', desc: 'Rodapé com ações' },
                         ] as const).map((r) => (
                           <Text key={r.cls} variant="small" styles={{ root: { color: '#605e5c' } }}>
                             <span style={{ fontFamily: 'monospace', color: '#0078d4' }}>.{r.cls}</span> — {r.desc}
