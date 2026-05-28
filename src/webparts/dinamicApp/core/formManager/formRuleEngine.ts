@@ -28,7 +28,7 @@ import { fieldVisibleInFormMode } from './stepFormMode';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 import { applyFormFieldTextTransform } from './formTextValueTransform';
 import { ensureAbsoluteSharePointUrl } from './formUrlUtils';
-import { ruleAppliesLookupUserFieldFilters } from './formButtonLookupUserVisibility';
+import { currentUserMatchesLookupUserFieldPath, ruleAppliesLookupUserFieldFilters } from './formButtonLookupUserVisibility';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -164,6 +164,7 @@ export interface IGetDefaultValuesFromRulesOptions {
 }
 
 export interface IEvaluateConditionOpts {
+  currentUserId?: number;
   lookupOptionSnapshots?: Readonly<
     Record<string, Record<string, unknown> | Record<string, unknown>[] | undefined>
   >;
@@ -203,6 +204,7 @@ export function isAttachmentFolderUploaderVisible(
   }
   if (!userInAnyGroup(ctx.userGroupTitles, node.showUploaderGroupTitles)) return false;
   return evaluateCondition(node.showUploaderWhen, ctx.values, ctx.dynamicContext, ctx.userGroupTitles, {
+    currentUserId: ctx.currentUserId,
     lookupOptionSnapshots: ctx.lookupOptionSnapshots,
   });
 }
@@ -481,6 +483,19 @@ export function evaluateCondition(
     if (!gt) return false;
     const inG = userInAnyGroup(userGroupTitles, [gt]);
     return node.invert ? !inG : inG;
+  }
+  if (node.kind === 'lookupUserField') {
+    const fieldPath = String(node.field ?? '').trim();
+    if (!fieldPath) return false;
+    const currentUserId = Number(conditionOpts?.currentUserId ?? 0);
+    if (!currentUserId || currentUserId <= 0) return false;
+    const inField = currentUserMatchesLookupUserFieldPath(
+      fieldPath,
+      currentUserId,
+      values,
+      conditionOpts?.lookupOptionSnapshots
+    );
+    return node.invert ? !inField : inField;
   }
   if (node.kind === 'leaf') {
     const left = readFormConditionFieldPath(node.field, values, conditionOpts);
@@ -761,6 +776,7 @@ export function shouldShowCustomButton(
   if (
     b.when &&
     !evaluateCondition(b.when, ctx.values, ctx.dynamicContext, ctx.userGroupTitles, {
+      currentUserId: ctx.currentUserId,
       lookupOptionSnapshots: ctx.lookupOptionSnapshots,
     })
   )
@@ -1423,8 +1439,8 @@ export function buildFormDerivedState(
   const { values, formMode, dynamicContext, attachmentFolderUrl, userGroupTitles } = ctx;
   const condOpts: IEvaluateConditionOpts | undefined =
     ctx.lookupOptionSnapshots !== undefined && ctx.lookupOptionSnapshots !== null
-      ? { lookupOptionSnapshots: ctx.lookupOptionSnapshots }
-      : undefined;
+      ? { currentUserId: ctx.currentUserId, lookupOptionSnapshots: ctx.lookupOptionSnapshots }
+      : { currentUserId: ctx.currentUserId };
   const fieldVisible: Record<string, boolean> = {};
   const sectionVisible: Record<string, boolean> = {};
   const fieldRequired: Record<string, boolean> = {};
@@ -1726,8 +1742,8 @@ export function collectFormValidationErrors(
   const { values, formMode, submitKind, dynamicContext, userGroupTitles } = ctx;
   const condOpts: IEvaluateConditionOpts | undefined =
     ctx.lookupOptionSnapshots !== undefined && ctx.lookupOptionSnapshots !== null
-      ? { lookupOptionSnapshots: ctx.lookupOptionSnapshots }
-      : undefined;
+      ? { currentUserId: ctx.currentUserId, lookupOptionSnapshots: ctx.lookupOptionSnapshots }
+      : { currentUserId: ctx.currentUserId };
   if (formMode === 'view') return errors;
 
   const derived = buildFormDerivedState(cfg, fieldConfigs, ctx, buttonOverlay, metaByName);

@@ -125,7 +125,9 @@ export type TCompareUiKind =
   | 'field'
   | 'token'
   | 'spGroupMember'
-  | 'spGroupNotMember';
+  | 'spGroupNotMember'
+  | 'lookupUserMember'
+  | 'lookupUserNotMember';
 
 export interface IWhenUi {
   field: string;
@@ -138,6 +140,9 @@ function whenUiCompleteForSetDisabledWhen(ui: IWhenUi): boolean {
   if (ui.compareKind === 'spGroupMember' || ui.compareKind === 'spGroupNotMember') {
     return ui.compareValue.trim().length > 0;
   }
+  if (ui.compareKind === 'lookupUserMember' || ui.compareKind === 'lookupUserNotMember') {
+    return ui.field.trim().length > 0;
+  }
   return ui.field.trim().length > 0;
 }
 
@@ -148,6 +153,13 @@ export function whenUiToNode(w: IWhenUi): TFormConditionNode {
       kind: 'userGroup',
       invert: w.compareKind === 'spGroupNotMember',
       groupTitle: t,
+    };
+  }
+  if (w.compareKind === 'lookupUserMember' || w.compareKind === 'lookupUserNotMember') {
+    return {
+      kind: 'lookupUserField',
+      invert: w.compareKind === 'lookupUserNotMember',
+      field: w.field.trim(),
     };
   }
   const needsCompare =
@@ -171,6 +183,14 @@ export function whenNodeToUi(node: TFormConditionNode | undefined): IWhenUi | un
       op: 'eq',
       compareKind: node.invert ? 'spGroupNotMember' : 'spGroupMember',
       compareValue: node.groupTitle,
+    };
+  }
+  if (node.kind === 'lookupUserField') {
+    return {
+      field: node.field,
+      op: 'eq',
+      compareKind: node.invert ? 'lookupUserNotMember' : 'lookupUserMember',
+      compareValue: '',
     };
   }
   if (node.kind !== 'leaf') return undefined;
@@ -223,11 +243,54 @@ export interface IConditionalRuleCard {
   excludeGroupTitles?: string[];
   lookupUserFieldPaths?: string[];
   excludeLookupUserFieldPaths?: string[];
+  disableGroupTitles?: string[];
+  disableExcludeGroupTitles?: string[];
+  enableGroupTitles?: string[];
+  enableExcludeGroupTitles?: string[];
+  disableLookupUserFieldPaths?: string[];
+  disableExcludeLookupUserFieldPaths?: string[];
+  enableLookupUserFieldPaths?: string[];
+  enableExcludeLookupUserFieldPaths?: string[];
   effects: IConditionalEffectUi[];
 }
 
 export function newCardId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function buildEnableScopedDisableFallbacks(
+  opts: {
+    include?: string[];
+    exclude?: string[];
+    id: (suffix: string) => string;
+    base: Omit<TFormRule, 'id' | 'action' | 'field' | 'disabled'>;
+    field: string;
+  }
+): TFormRule[] {
+  const out: TFormRule[] = [];
+  const include = opts.include?.length ? opts.include : undefined;
+  const exclude = opts.exclude?.length ? opts.exclude : undefined;
+  if (include) {
+    out.push({
+      id: opts.id('ena_scope_not_included'),
+      action: 'setDisabled',
+      field: opts.field,
+      disabled: true,
+      ...opts.base,
+      excludeLookupUserFieldPaths: include,
+    });
+  }
+  if (exclude) {
+    out.push({
+      id: opts.id('ena_scope_excluded'),
+      action: 'setDisabled',
+      field: opts.field,
+      disabled: true,
+      ...opts.base,
+      lookupUserFieldPaths: exclude,
+    });
+  }
+  return out;
 }
 
 export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] {
@@ -281,14 +344,41 @@ export function compileConditionalCard(card: IConditionalRuleCard): TFormRule[] 
       case 'disableField':
       case 'enableField': {
         const dis = e.kind === 'disableField';
-        if (tf)
+        const scoped = dis
+          ? {
+              ...(card.disableGroupTitles?.length ? { groupTitles: card.disableGroupTitles } : {}),
+              ...(card.disableExcludeGroupTitles?.length
+                ? { excludeGroupTitles: card.disableExcludeGroupTitles }
+                : {}),
+              ...(card.disableLookupUserFieldPaths?.length
+                ? { lookupUserFieldPaths: card.disableLookupUserFieldPaths }
+                : {}),
+              ...(card.disableExcludeLookupUserFieldPaths?.length
+                ? { excludeLookupUserFieldPaths: card.disableExcludeLookupUserFieldPaths }
+                : {}),
+            }
+          : {
+              ...(card.enableGroupTitles?.length ? { groupTitles: card.enableGroupTitles } : {}),
+              ...(card.enableExcludeGroupTitles?.length
+                ? { excludeGroupTitles: card.enableExcludeGroupTitles }
+                : {}),
+              ...(card.enableLookupUserFieldPaths?.length
+                ? { lookupUserFieldPaths: card.enableLookupUserFieldPaths }
+                : {}),
+              ...(card.enableExcludeLookupUserFieldPaths?.length
+                ? { excludeLookupUserFieldPaths: card.enableExcludeLookupUserFieldPaths }
+                : {}),
+            };
+        if (tf) {
           out.push({
             id: id(dis ? 'dis' : 'ena'),
             action: 'setDisabled',
             field: tf,
             disabled: dis,
             ...base,
+            ...scoped,
           });
+        }
         break;
       }
       case 'readonlyField':
@@ -377,6 +467,14 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
     const excludeGroupTitles = first.excludeGroupTitles;
     let lookupUserFieldPaths: string[] | undefined;
     let excludeLookupUserFieldPaths: string[] | undefined;
+    let disableGroupTitles: string[] | undefined;
+    let disableExcludeGroupTitles: string[] | undefined;
+    let enableGroupTitles: string[] | undefined;
+    let enableExcludeGroupTitles: string[] | undefined;
+    let disableLookupUserFieldPaths: string[] | undefined;
+    let disableExcludeLookupUserFieldPaths: string[] | undefined;
+    let enableLookupUserFieldPaths: string[] | undefined;
+    let enableExcludeLookupUserFieldPaths: string[] | undefined;
     const effects: IConditionalEffectUi[] = [];
     for (let j = 0; j < list.length; j++) {
       const r = list[j];
@@ -385,6 +483,31 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
       }
       if (!excludeLookupUserFieldPaths?.length && r.excludeLookupUserFieldPaths?.length) {
         excludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths;
+      }
+      if (r.action === 'setDisabled') {
+        if (r.disabled) {
+          if (!disableGroupTitles?.length && r.groupTitles?.length) disableGroupTitles = r.groupTitles;
+          if (!disableExcludeGroupTitles?.length && r.excludeGroupTitles?.length) {
+            disableExcludeGroupTitles = r.excludeGroupTitles;
+          }
+          if (!disableLookupUserFieldPaths?.length && r.lookupUserFieldPaths?.length) {
+            disableLookupUserFieldPaths = r.lookupUserFieldPaths;
+          }
+          if (!disableExcludeLookupUserFieldPaths?.length && r.excludeLookupUserFieldPaths?.length) {
+            disableExcludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths;
+          }
+        } else {
+          if (!enableGroupTitles?.length && r.groupTitles?.length) enableGroupTitles = r.groupTitles;
+          if (!enableExcludeGroupTitles?.length && r.excludeGroupTitles?.length) {
+            enableExcludeGroupTitles = r.excludeGroupTitles;
+          }
+          if (!enableLookupUserFieldPaths?.length && r.lookupUserFieldPaths?.length) {
+            enableLookupUserFieldPaths = r.lookupUserFieldPaths;
+          }
+          if (!enableExcludeLookupUserFieldPaths?.length && r.excludeLookupUserFieldPaths?.length) {
+            enableExcludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths;
+          }
+        }
       }
       const eff = effectFromRule(r);
       if (eff) effects.push(eff);
@@ -397,6 +520,14 @@ export function parseConditionalCardsFromRules(rules: TFormRule[]): {
       ...(excludeGroupTitles?.length ? { excludeGroupTitles } : {}),
       ...(lookupUserFieldPaths?.length ? { lookupUserFieldPaths } : {}),
       ...(excludeLookupUserFieldPaths?.length ? { excludeLookupUserFieldPaths } : {}),
+      ...(disableGroupTitles?.length ? { disableGroupTitles } : {}),
+      ...(disableExcludeGroupTitles?.length ? { disableExcludeGroupTitles } : {}),
+      ...(enableGroupTitles?.length ? { enableGroupTitles } : {}),
+      ...(enableExcludeGroupTitles?.length ? { enableExcludeGroupTitles } : {}),
+      ...(disableLookupUserFieldPaths?.length ? { disableLookupUserFieldPaths } : {}),
+      ...(disableExcludeLookupUserFieldPaths?.length ? { disableExcludeLookupUserFieldPaths } : {}),
+      ...(enableLookupUserFieldPaths?.length ? { enableLookupUserFieldPaths } : {}),
+      ...(enableExcludeLookupUserFieldPaths?.length ? { enableExcludeLookupUserFieldPaths } : {}),
       effects,
     });
   });
@@ -446,11 +577,11 @@ export interface IFieldRuleEditorState {
   /** Sempre substituir por expressão em edição (valor gravado ignorado). */
   computedLiveInEditView: boolean;
   disableWhenActive: boolean;
-  disableWhenUi: IWhenUi;
+  disableWhenUis: IWhenUi[];
   disableLookupUserFieldPaths?: string[];
   disableExcludeLookupUserFieldPaths?: string[];
   enableWhenActive: boolean;
-  enableWhenUi: IWhenUi;
+  enableWhenUis: IWhenUi[];
   enableLookupUserFieldPaths?: string[];
   enableExcludeLookupUserFieldPaths?: string[];
 }
@@ -465,8 +596,6 @@ export function mergeFieldRuleEditorState(
     validateValue: { ...base.validateValue, ...(patch.validateValue ?? {}) },
     validateDate: { ...base.validateDate, ...(patch.validateDate ?? {}) },
     filterLookup: { ...base.filterLookup, ...(patch.filterLookup ?? {}) },
-    disableWhenUi: { ...base.disableWhenUi, ...(patch.disableWhenUi ?? {}) },
-    enableWhenUi: { ...base.enableWhenUi, ...(patch.enableWhenUi ?? {}) },
   };
 }
 
@@ -496,9 +625,9 @@ export function emptyFieldRuleEditorState(): IFieldRuleEditorState {
     computedAttachmentFolderNodeId: '',
     computedLiveInEditView: false,
     disableWhenActive: false,
-    disableWhenUi: { field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' },
+    disableWhenUis: [{ field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' }],
     enableWhenActive: false,
-    enableWhenUi: { field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' },
+    enableWhenUis: [{ field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' }],
   };
 }
 
@@ -507,6 +636,8 @@ export function fieldRuleStateFromRules(
   rules: TFormRule[]
 ): IFieldRuleEditorState {
   const st = emptyFieldRuleEditorState();
+  st.disableWhenUis = [];
+  st.enableWhenUis = [];
   const seg = safeIdSegment(internalName);
   const mine = rules.filter((r) => r.id.indexOf(`ui_f_${seg}_`) === 0);
   for (let i = 0; i < mine.length; i++) {
@@ -563,16 +694,19 @@ export function fieldRuleStateFromRules(
     if (r.action === 'setDisabled' && r.field === internalName && r.when) {
       const w = whenNodeToUi(r.when);
       if (w) {
-        if (r.id === `ui_f_${seg}_discond`) {
+        if (r.id === `ui_f_${seg}_discond` || r.id.indexOf(`ui_f_${seg}_discond_`) === 0) {
           st.disableWhenActive = true;
-          st.disableWhenUi = w;
+          st.disableWhenUis.push(w);
           if (r.lookupUserFieldPaths?.length) st.disableLookupUserFieldPaths = r.lookupUserFieldPaths.slice();
           if (r.excludeLookupUserFieldPaths?.length) {
             st.disableExcludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths.slice();
           }
-        } else if (r.id === `ui_f_${seg}_enacond`) {
+        } else if (
+          (r.id === `ui_f_${seg}_enacond` || r.id.indexOf(`ui_f_${seg}_enacond_`) === 0) &&
+          r.disabled === false
+        ) {
           st.enableWhenActive = true;
-          st.enableWhenUi = w;
+          st.enableWhenUis.push(w);
           if (r.lookupUserFieldPaths?.length) st.enableLookupUserFieldPaths = r.lookupUserFieldPaths.slice();
           if (r.excludeLookupUserFieldPaths?.length) {
             st.enableExcludeLookupUserFieldPaths = r.excludeLookupUserFieldPaths.slice();
@@ -583,6 +717,12 @@ export function fieldRuleStateFromRules(
     if (r.modes && r.modes.length && st.modes.length === 0 && r.action !== 'setComputed') {
       st.modes = r.modes.slice();
     }
+  }
+  if (!st.disableWhenUis.length) {
+    st.disableWhenUis = [{ field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' }];
+  }
+  if (!st.enableWhenUis.length) {
+    st.enableWhenUis = [{ field: 'Title', op: 'eq', compareKind: 'literal', compareValue: '' }];
   }
   return st;
 }
@@ -657,12 +797,42 @@ export function compileTextFieldConditionalVisibilityRules(
           ...modePayload,
           ...groupPayload,
           ...excludePayload,
-          ...lookupUserPayload,
-          ...excludeLookupUserPayload,
+          ...(g.disableLookupUserFieldPaths?.length
+            ? { lookupUserFieldPaths: g.disableLookupUserFieldPaths }
+            : lookupUserPayload),
+          ...(g.disableExcludeLookupUserFieldPaths?.length
+            ? { excludeLookupUserFieldPaths: g.disableExcludeLookupUserFieldPaths }
+            : excludeLookupUserPayload),
           id: `ui_f_${seg}_txdis_${gid}${suf}`,
           action: 'setDisabled',
           field: internalName,
           disabled: true,
+          when,
+        });
+      } else if (action === 'enable') {
+        out.push(
+          ...buildEnableScopedDisableFallbacks({
+            include: g.enableLookupUserFieldPaths ?? g.lookupUserFieldPaths,
+            exclude: g.enableExcludeLookupUserFieldPaths ?? g.excludeLookupUserFieldPaths,
+            id: (suffix: string): string => `ui_f_${seg}_txena_scope_${gid}${suf}_${suffix}`,
+            base: { ...modePayload, ...groupPayload, ...excludePayload, when },
+            field: internalName,
+          })
+        );
+        out.push({
+          ...modePayload,
+          ...groupPayload,
+          ...excludePayload,
+          ...(g.enableLookupUserFieldPaths?.length
+            ? { lookupUserFieldPaths: g.enableLookupUserFieldPaths }
+            : lookupUserPayload),
+          ...(g.enableExcludeLookupUserFieldPaths?.length
+            ? { excludeLookupUserFieldPaths: g.enableExcludeLookupUserFieldPaths }
+            : excludeLookupUserPayload),
+          id: `ui_f_${seg}_txena_${gid}${suf}`,
+          action: 'setDisabled',
+          field: internalName,
+          disabled: false,
           when,
         });
       } else {
@@ -788,37 +958,55 @@ export function buildFieldUiRules(
     });
   }
 
-  if (st.disableWhenActive && whenUiCompleteForSetDisabledWhen(st.disableWhenUi)) {
-    out.push({
-      id: id('discond'),
-      action: 'setDisabled',
-      field: internalName,
-      disabled: true,
-      when: whenUiToNode(st.disableWhenUi),
-      ...baseModes,
-      ...(st.disableLookupUserFieldPaths?.length
-        ? { lookupUserFieldPaths: st.disableLookupUserFieldPaths }
-        : {}),
-      ...(st.disableExcludeLookupUserFieldPaths?.length
-        ? { excludeLookupUserFieldPaths: st.disableExcludeLookupUserFieldPaths }
-        : {}),
-    });
+  if (st.disableWhenActive) {
+    const validDisable = st.disableWhenUis.filter(whenUiCompleteForSetDisabledWhen);
+    for (let i = 0; i < validDisable.length; i++) {
+      const w = validDisable[i];
+      out.push({
+        id: id(validDisable.length === 1 ? 'discond' : `discond_${i + 1}`),
+        action: 'setDisabled',
+        field: internalName,
+        disabled: true,
+        when: whenUiToNode(w),
+        ...baseModes,
+        ...(st.disableLookupUserFieldPaths?.length
+          ? { lookupUserFieldPaths: st.disableLookupUserFieldPaths }
+          : {}),
+        ...(st.disableExcludeLookupUserFieldPaths?.length
+          ? { excludeLookupUserFieldPaths: st.disableExcludeLookupUserFieldPaths }
+          : {}),
+      });
+    }
   }
-  if (st.enableWhenActive && whenUiCompleteForSetDisabledWhen(st.enableWhenUi)) {
-    out.push({
-      id: id('enacond'),
-      action: 'setDisabled',
-      field: internalName,
-      disabled: false,
-      when: whenUiToNode(st.enableWhenUi),
-      ...baseModes,
-      ...(st.enableLookupUserFieldPaths?.length
-        ? { lookupUserFieldPaths: st.enableLookupUserFieldPaths }
-        : {}),
-      ...(st.enableExcludeLookupUserFieldPaths?.length
-        ? { excludeLookupUserFieldPaths: st.enableExcludeLookupUserFieldPaths }
-        : {}),
-    });
+  if (st.enableWhenActive) {
+    const validEnable = st.enableWhenUis.filter(whenUiCompleteForSetDisabledWhen);
+    for (let i = 0; i < validEnable.length; i++) {
+      const w = validEnable[i];
+      const suf = validEnable.length === 1 ? 'enacond' : `enacond_${i + 1}`;
+      out.push(
+        ...buildEnableScopedDisableFallbacks({
+          include: st.enableLookupUserFieldPaths,
+          exclude: st.enableExcludeLookupUserFieldPaths,
+          id: (suffix: string): string => id(`${suf}_${suffix}`),
+          base: { ...baseModes, when: whenUiToNode(w) },
+          field: internalName,
+        })
+      );
+      out.push({
+        id: id(suf),
+        action: 'setDisabled',
+        field: internalName,
+        disabled: false,
+        when: whenUiToNode(w),
+        ...baseModes,
+        ...(st.enableLookupUserFieldPaths?.length
+          ? { lookupUserFieldPaths: st.enableLookupUserFieldPaths }
+          : {}),
+        ...(st.enableExcludeLookupUserFieldPaths?.length
+          ? { excludeLookupUserFieldPaths: st.enableExcludeLookupUserFieldPaths }
+          : {}),
+      });
+    }
   }
 
   out.push(...compileTextFieldConditionalVisibilityRules(internalName, fieldConfig?.textConditionalVisibility));

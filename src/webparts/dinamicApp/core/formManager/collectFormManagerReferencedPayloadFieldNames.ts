@@ -106,6 +106,10 @@ function collectFromConditionNode(node: TFormConditionNode | undefined, out: Set
     return;
   }
   if (node.kind === 'userGroup') return;
+  if (node.kind === 'lookupUserField') {
+    addFieldName(out, node.field);
+    return;
+  }
   if (node.kind === 'leaf') {
     addFieldName(out, node.field);
     const c = node.compare;

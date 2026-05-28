@@ -33,7 +33,12 @@ export type TFormConditionOp =
   | 'isTrue'
   | 'isFalse';
 
-export type TFormCompareKind = 'literal' | 'field' | 'token';
+export type TFormCompareKind =
+  | 'literal'
+  | 'field'
+  | 'token'
+  | 'lookupUserMember'
+  | 'lookupUserNotMember';
 
 export interface IFormCompareRef {
   kind: TFormCompareKind;
@@ -44,7 +49,8 @@ export type TFormConditionNode =
   | { kind: 'all'; children: TFormConditionNode[] }
   | { kind: 'any'; children: TFormConditionNode[] }
   | { kind: 'leaf'; field: string; op: TFormConditionOp; compare?: IFormCompareRef }
-  | { kind: 'userGroup'; invert: boolean; groupTitle: string };
+  | { kind: 'userGroup'; invert: boolean; groupTitle: string }
+  | { kind: 'lookupUserField'; invert: boolean; field: string };
 
 export type TFormRuleTargetKind = 'field' | 'section';
 
@@ -308,7 +314,7 @@ export type TTextFieldConditionalDisplayOp =
 /** Junção de condições dentro de um grupo de regra condicional (texto). */
 export type TTextFieldConditionalGroupOp = 'all' | 'any';
 
-export type TTextFieldConditionalAction = 'show' | 'hide' | 'disable';
+export type TTextFieldConditionalAction = 'show' | 'hide' | 'disable' | 'enable';
 
 export interface ITextFieldConditionalCondition {
   id: string;
@@ -326,10 +332,18 @@ export interface ITextFieldConditionalGroup {
   groupTitles?: string[];
   /** Utilizadores nestes grupos não entram nesta regra (opcional). */
   excludeGroupTitles?: string[];
-  /** Só aplica (ex.: desativar) se o utilizador atual constar nestes campos user/lookup→user. Vazio = todos. */
+  /** Só aplica (ex.: desativar/ativar) se o utilizador atual constar nestes campos user/lookup→user. Vazio = todos. */
   lookupUserFieldPaths?: string[];
   /** Não aplica se o utilizador constar nestes campos user (opcional). */
   excludeLookupUserFieldPaths?: string[];
+  /** Filtro específico para ações de desativar. */
+  disableLookupUserFieldPaths?: string[];
+  /** Exclusão específica para ações de desativar. */
+  disableExcludeLookupUserFieldPaths?: string[];
+  /** Filtro específico para ações de ativar. */
+  enableLookupUserFieldPaths?: string[];
+  /** Exclusão específica para ações de ativar. */
+  enableExcludeLookupUserFieldPaths?: string[];
   groupOp: TTextFieldConditionalGroupOp;
   conditions: ITextFieldConditionalCondition[];
   action: TTextFieldConditionalAction;

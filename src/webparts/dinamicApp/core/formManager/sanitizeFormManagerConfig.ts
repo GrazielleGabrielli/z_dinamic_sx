@@ -67,7 +67,7 @@ const HISTORY_BUTTON_KIND_SET = new Set<string>(['text', 'icon', 'iconAndText'])
 const TEXT_COND_DISPLAY_OPS = new Set<string>(['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'isFilled']);
 
 function sanitizeTextConditionalAction(raw: unknown): TTextFieldConditionalAction | undefined {
-  if (raw === 'hide' || raw === 'disable' || raw === 'show') return raw;
+  if (raw === 'hide' || raw === 'disable' || raw === 'enable' || raw === 'show') return raw;
   return undefined;
 }
 
@@ -86,7 +86,7 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
         : `g${i}`;
     const groupOp = gr.groupOp === 'any' ? 'any' : 'all';
     const action =
-      gr.action === 'hide' ? 'hide' : gr.action === 'disable' ? 'disable' : 'show';
+      gr.action === 'hide' ? 'hide' : gr.action === 'disable' ? 'disable' : gr.action === 'enable' ? 'enable' : 'show';
     const modesRaw = Array.isArray(gr.modes) ? gr.modes : [];
     const modes: TFormManagerFormMode[] = [];
     for (let j = 0; j < modesRaw.length; j++) {
@@ -110,6 +110,10 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
     }
     const lookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.lookupUserFieldPaths);
     const excludeLookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.excludeLookupUserFieldPaths);
+    const disableLookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.disableLookupUserFieldPaths);
+    const disableExcludeLookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.disableExcludeLookupUserFieldPaths);
+    const enableLookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.enableLookupUserFieldPaths);
+    const enableExcludeLookupUserFieldPaths = sanitizeLookupUserFieldPaths(gr.enableExcludeLookupUserFieldPaths);
     const condRaw = Array.isArray(gr.conditions) ? gr.conditions : [];
     const conditions: ITextFieldConditionalCondition[] = [];
     for (let k = 0; k < condRaw.length; k++) {
@@ -144,6 +148,14 @@ function sanitizeTextConditionalVisibility(raw: unknown): ITextFieldConditionalV
       ...(excludeGroupTitles.length ? { excludeGroupTitles } : {}),
       ...(lookupUserFieldPaths?.length ? { lookupUserFieldPaths } : {}),
       ...(excludeLookupUserFieldPaths?.length ? { excludeLookupUserFieldPaths } : {}),
+      ...(disableLookupUserFieldPaths?.length ? { disableLookupUserFieldPaths } : {}),
+      ...(disableExcludeLookupUserFieldPaths?.length
+        ? { disableExcludeLookupUserFieldPaths }
+        : {}),
+      ...(enableLookupUserFieldPaths?.length ? { enableLookupUserFieldPaths } : {}),
+      ...(enableExcludeLookupUserFieldPaths?.length
+        ? { enableExcludeLookupUserFieldPaths }
+        : {}),
       groupOp,
       conditions,
       action,

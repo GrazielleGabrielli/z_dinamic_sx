@@ -3,7 +3,14 @@ import type { IFormCompareRef, TFormConditionNode, TFormConditionOp } from '../c
 function sanitizeCompareRef(raw: unknown): IFormCompareRef | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
-  const kind = r.kind === 'field' || r.kind === 'token' || r.kind === 'literal' ? r.kind : 'literal';
+  const kind =
+    r.kind === 'field' ||
+    r.kind === 'token' ||
+    r.kind === 'literal' ||
+    r.kind === 'lookupUserMember' ||
+    r.kind === 'lookupUserNotMember'
+      ? r.kind
+      : 'literal';
   const value = typeof r.value === 'string' ? r.value : String(r.value ?? '');
   return { kind, value };
 }
@@ -27,6 +34,12 @@ export function sanitizeConditionNode(raw: unknown): TFormConditionNode | undefi
       typeof n.groupTitle === 'string' ? n.groupTitle.trim().slice(0, 256) : '';
     if (!groupTitle) return undefined;
     return { kind: 'userGroup', invert, groupTitle };
+  }
+  if (n.kind === 'lookupUserField') {
+    const invert = n.invert === true;
+    const field = typeof n.field === 'string' ? n.field.trim() : '';
+    if (!field) return undefined;
+    return { kind: 'lookupUserField', invert, field };
   }
   const leafLike =
     n.kind === 'leaf' ||

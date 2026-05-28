@@ -45,6 +45,20 @@ function cardHasDisableEnableEffect(card: IConditionalRuleCard): boolean {
   return false;
 }
 
+function cardHasDisableEffect(card: IConditionalRuleCard): boolean {
+  for (let i = 0; i < card.effects.length; i++) {
+    if (card.effects[i].kind === 'disableField') return true;
+  }
+  return false;
+}
+
+function cardHasEnableEffect(card: IConditionalRuleCard): boolean {
+  for (let i = 0; i < card.effects.length; i++) {
+    if (card.effects[i].kind === 'enableField') return true;
+  }
+  return false;
+}
+
 export interface IFormManagerLinkedChildConditionalRulesBlockProps {
   rules: TFormRule[];
   fieldOptions: IDropdownOption[];
@@ -59,6 +73,8 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
   const rulesRef = useRef(rules);
   rulesRef.current = rules;
   const [cardLookupUserFilter, setCardLookupUserFilter] = useState('');
+  const [cardDisableLookupUserFilter, setCardDisableLookupUserFilter] = useState('');
+  const [cardEnableLookupUserFilter, setCardEnableLookupUserFilter] = useState('');
 
   const conditionalCards = useMemo(() => parseConditionalCardsFromRules(rules).cards, [rules]);
   const customs = useMemo(() => customRulesOnly(rules), [rules]);
@@ -275,7 +291,7 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
           </Stack>
           <TextField
             label="Incluir: grupos SharePoint (títulos, vírgula)"
-            description="Vazio = qualquer utilizador. Com valores, só aplica se o utilizador pertencer a pelo menos um grupo."
+            description="Filtro geral para esta regra. Vazio = qualquer utilizador."
             value={fieldNamesToCsv(card.groupTitles ?? [])}
             onChange={(_, v) => {
               const parsed = parseCsvFieldNames(v ?? '');
@@ -284,7 +300,7 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
           />
           <TextField
             label="Excluir: grupos SharePoint (títulos, vírgula)"
-            description="Vazio = não excluir. Com valores, a regra não aplica a quem pertencer a algum destes grupos."
+            description="Filtro geral de exclusão para esta regra."
             value={fieldNamesToCsv(card.excludeGroupTitles ?? [])}
             onChange={(_, v) => {
               const parsed = parseCsvFieldNames(v ?? '');
@@ -293,8 +309,8 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
           />
           {cardHasDisableEnableEffect(card) ? (
             <LookupUserFieldPathsSection
-              title="Desativar/ativar só para utilizadores nestes campos"
-              description="Os efeitos de desativar ou ativar campo só aplicam se o utilizador atual constar no campo (lista filha ou lookup→user). Vazio = todos."
+              title="Filtro geral por utilizadores nestes campos"
+              description="Aplica-se a todos os efeitos desta regra. Vazio = todos."
               paths={card.lookupUserFieldPaths}
               onPathsChange={(next) => patchCard(ci, { lookupUserFieldPaths: next })}
               options={lookupUserVisibilityOptions}
@@ -302,6 +318,70 @@ export const FormManagerLinkedChildConditionalRulesBlock: React.FC<
               filter={cardLookupUserFilter}
               onFilterChange={setCardLookupUserFilter}
             />
+          ) : null}
+          {cardHasDisableEffect(card) ? (
+            <>
+              <TextField
+                label="Desativar: incluir grupos SharePoint (títulos, vírgula)"
+                description="Filtro específico dos efeitos de desativar. Vazio = sem restrição específica."
+                value={fieldNamesToCsv(card.disableGroupTitles ?? [])}
+                onChange={(_, v) => {
+                  const parsed = parseCsvFieldNames(v ?? '');
+                  patchCard(ci, { disableGroupTitles: parsed.length ? parsed : undefined });
+                }}
+              />
+              <TextField
+                label="Desativar: excluir grupos SharePoint (títulos, vírgula)"
+                description="Exclusão específica dos efeitos de desativar."
+                value={fieldNamesToCsv(card.disableExcludeGroupTitles ?? [])}
+                onChange={(_, v) => {
+                  const parsed = parseCsvFieldNames(v ?? '');
+                  patchCard(ci, { disableExcludeGroupTitles: parsed.length ? parsed : undefined });
+                }}
+              />
+              <LookupUserFieldPathsSection
+                title="Desativar só para utilizadores nestes campos"
+                description="Desativar só aplica se o utilizador atual constar no campo (lista filha ou lookup→user). Vazio = sem restrição específica."
+                paths={card.disableLookupUserFieldPaths}
+                onPathsChange={(next) => patchCard(ci, { disableLookupUserFieldPaths: next })}
+                options={lookupUserVisibilityOptions}
+                optionsLoading={lookupUserVisibilityLoading}
+                filter={cardDisableLookupUserFilter}
+                onFilterChange={setCardDisableLookupUserFilter}
+              />
+            </>
+          ) : null}
+          {cardHasEnableEffect(card) ? (
+            <>
+              <TextField
+                label="Ativar: incluir grupos SharePoint (títulos, vírgula)"
+                description="Filtro específico dos efeitos de ativar. Vazio = sem restrição específica."
+                value={fieldNamesToCsv(card.enableGroupTitles ?? [])}
+                onChange={(_, v) => {
+                  const parsed = parseCsvFieldNames(v ?? '');
+                  patchCard(ci, { enableGroupTitles: parsed.length ? parsed : undefined });
+                }}
+              />
+              <TextField
+                label="Ativar: excluir grupos SharePoint (títulos, vírgula)"
+                description="Exclusão específica dos efeitos de ativar."
+                value={fieldNamesToCsv(card.enableExcludeGroupTitles ?? [])}
+                onChange={(_, v) => {
+                  const parsed = parseCsvFieldNames(v ?? '');
+                  patchCard(ci, { enableExcludeGroupTitles: parsed.length ? parsed : undefined });
+                }}
+              />
+              <LookupUserFieldPathsSection
+                title="Ativar só para utilizadores nestes campos"
+                description="Ativar só aplica se o utilizador atual constar no campo (lista filha ou lookup→user). Vazio = sem restrição específica."
+                paths={card.enableLookupUserFieldPaths}
+                onPathsChange={(next) => patchCard(ci, { enableLookupUserFieldPaths: next })}
+                options={lookupUserVisibilityOptions}
+                optionsLoading={lookupUserVisibilityLoading}
+                filter={cardEnableLookupUserFilter}
+                onFilterChange={setCardEnableLookupUserFilter}
+              />
+            </>
           ) : null}
           <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
             Então
