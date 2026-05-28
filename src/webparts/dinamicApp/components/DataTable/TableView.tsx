@@ -90,6 +90,21 @@ function parseListChromeCss(css: string | undefined): React.CSSProperties | unde
   return Object.keys(style).length > 0 ? (style as React.CSSProperties) : undefined;
 }
 
+function listRowActionVisibilityNeedsAuthorId(listView: IListViewConfig): boolean {
+  const actions = listView.listRowActions ?? [];
+  for (let i = 0; i < actions.length; i++) {
+    const visibility = actions[i].visibility;
+    if (!visibility) continue;
+    if (visibility.showOnlyForItemAuthor === true) return true;
+    const fieldRules = visibility.fieldRules ?? [];
+    for (let j = 0; j < fieldRules.length; j++) {
+      const field = fieldRules[j].field.trim().toLowerCase();
+      if (field === 'author/id' || field === 'authorid') return true;
+    }
+  }
+  return false;
+}
+
 function sortChromeForSlot(items: IListViewChromeButtonConfig[]): IListViewChromeButtonConfig[] {
   return [...items].sort((a, b) => {
     const oa = a.order ?? 0;
@@ -472,9 +487,13 @@ export const TableView: React.FC<ITableViewProps> = ({
       top: pageSize,
       filter: combinedFilter,
     });
+    const requestSelect = request.select.slice();
+    if (listRowActionVisibilityNeedsAuthorId(listView) && requestSelect.indexOf('AuthorId') === -1) {
+      requestSelect.push('AuthorId');
+    }
 
     const options = {
-      select: request.select,
+      select: requestSelect,
       expand: request.expand,
       orderBy: request.orderBy,
       filter: request.filter,

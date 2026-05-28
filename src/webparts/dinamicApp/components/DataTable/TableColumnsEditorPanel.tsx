@@ -1373,6 +1373,12 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
           : 'link';
       const custom =
         iconPreset === 'custom' && (a.customIconName ?? '').trim() ? { customIconName: (a.customIconName ?? '').trim() } : {};
+      const visibility = a.visibility;
+      const hasVisibility =
+        visibility?.showOnlyForItemAuthor === true ||
+        (visibility?.allowedGroupIds?.length ?? 0) > 0 ||
+        (visibility?.allowedUserLogins?.length ?? 0) > 0 ||
+        (visibility?.fieldRules?.length ?? 0) > 0;
       nextListRowActions.push({
         id,
         title,
@@ -1381,7 +1387,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
         urlTemplate,
         openInNewTab: a.openInNewTab === true,
         scope: a.scope === 'wholeRow' ? 'wholeRow' : 'icon',
-        ...(a.visibility ? { visibility: a.visibility } : {}),
+        ...(hasVisibility && visibility ? { visibility } : {}),
       });
     }
     const { listDefaultDisplayMode: _carryListDefault, viewModePicker: _omitVmPicker, ...carryRest } = carryListView;
@@ -2697,13 +2703,18 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
 
                         {/* Seção de Visibilidade */}
                         <ListTabListaCollapse
-                          title={`Visibilidade${(act.visibility?.allowedGroupIds?.length ?? 0) + (act.visibility?.allowedUserLogins?.length ?? 0) + (act.visibility?.fieldRules?.length ?? 0) > 0 ? ' ✓' : ''}`}
+                          title={`Visibilidade${(act.visibility?.showOnlyForItemAuthor === true ? 1 : 0) + (act.visibility?.allowedGroupIds?.length ?? 0) + (act.visibility?.allowedUserLogins?.length ?? 0) + (act.visibility?.fieldRules?.length ?? 0) > 0 ? ' ✓' : ''}`}
                           isOpen={visibilitySectionOpen[act.id] === true}
                           onToggle={() => setVisibilitySectionOpen((p) => ({ ...p, [act.id]: !p[act.id] }))}
                         >
                           <Text variant="small" styles={{ root: { color: '#605e5c', lineHeight: 1.5 } }}>
                             Sem configuração = visível para todos. Com configuração, o botão só aparece se <strong>identidade</strong> (grupo OU usuário) e <strong>regras de campo</strong> (AND) passarem.
                           </Text>
+                          <Checkbox
+                            label="Apenas aparecer para autor do item"
+                            checked={act.visibility?.showOnlyForItemAuthor === true}
+                            onChange={(_, v) => updateActionVisibility(ai, { showOnlyForItemAuthor: !!v })}
+                          />
 
                           {/* Grupos */}
                           <Text variant="smallPlus" styles={{ root: { fontWeight: 600, marginTop: 4 } }}>Grupos (IDs numéricos SharePoint)</Text>

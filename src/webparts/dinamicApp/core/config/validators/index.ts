@@ -301,9 +301,11 @@ function sanitizeListRowActions(raw: unknown): IListRowActionConfig[] | undefine
           value: typeof r.value === 'string' ? r.value.trim() : '',
         }))
         .filter((r) => r.field !== '');
-      const hasVis = (allowedGroupIds?.length ?? 0) > 0 || (allowedUserLogins?.length ?? 0) > 0 || (fieldRules?.length ?? 0) > 0;
+      const showOnlyForItemAuthor = vo.showOnlyForItemAuthor === true;
+      const hasVis = showOnlyForItemAuthor || (allowedGroupIds?.length ?? 0) > 0 || (allowedUserLogins?.length ?? 0) > 0 || (fieldRules?.length ?? 0) > 0;
       if (hasVis) {
         visibility = {
+          ...(showOnlyForItemAuthor ? { showOnlyForItemAuthor } : {}),
           ...(allowedGroupIds?.length ? { allowedGroupIds } : {}),
           ...(allowedUserLogins?.length ? { allowedUserLogins } : {}),
           ...(fieldRules?.length ? { fieldRules } : {}),

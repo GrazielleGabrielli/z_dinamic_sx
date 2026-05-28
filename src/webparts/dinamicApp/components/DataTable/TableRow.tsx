@@ -8,6 +8,7 @@ import { RowActionButtons } from './RowActionButtons';
 import { DINAMIC_SX_TABLE_CLASS } from './tableLayoutClasses';
 import { evaluateTableRowStyleRule, toTableRowRuleDataToken } from '../../core/table/utils/tableRowStyleRuleEval';
 import { resolveListRowActionUrl, isSafeListRowNavigationUrl } from '../../core/table/utils/resolveListRowActionUrl';
+import { checkRowActionVisibility } from '../../core/table/utils/checkRowActionVisibility';
 
 export interface ITableRowProps {
   item: Record<string, unknown>;
@@ -29,7 +30,10 @@ export const TableRow: React.FC<ITableRowProps> = ({ item, columns, engine, rowS
   let wholeAction: IListRowActionConfig | undefined;
   if (rowActions) {
     for (let i = 0; i < rowActions.length; i++) {
-      if (rowActions[i].scope === 'wholeRow') {
+      if (
+        rowActions[i].scope === 'wholeRow' &&
+        checkRowActionVisibility(rowActions[i], item, dynamicContext, userGroupIds)
+      ) {
         wholeAction = rowActions[i];
         break;
       }

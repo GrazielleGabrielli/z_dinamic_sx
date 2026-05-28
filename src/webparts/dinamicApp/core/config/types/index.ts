@@ -271,6 +271,8 @@ export interface IListRowActionFieldRule {
 
 /** Configuração de visibilidade de uma ação de linha. */
 export interface IListRowActionVisibility {
+  /** Visível só quando o usuário atual é o Author do item. */
+  showOnlyForItemAuthor?: boolean;
   /**
    * IDs numéricos de grupos SharePoint (como string). Usuário em pelo menos um → passa.
    * Omitido = sem restrição de grupo.

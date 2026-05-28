@@ -22,6 +22,25 @@ function readItemField(item: Record<string, unknown>, field: string): unknown {
   return item[`${base}${sub}`];
 }
 
+function toComparableUserId(raw: unknown): string {
+  if (typeof raw === 'number' && isFinite(raw) && raw > 0) return String(raw);
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : '';
+  }
+  return '';
+}
+
+function itemAuthorMatchesCurrentUser(item: Record<string, unknown>, ctx: IDynamicContext): boolean {
+  const currentUserId = toComparableUserId(ctx.currentUser?.id);
+  if (!currentUserId) return false;
+  const authorId =
+    toComparableUserId(readItemField(item, 'Author/Id')) ||
+    toComparableUserId(item.AuthorId) ||
+    toComparableUserId(item.authorId);
+  return authorId === currentUserId;
+}
+
 function evalFieldRule(
   rule: IListRowActionFieldRule,
   item: Record<string, unknown>,
@@ -46,8 +65,11 @@ export function checkRowActionVisibility(
   const hasGroupRestriction = (vis.allowedGroupIds?.length ?? 0) > 0;
   const hasUserRestriction = (vis.allowedUserLogins?.length ?? 0) > 0;
   const hasFieldRules = (vis.fieldRules?.length ?? 0) > 0;
+  const hasAuthorRestriction = vis.showOnlyForItemAuthor === true;
 
-  if (!hasGroupRestriction && !hasUserRestriction && !hasFieldRules) return true;
+  if (!hasGroupRestriction && !hasUserRestriction && !hasFieldRules && !hasAuthorRestriction) return true;
+
+  if (hasAuthorRestriction && !itemAuthorMatchesCurrentUser(item, ctx)) return false;
 
   // Group OR User check: pelo menos um critério de identidade deve passar
   const identityRestricted = hasGroupRestriction || hasUserRestriction;

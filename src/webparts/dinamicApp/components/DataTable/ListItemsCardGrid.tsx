@@ -6,6 +6,7 @@ import type { IDynamicContext } from '../../core/dynamicTokens/types';
 import type { ITableColumnConfig, ISortConfig } from '../../core/table/types';
 import type { TableEngine } from '../../core/table/services/TableEngine';
 import { resolveListRowActionUrl, isSafeListRowNavigationUrl } from '../../core/table/utils/resolveListRowActionUrl';
+import { checkRowActionVisibility } from '../../core/table/utils/checkRowActionVisibility';
 import { ListItemsCardGridToolbar } from './ListItemsCardGridToolbar';
 import { RowActionButtons } from './RowActionButtons';
 import { TableEmptyState } from './TableEmptyState';
@@ -129,7 +130,10 @@ export const ListItemsCardGrid: React.FC<IListItemsCardGridProps> = ({
           let wholeAction: IListRowActionConfig | undefined;
           if (rowActions) {
             for (let j = 0; j < rowActions.length; j++) {
-              if (rowActions[j].scope === 'wholeRow') {
+              if (
+                rowActions[j].scope === 'wholeRow' &&
+                checkRowActionVisibility(rowActions[j], item, actionContext, userGroupIds)
+              ) {
                 wholeAction = rowActions[j];
                 break;
               }
