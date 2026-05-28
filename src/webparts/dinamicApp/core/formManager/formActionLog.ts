@@ -278,15 +278,12 @@ export async function appendFormActionLogEntry(
   ) {
     autoHtml = buildAutomaticFieldChangesHtml(opts.automaticChanges).trim();
   }
-  const meta = `<p style="color:#605e5c;font-size:12px"><em>Lista de origem</em>: ${escapeHtml(
-    ctx.sourceListTitle
-  )} · <em>Item</em>: ${ctx.sourceItemId ?? '—'} · <em>Modo</em>: ${escapeHtml(String(ctx.formMode))}</p>`;
   const marker = `<span ${FORM_ACTION_LOG_BTN_DATA_ATTR}="${escapeHtml(
     btn.id
   )}" style="display:none!important" aria-hidden="true"></span>`;
   const intro =
     customHtml.length > 0 ? customHtml : `<p>${escapeHtml(btn.label || btn.id)}</p>`;
-  let body = marker + (autoHtml.length > 0 ? `${intro}\n${autoHtml}\n${meta}` : `${intro}\n${meta}`);
+  let body = marker + (autoHtml.length > 0 ? `${intro}\n${autoHtml}` : intro);
   const accentRaw = (ctx.logEntryAccentHex ?? '').trim();
   if (accentRaw) {
     const accent = sanitizeInlineCssColor(accentRaw);

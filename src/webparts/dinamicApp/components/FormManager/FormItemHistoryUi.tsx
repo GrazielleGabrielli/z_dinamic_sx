@@ -170,6 +170,16 @@ function renderHtmlBlock(html: string, compact: boolean, colors: IHistoryUiColor
   );
 }
 
+function stripLegacySourceMetaLine(html: string): string {
+  if (!html) return html;
+  return html
+    .replace(
+      /<p\b[^>]*>\s*<em>\s*Lista de origem\s*<\/em>\s*:\s*[\s\S]*?·\s*<em>\s*Item\s*<\/em>\s*:\s*[\s\S]*?·\s*<em>\s*Modo\s*<\/em>\s*:\s*[\s\S]*?<\/p>/gi,
+      ''
+    )
+    .trim();
+}
+
 function entryHeadline(e: IAuditEntry, colors: IHistoryUiColors): React.ReactNode {
   return (
     <>
@@ -181,8 +191,8 @@ function entryHeadline(e: IAuditEntry, colors: IHistoryUiColors): React.ReactNod
 
 function entryAuthorLine(e: IAuditEntry, fontSize: number, colors: IHistoryUiColors): React.ReactNode {
   return (
-    <Text variant="small" styles={{ root: { color: colors.bodySubtext, fontSize, marginTop: 2 } }}>
-      {e.who || '—'}
+    <Text variant="small" styles={{ root: { color: colors.bodySubtext, fontSize, marginTop: 4, fontStyle: 'italic' } }}>
+      <em>Autor</em>: {e.who || '—'}
     </Text>
   );
 }
@@ -207,8 +217,8 @@ function renderAuditEntries(
             <Text variant="small" styles={{ root: { fontSize: 11 } }}>
               {entryHeadline(e, colors)}
             </Text>
-            {entryAuthorLine(e, 11, colors)}
             <div style={{ marginTop: e.html ? 6 : 4 }}>{renderHtmlBlock(e.html, true, colors)}</div>
+            {entryAuthorLine(e, 11, colors)}
           </div>
         ))}
       </Stack>
@@ -247,8 +257,8 @@ function renderAuditEntries(
               <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
                 {entryHeadline(e, colors)}
               </Text>
-              {entryAuthorLine(e, 12, colors)}
               <div style={{ marginTop: 6 }}>{renderHtmlBlock(e.html, false, colors)}</div>
+              {entryAuthorLine(e, 12, colors)}
             </div>
           ))}
         </Stack>
@@ -275,8 +285,8 @@ function renderAuditEntries(
             <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
               {entryHeadline(e, colors)}
             </Text>
-            {entryAuthorLine(e, 12, colors)}
             <div style={{ marginTop: 10 }}>{renderHtmlBlock(e.html, false, colors)}</div>
+            {entryAuthorLine(e, 12, colors)}
           </div>
         ))}
       </Stack>
@@ -302,8 +312,8 @@ function renderAuditEntries(
           <Text variant="small" styles={{ root: { color: colors.bodyText } }}>
             {entryHeadline(e, colors)}
           </Text>
-          {entryAuthorLine(e, 12, colors)}
           {renderHtmlBlock(e.html, false, colors)}
+          {entryAuthorLine(e, 12, colors)}
         </Stack>
       ))}
     </Stack>
@@ -468,15 +478,14 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
     void (async (): Promise<void> => {
       try {
         const meta = await fieldsService.getVisibleFields(logList);
-        const names = new Set(meta.map((f) => f.InternalName));
-        const select: string[] = ['Id', 'Title', 'Created', actionField];
-        if (names.has('Author')) select.push('Author');
+        const select: string[] = ['Id', 'Title', 'Created', actionField, 'Author/Id', 'Author/Title', 'Author/EMail'];
         const data = await itemsService.getItems<Record<string, unknown>>(logList, {
           filter,
           orderBy: { field: 'Created', ascending: false },
           top: 200,
           fieldMetadata: meta,
           select,
+          expand: ['Author'],
         });
         setRows(Array.isArray(data) ? data : []);
       } catch (e) {
@@ -598,7 +607,7 @@ export const FormItemHistoryUi: React.FC<IFormItemHistoryUiProps> = ({
           (btnId ? logEntryPaletteContext.slotByButtonId[btnId] : undefined) ?? 'themePrimary';
         entryAccentHex = resolveActionLogPaletteAccentHex(theme, slot);
       }
-      const html = stripActionLogMarkerFromStoredHtml(htmlRaw);
+      const html = stripLegacySourceMetaLine(stripActionLogMarkerFromStoredHtml(htmlRaw));
       out.push({ key, actionLabel, createdStr, who, html, entryAccentHex });
     }
     return out;
