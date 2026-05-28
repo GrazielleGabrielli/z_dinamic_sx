@@ -2254,11 +2254,84 @@ export function expressionReferencesSharePointItemId(expression: string): boolea
   return false;
 }
 
+function collectSetComputedExpressionFieldRefs(expression: string): string[] {
+  const out = new Set<string>();
+  const pushRoot = (raw: string): void => {
+    const t = raw.trim();
+    if (!t) return;
+    const root = t.split('/')[0]?.trim();
+    if (root) out.add(root);
+  };
+  const re = /\{\{([^}]+)\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(expression)) !== null) {
+    const inner = String(m[1] ?? '').trim();
+    const days = /^DAYS:([^:}]+):([^}]+)$/i.exec(inner);
+    if (days) {
+      pushRoot(days[1]);
+      pushRoot(days[2]);
+      continue;
+    }
+    pushRoot(inner);
+  }
+  return Array.from(out);
+}
+
+function valuesEquivalentForComputedEdit(a: unknown, b: unknown): boolean {
+  if (isEmptyish(a) && isEmptyish(b)) return true;
+  if (a instanceof Date || b instanceof Date) {
+    const da = a instanceof Date ? a : new Date(String(a ?? ''));
+    const db = b instanceof Date ? b : new Date(String(b ?? ''));
+    if (!isNaN(da.getTime()) && !isNaN(db.getTime())) return da.getTime() === db.getTime();
+  }
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return String(a ?? '') === String(b ?? '');
+  }
+}
+
+function shouldApplySetComputedPrimarySaveRule(params: {
+  rule: Extract<TFormRule, { action: 'setComputed' }>;
+  formMode: TFormManagerFormMode;
+  values: Record<string, unknown>;
+  originalValues?: Readonly<Record<string, unknown>>;
+  expressionSnapAtItemOpenByField?: Readonly<Record<string, string>>;
+}): boolean {
+  const { rule, formMode, values, originalValues, expressionSnapAtItemOpenByField } = params;
+  if (formMode === 'create') return true;
+  if (rule.alwaysLiveComputed === true) return true;
+  if (!originalValues) return true;
+
+  const field = rule.field;
+  const currentTarget = values[field];
+  const originalTarget = originalValues[field];
+  if (isEmptyish(currentTarget)) return true;
+
+  const snapExpr = expressionSnapAtItemOpenByField?.[field];
+  if (snapExpr !== undefined && snapExpr !== (rule.expression ?? '').trim()) return true;
+
+  if (!valuesEquivalentForComputedEdit(currentTarget, originalTarget)) return false;
+  if (isEmptyish(originalTarget)) return true;
+
+  const refs = collectSetComputedExpressionFieldRefs(rule.expression ?? '');
+  for (let i = 0; i < refs.length; i++) {
+    const ref = refs[i];
+    if (!ref || ref === field) continue;
+    if (ref.toLowerCase() === 'id') continue;
+    if (!valuesEquivalentForComputedEdit(values[ref], originalValues[ref])) return true;
+  }
+  return false;
+}
+
 /** Valores calculados para gravar no primeiro POST (create/edit); em create omite expressões que referenciam {{ID}}. */
 export function buildSetComputedPrimarySavePatch(params: {
   cfg: IFormManagerConfig;
   fieldConfigs: IFormFieldConfig[];
   values: Record<string, unknown>;
+  originalValues?: Readonly<Record<string, unknown>>;
+  expressionSnapAtItemOpenByField?: Readonly<Record<string, string>>;
   dynamicContext: IDynamicContext;
   attachmentFolderUrl?: IFormAttachmentFolderUrlContext;
   userGroupTitles: string[];
@@ -2273,6 +2346,8 @@ export function buildSetComputedPrimarySavePatch(params: {
     cfg,
     fieldConfigs,
     values,
+    originalValues,
+    expressionSnapAtItemOpenByField,
     dynamicContext,
     attachmentFolderUrl,
     userGroupTitles,
@@ -2302,6 +2377,16 @@ export function buildSetComputedPrimarySavePatch(params: {
 
     const expr = rule.expression ?? '';
     if (formMode === 'create' && expressionReferencesSharePointItemId(expr)) continue;
+    if (
+      !shouldApplySetComputedPrimarySaveRule({
+        rule,
+        formMode,
+        values,
+        originalValues,
+        expressionSnapAtItemOpenByField,
+      })
+    )
+      continue;
 
     const mtc = fieldMetaByName.get(rule.field)?.MappedType;
     if (

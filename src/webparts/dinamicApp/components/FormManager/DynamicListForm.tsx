@@ -1118,9 +1118,11 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
     return treeHasPerStepFolderUploaders(t);
   }, [formManager.attachmentStorageKind, formManager.attachmentLibrary?.folderTree]);
 
-  const [values, setValues] = useState<Record<string, unknown>>(() =>
-    itemToFormValues(initialItem ?? undefined, names)
+  const initialFormValues = useMemo(
+    () => itemToFormValues(initialItem ?? undefined, names),
+    [initialItem, names]
   );
+  const [values, setValues] = useState<Record<string, unknown>>(() => initialFormValues);
   const valuesRef = useRef(values);
   valuesRef.current = values;
   const formManagerRef = useRef(formManager);
@@ -1221,9 +1223,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
   }, [formManager.historyButtonLabel, formManager.historyPanelSubtitle]);
 
   useEffect(() => {
-    setValues(itemToFormValues(initialItem ?? undefined, names));
+    setValues(initialFormValues);
     setButtonOverlay({ show: new Set<string>(), hide: new Set<string>() });
-  }, [initialItem, names]);
+  }, [initialFormValues]);
 
   useEffect(() => {
     if (!setComputedItemOpenKey || formMode === 'create') {
@@ -1250,9 +1252,9 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       }
     }
     if (!hasSeed) return;
-    auditActionLogBaselineRef.current = itemToFormValues(initialItem, names);
+    auditActionLogBaselineRef.current = initialFormValues;
     auditActionLogBaselineHydratedRef.current = true;
-  }, [setComputedItemOpenKey, initialItem, names, formMode]);
+  }, [setComputedItemOpenKey, initialFormValues, formMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2373,6 +2375,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         cfg: formManager,
         fieldConfigs,
         values: vals,
+        originalValues: initialFormValues,
+        expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
         dynamicContext,
         attachmentFolderUrl,
         userGroupTitles,
@@ -2923,6 +2927,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           cfg: formManager,
           fieldConfigs,
           values: mergedValues,
+          originalValues: initialFormValues,
+          expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
           dynamicContext,
           attachmentFolderUrl,
           userGroupTitles,
@@ -3149,6 +3155,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
           cfg: formManager,
           fieldConfigs,
           values: mergedValues,
+          originalValues: initialFormValues,
+          expressionSnapAtItemOpenByField: setComputedExprSnapRef.current.snap,
           dynamicContext,
           attachmentFolderUrl,
           userGroupTitles,
