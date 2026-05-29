@@ -1626,6 +1626,15 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
     setViewModes(next);
     if (activeViewModeId === id) setActiveViewModeId(next[0]?.id ?? 'all');
   };
+  const moveViewMode = (index: number, dir: -1 | 1): void => {
+    const j = index + dir;
+    if (j < 0 || j >= viewModes.length) return;
+    const next = viewModes.slice();
+    const t = next[index];
+    next[index] = next[j];
+    next[j] = t;
+    setViewModes(next);
+  };
   const addViewModeFilter = (): void => setViewModeEditFilters([...viewModeEditFilters, { field: '', operator: 'eq', value: '' }]);
   const removeViewModeFilter = (i: number): void => setViewModeEditFilters(viewModeEditFilters.filter((_, idx) => idx !== i));
   const updateViewModeFilter = (i: number, part: Partial<IListViewFilterConfig>): void => {
@@ -1993,7 +2002,7 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                     );
                   })}
                   <DefaultButton text="Adicionar regra de modo inicial" onClick={addViewModeDefaultRule} />
-                  {viewModes.map((m) => {
+                  {viewModes.map((m, index) => {
                     const accessLine = accessSummary(m.access);
                     return (
                     <div key={m.id} style={{ padding: 10, border: '1px solid #edebe9', borderRadius: 6, background: viewModeEditingId === m.id ? '#f3f9ff' : '#fff' }}>
@@ -2035,6 +2044,20 @@ export const TableColumnsEditorPanel: React.FC<ITableColumnsEditorPanelProps> = 
                             ) : null}
                           </Stack>
                           <Stack horizontal tokens={{ childrenGap: 4 }}>
+                            <IconButton
+                              iconProps={{ iconName: 'ChevronUp' }}
+                              title="Subir"
+                              ariaLabel="Subir modo"
+                              disabled={index === 0}
+                              onClick={() => moveViewMode(index, -1)}
+                            />
+                            <IconButton
+                              iconProps={{ iconName: 'ChevronDown' }}
+                              title="Descer"
+                              ariaLabel="Descer modo"
+                              disabled={index === viewModes.length - 1}
+                              onClick={() => moveViewMode(index, 1)}
+                            />
                             <IconButton iconProps={{ iconName: 'Edit' }} title="Editar" onClick={() => startViewModeEdit(m)} />
                             <IconButton iconProps={{ iconName: 'Delete' }} title="Remover" onClick={() => removeViewMode(m.id)} disabled={m.id === 'all' || m.id === 'mine'} />
                           </Stack>

@@ -203,6 +203,15 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
     const nextActive = activeViewModeId === id ? (next[0]?.id ?? 'all') : activeViewModeId;
     onChange({ viewModes: next, activeViewModeId: nextActive });
   };
+  const moveMode = (index: number, dir: -1 | 1): void => {
+    const j = index + dir;
+    if (j < 0 || j >= viewModes.length) return;
+    const next = viewModes.slice();
+    const t = next[index];
+    next[index] = next[j];
+    next[j] = t;
+    onChange({ viewModes: next });
+  };
 
   const addFilter = (): void => setEditFilters([...editFilters, { field: '', operator: 'eq', value: '' }]);
   const removeFilter = (i: number): void => setEditFilters(editFilters.filter((_, idx) => idx !== i));
@@ -331,7 +340,7 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
         <Text variant="medium" styles={{ root: { fontWeight: 600 } }}>
           Modos disponíveis
         </Text>
-        {viewModes.map((m) => {
+        {viewModes.map((m, index) => {
           const accessLine = accessSummary(m.access);
           return (
           <div
@@ -414,6 +423,20 @@ export const Step5ViewModes: React.FC<IStep5Props> = ({
                   ) : null}
                 </Stack>
                 <Stack horizontal tokens={{ childrenGap: 4 }}>
+                  <IconButton
+                    iconProps={{ iconName: 'ChevronUp' }}
+                    title="Subir"
+                    ariaLabel="Subir modo"
+                    disabled={index === 0}
+                    onClick={() => moveMode(index, -1)}
+                  />
+                  <IconButton
+                    iconProps={{ iconName: 'ChevronDown' }}
+                    title="Descer"
+                    ariaLabel="Descer modo"
+                    disabled={index === viewModes.length - 1}
+                    onClick={() => moveMode(index, 1)}
+                  />
                   <IconButton iconProps={{ iconName: 'Edit' }} title="Editar" onClick={() => startEdit(m)} />
                   <IconButton
                     iconProps={{ iconName: 'Delete' }}
