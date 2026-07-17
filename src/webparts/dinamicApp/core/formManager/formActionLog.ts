@@ -4,6 +4,7 @@ import type {
   TFormManagerFormMode,
 } from '../config/types/formManager';
 import type { IFieldMetadata, ItemsService } from '../../../../services';
+import { parseCalendarDateValue, toIsoDateString } from '../dynamicTokens';
 
 export const FORM_ACTION_LOG_BTN_DATA_ATTR = 'data-sx-log-btn';
 
@@ -112,9 +113,8 @@ function auditComparable(meta: IFieldMetadata | undefined, v: unknown): string {
     return v === true || v === 1 || v === '1' || String(v).toLowerCase() === 'true' ? '1' : '0';
   }
   if (mt === 'datetime') {
-    if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 16);
-    const d = new Date(String(v));
-    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+    const cal = parseCalendarDateValue(v);
+    if (cal) return toIsoDateString(cal);
     return String(v);
   }
   if (mt === 'number' || mt === 'currency') {
@@ -174,9 +174,8 @@ function auditDisplay(meta: IFieldMetadata | undefined, v: unknown): string {
     return v === true || v === 1 || v === '1' || String(v).toLowerCase() === 'true' ? 'Sim' : 'Não';
   }
   if (mt === 'datetime') {
-    if (v instanceof Date && !isNaN(v.getTime())) return v.toLocaleString('pt-PT');
-    const d = new Date(String(v));
-    if (!isNaN(d.getTime())) return d.toLocaleString('pt-PT');
+    const cal = parseCalendarDateValue(v);
+    if (cal) return cal.toLocaleDateString('pt-BR');
     return String(v);
   }
   if (mt === 'url' && v && typeof v === 'object' && 'Url' in (v as object)) {

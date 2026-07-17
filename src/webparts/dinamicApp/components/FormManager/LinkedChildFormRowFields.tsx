@@ -34,7 +34,8 @@ import {
 } from '../../core/formManager/formRuleEngine';
 import { buildValidateDateCalendarProps } from '../../core/formManager/validateDateCalendarProps';
 import { linkedChildFormAsManagerConfig } from '../../core/formManager/formLinkedChildSync';
-import { FLUENT_DATE_PICKER_PT_BR } from '../../core/formManager/fluentDatePickerPtBr';
+import { FLUENT_DATE_PICKER_PT_BR, formatDatePtBr } from '../../core/formManager/fluentDatePickerPtBr';
+import { parseCalendarDateValue, toIsoDateString } from '../../core/dynamicTokens';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
   buildLookupDropdownSelectRaw,
@@ -367,7 +368,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
         });
         return;
       }
-      const iso = d.toISOString();
+      const iso = toIsoDateString(d);
       const nextValues = { ...values, [name]: iso };
       const msg = evaluateValidateDateRulesForField(shell.rules ?? [], name, nextValues, {
         formMode,
@@ -634,9 +635,8 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
       const compShown =
         mComp?.MappedType === 'datetime'
           ? ((): string => {
-              const s = String(comp);
-              const ms = Date.parse(s);
-              return !isNaN(ms) ? new Date(ms).toLocaleDateString('pt-BR') : s;
+              const d = parseCalendarDateValue(comp);
+              return d ? formatDatePtBr(d) : String(comp);
             })()
           : String(comp);
       return (
@@ -822,7 +822,7 @@ export const LinkedChildFormRowFields: React.FC<ILinkedChildFormRowFieldsProps> 
               minDate={validateDateCalendarPropsByField[name]?.minDate}
               maxDate={validateDateCalendarPropsByField[name]?.maxDate}
               calendarProps={validateDateCalendarPropsByField[name]}
-              value={mergedFieldValue ? new Date(String(mergedFieldValue)) : undefined}
+              value={mergedFieldValue ? parseCalendarDateValue(mergedFieldValue) : undefined}
               onSelectDate={(d) => applyLinkedDateSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{

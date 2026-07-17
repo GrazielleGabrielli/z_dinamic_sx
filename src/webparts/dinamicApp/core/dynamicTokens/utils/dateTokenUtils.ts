@@ -63,3 +63,49 @@ export function toIsoDateString(d: Date): string {
 export function toIsoDateTimeString(d: Date): string {
   return d.toISOString();
 }
+
+/**
+ * Dia civil local a partir de valor de formulário/SharePoint.
+ * `YYYY-MM-DD` e DateOnly (`…T00:00:00Z`) usam o calendário da string —
+ * evita o shift de `new Date('YYYY-MM-DD')` (UTC) em fusos negativos.
+ */
+export function parseCalendarDateValue(value: unknown): Date | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return undefined;
+    return toLocalDate(value);
+  }
+  const t = String(value).trim();
+  if (!t) return undefined;
+
+  const br = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(t);
+  if (br) {
+    const day = parseInt(br[1], 10);
+    const month = parseInt(br[2], 10) - 1;
+    const year = parseInt(br[3], 10);
+    const dt = new Date(year, month, day);
+    if (dt.getFullYear() !== year || dt.getMonth() !== month || dt.getDate() !== day) return undefined;
+    return dt;
+  }
+
+  const isoPrefix = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if (isoPrefix) {
+    const pure = /^\d{4}-\d{2}-\d{2}$/.test(t);
+    const midnightUtc = /^\d{4}-\d{2}-\d{2}T00:00:00(\.\d+)?(Z|[+-]00:00)?$/i.test(t);
+    if (pure || midnightUtc) {
+      const y = parseInt(isoPrefix[1], 10);
+      const mo = parseInt(isoPrefix[2], 10) - 1;
+      const d = parseInt(isoPrefix[3], 10);
+      const dt = new Date(y, mo, d);
+      if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return undefined;
+      return dt;
+    }
+    const instant = new Date(t);
+    if (isNaN(instant.getTime())) return undefined;
+    return toLocalDate(instant);
+  }
+
+  const instant = new Date(t);
+  if (isNaN(instant.getTime())) return undefined;
+  return toLocalDate(instant);
+}

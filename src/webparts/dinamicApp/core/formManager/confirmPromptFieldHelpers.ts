@@ -1,4 +1,5 @@
 import type { IFieldMetadata } from '../../../../services';
+import { parseCalendarDateValue, toIsoDateString } from '../dynamicTokens';
 
 export interface IConfirmPromptEditorState {
   text: string;
@@ -44,8 +45,8 @@ export function initConfirmPromptEditor(
       };
     case 'datetime': {
       if (current === null || current === undefined || current === '') return base;
-      const d = new Date(String(current));
-      return { ...base, dateIso: isNaN(d.getTime()) ? null : d.toISOString() };
+      const d = parseCalendarDateValue(current);
+      return { ...base, dateIso: d ? toIsoDateString(d) : null };
     }
     case 'choice': {
       const s = current !== null && current !== undefined ? String(current) : '';

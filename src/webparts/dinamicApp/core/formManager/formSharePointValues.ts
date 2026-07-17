@@ -1,4 +1,5 @@
 import type { IFieldMetadata } from '../../../../services';
+import { parseCalendarDateValue, toIsoDateString } from '../dynamicTokens';
 
 function lookupId(v: unknown): number | undefined {
   if (typeof v === 'number' && isFinite(v)) return v;
@@ -109,9 +110,19 @@ export function formValuesToSharePointPayload(
       case 'boolean':
         out[name] = v === true || v === 1 || v === '1' || v === 'true';
         break;
-      case 'datetime':
-        out[name] = v instanceof Date ? v.toISOString() : v === null ? null : String(v);
+      case 'datetime': {
+        if (v === null) {
+          out[name] = null;
+          break;
+        }
+        if (v instanceof Date) {
+          out[name] = toIsoDateString(v);
+          break;
+        }
+        const cal = parseCalendarDateValue(v);
+        out[name] = cal ? toIsoDateString(cal) : String(v);
         break;
+      }
       case 'choice':
         out[name] = v === null ? null : String(v);
         break;

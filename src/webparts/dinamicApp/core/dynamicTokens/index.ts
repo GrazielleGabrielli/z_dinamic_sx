@@ -20,6 +20,7 @@ export {
   getEndOfYear,
   toIsoDateString,
   toIsoDateTimeString,
+  parseCalendarDateValue,
 } from './utils/dateTokenUtils';
 export { resolveQueryToken } from './utils/queryTokenUtils';
 export {

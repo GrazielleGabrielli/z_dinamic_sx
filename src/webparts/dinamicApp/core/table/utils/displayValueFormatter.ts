@@ -1,5 +1,6 @@
 import type { ITableColumnConfig, ITableColumnFormattingConfig } from '../types';
 import { DEFAULT_BOOLEAN_TRUE, DEFAULT_BOOLEAN_FALSE } from '../constants/tableDefaults';
+import { parseCalendarDateValue } from '../../dynamicTokens';
 
 function formatNumber(value: number, formatting?: ITableColumnFormattingConfig): string {
   const decimals = formatting?.numberDecimals;
@@ -26,9 +27,8 @@ function formatCurrency(value: number, formatting?: ITableColumnFormattingConfig
 
 function formatDate(value: unknown, formatting?: ITableColumnFormattingConfig): string {
   if (value == null) return '';
-  const str = String(value);
-  const date = new Date(str);
-  if (isNaN(date.getTime())) return str;
+  const date = parseCalendarDateValue(value);
+  if (!date) return String(value);
   const format = formatting?.dateFormat;
   if (format) {
     const d = date.getDate();

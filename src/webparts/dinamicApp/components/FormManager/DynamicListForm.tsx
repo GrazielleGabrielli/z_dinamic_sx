@@ -42,7 +42,8 @@ import type {
 } from '../../core/config/types/formManager';
 import { IMaskInput } from 'react-imask';
 import { resolveTextInputMaskOptions } from '../../core/formManager/formTextInputMasks';
-import { FLUENT_DATE_PICKER_PT_BR } from '../../core/formManager/fluentDatePickerPtBr';
+import { FLUENT_DATE_PICKER_PT_BR, formatDatePtBr } from '../../core/formManager/fluentDatePickerPtBr';
+import { parseCalendarDateValue, toIsoDateString } from '../../core/dynamicTokens';
 import { applyTextTransformsToRecordValues } from '../../core/formManager/formTextValueTransform';
 import {
   buildLookupDropdownSelectRaw,
@@ -918,8 +919,8 @@ function ConfirmPromptFieldEditor(props: {
           <DatePicker
             {...FLUENT_DATE_PICKER_PT_BR}
             disabled={dis}
-            value={editor.dateIso ? new Date(editor.dateIso) : undefined}
-            onSelectDate={(d) => onChange({ ...editor, dateIso: d ? d.toISOString() : null })}
+            value={editor.dateIso ? parseCalendarDateValue(editor.dateIso) : undefined}
+            onSelectDate={(d) => onChange({ ...editor, dateIso: d ? toIsoDateString(d) : null })}
             textField={{
               disabled: dis,
               styles: {
@@ -1977,7 +1978,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
         });
         return;
       }
-      const iso = d.toISOString();
+      const iso = toIsoDateString(d);
       const nextValues = { ...values, [name]: iso };
       const msg = evaluateValidateDateRulesForField(formManager.rules ?? [], name, nextValues, {
         formMode,
@@ -4119,9 +4120,8 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
       const compShown =
         mComp?.MappedType === 'datetime'
           ? ((): string => {
-              const s = String(comp);
-              const ms = Date.parse(s);
-              return !isNaN(ms) ? new Date(ms).toLocaleDateString('pt-BR') : s;
+              const d = parseCalendarDateValue(comp);
+              return d ? formatDatePtBr(d) : String(comp);
             })()
           : String(comp);
       return (
@@ -4286,7 +4286,7 @@ export const DynamicListForm: React.FC<IDynamicListFormProps> = ({
               minDate={validateDateCalendarPropsByField[name]?.minDate}
               maxDate={validateDateCalendarPropsByField[name]?.maxDate}
               calendarProps={validateDateCalendarPropsByField[name]}
-              value={mergedFieldValue ? new Date(String(mergedFieldValue)) : undefined}
+              value={mergedFieldValue ? parseCalendarDateValue(mergedFieldValue) : undefined}
               onSelectDate={(d) => applyDateFieldSelect(name, d ?? null)}
               disabled={readOnly}
               textField={{

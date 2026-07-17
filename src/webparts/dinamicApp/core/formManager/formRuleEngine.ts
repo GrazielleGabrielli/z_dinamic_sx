@@ -1,6 +1,6 @@
 import type { IDynamicContext } from '../dynamicTokens/types';
 import { DynamicTokenResolver } from '../dynamicTokens/services/DynamicTokenResolver';
-import { isDynamicToken, resolveStringToken, toIsoDateString } from '../dynamicTokens';
+import { isDynamicToken, resolveStringToken, toIsoDateString, parseCalendarDateValue } from '../dynamicTokens';
 import type {
   IAttachmentLibraryFolderTreeNode,
   IFormManagerConfig,
@@ -797,25 +797,12 @@ function ruleAppliesSubmit(rule: TFormRule, submitKind: TFormSubmitKind | undefi
 }
 
 function parseIsoDate(s: string): Date | undefined {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? undefined : d;
+  return parseCalendarDateValue(s);
 }
 
 /** dd/mm/aaaa ou dd-mm-aaaa (formato do formulário); depois ISO / Date nativo. */
 function parseFormCalendarDateString(s: string): Date | undefined {
-  const t = String(s).trim();
-  if (!t) return undefined;
-  const br = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(t);
-  if (br) {
-    const day = parseInt(br[1], 10);
-    const month = parseInt(br[2], 10) - 1;
-    const year = parseInt(br[3], 10);
-    const dt = new Date(year, month, day);
-    if (dt.getFullYear() !== year || dt.getMonth() !== month || dt.getDate() !== day) return undefined;
-    return dt;
-  }
-  const d = new Date(t);
-  return isNaN(d.getTime()) ? undefined : d;
+  return parseCalendarDateValue(s);
 }
 
 export function startOfDay(d: Date): Date {
@@ -898,8 +885,6 @@ function resolveDatetimeComputedDisplayValue(
     if (plusDays) return plusDays;
     const d0 = parseFormCalendarDateString(t) ?? parseIsoDate(t);
     if (d0) return toIsoDateString(startOfDay(d0));
-    const ms = Date.parse(t);
-    if (!isNaN(ms)) return toIsoDateString(startOfDay(new Date(ms)));
   }
   return undefined;
 }
@@ -1178,7 +1163,7 @@ function validateDateRule(
 ): string | undefined {
   const raw = values[field];
   if (isEmptyish(raw)) return undefined;
-  const iso = typeof raw === 'string' ? raw : (raw instanceof Date ? raw.toISOString() : String(raw));
+  const iso = typeof raw === 'string' ? raw : (raw instanceof Date ? toIsoDateString(raw) : String(raw));
   const d = parseFormCalendarDateString(iso) ?? parseIsoDate(iso);
   if (!d) return rule.message ?? 'Data inválida.';
   const day = startOfDay(d);
@@ -1193,7 +1178,7 @@ function validateDateRule(
     }
   }
   if (rule.blockedIsoDates?.length) {
-    const key = day.toISOString().slice(0, 10);
+    const key = toIsoDateString(day);
     for (let i = 0; i < rule.blockedIsoDates.length; i++) {
       const b = rule.blockedIsoDates[i].slice(0, 10);
       if (b === key) return rule.message ?? 'Data indisponível.';
