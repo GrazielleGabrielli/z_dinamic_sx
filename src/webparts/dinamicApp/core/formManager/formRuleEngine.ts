@@ -127,7 +127,13 @@ export function resolveDateFieldDefaultValue(
   }
 
   const m = normStr.match(DATE_DEFAULT_COMPOUND_RE);
-  if (!m) return { kind: 'generic' };
+  if (!m) {
+    if (values) {
+      const twin = tryResolvePlaceholderDatePlusDaysFields(normStr, values);
+      if (twin !== undefined) return { kind: 'resolved', value: twin };
+    }
+    return { kind: 'generic' };
+  }
 
   const baseTok = m[1];
   const sign = m[2] === '-' ? -1 : 1;
@@ -838,7 +844,8 @@ function tryResolvePlaceholderDatePlusDaysFields(
   expression: string,
   values: Record<string, unknown>
 ): string | undefined {
-  const m = /^\{\{([^}]+)\}\}\s*([+-])\s*\{\{([^}]+)\}\}$/.exec(expression.trim());
+  const m =
+    /^\{\{([^}]+)\}\}\s*([+-])\s*\{\{([^}]+)\}\}(?:\s*([+-])\s*(\d+))?$/i.exec(expression.trim());
   if (!m) return undefined;
   const baseField = String(m[1]).trim();
   const sign = m[2] === '-' ? -1 : 1;
@@ -851,8 +858,13 @@ function tryResolvePlaceholderDatePlusDaysFields(
   if (!d) return undefined;
   const n = coerceNumber(rawDays);
   if (!isFinite(n)) return undefined;
+  let dayOffset = sign * Math.trunc(n);
+  if (m[4] !== undefined && m[5] !== undefined) {
+    const offsetSign = m[4] === '-' ? -1 : 1;
+    dayOffset += offsetSign * parseInt(m[5], 10);
+  }
   const s = startOfDay(d);
-  s.setDate(s.getDate() + sign * Math.trunc(n));
+  s.setDate(s.getDate() + dayOffset);
   return toIsoDateString(s);
 }
 
