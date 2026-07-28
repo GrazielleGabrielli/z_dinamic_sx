@@ -859,25 +859,29 @@ export interface IFormCustomButtonConfig {
   enabled?: boolean;
   /** Visibilidade condicional (omitido = sem filtro por dados). */
   when?: TFormConditionNode;
-  /** Títulos de grupos SharePoint; vazio/omitido = qualquer usuário. */
+  /**
+   * Títulos de grupos SharePoint; vazio/omitido = sem restrição por grupo.
+   * Com `lookupUserFieldPaths`, modo OU: basta grupo ou campo de utilizador.
+   */
   groupTitles?: string[];
   /** Botão oculto para utilizadores nestes grupos (opcional). */
   excludeGroupTitles?: string[];
   /**
    * Caminhos `Lookup/CampoUser` ou campo user/usermulti na lista principal.
-   * Botão visível se o utilizador atual constar em algum destes campos. Vazio = todos.
+   * Visível se o utilizador atual constar em algum. Vazio = sem restrição por campo.
+   * Com `groupTitles`, modo OU: basta grupo ou campo de utilizador.
    */
   lookupUserFieldPaths?: string[];
   /** Botão oculto se o utilizador atual constar em algum destes campos user (opcional). */
   excludeLookupUserFieldPaths?: string[];
   /**
    * Se true, o botão só aparece quando todos os campos obrigatórios visíveis estão preenchidos
-   * (regras + obrigatório na lista; anexos se obrigatórios). Cumulativo com grupos e condição «when».
+   * (regras + obrigatório na lista; anexos se obrigatórios). Cumulativo com audiência e condição «when».
    */
   showOnlyWhenAllRequiredFilled?: boolean;
   /**
    * Se true, o botão só aparece em item já gravado quando o utilizador atual é o autor (criador) do item.
-   * Cumulativo com grupos SharePoint, exclusões e condição «when». Em modo novo não aparece.
+   * Cumulativo com audiência (grupos OU campos user), exclusões e condição «when». Em modo novo não aparece.
    */
   showOnlyForItemAuthor?: boolean;
   /** Loading ao gravar; omitido usa `defaultSubmitLoadingKind` do gestor. */

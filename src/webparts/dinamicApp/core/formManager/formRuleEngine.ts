@@ -28,7 +28,11 @@ import { fieldVisibleInFormMode } from './stepFormMode';
 import { buildAttachmentFolderAbsoluteUrl } from './formAttachmentLibrary';
 import { applyFormFieldTextTransform } from './formTextValueTransform';
 import { ensureAbsoluteSharePointUrl } from './formUrlUtils';
-import { currentUserMatchesLookupUserFieldPath, ruleAppliesLookupUserFieldFilters } from './formButtonLookupUserVisibility';
+import {
+  currentUserMatchesLookupUserFieldPath,
+  ruleAppliesLookupUserFieldFilters,
+  userInAnyLookupUserField,
+} from './formButtonLookupUserVisibility';
 
 const FULL_SUBMIT_TAG = 'fullSubmitOnly';
 
@@ -768,11 +772,37 @@ export function shouldShowCustomButton(
     if (ctx.formMode === 'edit' && !se) return false;
   }
   if (op === 'update' && ctx.formMode === 'create') return false;
-  if (!ruleAppliesUserGroupFilters(ctx.userGroupTitles, b)) return false;
-  if (
-    !ruleAppliesLookupUserFieldFilters(ctx.currentUserId, ctx.values, b, ctx.lookupOptionSnapshots)
-  )
-    return false;
+  {
+    const hasGroups = (b.groupTitles?.length ?? 0) > 0;
+    const hasUserFields = (b.lookupUserFieldPaths?.length ?? 0) > 0;
+    if (hasGroups || hasUserFields) {
+      let audienceOk = false;
+      if (hasGroups && userInAnyGroup(ctx.userGroupTitles, b.groupTitles)) audienceOk = true;
+      if (
+        !audienceOk &&
+        hasUserFields &&
+        userInAnyLookupUserField(
+          ctx.currentUserId,
+          ctx.values,
+          b.lookupUserFieldPaths,
+          ctx.lookupOptionSnapshots
+        )
+      ) {
+        audienceOk = true;
+      }
+      if (!audienceOk) return false;
+    }
+    const exG = b.excludeGroupTitles;
+    if (exG && exG.length && userInAnyGroup(ctx.userGroupTitles, exG)) return false;
+    const exU = b.excludeLookupUserFieldPaths;
+    if (
+      exU &&
+      exU.length &&
+      userInAnyLookupUserField(ctx.currentUserId, ctx.values, exU, ctx.lookupOptionSnapshots)
+    ) {
+      return false;
+    }
+  }
   if (b.showOnlyForItemAuthor === true) {
     if (ctx.formMode === 'create') return false;
     const aid = resolveRuntimeItemAuthorId(ctx);

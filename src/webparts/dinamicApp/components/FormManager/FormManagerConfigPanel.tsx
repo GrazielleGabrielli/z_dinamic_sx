@@ -4418,7 +4418,9 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                   <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
                     Grupos do SharePoint
                   </Text>
-         
+                  <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
+                    Com campos de utilizador abaixo: modo OU (basta grupo ou campo).
+                  </Text>
                   <TextField
                     placeholder="Filtrar grupos por nome"
                     value={customButtonGroupNameFilter}
@@ -4510,7 +4512,8 @@ export const FormManagerConfigPanel: React.FC<IFormManagerConfigPanelProps> = ({
                     Campos de utilizador
                   </Text>
                   <Text variant="small" styles={{ root: { color: '#605e5c' } }}>
-                    Utilizador atual no campo (lista principal ou via lookup). Vazio = todos.
+                    Utilizador atual no campo (lista principal ou via lookup). Vazio = sem filtro por
+                    campo. Com grupos acima: modo OU.
                   </Text>
                   <TextField
                     placeholder="Filtrar campos por nome"
